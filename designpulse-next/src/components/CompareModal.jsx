@@ -1,7 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { ExpandedCard } from './OpportunityGrid';
+import { ExpandedCard } from './opportunities/ExpandedCard';
 import { useUpdateOpportunity } from '@/hooks/useProjectQueries';
 
 export default function CompareModal({ isOpen, onClose, projectId, opportunities }) {

@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
+import { useProjectSettings } from '@/hooks/useProjectQueries';
 
-export default function BudgetSummary({ opportunities = [] }) {
-  // Static Original Budget for now (could be pulled from project settings later)
-  const ORIGINAL_BUDGET = 5000000;
+export default function BudgetSummary({ projectId, opportunities = [] }) {
+  const { data: settings } = useProjectSettings(projectId);
+  const ORIGINAL_BUDGET = settings?.original_budget ? Number(settings.original_budget) : 5000000;
 
   const oppIds = useMemo(() => opportunities.map(o => o.id), [opportunities]);
 

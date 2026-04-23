@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { ExpandedCard } from '@/components/OpportunityGrid';
+import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
 import { useOpportunity, useUpdateOpportunity } from '@/hooks/useProjectQueries';
 import { ThemeToggle } from '@/components/ThemeToggle';
 

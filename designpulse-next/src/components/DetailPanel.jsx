@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { ExternalLink, Maximize, Minimize, X } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { ExpandedCard } from './OpportunityGrid';
+import { ExpandedCard } from './opportunities/ExpandedCard';
 import { useUpdateOpportunity } from '@/hooks/useProjectQueries';
 
 export default function DetailPanel({ projectId, opportunities, viewMode }) {

@@ -1,0 +1,96 @@
+"use client";
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams } from 'next/navigation';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { Plus } from 'lucide-react';
+import { useOpportunityOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useUpdateOpportunity } from '@/hooks/useProjectQueries';
+import { SortableContenderCard } from './SortableContenderCard';
+
+export const ContendersMatrix = ({ opportunityId }) => {
+  const params = useParams();
+  const projectId = params?.projectId;
+
+  const { data: options = [] } = useOpportunityOptions(opportunityId);
+  const createOption = useCreateOption(opportunityId);
+  const updateOption = useUpdateOption(opportunityId);
+  const lockOption = useLockOption(opportunityId);
+  const deleteOption = useDeleteOption(opportunityId);
+  
+  // Clean up prop drilling: Get the parent update mutation directly here
+  const updateParentOpportunity = useUpdateOpportunity(projectId);
+
+  const [orderedOptions, setOrderedOptions] = useState([]);
+
+  useEffect(() => {
+    // Sync local state when external data changes, preserving their sort if they have an order_index
+    setOrderedOptions([...options].sort((a, b) => (a.order_index || 0) - (b.order_index || 0)));
+  }, [options]);
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = orderedOptions.findIndex(o => o.id === active.id);
+      const newIndex = orderedOptions.findIndex(o => o.id === over.id);
+      const newOrder = arrayMove(orderedOptions, oldIndex, newIndex);
+      setOrderedOptions(newOrder);
+      
+      newOrder.forEach((opt, idx) => {
+        if (opt.order_index !== idx) {
+           updateOption.mutate({ id: opt.id, updates: { order_index: idx } });
+        }
+      });
+    }
+  };
+
+  const sensors = useSensors(useSensor(PointerSensor));
+  const scrollRef = useRef(null);
+  const initialScrollDone = useRef(false);
+
+  useEffect(() => {
+    // When options are finally loaded into the DOM, force scroll to the far left.
+    if (options.length > 0 && !initialScrollDone.current) {
+      setTimeout(() => {
+        if (scrollRef.current) scrollRef.current.scrollLeft = 0;
+      }, 50);
+      initialScrollDone.current = true;
+    }
+  }, [options.length]);
+
+  return (
+    <div className="mb-6">
+      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 px-2 flex items-center gap-3">
+        Contenders Matrix
+        <span className="text-xs font-normal text-slate-500 bg-slate-200 dark:bg-slate-800 px-2 py-1 rounded-full">
+          {options.length} Options
+        </span>
+      </h3>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={orderedOptions.map(o => o.id)} strategy={horizontalListSortingStrategy}>
+          <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-6 pt-3 px-2">
+            {orderedOptions.map(opt => (
+              <SortableContenderCard 
+                key={opt.id} 
+                opt={opt} 
+                updateOption={updateOption} 
+                deleteOption={deleteOption} 
+                lockOption={lockOption} 
+                opportunityId={opportunityId}
+                updateParentOpportunity={updateParentOpportunity}
+              />
+            ))}
+
+            {/* Add Option Card */}
+            <div 
+              onClick={() => createOption.mutate({})}
+              className="shrink-0 w-80 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors text-slate-500 hover:text-sky-600 dark:hover:text-sky-400"
+            >
+              <Plus size={32} className="mb-2 opacity-50" />
+              <span className="font-semibold">+ Add Option</span>
+            </div>
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+};

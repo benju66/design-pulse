@@ -1,5 +1,50 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
+import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS } from '@/lib/constants';
+
+export function useProjectSettings(projectId) {
+  return useQuery({
+    queryKey: ['project_settings', projectId],
+    queryFn: async () => {
+      if (!projectId) return null;
+      const { data, error } = await supabase
+        .from('project_settings')
+        .select('*')
+        .eq('project_id', projectId)
+        .single();
+        
+      if (error && error.code !== 'PGRST116') { // PGRST116 is not found, which is fine for new projects
+        console.warn("Supabase Error:", error);
+      }
+      return data || { 
+        categories: DEFAULT_CATEGORIES, 
+        sidebar_items: DEFAULT_SIDEBAR_ITEMS,
+        project_name: projectId,
+        location: 'Not Set',
+        original_budget: 5000000
+      };
+    },
+    enabled: !!projectId
+  });
+}
+
+export function useUpdateProjectSettings(projectId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates) => {
+      const { data, error } = await supabase
+        .from('project_settings')
+        .upsert({ project_id: projectId, ...updates })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['project_settings', projectId]);
+    }
+  });
+}
 
 export function useOpportunities(projectId) {
   return useQuery({

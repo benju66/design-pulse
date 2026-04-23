@@ -250,7 +250,16 @@ async def export_status_pdf(
                 annot.set_colors(stroke=color_rgb, fill=fill_rgb)
                 annot.set_opacity(shape_opacity)
                 annot.set_blendmode(fitz.PDF_BM_Multiply)
-                annot.set_border(width=1.5)
+                
+                # Make it look like a revision cloud
+                try:
+                    annot.set_border({"width": 1.5, "effect": fitz.PDF_ANNOT_LE_CLOUDY, "effect_intensity": 2.0})
+                except Exception:
+                    # Fallback for different PyMuPDF version signatures
+                    try:
+                        annot.set_border(width=1.5, dashes=None, effect=fitz.PDF_ANNOT_LE_CLOUDY, effect_intensity=2.0)
+                    except Exception:
+                        annot.set_border(width=1.5)
                 
                 info = annot.info
                 info["title"] = "Design Pulse VE"

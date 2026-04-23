@@ -27,39 +27,7 @@ export default function QueryProvider({ children }) {
   );
 
   useEffect(() => {
-    // Listen to global status updates and surgically inject them into the caches
-    const channel = supabase.channel('sitepulse-global-sync')
-      .on(
-        'postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'status_logs' }, 
-        (payload) => {
-          const newLog = payload.new;
-
-          // 1. Inject into the specific sheet's cache
-          // (Note: This relies on the active sheets being cached. We update all instances.)
-          const queries = queryClient.getQueriesData({ queryKey: ['statuses'] });
-          queries.forEach(([queryKey, oldData]) => {
-            if (!oldData) return;
-            queryClient.setQueryData(queryKey, (old) => {
-              if (!old) return old;
-              const filtered = old.filter(s => !(s.unit_id === newLog.unit_id && s.track === newLog.track && s.milestone === newLog.milestone));
-              return [...filtered, newLog];
-            });
-          });
-
-          // 2. Inject into the global dashboard cache
-          queryClient.setQueriesData({ queryKey: ['all_project_statuses'] }, (old) => {
-            if (!old) return old;
-            const filtered = old.filter(s => !(s.unit_id === newLog.unit_id && s.track === newLog.track && s.milestone === newLog.milestone));
-            return [...filtered, newLog];
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // TODO: Rewrite listener to listen to the new opportunities table
   }, [queryClient]);
 
   return (

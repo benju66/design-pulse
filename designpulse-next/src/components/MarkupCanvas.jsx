@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useMemo, forwardRef } from 'react';
 import { Stage, Layer, Image as KonvaImage, Line } from 'react-konva';
 import useImage from 'use-image';
 import { Check, ZoomIn, ZoomOut, Maximize, MousePointer2, PenTool } from 'lucide-react';
+import { useUIStore } from '@/stores/useUIStore';
 
 const MarkupCanvas = forwardRef(({
   imageUrl = "/placeholder-floorplan.jpg", // placeholder if none
@@ -14,6 +15,7 @@ const MarkupCanvas = forwardRef(({
   const containerRef = useRef(null);
 
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const { selectedOpportunityId, setSelectedOpportunityId } = useUIStore();
   const [stageScale, setStageScale] = useState(1);
   const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
   
@@ -127,6 +129,8 @@ const MarkupCanvas = forwardRef(({
 
     if (toolMode === 'draw') {
       setDraftPoints([...draftPoints, { pctX, pctY }]);
+    } else if (toolMode === 'pan') {
+      setSelectedOpportunityId(null);
     }
   };
 
@@ -216,17 +220,38 @@ const MarkupCanvas = forwardRef(({
               )}
 
               {/* Render Saved Markups */}
-              {markups.map((markup, idx) => (
-                <Line
-                  key={idx}
-                  points={toPixels(markup.points)}
-                  closed
-                  fill={`${markup.color}66`}
-                  stroke={markup.color}
-                  strokeWidth={2 / stageScale}
-                  tension={0}
-                />
-              ))}
+              {markups.map((markup, idx) => {
+                const isSelected = selectedOpportunityId === markup.opportunity_id;
+                return (
+                  <Line
+                    key={idx}
+                    points={toPixels(markup.points)}
+                    closed
+                    fill={`${markup.color}66`}
+                    stroke={isSelected ? '#38bdf8' : markup.color}
+                    strokeWidth={isSelected ? 4 / stageScale : 2 / stageScale}
+                    shadowColor={isSelected ? '#38bdf8' : null}
+                    shadowBlur={isSelected ? 10 / stageScale : 0}
+                    tension={0}
+                    onClick={(e) => {
+                      if (toolMode === 'pan') {
+                        e.cancelBubble = true;
+                        if (markup.opportunity_id) {
+                          setSelectedOpportunityId(markup.opportunity_id);
+                        }
+                      }
+                    }}
+                    onTap={(e) => {
+                      if (toolMode === 'pan') {
+                        e.cancelBubble = true;
+                        if (markup.opportunity_id) {
+                          setSelectedOpportunityId(markup.opportunity_id);
+                        }
+                      }
+                    }}
+                  />
+                );
+              })}
 
               {/* Render Draft Polygon */}
               {draftPoints.length > 0 && (

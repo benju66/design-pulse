@@ -123,7 +123,22 @@ export const ExpandedCard = ({ row }) => {
           })}
         </div>
         {activeTab === 'Details' && (
-          <div className="relative flex items-center gap-4">
+          <div className="relative flex items-center gap-3">
+            <select
+              value={row.original.status || 'Draft'}
+              onChange={(e) => {
+                updateData.mutate({ id: row.original.id, updates: { status: e.target.value } });
+              }}
+              className="bg-transparent border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-md px-2 py-1 text-sm font-medium focus:ring-2 focus:ring-sky-500 outline-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              <option value="Draft">Draft</option>
+              <option value="Pending Review">Pending Review</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+            
+            <div className="w-px h-5 bg-slate-300 dark:bg-slate-700" />
+
             <select
               value={row.original.scope || ''}
               onChange={(e) => {

@@ -49,16 +49,28 @@ export default function BudgetSummary({ projectId, opportunities = [] }) {
         if (!hasOptions) {
           pending += oppImpact;
         } else {
-          const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
-          pending += maxImpact;
+          const includedOptions = oppOptions.filter(o => o.include_in_budget);
+          if (includedOptions.length > 0) {
+            const includedImpact = includedOptions.reduce((sum, o) => sum + (Number(o.cost_impact) || 0), 0);
+            pending += includedImpact;
+          } else {
+            const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
+            pending += maxImpact;
+          }
         }
       } else {
         // Draft / Exposure Items
         if (!hasOptions) {
           exposure += oppImpact;
         } else {
-          const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
-          exposure += maxImpact;
+          const includedOptions = oppOptions.filter(o => o.include_in_budget);
+          if (includedOptions.length > 0) {
+            const includedImpact = includedOptions.reduce((sum, o) => sum + (Number(o.cost_impact) || 0), 0);
+            exposure += includedImpact;
+          } else {
+            const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
+            exposure += maxImpact;
+          }
         }
       }
     });

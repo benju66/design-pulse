@@ -1,3 +1,0 @@
-ALTER TABLE public.opportunities
-ADD COLUMN IF NOT EXISTS assignee TEXT,
-ADD COLUMN IF NOT EXISTS due_date TEXT;

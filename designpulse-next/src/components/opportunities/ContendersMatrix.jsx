@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
-import { useOpportunityOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useUpdateOpportunity } from '@/hooks/useProjectQueries';
+import { useOpportunityOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useToggleOptionBudget } from '@/hooks/useProjectQueries';
 import { SortableContenderCard } from './SortableContenderCard';
 
 export const ContendersMatrix = ({ opportunityId }) => {
@@ -14,11 +14,9 @@ export const ContendersMatrix = ({ opportunityId }) => {
   const { data: options = [] } = useOpportunityOptions(opportunityId);
   const createOption = useCreateOption(opportunityId);
   const updateOption = useUpdateOption(opportunityId);
-  const lockOption = useLockOption(opportunityId);
+  const lockOption = useLockOption(opportunityId, projectId);
+  const toggleOptionBudget = useToggleOptionBudget(opportunityId, projectId);
   const deleteOption = useDeleteOption(opportunityId);
-  
-  // Clean up prop drilling: Get the parent update mutation directly here
-  const updateParentOpportunity = useUpdateOpportunity(projectId);
 
   const [orderedOptions, setOrderedOptions] = useState([]);
 
@@ -75,8 +73,8 @@ export const ContendersMatrix = ({ opportunityId }) => {
                 updateOption={updateOption} 
                 deleteOption={deleteOption} 
                 lockOption={lockOption} 
+                toggleOptionBudget={toggleOptionBudget}
                 opportunityId={opportunityId}
-                updateParentOpportunity={updateParentOpportunity}
               />
             ))}
 

@@ -221,8 +221,10 @@ export function useCreateOption(opportunityId) {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunity_options', opportunityId] });
+      queryClient.invalidateQueries({ queryKey: ['all_options'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
     }
   });
 }
@@ -240,8 +242,33 @@ export function useUpdateOption(opportunityId) {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['opportunity_options', opportunityId] });
+      await queryClient.cancelQueries({ queryKey: ['all_options'] });
+      
+      const previousOptions = queryClient.getQueryData(['opportunity_options', opportunityId]);
+      
+      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
+        if (!old) return old;
+        return old.map(opt => opt.id === id ? { ...opt, ...updates } : opt);
+      });
+
+      queryClient.setQueriesData({ queryKey: ['all_options'] }, old => {
+        if (!old) return old;
+        return old.map(opt => opt.id === id ? { ...opt, ...updates } : opt);
+      });
+
+      return { previousOptions };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['opportunity_options', opportunityId], context.previousOptions);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunity_options', opportunityId] });
+      queryClient.invalidateQueries({ queryKey: ['all_options'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
     }
   });
 }
@@ -257,51 +284,166 @@ export function useDeleteOption(opportunityId) {
       if (error) throw error;
       return id;
     },
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['opportunity_options', opportunityId] });
+      await queryClient.cancelQueries({ queryKey: ['all_options'] });
+      
+      const previousOptions = queryClient.getQueryData(['opportunity_options', opportunityId]);
+      
+      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
+        if (!old) return old;
+        return old.filter(opt => opt.id !== id);
+      });
+
+      queryClient.setQueriesData({ queryKey: ['all_options'] }, old => {
+        if (!old) return old;
+        return old.filter(opt => opt.id !== id);
+      });
+
+      return { previousOptions };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['opportunity_options', opportunityId], context.previousOptions);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunity_options', opportunityId] });
+      queryClient.invalidateQueries({ queryKey: ['all_options'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
     }
   });
 }
 
-export function useLockOption(opportunityId) {
+export function useLockOption(opportunityId, projectId) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (optionId) => {
-      // 1. Set all options for this opportunity to unlocked
-      await supabase
-        .from('opportunity_options')
-        .update({ is_locked: false })
-        .eq('opportunity_id', opportunityId);
-      
-      // 2. Lock the chosen option
-      const { data: lockedOption, error: lockError } = await supabase
-        .from('opportunity_options')
-        .update({ is_locked: true })
-        .eq('id', optionId)
-        .select()
-        .single();
-        
-      if (lockError) throw lockError;
-
-      // 3. Update the parent opportunity row
-      const { error: oppError } = await supabase
-        .from('opportunities')
-        .update({
-          cost_impact: lockedOption.cost_impact,
-          days_impact: lockedOption.days_impact,
-          final_direction: `Locked: ${lockedOption.title}`,
-          status: 'Pending Plan Update'
-        })
-        .eq('id', opportunityId);
-        
-      if (oppError) throw oppError;
-
-      return lockedOption;
+      const { data, error } = await supabase.rpc('lock_opportunity_option', {
+        p_option_id: optionId,
+        p_opp_id: opportunityId
+      });
+      if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
-      // Invalidate both options and parent opportunities queries
+    onMutate: async (optionId) => {
+      await queryClient.cancelQueries({ queryKey: ['opportunity_options', opportunityId] });
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['all_options'] });
+
+      const previousOptions = queryClient.getQueryData(['opportunity_options', opportunityId]);
+      const previousOpportunities = queryClient.getQueryData(['opportunities', projectId]);
+
+      // Optimistically update options
+      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
+        if (!old) return old;
+        return old.map(opt => ({ ...opt, is_locked: opt.id === optionId }));
+      });
+
+      queryClient.setQueriesData({ queryKey: ['all_options'] }, old => {
+        if (!old) return old;
+        return old.map(opt => 
+          opt.opportunity_id === opportunityId 
+            ? { ...opt, is_locked: opt.id === optionId }
+            : opt
+        );
+      });
+
+      // Optimistically update parent opportunity
+      queryClient.setQueryData(['opportunities', projectId], old => {
+        if (!old) return old;
+        const targetOpt = previousOptions?.find(opt => opt.id === optionId);
+        if (!targetOpt) return old;
+        return old.map(opp => 
+          opp.id === opportunityId 
+            ? { 
+                ...opp, 
+                cost_impact: targetOpt.cost_impact || 0,
+                days_impact: targetOpt.days_impact || 0,
+                final_direction: `Locked: ${targetOpt.title}`,
+                status: 'Pending Plan Update'
+              } 
+            : opp
+        );
+      });
+
+      return { previousOptions, previousOpportunities };
+    },
+    onError: (err, optionId, context) => {
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['opportunity_options', opportunityId], context.previousOptions);
+      }
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunity_options', opportunityId] });
-      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_options'] });
+    }
+  });
+}
+
+export function useToggleOptionBudget(opportunityId, projectId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ optionId, isIncluded }) => {
+      const { data, error } = await supabase.rpc('toggle_option_budget', {
+        p_option_id: optionId,
+        p_opp_id: opportunityId,
+        p_is_included: isIncluded
+      });
+      if (error) throw error;
+      return data;
+    },
+    onMutate: async ({ optionId, isIncluded }) => {
+      await queryClient.cancelQueries({ queryKey: ['opportunity_options', opportunityId] });
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['all_options'] });
+
+      const previousOptions = queryClient.getQueryData(['opportunity_options', opportunityId]);
+      const previousOpportunities = queryClient.getQueryData(['opportunities', projectId]);
+
+      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
+        if (!old) return old;
+        return old.map(opt => opt.id === optionId ? { ...opt, include_in_budget: isIncluded } : opt);
+      });
+
+      queryClient.setQueriesData({ queryKey: ['all_options'] }, old => {
+        if (!old) return old;
+        return old.map(opt => opt.id === optionId ? { ...opt, include_in_budget: isIncluded } : opt);
+      });
+
+      queryClient.setQueryData(['opportunities', projectId], old => {
+        if (!old) return old;
+        const targetOpt = previousOptions?.find(opt => opt.id === optionId);
+        if (!targetOpt) return old;
+        return old.map(opp => 
+          opp.id === opportunityId 
+            ? { 
+                ...opp, 
+                cost_impact: isIncluded ? (targetOpt.cost_impact || 0) : 0,
+                days_impact: isIncluded ? (targetOpt.days_impact || 0) : 0
+              } 
+            : opp
+        );
+      });
+
+      return { previousOptions, previousOpportunities };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['opportunity_options', opportunityId], context.previousOptions);
+      }
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunity_options', opportunityId] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_options'] });
     }
   });
 }

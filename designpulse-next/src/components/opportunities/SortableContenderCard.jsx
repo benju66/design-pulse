@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation';
 import { useProjectSettings } from '@/hooks/useProjectQueries';
 import { DEFAULT_CATEGORIES } from '@/lib/constants';
 
-export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOption, opportunityId, updateParentOpportunity }) => {
+export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOption, toggleOptionBudget, opportunityId }) => {
   const params = useParams();
   const projectId = params?.projectId;
   const { data: settings } = useProjectSettings(projectId);
@@ -20,7 +20,7 @@ export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOpt
     <div
       ref={setNodeRef}
       style={style}
-      className={`shrink-0 w-80 flex flex-col bg-white dark:bg-slate-900 border rounded-xl p-4 shadow-sm transition-all group relative ${
+      className={`shrink-0 w-80 flex flex-col bg-white dark:bg-slate-900 border-2 rounded-xl p-4 shadow-sm transition-all group relative ${
         opt.is_locked
           ? 'border-emerald-500 ring-2 ring-emerald-500/20 dark:ring-emerald-500/30'
           : 'border-slate-200 dark:border-slate-800 hover:border-sky-300 dark:hover:border-sky-700'
@@ -38,10 +38,11 @@ export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOpt
       <div className="flex justify-between items-start mb-2 pt-2">
         <div className="flex-1 mr-2">
           <input
-            className="font-bold text-lg bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-950 focus:border-sky-500 focus:ring-2 focus:ring-sky-500 rounded px-1.5 py-0.5 -ml-1.5 w-full text-slate-800 dark:text-slate-100 cursor-pointer focus:cursor-text transition-colors truncate mb-1.5"
+            className="font-bold text-lg bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-950 focus:border-sky-500 focus:ring-2 focus:ring-sky-500 rounded px-1.5 py-0.5 -ml-1.5 w-full text-slate-800 dark:text-slate-100 cursor-pointer focus:cursor-text transition-colors truncate mb-1.5 disabled:opacity-80 disabled:cursor-default disabled:hover:border-transparent"
             defaultValue={opt.title}
             placeholder="Option Title"
             title="Click to edit title"
+            disabled={opt.is_locked}
             onBlur={(e) => {
               if (e.target.value !== opt.title) updateOption.mutate({ id: opt.id, updates: { title: e.target.value } });
             }}
@@ -51,8 +52,9 @@ export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOpt
           />
           <input
             list={`category-options-${opt.id}`}
-            className="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full px-2.5 py-1 cursor-text outline-none hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-sky-500 transition-colors border-none w-36"
+            className="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full px-2.5 py-1 cursor-text outline-none hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-sky-500 transition-colors border-none w-36 disabled:opacity-70 disabled:cursor-not-allowed"
             defaultValue={opt.category || 'Other'}
+            disabled={opt.is_locked}
             placeholder="Category..."
             onBlur={(e) => {
               const val = e.target.value.trim() || 'Other';
@@ -93,9 +95,10 @@ export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOpt
       </div>
 
       <textarea
-        className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-2 mb-3 outline-none focus:ring-2 focus:ring-sky-500 resize-none h-16"
+        className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-2 mb-3 outline-none focus:ring-2 focus:ring-sky-500 resize-none h-16 disabled:opacity-70 disabled:cursor-not-allowed"
         placeholder="Description & Pros/Cons..."
         defaultValue={opt.description || ''}
+        disabled={opt.is_locked}
         onBlur={(e) => {
           if (e.target.value !== opt.description) updateOption.mutate({ id: opt.id, updates: { description: e.target.value } });
         }}
@@ -107,8 +110,10 @@ export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOpt
           <div className="flex bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded focus-within:ring-2 focus-within:ring-sky-500">
             <input
               type="number"
-              className="w-16 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5"
-              defaultValue={opt.quantity ?? 1}
+              className="w-16 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
+              defaultValue={opt.quantity || ''}
+              placeholder="1"
+              disabled={opt.is_locked}
               onBlur={(e) => {
                 const qty = Number(e.target.value);
                 if (qty !== Number(opt.quantity)) {
@@ -116,10 +121,14 @@ export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOpt
                   updateOption.mutate({ id: opt.id, updates: { quantity: qty, cost_impact: newCost } });
                 }
               }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.target.blur();
+              }}
             />
             <select
-              className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none"
+              className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.uom || 'ls'}
+              disabled={opt.is_locked}
               onChange={(e) => updateOption.mutate({ id: opt.id, updates: { uom: e.target.value } })}
             >
               <option value="ls">ls</option>
@@ -136,14 +145,19 @@ export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOpt
             <span className="text-slate-400 text-sm pl-1">$</span>
             <input
               type="number"
-              className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 px-1"
-              defaultValue={opt.unit_cost ?? opt.cost_impact ?? 0}
+              className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 px-1 disabled:opacity-70 disabled:cursor-not-allowed"
+              defaultValue={opt.unit_cost || opt.cost_impact || ''}
+              placeholder="0"
+              disabled={opt.is_locked}
               onBlur={(e) => {
                 const uc = Number(e.target.value);
                 if (uc !== Number(opt.unit_cost)) {
                   const newCost = (opt.quantity ?? 1) * uc;
                   updateOption.mutate({ id: opt.id, updates: { unit_cost: uc, cost_impact: newCost } });
                 }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.target.blur();
               }}
             />
           </div>
@@ -166,16 +180,22 @@ export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOpt
           <div className="flex bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded focus-within:ring-2 focus-within:ring-sky-500">
             <input
               type="number"
-              className="w-14 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5"
-              defaultValue={opt.days_impact}
+              className="w-14 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
+              defaultValue={opt.days_impact || ''}
+              placeholder="0"
+              disabled={opt.is_locked}
               onBlur={(e) => {
                 const val = Number(e.target.value);
                 if (val !== Number(opt.days_impact)) updateOption.mutate({ id: opt.id, updates: { days_impact: val } });
               }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.target.blur();
+              }}
             />
             <select
-              className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none"
+              className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.time_impact_uom || 'days'}
+              disabled={opt.is_locked}
               onChange={(e) => updateOption.mutate({ id: opt.id, updates: { time_impact_uom: e.target.value } })}
             >
               <option value="days">days</option>
@@ -186,46 +206,38 @@ export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOpt
         </div>
       </div>
 
-      <div className="mt-auto flex flex-col gap-2">
-        <button
-          onClick={() => {
-            const isIncluded = !opt.include_in_budget;
-            updateOption.mutate({ id: opt.id, updates: { include_in_budget: isIncluded } });
-            
-            if (isIncluded) {
-              updateParentOpportunity.mutate({ 
-                id: opportunityId, 
-                updates: { cost_impact: opt.cost_impact || 0, days_impact: opt.days_impact || 0 } 
-              });
-            } else {
-              updateParentOpportunity.mutate({ 
-                id: opportunityId, 
-                updates: { cost_impact: 0, days_impact: 0 } 
-              });
-            }
-          }}
-          className={`py-2 px-3 rounded-lg text-[13px] font-bold transition-all flex items-center justify-center gap-2 border ${
-            opt.include_in_budget
-              ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-700 shadow-sm'
-              : 'bg-white text-slate-500 border-slate-200 hover:bg-sky-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800'
-          }`}
-        >
-          {opt.include_in_budget ? <Check size={16} /> : <div className="w-3.5 h-3.5 border-2 border-current rounded-sm opacity-50" />}
-          Include in Budget
-        </button>
+      <div className="mt-auto flex flex-col gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/50">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Include in Budget</span>
+          <button
+            onClick={() => {
+              const isIncluded = !opt.include_in_budget;
+              toggleOptionBudget.mutate({ optionId: opt.id, isIncluded });
+            }}
+            role="switch"
+            aria-checked={opt.include_in_budget}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
+              opt.include_in_budget ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-600'
+            }`}
+          >
+            <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${opt.include_in_budget ? 'translate-x-4' : 'translate-x-0'}`} />
+          </button>
+        </div>
 
-        <button
-          onClick={() => lockOption.mutate(opt.id)}
-          disabled={opt.is_locked}
-          className={`py-2 px-3 rounded-lg text-[13px] font-bold transition-all flex items-center justify-center gap-2 ${
-            opt.is_locked
-              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-sm'
-              : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-          }`}
-        >
-          {opt.is_locked ? <Check size={16} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current opacity-50" />}
-          Final Selection
-        </button>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Final Selection</span>
+          <button
+            onClick={() => lockOption.mutate(opt.id)}
+            disabled={opt.is_locked}
+            role="switch"
+            aria-checked={opt.is_locked}
+            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+              opt.is_locked ? 'bg-emerald-500 cursor-default' : 'bg-slate-300 dark:bg-slate-600 cursor-pointer hover:bg-slate-400 dark:hover:bg-slate-500'
+            }`}
+          >
+            <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${opt.is_locked ? 'translate-x-4' : 'translate-x-0'}`} />
+          </button>
+        </div>
       </div>
     </div>
   );

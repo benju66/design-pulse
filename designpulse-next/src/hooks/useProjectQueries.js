@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
-import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS } from '@/lib/constants';
+import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_SCOPES } from '@/lib/constants';
 
 export function useProjectSettings(projectId) {
   return useQuery({
@@ -16,12 +16,24 @@ export function useProjectSettings(projectId) {
       if (error && error.code !== 'PGRST116') { // PGRST116 is not found, which is fine for new projects
         console.warn("Supabase Error:", error);
       }
-      return data || { 
+      const defaultSettings = {
         categories: DEFAULT_CATEGORIES, 
+        scopes: DEFAULT_SCOPES,
         sidebar_items: DEFAULT_SIDEBAR_ITEMS,
         project_name: projectId,
         location: 'Not Set',
         original_budget: 5000000
+      };
+
+      if (!data) return defaultSettings;
+
+      return {
+        categories: data.categories?.length > 0 ? data.categories : defaultSettings.categories,
+        scopes: data.scopes?.length > 0 ? data.scopes : defaultSettings.scopes,
+        sidebar_items: data.sidebar_items?.length > 0 ? data.sidebar_items : defaultSettings.sidebar_items,
+        project_name: data.project_name || defaultSettings.project_name,
+        location: data.location || defaultSettings.location,
+        original_budget: data.original_budget ?? defaultSettings.original_budget
       };
     },
     enabled: !!projectId

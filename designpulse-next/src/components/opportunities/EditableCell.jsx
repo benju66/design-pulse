@@ -1,8 +1,12 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { useOpportunityOptions } from '@/hooks/useProjectQueries';
+import { useOpportunityOptions, useProjectSettings } from '@/hooks/useProjectQueries';
+import { useParams } from 'next/navigation';
 
 export const EditableCell = ({ getValue, row, column, table }) => {
+  const params = useParams();
+  const projectId = params?.projectId;
+  const { data: settings } = useProjectSettings(projectId);
   const initialValue = getValue();
   const [value, setValue] = useState(initialValue);
   const updateMutation = table.options.meta?.updateData;
@@ -37,6 +41,25 @@ export const EditableCell = ({ getValue, row, column, table }) => {
         <option value="Pending Review">Pending Review</option>
         <option value="Approved">Approved</option>
         <option value="Rejected">Rejected</option>
+      </select>
+    );
+  }
+
+  if (column.id === 'scope') {
+    const scopes = settings?.scopes || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
+    return (
+      <select
+        value={value || ''}
+        onChange={(e) => {
+          setValue(e.target.value);
+          updateMutation.mutate({ id: row.original.id, updates: { scope: e.target.value } });
+        }}
+        className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm font-medium cursor-pointer text-slate-900 dark:text-slate-100"
+      >
+        <option value="" disabled>Select Scope...</option>
+        {scopes.map(s => (
+          <option key={s} value={s}>{s}</option>
+        ))}
       </select>
     );
   }

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Eye, EyeOff, Info } from 'lucide-react';
+import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Eye, EyeOff, Info, Map } from 'lucide-react';
 import { useProjectSettings, useUpdateProjectSettings } from '@/hooks/useProjectQueries';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -43,9 +43,10 @@ export const ProjectSettings = ({ projectId }) => {
   const { data: settings, isLoading } = useProjectSettings(projectId);
   const updateSettings = useUpdateProjectSettings(projectId);
   
-  const [activeTab, setActiveTab] = useState('info'); // 'info' | 'categories' | 'sidebar'
+  const [activeTab, setActiveTab] = useState('info'); // 'info' | 'categories' | 'scopes' | 'sidebar'
   
   const [categories, setCategories] = useState([]);
+  const [scopes, setScopes] = useState([]);
   const [sidebarItems, setSidebarItems] = useState([]);
   
   const [projectInfo, setProjectInfo] = useState({
@@ -55,11 +56,13 @@ export const ProjectSettings = ({ projectId }) => {
   });
   
   const [newCat, setNewCat] = useState('');
+  const [newScope, setNewScope] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     if (settings) {
       setCategories(settings.categories || []);
+      setScopes(settings.scopes || []);
       setSidebarItems(settings.sidebar_items || []);
       setProjectInfo({
         project_name: settings.project_name || projectId,
@@ -83,12 +86,30 @@ export const ProjectSettings = ({ projectId }) => {
     }
   };
 
+  const addScope = () => {
+    if (newScope.trim() && !scopes.includes(newScope.trim())) {
+      setScopes([...scopes, newScope.trim()]);
+      setNewScope('');
+      setHasChanges(true);
+    }
+  };
+
   const handleDragEndCategories = (event) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       const oldIndex = categories.indexOf(active.id);
       const newIndex = categories.indexOf(over.id);
       setCategories(arrayMove(categories, oldIndex, newIndex));
+      setHasChanges(true);
+    }
+  };
+
+  const handleDragEndScopes = (event) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = scopes.indexOf(active.id);
+      const newIndex = scopes.indexOf(over.id);
+      setScopes(arrayMove(scopes, oldIndex, newIndex));
       setHasChanges(true);
     }
   };
@@ -118,7 +139,8 @@ export const ProjectSettings = ({ projectId }) => {
   const handleSave = () => {
     updateSettings.mutate(
       { 
-        categories, 
+        categories,
+        scopes,
         sidebar_items: sidebarItems,
         project_name: projectInfo.project_name,
         location: projectInfo.location,
@@ -160,6 +182,17 @@ export const ProjectSettings = ({ projectId }) => {
         >
           <Info size={18} />
           Project Info
+        </button>
+        <button 
+          onClick={() => setActiveTab('scopes')}
+          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
+            activeTab === 'scopes' 
+              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Map size={18} />
+          Project Scopes
         </button>
         <button 
           onClick={() => setActiveTab('categories')}
@@ -234,6 +267,56 @@ export const ProjectSettings = ({ projectId }) => {
               </div>
               <p className="text-xs text-slate-500 mt-1">This value sets the baseline for the Value Engineering Matrix.</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'scopes' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Project Scopes / Filtering Tabs</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            Define the physical scopes or locations within your project (e.g., Corridor, Exterior, Units). These become the main filter tabs at the top of the VE Matrix and can be assigned to items in the grid.
+          </p>
+
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndScopes}>
+            <SortableContext items={scopes} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2 mb-6">
+                {scopes.map((scope) => (
+                  <SortableItem 
+                    key={scope} 
+                    id={scope} 
+                    content={scope} 
+                    onRemove={() => {
+                      setScopes(scopes.filter(s => s !== scope));
+                      setHasChanges(true);
+                    }} 
+                  />
+                ))}
+                {scopes.length === 0 && (
+                  <div className="p-4 text-center text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
+                    No scopes defined.
+                  </div>
+                )}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          <div className="flex gap-3">
+             <input 
+               type="text" 
+               value={newScope}
+               onChange={e => setNewScope(e.target.value)}
+               onKeyDown={e => e.key === 'Enter' && addScope()}
+               placeholder="Add a new project scope..." 
+               className="flex-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
+             />
+             <button 
+               onClick={addScope} 
+               disabled={!newScope.trim()}
+               className="bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+             >
+               <Plus size={18} /> Add
+             </button>
           </div>
         </div>
       )}

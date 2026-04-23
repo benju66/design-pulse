@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
-import { useUpdateOpportunity } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { List, Paperclip, MessageSquare, Settings, ChevronDown } from 'lucide-react';
@@ -15,6 +15,8 @@ export const ExpandedCard = ({ row }) => {
   const params = useParams();
   const projectId = params?.projectId;
   const updateData = useUpdateOpportunity(projectId);
+  const { data: settings } = useProjectSettings(projectId);
+  const scopes = settings?.scopes || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
   const { cardOrder, setCardOrder, visibleCards, toggleCardVisibility } = useUIStore();
   const [showSettings, setShowSettings] = useState(false);
@@ -121,7 +123,18 @@ export const ExpandedCard = ({ row }) => {
           })}
         </div>
         {activeTab === 'Details' && (
-          <div className="relative">
+          <div className="relative flex items-center gap-4">
+            <select
+              value={row.original.scope || ''}
+              onChange={(e) => {
+                updateData.mutate({ id: row.original.id, updates: { scope: e.target.value } });
+              }}
+              className="bg-transparent border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-md px-2 py-1 text-sm font-medium focus:ring-2 focus:ring-sky-500 outline-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              <option value="" disabled>Select Scope...</option>
+              {scopes.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            
             <button 
               onClick={() => setShowSettings(!showSettings)}
               className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors"

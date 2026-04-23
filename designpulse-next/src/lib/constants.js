@@ -30,6 +30,12 @@ export const DEFAULT_CATEGORIES = [
   "Other"
 ];
 
+export const DEFAULT_SCOPES = [
+  "Corridor / Common",
+  "Unit Interiors",
+  "Back of House"
+];
+
 export const DEFAULT_SIDEBAR_ITEMS = [
   { id: 'dashboard', label: 'VE Matrix', iconName: 'LayoutDashboard', visible: true },
   { id: 'map', label: 'Map View', iconName: 'Map', visible: true },

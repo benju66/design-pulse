@@ -1,11 +1,11 @@
 "use client";
 import React, { useState } from 'react';
-import { List, LayoutPanelTop, PanelRight, PieChart } from 'lucide-react';
+import { List, LayoutPanelTop, PanelRight, PieChart, Plus } from 'lucide-react';
 import MarkupCanvas from '@/components/MarkupCanvas';
 import OpportunityGrid from '@/components/OpportunityGrid';
 import CompareModal from '@/components/CompareModal';
 import BudgetSummary from '@/components/BudgetSummary';
-import { useOpportunities, useCreateOpportunity } from '@/hooks/useProjectQueries';
+import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import DetailPanel from '@/components/DetailPanel';
@@ -18,6 +18,7 @@ export default function ProjectPage({ params }) {
   const resolvedParams = React.use(params);
   const projectId = resolvedParams.projectId;
   const { data: opportunities = [], isLoading } = useOpportunities(projectId);
+  const { data: settings } = useProjectSettings(projectId);
   const createMutation = useCreateOpportunity(projectId);
   
   const [currentView, setCurrentView] = useState('dashboard');
@@ -64,7 +65,10 @@ export default function ProjectPage({ params }) {
     }
   };
 
-  const tabs = ['All', 'Corridor / Common', 'Unit Interiors', 'Back of House'];
+  const dynamicScopes = (settings?.scopes && settings.scopes.length > 0) 
+    ? settings.scopes 
+    : ['Corridor / Common', 'Unit Interiors', 'Back of House'];
+  const tabs = ['All', ...dynamicScopes];
   const filteredOpportunities = activeTab === 'All' 
     ? opportunities 
     : opportunities.filter(opp => opp.scope === activeTab);
@@ -134,11 +138,11 @@ export default function ProjectPage({ params }) {
                   Export PDF
                 </button>
                 <button 
-                  onClick={() => createMutation.mutate({})}
+                  onClick={() => createMutation.mutate({ scope: activeTab !== 'All' ? activeTab : (dynamicScopes[0] || 'Corridor / Common') })}
                   disabled={createMutation.isPending}
                   className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold rounded-xl shadow-sm transition-colors disabled:opacity-50"
                 >
-                  {createMutation.isPending ? 'Adding...' : '+ New Option'}
+                  {createMutation.isPending ? 'Adding...' : '+ New Item'}
                 </button>
               </>
             )}
@@ -171,6 +175,13 @@ export default function ProjectPage({ params }) {
                         {tab}
                       </button>
                     ))}
+                    <button
+                      onClick={() => setCurrentView('settings')}
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800 flex items-center justify-center"
+                      title="Add New Scope Tab"
+                    >
+                      <Plus size={16} />
+                    </button>
                   </div>
                 </div>
 

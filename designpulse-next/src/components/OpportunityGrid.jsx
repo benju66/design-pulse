@@ -6,11 +6,11 @@ import {
   getExpandedRowModel,
   flexRender,
 } from '@tanstack/react-table';
-import { ChevronRight, ChevronDown, ChevronUp, GripVertical, Settings, Paperclip, List, MessageSquare } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronUp, GripVertical, Settings, Paperclip, List, MessageSquare, Plus, X, Check } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useUpdateOpportunity, useCreateOpportunity } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useOpportunityOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption } from '@/hooks/useProjectQueries';
 import { useUIStore } from '@/stores/useUIStore';
 
 // Custom cell for inline editing (The "Excel" feel)
@@ -32,6 +32,9 @@ const EditableCell = ({ getValue, row, column, table }) => {
     setValue(initialValue);
   }, [initialValue]);
 
+  const isImpactField = column.id === 'cost_impact' || column.id === 'days_impact';
+  const { data: options = [] } = useOpportunityOptions(isImpactField ? row.original.id : null);
+
   if (column.id === 'status') {
     return (
       <select
@@ -50,6 +53,27 @@ const EditableCell = ({ getValue, row, column, table }) => {
     );
   }
 
+  if (isImpactField) {
+    const hasOptions = options.length > 0;
+    const lockedOption = options.find(o => o.is_locked);
+    
+    if (hasOptions && !lockedOption) {
+      // It's unlocked! Show range
+      const min = Math.min(...options.map(o => Number(o[column.id]) || 0));
+      const max = Math.max(...options.map(o => Number(o[column.id]) || 0));
+      
+      const formatVal = (v) => column.id === 'cost_impact' 
+        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v)
+        : `${v} days`;
+
+      return (
+        <div className="w-full h-full px-2 py-1 text-sm italic text-slate-400 dark:text-slate-500 flex items-center">
+          {min === max ? formatVal(min) : `${formatVal(min)} to ${formatVal(max)}`}
+        </div>
+      );
+    }
+  }
+
   return (
     <input
       value={value || ''}
@@ -59,26 +83,24 @@ const EditableCell = ({ getValue, row, column, table }) => {
       className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100 ${
         column.id === 'cost_impact' && value < 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : ''
       }`}
-      type={column.id === 'cost_impact' || column.id === 'days_impact' ? 'number' : 'text'}
+      type={isImpactField ? 'number' : 'text'}
     />
   );
 };
 
-const SortableFieldCard = ({ field, row, updateData }) => {
+const SortableFieldCard = ({ id, title, children }) => {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     transition,
-  } = useSortable({ id: field.id });
+  } = useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
-
-  const val = row.original[field.id];
 
   return (
     <div
@@ -93,58 +115,126 @@ const SortableFieldCard = ({ field, row, updateData }) => {
       >
         <GripVertical size={16} />
       </div>
-      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 pr-6">{field.label}</label>
-      
-      {field.id === 'status' ? (
-        <select
-          defaultValue={val || 'Draft'}
-          onChange={(e) => {
-            updateData.mutate({ id: row.original.id, updates: { status: e.target.value } });
-          }}
-          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 pr-6">{title}</label>
+      {children}
+    </div>
+  );
+};
+
+const ContendersMatrix = ({ opportunityId }) => {
+  const { data: options = [] } = useOpportunityOptions(opportunityId);
+  const createOption = useCreateOption(opportunityId);
+  const updateOption = useUpdateOption(opportunityId);
+  const lockOption = useLockOption(opportunityId);
+  const deleteOption = useDeleteOption(opportunityId);
+
+  return (
+    <div className="mb-6">
+      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 px-2 flex items-center gap-3">
+        Contenders Matrix
+        <span className="text-xs font-normal text-slate-500 bg-slate-200 dark:bg-slate-800 px-2 py-1 rounded-full">
+          {options.length} Options
+        </span>
+      </h3>
+      <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
+        {options.map(opt => (
+          <div 
+            key={opt.id} 
+            className={`snap-start shrink-0 w-72 flex flex-col bg-white dark:bg-slate-900 border rounded-xl p-4 shadow-sm transition-all ${
+              opt.is_locked 
+                ? 'border-emerald-500 ring-2 ring-emerald-500/20 dark:ring-emerald-500/30' 
+                : 'border-slate-200 dark:border-slate-800 hover:border-sky-300 dark:hover:border-sky-700'
+            }`}
+          >
+            <div className="flex justify-between items-start mb-2">
+              <input
+                className="font-bold text-lg bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 rounded px-1 w-full text-slate-800 dark:text-slate-100"
+                defaultValue={opt.title}
+                placeholder="Option Title"
+                onBlur={(e) => {
+                  if (e.target.value !== opt.title) updateOption.mutate({ id: opt.id, updates: { title: e.target.value } });
+                }}
+              />
+              <button 
+                onClick={() => deleteOption.mutate(opt.id)}
+                className="text-slate-400 hover:text-rose-500 transition-colors p-1"
+                title="Delete Option"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <textarea
+              className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-2 mb-3 outline-none focus:ring-2 focus:ring-sky-500 resize-none h-20"
+              placeholder="Description & Pros/Cons..."
+              defaultValue={opt.description || ''}
+              onBlur={(e) => {
+                if (e.target.value !== opt.description) updateOption.mutate({ id: opt.id, updates: { description: e.target.value } });
+              }}
+            />
+
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="flex flex-col">
+                <label className="text-xs text-slate-500 mb-1">Cost Impact</label>
+                <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-1.5 focus-within:ring-2 focus-within:ring-sky-500">
+                  <span className="text-slate-400 text-sm pl-1">$</span>
+                  <input
+                    type="number"
+                    className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 px-1"
+                    defaultValue={opt.cost_impact}
+                    onBlur={(e) => {
+                      const val = Number(e.target.value);
+                      if (val !== Number(opt.cost_impact)) updateOption.mutate({ id: opt.id, updates: { cost_impact: val } });
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-slate-500 mb-1">Days Impact</label>
+                <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-1.5 focus-within:ring-2 focus-within:ring-sky-500">
+                  <input
+                    type="number"
+                    className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 px-1"
+                    defaultValue={opt.days_impact}
+                    onBlur={(e) => {
+                      const val = Number(e.target.value);
+                      if (val !== Number(opt.days_impact)) updateOption.mutate({ id: opt.id, updates: { days_impact: val } });
+                    }}
+                  />
+                  <span className="text-slate-400 text-sm pr-1">d</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => lockOption.mutate(opt.id)}
+              disabled={opt.is_locked}
+              className={`mt-auto py-2 rounded-lg text-sm font-bold transition-all ${
+                opt.is_locked
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 flex justify-center items-center gap-2'
+                  : 'bg-slate-100 text-slate-600 hover:bg-sky-500 hover:text-white dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-sky-600'
+              }`}
+            >
+              {opt.is_locked ? <><Check size={16} /> Locked Selection</> : 'Make Active / Lock'}
+            </button>
+          </div>
+        ))}
+
+        {/* Add Option Card */}
+        <div 
+          onClick={() => createOption.mutate({})}
+          className="snap-start shrink-0 w-72 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors text-slate-500 hover:text-sky-600 dark:hover:text-sky-400"
         >
-          <option value="Draft">Draft</option>
-          <option value="Pending Review">Pending Review</option>
-          <option value="Approved">Approved</option>
-          <option value="Rejected">Rejected</option>
-        </select>
-      ) : field.id === 'cost_impact' || field.id === 'days_impact' ? (
-        <input
-          type="number"
-          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
-          defaultValue={val || ''}
-          onBlur={(e) => {
-            const num = Number(e.target.value);
-            if (num !== (val || 0)) {
-              updateData.mutate({ id: row.original.id, updates: { [field.id]: num } });
-            }
-          }}
-          onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-        />
-      ) : (
-        <textarea
-          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none resize-none"
-          rows={2}
-          defaultValue={val || ''}
-          onBlur={(e) => {
-            if (e.target.value !== (val || '')) {
-              updateData.mutate({ id: row.original.id, updates: { [field.id]: e.target.value } });
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              e.target.blur();
-            }
-          }}
-        />
-      )}
+          <Plus size={32} className="mb-2 opacity-50" />
+          <span className="font-semibold">+ Add Option</span>
+        </div>
+      </div>
     </div>
   );
 };
 
 export const ExpandedCard = ({ row, updateData }) => {
-  const { fieldOrder, setFieldOrder, visibleFields, toggleFieldVisibility } = useUIStore();
+  const { cardOrder, setCardOrder, visibleCards, toggleCardVisibility } = useUIStore();
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState('Details');
 
@@ -165,9 +255,14 @@ export const ExpandedCard = ({ row, updateData }) => {
     { id: 'design_lock_phase', label: 'Design Lock Phase' },
   ];
 
-  const activeFields = fieldOrder
+  const activeFields = cardOrder
     .map(id => ALL_PRIMARY_FIELDS.find(f => f.id === id))
-    .filter(f => f && visibleFields[f.id]);
+    .filter(f => f && visibleCards[f.id]);
+
+  const ADVANCED_FIELD_IDS = ['existing_conditions', 'mep_impact', 'backing_required', 'coordination_required', 'design_lock_phase'];
+
+  const primaryFields = activeFields.filter(f => !ADVANCED_FIELD_IDS.includes(f.id));
+  const advancedFields = activeFields.filter(f => ADVANCED_FIELD_IDS.includes(f.id));
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -179,9 +274,63 @@ export const ExpandedCard = ({ row, updateData }) => {
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      const oldIndex = fieldOrder.indexOf(active.id);
-      const newIndex = fieldOrder.indexOf(over.id);
-      setFieldOrder(arrayMove(fieldOrder, oldIndex, newIndex));
+      const oldIndex = cardOrder.indexOf(active.id);
+      const newIndex = cardOrder.indexOf(over.id);
+      setCardOrder(arrayMove(cardOrder, oldIndex, newIndex));
+    }
+  };
+
+  const renderFieldInput = (field) => {
+    const val = row.original[field.id];
+    if (field.id === 'status') {
+      return (
+        <select
+          defaultValue={val || 'Draft'}
+          onChange={(e) => {
+            updateData.mutate({ id: row.original.id, updates: { status: e.target.value } });
+          }}
+          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+        >
+          <option value="Draft">Draft</option>
+          <option value="Pending Review">Pending Review</option>
+          <option value="Approved">Approved</option>
+          <option value="Rejected">Rejected</option>
+        </select>
+      );
+    } else if (field.id === 'cost_impact' || field.id === 'days_impact') {
+      return (
+        <input
+          type="number"
+          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+          defaultValue={val || ''}
+          onBlur={(e) => {
+            const num = Number(e.target.value);
+            if (num !== (val || 0)) {
+              updateData.mutate({ id: row.original.id, updates: { [field.id]: num } });
+            }
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+        />
+      );
+    } else {
+      return (
+        <textarea
+          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none resize-none"
+          rows={2}
+          defaultValue={val || ''}
+          onBlur={(e) => {
+            if (e.target.value !== (val || '')) {
+              updateData.mutate({ id: row.original.id, updates: { [field.id]: e.target.value } });
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              e.target.blur();
+            }
+          }}
+        />
+      );
     }
   };
 
@@ -212,12 +361,13 @@ export const ExpandedCard = ({ row, updateData }) => {
           <div className="relative">
             <button 
               onClick={() => setShowSettings(!showSettings)}
-              className="p-1.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors"
+              className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors"
             >
               <Settings size={18} />
+              <span className="text-sm font-semibold">Configure Layout</span>
             </button>
             {showSettings && (
-              <div className="absolute right-0 top-8 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-20">
+              <div className="absolute right-0 top-10 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-20">
                 <h5 className="text-xs font-semibold text-slate-500 mb-2 px-2">Visible Fields</h5>
                 <div className="flex flex-col space-y-1 max-h-60 overflow-y-auto">
                   {ALL_PRIMARY_FIELDS.map(f => (
@@ -225,8 +375,8 @@ export const ExpandedCard = ({ row, updateData }) => {
                       <input 
                         type="checkbox" 
                         className="mr-2"
-                        checked={!!visibleFields[f.id]}
-                        onChange={() => toggleFieldVisibility(f.id)}
+                        checked={!!visibleCards[f.id]}
+                        onChange={() => toggleCardVisibility(f.id)}
                       />
                       <span className="text-sm text-slate-700 dark:text-slate-300">{f.label}</span>
                     </label>
@@ -241,15 +391,51 @@ export const ExpandedCard = ({ row, updateData }) => {
       {/* Tab Content */}
       <div className="p-4 bg-slate-50 dark:bg-slate-900/50">
         {activeTab === 'Details' && (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={fieldOrder} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {activeFields.map(f => (
-                  <SortableFieldCard key={f.id} field={f} row={row} updateData={updateData} />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+          <>
+            <ContendersMatrix opportunityId={row.original.id} />
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              {/* Primary Data Grid */}
+              <SortableContext items={primaryFields.map(f => f.id)} strategy={rectSortingStrategy}>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+                  {primaryFields.map(f => (
+                    <SortableFieldCard key={f.id} id={f.id} title={f.label}>
+                      {renderFieldInput(f)}
+                    </SortableFieldCard>
+                  ))}
+                </div>
+              </SortableContext>
+
+              {/* Advanced Drawer */}
+              <details className="group border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+                <summary className="flex items-center justify-between p-4 cursor-pointer select-none bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/50 dark:hover:bg-slate-800 transition-colors font-semibold text-slate-700 dark:text-slate-300">
+                  Advanced Details & History
+                  <ChevronDown className="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+                  <SortableContext items={advancedFields.map(f => f.id)} strategy={rectSortingStrategy}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {advancedFields.map(f => (
+                        <SortableFieldCard key={f.id} id={f.id} title={f.label}>
+                          {renderFieldInput(f)}
+                        </SortableFieldCard>
+                      ))}
+                    </div>
+                  </SortableContext>
+                  
+                  {/* Future Accountability History Log Placeholder */}
+                  <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+                    <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-3">Accountability History Log</h4>
+                    <div className="space-y-3">
+                      <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600" />
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">System</span> created this record. <span className="text-xs">Just now</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </DndContext>
+          </>
         )}
 
         {activeTab === 'Attachments' && (

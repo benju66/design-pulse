@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { List, LayoutPanelTop } from 'lucide-react';
+import { List, LayoutPanelTop, PanelRight } from 'lucide-react';
 import MarkupCanvas from '@/components/MarkupCanvas';
 import OpportunityGrid from '@/components/OpportunityGrid';
 import CompareModal from '@/components/CompareModal';
@@ -9,6 +9,8 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useOpportunities, useCreateOpportunity } from '@/hooks/useProjectQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
+import DetailPanel from '@/components/DetailPanel';
+import { useUIStore } from '@/stores/useUIStore';
 
 export default function ProjectPage({ params }) {
   const resolvedParams = React.use(params);
@@ -18,8 +20,9 @@ export default function ProjectPage({ params }) {
   
   const [showMap, setShowMap] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
-  const [viewMode, setViewMode] = useState('flat'); // 'flat' | 'card'
+  const [viewMode, setViewMode] = useState('flat'); // 'flat' | 'card' | 'split'
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
+  const { selectedOpportunityId } = useUIStore();
 
   const handleExport = async () => {
     try {
@@ -95,6 +98,17 @@ export default function ProjectPage({ params }) {
             >
               <LayoutPanelTop size={18} />
             </button>
+            <button
+              onClick={() => setViewMode('split')}
+              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                viewMode === 'split' 
+                  ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+              title="Split View"
+            >
+              <PanelRight size={18} />
+            </button>
           </div>
           <button
             onClick={() => setShowMap(!showMap)}
@@ -124,7 +138,9 @@ export default function ProjectPage({ params }) {
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Main Grid Area */}
-        <div className={`flex flex-col p-6 transition-all duration-300 ${showMap ? 'w-1/2 border-r border-slate-200 dark:border-slate-800' : 'w-full'}`}>
+        <div className={`flex flex-col p-6 transition-all duration-300 ${
+          (showMap || (viewMode === 'split' && selectedOpportunityId)) ? 'w-1/2 border-r border-slate-200 dark:border-slate-800 shrink-0' : 'w-full shrink-0'
+        }`}>
           <div className="shrink-0">
             <BudgetSummary opportunities={opportunities} />
             
@@ -153,7 +169,7 @@ export default function ProjectPage({ params }) {
               <OpportunityGrid 
                 projectId={projectId} 
                 data={filteredOpportunities} 
-                viewMode={viewMode} 
+                viewMode={viewMode === 'split' ? 'flat' : viewMode} 
                 onOpenCompare={() => setIsCompareModalOpen(true)}
               />
             )}
@@ -162,10 +178,17 @@ export default function ProjectPage({ params }) {
 
         {/* Map Area */}
         {showMap && (
-          <div className="w-1/2 h-full relative bg-slate-50 dark:bg-slate-900">
+          <div className="w-1/2 h-full relative bg-slate-50 dark:bg-slate-900 shrink-0">
             <MarkupCanvas />
           </div>
         )}
+
+        {/* Detail Panel */}
+        <DetailPanel 
+          projectId={projectId} 
+          opportunities={opportunities} 
+          viewMode={viewMode} 
+        />
       </div>
 
       <CompareModal 

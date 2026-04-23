@@ -21,6 +21,26 @@ export function useOpportunities(projectId) {
   });
 }
 
+export function useOpportunity(opportunityId) {
+  return useQuery({
+    queryKey: ['opportunity', opportunityId],
+    queryFn: async () => {
+      if (!opportunityId) return null;
+      const { data, error } = await supabase
+        .from('opportunities')
+        .select('*')
+        .eq('id', opportunityId)
+        .single();
+      if (error) {
+        console.warn("Supabase Error:", error);
+        return null;
+      }
+      return data;
+    },
+    enabled: !!opportunityId
+  });
+}
+
 export function useUpdateOpportunity(projectId) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -108,6 +128,123 @@ export function useCreateProject() {
     onError: (err) => {
       console.error('Create Project Error:', err);
       alert(`Failed to create project: ${err.message}`);
+    }
+  });
+}
+
+export function useOpportunityOptions(opportunityId) {
+  return useQuery({
+    queryKey: ['opportunity_options', opportunityId],
+    queryFn: async () => {
+      if (!opportunityId) return [];
+      const { data, error } = await supabase
+        .from('opportunity_options')
+        .select('*')
+        .eq('opportunity_id', opportunityId)
+        .order('created_at', { ascending: true });
+      if (error) {
+        console.warn("Supabase Error:", error);
+        return [];
+      }
+      return data;
+    },
+    enabled: !!opportunityId
+  });
+}
+
+export function useCreateOption(opportunityId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (newOption) => {
+      const { data, error } = await supabase
+        .from('opportunity_options')
+        .insert([{ opportunity_id: opportunityId, title: 'New Contender', ...newOption }])
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunity_options', opportunityId] });
+    }
+  });
+}
+
+export function useUpdateOption(opportunityId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, updates }) => {
+      const { data, error } = await supabase
+        .from('opportunity_options')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunity_options', opportunityId] });
+    }
+  });
+}
+
+export function useDeleteOption(opportunityId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      const { error } = await supabase
+        .from('opportunity_options')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunity_options', opportunityId] });
+    }
+  });
+}
+
+export function useLockOption(opportunityId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (optionId) => {
+      // 1. Set all options for this opportunity to unlocked
+      await supabase
+        .from('opportunity_options')
+        .update({ is_locked: false })
+        .eq('opportunity_id', opportunityId);
+      
+      // 2. Lock the chosen option
+      const { data: lockedOption, error: lockError } = await supabase
+        .from('opportunity_options')
+        .update({ is_locked: true })
+        .eq('id', optionId)
+        .select()
+        .single();
+        
+      if (lockError) throw lockError;
+
+      // 3. Update the parent opportunity row
+      const { error: oppError } = await supabase
+        .from('opportunities')
+        .update({
+          cost_impact: lockedOption.cost_impact,
+          days_impact: lockedOption.days_impact,
+          final_direction: `Locked: ${lockedOption.title}`,
+          status: 'Pending Plan Update'
+        })
+        .eq('id', opportunityId);
+        
+      if (oppError) throw oppError;
+
+      return lockedOption;
+    },
+    onSuccess: () => {
+      // Invalidate both options and parent opportunities queries
+      queryClient.invalidateQueries({ queryKey: ['opportunity_options', opportunityId] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
     }
   });
 }

@@ -3,8 +3,9 @@ import { create } from 'zustand';
 export const useUIStore = create((set) => ({
   selectedOpportunityId: null,
   setSelectedOpportunityId: (id) => set({ selectedOpportunityId: id }),
-  fieldOrder: ['cost_impact', 'days_impact', 'assignee', 'arch_plans_spec', 'bok_standard', 'existing_conditions', 'mep_impact', 'owner_goals', 'final_direction', 'backing_required', 'coordination_required', 'design_lock_phase'],
-  visibleFields: {
+  cardOrder: ['status', 'cost_impact', 'days_impact', 'assignee', 'arch_plans_spec', 'bok_standard', 'existing_conditions', 'mep_impact', 'owner_goals', 'final_direction', 'backing_required', 'coordination_required', 'design_lock_phase'],
+  visibleCards: {
+    status: true,
     cost_impact: true,
     days_impact: true,
     assignee: true,
@@ -19,11 +20,11 @@ export const useUIStore = create((set) => ({
     design_lock_phase: true,
   },
   compareQueue: [],
-  setFieldOrder: (newOrder) => set({ fieldOrder: newOrder }),
-  toggleFieldVisibility: (fieldId) => set((state) => ({
-    visibleFields: {
-      ...state.visibleFields,
-      [fieldId]: !state.visibleFields[fieldId]
+  setCardOrder: (newOrder) => set({ cardOrder: newOrder }),
+  toggleCardVisibility: (cardId) => set((state) => ({
+    visibleCards: {
+      ...state.visibleCards,
+      [cardId]: !state.visibleCards[cardId]
     }
   })),
   toggleCompareItem: (id) => set((state) => ({

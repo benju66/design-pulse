@@ -3,15 +3,8 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, X, Star, Check } from 'lucide-react';
-import { useParams } from 'next/navigation';
-import { useProjectSettings } from '@/hooks/useProjectQueries';
-import { DEFAULT_CATEGORIES } from '@/lib/constants';
 
-export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOption, toggleOptionBudget, opportunityId }) => {
-  const params = useParams();
-  const projectId = params?.projectId;
-  const { data: settings } = useProjectSettings(projectId);
-  const activeCategories = settings?.categories || DEFAULT_CATEGORIES;
+export const SortableContenderCard = ({ opt, categories, updateOption, deleteOption, lockOption, toggleOptionBudget, opportunityId }) => {
 
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: opt.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -67,7 +60,7 @@ export const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOpt
             }}
           />
           <datalist id={`category-options-${opt.id}`}>
-            {activeCategories.map(cat => (
+            {categories.map(cat => (
               <option key={cat} value={cat} />
             ))}
           </datalist>

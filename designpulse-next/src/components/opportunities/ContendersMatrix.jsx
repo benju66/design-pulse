@@ -1,10 +1,11 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
-import { useOpportunityOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useToggleOptionBudget } from '@/hooks/useProjectQueries';
+import { useOpportunityOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useToggleOptionBudget, useProjectSettings, useReorderOptions } from '@/hooks/useProjectQueries';
+import { DEFAULT_CATEGORIES } from '@/lib/constants';
 import { SortableContenderCard } from './SortableContenderCard';
 
 export const ContendersMatrix = ({ opportunityId }) => {
@@ -12,32 +13,28 @@ export const ContendersMatrix = ({ opportunityId }) => {
   const projectId = params?.projectId;
 
   const { data: options = [] } = useOpportunityOptions(opportunityId);
-  const createOption = useCreateOption(opportunityId);
-  const updateOption = useUpdateOption(opportunityId);
+  const { data: settings } = useProjectSettings(projectId);
+  const categories = settings?.categories || DEFAULT_CATEGORIES;
+
+  const createOption = useCreateOption(opportunityId, projectId);
+  const updateOption = useUpdateOption(opportunityId, projectId);
   const lockOption = useLockOption(opportunityId, projectId);
   const toggleOptionBudget = useToggleOptionBudget(opportunityId, projectId);
-  const deleteOption = useDeleteOption(opportunityId);
+  const deleteOption = useDeleteOption(opportunityId, projectId);
+  const reorderOptions = useReorderOptions(opportunityId);
 
-  const [orderedOptions, setOrderedOptions] = useState([]);
-
-  useEffect(() => {
-    // Sync local state when external data changes, preserving their sort if they have an order_index
-    setOrderedOptions([...options].sort((a, b) => (a.order_index || 0) - (b.order_index || 0)));
+  const sortedOptions = useMemo(() => {
+    return [...options].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
   }, [options]);
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      const oldIndex = orderedOptions.findIndex(o => o.id === active.id);
-      const newIndex = orderedOptions.findIndex(o => o.id === over.id);
-      const newOrder = arrayMove(orderedOptions, oldIndex, newIndex);
-      setOrderedOptions(newOrder);
+      const oldIndex = sortedOptions.findIndex(o => o.id === active.id);
+      const newIndex = sortedOptions.findIndex(o => o.id === over.id);
+      const newOrder = arrayMove(sortedOptions, oldIndex, newIndex);
       
-      newOrder.forEach((opt, idx) => {
-        if (opt.order_index !== idx) {
-           updateOption.mutate({ id: opt.id, updates: { order_index: idx } });
-        }
-      });
+      reorderOptions.mutate(newOrder.map(o => o.id));
     }
   };
 
@@ -64,12 +61,13 @@ export const ContendersMatrix = ({ opportunityId }) => {
         </span>
       </h3>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={orderedOptions.map(o => o.id)} strategy={horizontalListSortingStrategy}>
+        <SortableContext items={sortedOptions.map(o => o.id)} strategy={horizontalListSortingStrategy}>
           <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-6 pt-3 px-2">
-            {orderedOptions.map(opt => (
+            {sortedOptions.map(opt => (
               <SortableContenderCard 
                 key={opt.id} 
                 opt={opt} 
+                categories={categories}
                 updateOption={updateOption} 
                 deleteOption={deleteOption} 
                 lockOption={lockOption} 

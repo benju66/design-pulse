@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS opportunity_options (
   days_impact numeric DEFAULT 0,
   description text,
   category text,
+  order_index integer DEFAULT 0,
   is_locked boolean DEFAULT false,
   include_in_budget boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL

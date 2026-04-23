@@ -25,7 +25,7 @@ export default function ProjectPage({ params }) {
   const [activeTab, setActiveTab] = useState('All');
   const [viewMode, setViewMode] = useState('split'); // 'split' | 'flat' | 'card'
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
-  const { selectedOpportunityId } = useUIStore();
+  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
 
   const handleExport = async () => {
     try {
@@ -69,9 +69,11 @@ export default function ProjectPage({ params }) {
     ? settings.scopes 
     : ['Corridor / Common', 'Unit Interiors', 'Back of House'];
   const tabs = ['All', ...dynamicScopes];
-  const filteredOpportunities = activeTab === 'All' 
-    ? opportunities 
-    : opportunities.filter(opp => opp.scope === activeTab);
+  const filteredOpportunities = React.useMemo(() => {
+    return activeTab === 'All' 
+      ? opportunities 
+      : opportunities.filter(opp => opp.scope === activeTab);
+  }, [opportunities, activeTab]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">

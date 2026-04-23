@@ -112,14 +112,12 @@ export function useUpdateOpportunity(projectId) {
       return data;
     },
     onMutate: async ({ id, updates }) => {
-      // Optimistic update for that "instant Excel" feel
       await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
       queryClient.setQueriesData({ queryKey: ['opportunities', projectId] }, old => {
         if (!old) return old;
         return old.map(opp => opp.id === id ? { ...opp, ...updates } : opp);
       });
     }
-    // Removed onSettled refetch for true zero-latency UI
   });
 }
 
@@ -187,15 +185,15 @@ export function useCreateProject() {
   });
 }
 
-export function useOpportunityOptions(opportunityId) {
+export function useAllProjectOptions(projectId) {
   return useQuery({
-    queryKey: ['opportunity_options', opportunityId],
+    queryKey: ['all_project_options', projectId],
     queryFn: async () => {
-      if (!opportunityId) return [];
+      if (!projectId) return [];
       const { data, error } = await supabase
         .from('opportunity_options')
-        .select('*')
-        .eq('opportunity_id', opportunityId)
+        .select('*, opportunities!inner(project_id)')
+        .eq('opportunities.project_id', projectId)
         .order('created_at', { ascending: true });
       if (error) {
         console.warn("Supabase Error:", error);
@@ -203,7 +201,7 @@ export function useOpportunityOptions(opportunityId) {
       }
       return data;
     },
-    enabled: !!opportunityId
+    enabled: !!projectId
   });
 }
 
@@ -220,10 +218,10 @@ export function useCreateOption(opportunityId, projectId) {
       return data;
     },
     onMutate: async (newOption) => {
-      await queryClient.cancelQueries({ queryKey: ['opportunity_options', opportunityId] });
-      const previousOptions = queryClient.getQueryData(['opportunity_options', opportunityId]);
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      const previousOptions = queryClient.getQueryData(['all_project_options', projectId]);
       
-      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
+      queryClient.setQueryData(['all_project_options', projectId], old => {
         const optimisticOption = { 
           id: `temp-${Date.now()}`, 
           opportunity_id: opportunityId, 
@@ -237,35 +235,15 @@ export function useCreateOption(opportunityId, projectId) {
         return [...(old || []), optimisticOption];
       });
 
-      queryClient.setQueriesData({ queryKey: ['all_options'] }, old => {
-        if (!old) return old;
-        const optimisticOption = { 
-          id: `temp-${Date.now()}`, 
-          opportunity_id: opportunityId, 
-          title: 'New Contender', 
-          cost_impact: 0,
-          days_impact: 0,
-          is_locked: false,
-          include_in_budget: false,
-          ...newOption 
-        };
-        return [...old, optimisticOption];
-      });
-
       return { previousOptions };
     },
     onError: (err, newOption, context) => {
       if (context?.previousOptions) {
-        queryClient.setQueryData(['opportunity_options', opportunityId], context.previousOptions);
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
     },
-    onSuccess: (data, variables, context) => {
-      // Instantly swap the temporary ghost option with the real DB record without refetching
-      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
-        if (!old) return old;
-        return old.map(opt => opt.id.toString().startsWith('temp-') ? data : opt);
-      });
-      queryClient.setQueriesData({ queryKey: ['all_options'] }, old => {
+    onSuccess: (data) => {
+      queryClient.setQueryData(['all_project_options', projectId], old => {
         if (!old) return old;
         return old.map(opt => opt.id.toString().startsWith('temp-') ? data : opt);
       });
@@ -287,17 +265,10 @@ export function useUpdateOption(opportunityId, projectId) {
       return data;
     },
     onMutate: async ({ id, updates }) => {
-      await queryClient.cancelQueries({ queryKey: ['opportunity_options', opportunityId] });
-      await queryClient.cancelQueries({ queryKey: ['all_options'] });
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      const previousOptions = queryClient.getQueryData(['all_project_options', projectId]);
       
-      const previousOptions = queryClient.getQueryData(['opportunity_options', opportunityId]);
-      
-      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
-        if (!old) return old;
-        return old.map(opt => opt.id === id ? { ...opt, ...updates } : opt);
-      });
-
-      queryClient.setQueriesData({ queryKey: ['all_options'] }, old => {
+      queryClient.setQueryData(['all_project_options', projectId], old => {
         if (!old) return old;
         return old.map(opt => opt.id === id ? { ...opt, ...updates } : opt);
       });
@@ -306,10 +277,9 @@ export function useUpdateOption(opportunityId, projectId) {
     },
     onError: (err, variables, context) => {
       if (context?.previousOptions) {
-        queryClient.setQueryData(['opportunity_options', opportunityId], context.previousOptions);
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
     }
-    // Removed onSettled refetch for true zero-latency UI
   });
 }
 
@@ -325,17 +295,10 @@ export function useDeleteOption(opportunityId, projectId) {
       return id;
     },
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['opportunity_options', opportunityId] });
-      await queryClient.cancelQueries({ queryKey: ['all_options'] });
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      const previousOptions = queryClient.getQueryData(['all_project_options', projectId]);
       
-      const previousOptions = queryClient.getQueryData(['opportunity_options', opportunityId]);
-      
-      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
-        if (!old) return old;
-        return old.filter(opt => opt.id !== id);
-      });
-
-      queryClient.setQueriesData({ queryKey: ['all_options'] }, old => {
+      queryClient.setQueryData(['all_project_options', projectId], old => {
         if (!old) return old;
         return old.filter(opt => opt.id !== id);
       });
@@ -344,14 +307,13 @@ export function useDeleteOption(opportunityId, projectId) {
     },
     onError: (err, id, context) => {
       if (context?.previousOptions) {
-        queryClient.setQueryData(['opportunity_options', opportunityId], context.previousOptions);
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
     }
-    // Removed onSettled refetch for true zero-latency UI
   });
 }
 
-export function useReorderOptions(opportunityId) {
+export function useReorderOptions(projectId) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (orderedIds) => {
@@ -361,10 +323,10 @@ export function useReorderOptions(opportunityId) {
       return orderedIds;
     },
     onMutate: async (orderedIds) => {
-      await queryClient.cancelQueries({ queryKey: ['opportunity_options', opportunityId] });
-      const previousOptions = queryClient.getQueryData(['opportunity_options', opportunityId]);
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      const previousOptions = queryClient.getQueryData(['all_project_options', projectId]);
       
-      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
+      queryClient.setQueryData(['all_project_options', projectId], old => {
         if (!old) return old;
         const newArray = [...old];
         return newArray.map(opt => ({
@@ -377,10 +339,9 @@ export function useReorderOptions(opportunityId) {
     },
     onError: (err, variables, context) => {
       if (context?.previousOptions) {
-        queryClient.setQueryData(['opportunity_options', opportunityId], context.previousOptions);
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
     }
-    // Removed onSettled refetch for true zero-latency UI
   });
 }
 
@@ -396,20 +357,13 @@ export function useLockOption(opportunityId, projectId) {
       return data;
     },
     onMutate: async (optionId) => {
-      await queryClient.cancelQueries({ queryKey: ['opportunity_options', opportunityId] });
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
       await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
-      await queryClient.cancelQueries({ queryKey: ['all_options'] });
 
-      const previousOptions = queryClient.getQueryData(['opportunity_options', opportunityId]);
+      const previousOptions = queryClient.getQueryData(['all_project_options', projectId]);
       const previousOpportunities = queryClient.getQueryData(['opportunities', projectId]);
 
-      // Optimistically update options
-      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
-        if (!old) return old;
-        return old.map(opt => ({ ...opt, is_locked: opt.id === optionId }));
-      });
-
-      queryClient.setQueriesData({ queryKey: ['all_options'] }, old => {
+      queryClient.setQueryData(['all_project_options', projectId], old => {
         if (!old) return old;
         return old.map(opt => 
           opt.opportunity_id === opportunityId 
@@ -418,7 +372,6 @@ export function useLockOption(opportunityId, projectId) {
         );
       });
 
-      // Optimistically update parent opportunity
       queryClient.setQueryData(['opportunities', projectId], old => {
         if (!old) return old;
         const targetOpt = previousOptions?.find(opt => opt.id === optionId);
@@ -440,13 +393,12 @@ export function useLockOption(opportunityId, projectId) {
     },
     onError: (err, optionId, context) => {
       if (context?.previousOptions) {
-        queryClient.setQueryData(['opportunity_options', opportunityId], context.previousOptions);
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
       if (context?.previousOpportunities) {
         queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
     }
-    // Removed onSettled refetch for true zero-latency UI
   });
 }
 
@@ -463,19 +415,13 @@ export function useToggleOptionBudget(opportunityId, projectId) {
       return data;
     },
     onMutate: async ({ optionId, isIncluded }) => {
-      await queryClient.cancelQueries({ queryKey: ['opportunity_options', opportunityId] });
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
       await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
-      await queryClient.cancelQueries({ queryKey: ['all_options'] });
 
-      const previousOptions = queryClient.getQueryData(['opportunity_options', opportunityId]);
+      const previousOptions = queryClient.getQueryData(['all_project_options', projectId]);
       const previousOpportunities = queryClient.getQueryData(['opportunities', projectId]);
 
-      queryClient.setQueryData(['opportunity_options', opportunityId], old => {
-        if (!old) return old;
-        return old.map(opt => opt.id === optionId ? { ...opt, include_in_budget: isIncluded } : opt);
-      });
-
-      queryClient.setQueriesData({ queryKey: ['all_options'] }, old => {
+      queryClient.setQueryData(['all_project_options', projectId], old => {
         if (!old) return old;
         return old.map(opt => opt.id === optionId ? { ...opt, include_in_budget: isIncluded } : opt);
       });
@@ -499,12 +445,11 @@ export function useToggleOptionBudget(opportunityId, projectId) {
     },
     onError: (err, variables, context) => {
       if (context?.previousOptions) {
-        queryClient.setQueryData(['opportunity_options', opportunityId], context.previousOptions);
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
       if (context?.previousOpportunities) {
         queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
     }
-    // Removed onSettled refetch for true zero-latency UI
   });
 }

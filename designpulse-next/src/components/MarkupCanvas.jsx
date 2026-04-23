@@ -15,7 +15,8 @@ const MarkupCanvas = forwardRef(({
   const containerRef = useRef(null);
 
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const { selectedOpportunityId, setSelectedOpportunityId } = useUIStore();
+  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
   const [stageScale, setStageScale] = useState(1);
   const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
   
@@ -208,7 +209,7 @@ const MarkupCanvas = forwardRef(({
               setStagePosition({ x: e.target.x(), y: e.target.y() });
             }}
           >
-            <Layer>
+            <Layer listening={false}>
               {image && layout.drawW > 0 && layout.drawH > 0 && (
                 <KonvaImage
                   image={image}
@@ -218,7 +219,8 @@ const MarkupCanvas = forwardRef(({
                   height={layout.drawH}
                 />
               )}
-
+            </Layer>
+            <Layer>
               {/* Render Saved Markups */}
               {markups.map((markup, idx) => {
                 const isSelected = selectedOpportunityId === markup.opportunity_id;

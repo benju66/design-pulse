@@ -5,7 +5,7 @@ import { ExpandedCard } from './opportunities/ExpandedCard';
 import { useUpdateOpportunity } from '@/hooks/useProjectQueries';
 
 export default function CompareModal({ isOpen, onClose, projectId, opportunities }) {
-  const { compareQueue } = useUIStore();
+  const compareQueue = useUIStore(state => state.compareQueue);
   const updateData = useUpdateOpportunity(projectId);
 
   if (!isOpen) return null;

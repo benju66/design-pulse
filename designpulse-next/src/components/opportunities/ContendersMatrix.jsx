@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
-import { useOpportunityOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useToggleOptionBudget, useProjectSettings, useReorderOptions } from '@/hooks/useProjectQueries';
+import { useAllProjectOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useToggleOptionBudget, useProjectSettings, useReorderOptions } from '@/hooks/useProjectQueries';
 import { DEFAULT_CATEGORIES } from '@/lib/constants';
 import { SortableContenderCard } from './SortableContenderCard';
 
@@ -12,7 +12,8 @@ export const ContendersMatrix = ({ opportunityId }) => {
   const params = useParams();
   const projectId = params?.projectId;
 
-  const { data: options = [] } = useOpportunityOptions(opportunityId);
+  const { data: allOptions = [] } = useAllProjectOptions(projectId);
+  const options = useMemo(() => allOptions.filter(o => o.opportunity_id === opportunityId), [allOptions, opportunityId]);
   const { data: settings } = useProjectSettings(projectId);
   const categories = settings?.categories || DEFAULT_CATEGORIES;
 
@@ -21,7 +22,7 @@ export const ContendersMatrix = ({ opportunityId }) => {
   const lockOption = useLockOption(opportunityId, projectId);
   const toggleOptionBudget = useToggleOptionBudget(opportunityId, projectId);
   const deleteOption = useDeleteOption(opportunityId, projectId);
-  const reorderOptions = useReorderOptions(opportunityId);
+  const reorderOptions = useReorderOptions(projectId);
 
   const sortedOptions = useMemo(() => {
     return [...options].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));

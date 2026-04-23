@@ -6,7 +6,8 @@ import { ExpandedCard } from './opportunities/ExpandedCard';
 import { useUpdateOpportunity } from '@/hooks/useProjectQueries';
 
 export default function DetailPanel({ projectId, opportunities, viewMode }) {
-  const { selectedOpportunityId, setSelectedOpportunityId } = useUIStore();
+  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
   const [isMaximized, setIsMaximized] = useState(false);
   const [panelWidth, setPanelWidth] = useState(50); // percentage
   const [isDragging, setIsDragging] = useState(false);

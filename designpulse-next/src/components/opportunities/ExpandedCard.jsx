@@ -18,7 +18,10 @@ export const ExpandedCard = ({ row }) => {
   const { data: settings } = useProjectSettings(projectId);
   const scopes = settings?.scopes || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
-  const { cardOrder, setCardOrder, visibleCards, toggleCardVisibility } = useUIStore();
+  const cardOrder = useUIStore(state => state.cardOrder);
+  const setCardOrder = useUIStore(state => state.setCardOrder);
+  const visibleCards = useUIStore(state => state.visibleCards);
+  const toggleCardVisibility = useUIStore(state => state.toggleCardVisibility);
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState('Details');
 

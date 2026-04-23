@@ -6,22 +6,67 @@ import {
   getExpandedRowModel,
   flexRender,
 } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronRight, ChevronDown, ChevronUp, GripVertical, Settings, Paperclip, List, MessageSquare, Plus, X, Check, PanelRight, Star } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useUpdateOpportunity, useCreateOpportunity, useOpportunityOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useCreateOption, useUpdateOption, useLockOption, useDeleteOption } from '@/hooks/useProjectQueries';
 import { useUIStore } from '@/stores/useUIStore';
 
-import { EditableCell } from './opportunities/EditableCell';
+import { TextCell, StatusCell, ScopeCell, ImpactCell } from './opportunities/EditableCell';
 import { ExpandedCard } from './opportunities/ExpandedCard';
 import { OptionsCell } from './opportunities/OptionsCell';
 import { ColumnChooser } from './opportunities/ColumnChooser';
 
+const CheckboxCell = ({ row }) => {
+  const isSelected = useUIStore(state => state.compareQueue.includes(row.original.id));
+  const toggleCompareItem = useUIStore(state => state.toggleCompareItem);
+  return (
+    <div className="flex items-center justify-center py-2 px-1">
+      <input 
+        type="checkbox" 
+        checked={isSelected}
+        onChange={() => toggleCompareItem(row.original.id)}
+        className="w-4 h-4 text-sky-600 bg-slate-100 border-slate-300 rounded focus:ring-sky-500 dark:focus:ring-sky-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer"
+      />
+    </div>
+  );
+};
+
+const OpenPanelCell = ({ row }) => {
+  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
+  return (
+    <div className="flex items-center justify-center p-1">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (selectedOpportunityId === row.original.id) {
+            setSelectedOpportunityId(null);
+          } else {
+            setSelectedOpportunityId(row.original.id);
+          }
+        }}
+        className={`p-1 rounded transition-colors ${
+          selectedOpportunityId === row.original.id 
+            ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30' 
+            : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30'
+        }`}
+        title="Open Details Panel"
+      >
+        <PanelRight size={16} />
+      </button>
+    </div>
+  );
+};
+
 export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare }) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
-  const { selectedOpportunityId, setSelectedOpportunityId, compareQueue, toggleCompareItem, clearCompareQueue } = useUIStore();
+  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const compareQueue = useUIStore(state => state.compareQueue);
+  const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
 
   useEffect(() => {
     if (selectedOpportunityId) {
@@ -61,75 +106,41 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     }
   }, [columnOrder, projectId]);
 
-  const checkboxColumn = {
+  const checkboxColumn = React.useMemo(() => ({
     id: 'select',
     header: () => null,
-    cell: ({ row }) => {
-      // Direct store access is fine here since it's a render function inside the component tree
-      const isSelected = compareQueue.includes(row.original.id);
-      return (
-        <div className="flex items-center justify-center py-2 px-1">
-          <input 
-            type="checkbox" 
-            checked={isSelected}
-            onChange={() => toggleCompareItem(row.original.id)}
-            className="w-4 h-4 text-sky-600 bg-slate-100 border-slate-300 rounded focus:ring-sky-500 dark:focus:ring-sky-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer"
-          />
-        </div>
-      );
-    },
-  };
+    cell: CheckboxCell,
+  }), []);
 
-  const openPanelColumn = {
+  const openPanelColumn = React.useMemo(() => ({
     id: 'open_panel',
     header: () => null,
-    cell: ({ row }) => (
-      <div className="flex items-center justify-center p-1">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (selectedOpportunityId === row.original.id) {
-              setSelectedOpportunityId(null);
-            } else {
-              setSelectedOpportunityId(row.original.id);
-            }
-          }}
-          className={`p-1 rounded transition-colors ${
-            selectedOpportunityId === row.original.id 
-              ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30' 
-              : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30'
-          }`}
-          title="Open Details Panel"
-        >
-          <PanelRight size={16} />
-        </button>
-      </div>
-    )
-  };
+    cell: OpenPanelCell,
+  }), []);
 
   const flatColumns = useMemo(
     () => [
       checkboxColumn,
       ...(viewMode === 'split' ? [openPanelColumn] : []),
-      { accessorKey: 'title', header: 'Title (Element)', cell: EditableCell },
-      { accessorKey: 'location', header: 'Location', cell: EditableCell },
-      { accessorKey: 'scope', header: 'Scope', cell: EditableCell },
-      { accessorKey: 'arch_plans_spec', header: 'Arch Plans/Spec', cell: EditableCell },
-      { accessorKey: 'bok_standard', header: 'BOK Standard', cell: EditableCell },
-      { accessorKey: 'existing_conditions', header: 'Existing Conditions', cell: EditableCell },
-      { accessorKey: 'mep_impact', header: 'MEP Impact', cell: EditableCell },
-      { accessorKey: 'owner_goals', header: 'Owner Goals', cell: EditableCell },
-      { accessorKey: 'backing_required', header: 'Backing Req.', cell: EditableCell },
-      { accessorKey: 'coordination_required', header: 'Coord Req.', cell: EditableCell },
-      { accessorKey: 'design_lock_phase', header: 'Design Lock Phase', cell: EditableCell },
-      { accessorKey: 'final_direction', header: 'Final Direction', cell: EditableCell },
-      { accessorKey: 'assignee', header: 'Assignee', cell: EditableCell },
-      { accessorKey: 'due_date', header: 'Due Date', cell: EditableCell },
-      { accessorKey: 'status', header: 'Status', cell: EditableCell },
+      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
+      { accessorKey: 'location', header: 'Location', cell: TextCell },
+      { accessorKey: 'scope', header: 'Scope', cell: ScopeCell },
+      { accessorKey: 'arch_plans_spec', header: 'Arch Plans/Spec', cell: TextCell },
+      { accessorKey: 'bok_standard', header: 'BOK Standard', cell: TextCell },
+      { accessorKey: 'existing_conditions', header: 'Existing Conditions', cell: TextCell },
+      { accessorKey: 'mep_impact', header: 'MEP Impact', cell: TextCell },
+      { accessorKey: 'owner_goals', header: 'Owner Goals', cell: TextCell },
+      { accessorKey: 'backing_required', header: 'Backing Req.', cell: TextCell },
+      { accessorKey: 'coordination_required', header: 'Coord Req.', cell: TextCell },
+      { accessorKey: 'design_lock_phase', header: 'Design Lock Phase', cell: TextCell },
+      { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
+      { accessorKey: 'assignee', header: 'Assignee', cell: TextCell },
+      { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
+      { accessorKey: 'status', header: 'Status', cell: StatusCell },
       { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
-      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: EditableCell },
+      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
     ],
-    [compareQueue, viewMode, selectedOpportunityId]
+    [viewMode, checkboxColumn, openPanelColumn]
   );
 
   const cardColumns = useMemo(
@@ -148,15 +159,15 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           </button>
         ),
       },
-      { accessorKey: 'title', header: 'Title (Element)', cell: EditableCell },
-      { accessorKey: 'location', header: 'Location', cell: EditableCell },
-      { accessorKey: 'assignee', header: 'Assignee', cell: EditableCell },
-      { accessorKey: 'due_date', header: 'Due Date', cell: EditableCell },
-      { accessorKey: 'status', header: 'Status', cell: EditableCell },
+      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
+      { accessorKey: 'location', header: 'Location', cell: TextCell },
+      { accessorKey: 'assignee', header: 'Assignee', cell: TextCell },
+      { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
+      { accessorKey: 'status', header: 'Status', cell: StatusCell },
       { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
-      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: EditableCell },
+      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
     ],
-    [compareQueue, viewMode, selectedOpportunityId]
+    [viewMode, checkboxColumn, openPanelColumn]
   );
 
   const columns = viewMode === 'card' ? cardColumns : flatColumns;
@@ -176,6 +187,22 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     },
   });
 
+  const tableContainerRef = useRef(null);
+  const { rows } = table.getRowModel();
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 44, // Base height
+    overscan: 5,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;
+  const paddingBottom = virtualItems.length > 0
+    ? virtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end || 0)
+    : 0;
+
   return (
     <div className="w-full h-full flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
       {/* Table Header Toolbar */}
@@ -187,18 +214,18 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
         <ColumnChooser table={table} />
       </div>
 
-      <div className="flex-1 overflow-auto rounded-b-xl">
+      <div ref={tableContainerRef} className="flex-1 overflow-auto rounded-b-xl">
         <table 
           className="text-left text-sm whitespace-nowrap" 
           style={{ tableLayout: 'fixed', width: table.getTotalSize() }}
         >
-          <thead className="bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700">
+          <thead className="bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700 sticky top-0 z-10">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
                 <th 
                   key={header.id} 
-                  className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group"
+                  className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900"
                   style={{ width: header.getSize() }}
                 >
                   <div className="truncate">
@@ -220,11 +247,19 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           ))}
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-          {table.getRowModel().rows.map((row) => {
+          {paddingTop > 0 && (
+            <tr>
+              <td style={{ height: `${paddingTop}px` }} colSpan={columns.length} />
+            </tr>
+          )}
+          {virtualItems.map((virtualRow) => {
+            const row = rows[virtualRow.index];
             const isSelected = selectedOpportunityId === row.original.id;
             return (
               <React.Fragment key={row.id}>
                 <tr 
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
                   id={`row-${row.original.id}`}
                   className={`transition-colors ${
                     isSelected 
@@ -248,6 +283,11 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
               </React.Fragment>
             );
           })}
+          {paddingBottom > 0 && (
+            <tr>
+              <td style={{ height: `${paddingBottom}px` }} colSpan={columns.length} />
+            </tr>
+          )}
           {data.length === 0 && (
             <tr>
               <td colSpan={15} className="px-4 py-8 text-center text-slate-500">

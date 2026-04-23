@@ -8,6 +8,8 @@ import { useUpdateOpportunity } from '@/hooks/useProjectQueries';
 export default function DetailPanel({ projectId, opportunities, viewMode }) {
   const { selectedOpportunityId, setSelectedOpportunityId } = useUIStore();
   const [isMaximized, setIsMaximized] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(50); // percentage
+  const [isDragging, setIsDragging] = useState(false);
   const updateData = useUpdateOpportunity(projectId);
 
   if (viewMode !== 'split' || !selectedOpportunityId) return null;
@@ -17,12 +19,37 @@ export default function DetailPanel({ projectId, opportunities, viewMode }) {
 
   const mockRow = { original: opportunity };
 
+  const startResize = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+    const handleMouseMove = (moveEvent) => {
+      const newWidth = ((window.innerWidth - moveEvent.clientX) / window.innerWidth) * 100;
+      setPanelWidth(Math.max(20, Math.min(newWidth, 80)));
+    };
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+  };
+
   return (
     <div 
-      className={`bg-white dark:bg-slate-900 shadow-[rgba(0,0,0,0.1)_-4px_0px_10px_0px] border-l border-slate-200 dark:border-slate-800 transition-all duration-300 z-10 flex flex-col ${
-        isMaximized ? 'absolute inset-0 w-full z-50' : 'w-1/2 h-full'
+      style={!isMaximized ? { width: `${panelWidth}%` } : {}}
+      className={`relative bg-white dark:bg-slate-900 shadow-[rgba(0,0,0,0.1)_-4px_0px_10px_0px] border-l border-slate-200 dark:border-slate-800 z-10 flex flex-col shrink-0 ${
+        isMaximized ? 'absolute inset-0 w-full z-50 transition-all duration-300' : (isDragging ? 'h-full transition-none' : 'h-full transition-all duration-300')
       }`}
     >
+      {!isMaximized && (
+        <div 
+          onMouseDown={startResize}
+          className="absolute left-0 top-0 bottom-0 w-3 -ml-1.5 cursor-col-resize z-20 hover:bg-sky-500/20 active:bg-sky-500/40 transition-colors"
+        />
+      )}
       <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate pr-4">
           {opportunity.title || 'Untitled Opportunity'}

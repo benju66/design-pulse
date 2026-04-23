@@ -147,17 +147,34 @@ const ContendersMatrix = ({ opportunityId }) => {
             }`}
           >
             <div className="flex justify-between items-start mb-2">
-              <input
-                className="font-bold text-lg bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 rounded px-1 w-full text-slate-800 dark:text-slate-100"
-                defaultValue={opt.title}
-                placeholder="Option Title"
-                onBlur={(e) => {
-                  if (e.target.value !== opt.title) updateOption.mutate({ id: opt.id, updates: { title: e.target.value } });
-                }}
-              />
+              <div className="flex-1 mr-2">
+                <input
+                  className="font-bold text-lg bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-950 focus:border-sky-500 focus:ring-2 focus:ring-sky-500 rounded px-1.5 py-0.5 -ml-1.5 w-full text-slate-800 dark:text-slate-100 cursor-pointer focus:cursor-text transition-colors truncate mb-1.5"
+                  defaultValue={opt.title}
+                  placeholder="Option Title"
+                  title="Click to edit title"
+                  onBlur={(e) => {
+                    if (e.target.value !== opt.title) updateOption.mutate({ id: opt.id, updates: { title: e.target.value } });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.target.blur();
+                  }}
+                />
+                <select
+                  className="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full px-2.5 py-1 cursor-pointer outline-none hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-sky-500 transition-colors border-none"
+                  defaultValue={opt.category || 'Other'}
+                  onChange={(e) => updateOption.mutate({ id: opt.id, updates: { category: e.target.value } })}
+                >
+                  <option value="Existing Conditions">Existing Conditions</option>
+                  <option value="Arch Plans/Specs">Arch Plans/Specs</option>
+                  <option value="Owner Standard">Owner Standard</option>
+                  <option value="Budgeted Item">Budgeted Item</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
               <button 
                 onClick={() => deleteOption.mutate(opt.id)}
-                className="text-slate-400 hover:text-rose-500 transition-colors p-1"
+                className="text-slate-400 hover:text-rose-500 transition-colors p-1 mt-1 shrink-0"
                 title="Delete Option"
               >
                 <X size={16} />

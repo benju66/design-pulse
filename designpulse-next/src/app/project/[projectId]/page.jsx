@@ -138,8 +138,8 @@ export default function ProjectPage({ params }) {
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Main Grid Area */}
-        <div className={`flex flex-col p-6 transition-all duration-300 ${
-          (showMap || (viewMode === 'split' && selectedOpportunityId)) ? 'w-1/2 border-r border-slate-200 dark:border-slate-800 shrink-0' : 'w-full shrink-0'
+        <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 ${
+          (showMap || (viewMode === 'split' && selectedOpportunityId)) ? 'border-r border-slate-200 dark:border-slate-800' : ''
         }`}>
           <div className="shrink-0">
             <BudgetSummary opportunities={opportunities} />

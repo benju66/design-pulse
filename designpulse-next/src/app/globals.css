@@ -7,6 +7,9 @@
   --font-mono: var(--font-roboto-mono);
 }
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+
 :root {
   /* SitePulse milestone fills */
   --milestone-1: rgba(139, 69, 19, 0.5);
@@ -40,7 +43,7 @@
   --border: #cbd5e1; /* Slate 300 */
 }
 
-[data-theme='dark'] {
+.dark {
   color-scheme: dark;
   --milestone-1: rgba(180, 120, 80, 0.45);
   --milestone-2: rgba(240, 80, 100, 0.45);

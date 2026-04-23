@@ -3,7 +3,9 @@ import React, { useState } from 'react';
 import { List, LayoutPanelTop } from 'lucide-react';
 import MarkupCanvas from '@/components/MarkupCanvas';
 import OpportunityGrid from '@/components/OpportunityGrid';
+import CompareModal from '@/components/CompareModal';
 import BudgetSummary from '@/components/BudgetSummary';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { useOpportunities, useCreateOpportunity } from '@/hooks/useProjectQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
@@ -17,6 +19,7 @@ export default function ProjectPage({ params }) {
   const [showMap, setShowMap] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
   const [viewMode, setViewMode] = useState('flat'); // 'flat' | 'card'
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
 
   const handleExport = async () => {
     try {
@@ -68,7 +71,8 @@ export default function ProjectPage({ params }) {
       <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white">Design Pulse - {projectId}</h2>
         <div className="flex gap-3 items-center">
-          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2">
+          <ThemeToggle />
+          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2">
             <button
               onClick={() => setViewMode('flat')}
               className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
@@ -146,7 +150,12 @@ export default function ProjectPage({ params }) {
             {isLoading ? (
               <div className="h-full flex items-center justify-center text-slate-500">Loading log...</div>
             ) : (
-              <OpportunityGrid projectId={projectId} data={filteredOpportunities} viewMode={viewMode} />
+              <OpportunityGrid 
+                projectId={projectId} 
+                data={filteredOpportunities} 
+                viewMode={viewMode} 
+                onOpenCompare={() => setIsCompareModalOpen(true)}
+              />
             )}
           </div>
         </div>
@@ -158,6 +167,13 @@ export default function ProjectPage({ params }) {
           </div>
         )}
       </div>
+
+      <CompareModal 
+        isOpen={isCompareModalOpen}
+        onClose={() => setIsCompareModalOpen(false)}
+        projectId={projectId}
+        opportunities={opportunities}
+      />
     </div>
   );
 }

@@ -12,7 +12,7 @@ export function useOpportunities(projectId) {
         .eq('project_id', projectId)
         .order('created_at', { ascending: false });
       if (error) {
-        console.error("Supabase Error:", error);
+        console.warn("Supabase Error:", error);
         return [];
       }
       return data;
@@ -80,7 +80,7 @@ export function useProjects() {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error("Supabase Projects Error:", error);
+        console.warn("Supabase Projects Error:", error);
         return [];
       }
       return data;

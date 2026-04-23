@@ -3,6 +3,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Building2, Plus, ArrowRight } from 'lucide-react';
 import { useProjects, useCreateProject } from '@/hooks/useProjectQueries';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function DashboardPage() {
   const { data: projects = [], isLoading } = useProjects();
@@ -26,14 +27,17 @@ export default function DashboardPage() {
             Select a project to view its VE tracker and interactive floor plans.
           </p>
         </div>
-        <button
-          onClick={handleCreateTestProject}
-          disabled={createProject.isPending}
-          className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm disabled:opacity-50"
-        >
-          <Plus size={20} />
-          {createProject.isPending ? 'Creating...' : 'New Test Project'}
-        </button>
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <button
+            onClick={handleCreateTestProject}
+            disabled={createProject.isPending}
+            className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm disabled:opacity-50"
+          >
+            <Plus size={20} />
+            {createProject.isPending ? 'Creating...' : 'New Test Project'}
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

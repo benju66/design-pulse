@@ -28,6 +28,8 @@ export const ContendersMatrix = ({ opportunityId }) => {
     return [...options].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
   }, [options]);
 
+  const hasLockedOption = useMemo(() => sortedOptions.some(o => o.is_locked), [sortedOptions]);
+
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -74,6 +76,7 @@ export const ContendersMatrix = ({ opportunityId }) => {
                 lockOption={lockOption} 
                 toggleOptionBudget={toggleOptionBudget}
                 opportunityId={opportunityId}
+                hasLockedOption={hasLockedOption}
               />
             ))}
 

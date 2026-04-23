@@ -266,18 +266,61 @@ export function useUpdateOption(opportunityId, projectId) {
     },
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      
       const previousOptions = queryClient.getQueryData(['all_project_options', projectId]);
+      const previousOpportunities = queryClient.getQueryData(['opportunities', projectId]);
       
       queryClient.setQueryData(['all_project_options', projectId], old => {
         if (!old) return old;
         return old.map(opt => opt.id === id ? { ...opt, ...updates } : opt);
       });
 
-      return { previousOptions };
+      // Bubble up edits to the parent opportunity if the edited option is locked or targeted
+      const updatedOpt = previousOptions?.find(opt => opt.id === id);
+      if (updatedOpt) {
+        queryClient.setQueryData(['opportunities', projectId], old => {
+          if (!old) return old;
+          
+          let newCostImpact = 0;
+          let newDaysImpact = 0;
+          
+          const allOptsForOpp = previousOptions?.filter(opt => opt.opportunity_id === opportunityId) || [];
+          const lockedOpt = allOptsForOpp.find(opt => opt.is_locked);
+          
+          if (lockedOpt) {
+              newCostImpact = lockedOpt.id === id && updates.cost_impact !== undefined ? Number(updates.cost_impact) : Number(lockedOpt.cost_impact || 0);
+              newDaysImpact = lockedOpt.id === id && updates.days_impact !== undefined ? Number(updates.days_impact) : Number(lockedOpt.days_impact || 0);
+          } else {
+              allOptsForOpp.forEach(opt => {
+                  const isThisOpt = opt.id === id;
+                  const optIsIncluded = isThisOpt && updates.include_in_budget !== undefined ? updates.include_in_budget : opt.include_in_budget;
+                  
+                  if (optIsIncluded) {
+                      const optCost = isThisOpt && updates.cost_impact !== undefined ? Number(updates.cost_impact) : Number(opt.cost_impact);
+                      const optDays = isThisOpt && updates.days_impact !== undefined ? Number(updates.days_impact) : Number(opt.days_impact);
+                      newCostImpact += (optCost || 0);
+                      newDaysImpact += (optDays || 0);
+                  }
+              });
+          }
+
+          return old.map(opp => 
+            opp.id === opportunityId 
+              ? { ...opp, cost_impact: newCostImpact, days_impact: newDaysImpact }
+              : opp
+          );
+        });
+      }
+
+      return { previousOptions, previousOpportunities };
     },
     onError: (err, variables, context) => {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
+      }
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
     }
   });
@@ -430,6 +473,12 @@ export function useToggleOptionBudget(opportunityId, projectId) {
         if (!old) return old;
         
         const allOptsForOpp = previousOptions?.filter(opt => opt.opportunity_id === opportunityId) || [];
+        
+        // Safety lock: if a final selection is already made, DO NOT overwrite the parent's cost via targeting.
+        const lockedOpt = allOptsForOpp.find(opt => opt.is_locked);
+        if (lockedOpt) {
+          return old;
+        }
         
         let newCostImpact = 0;
         let newDaysImpact = 0;

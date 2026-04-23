@@ -15,6 +15,8 @@ import { useUIStore } from '@/stores/useUIStore';
 
 import { EditableCell } from './opportunities/EditableCell';
 import { ExpandedCard } from './opportunities/ExpandedCard';
+import { OptionsCell } from './opportunities/OptionsCell';
+import { ColumnChooser } from './opportunities/ColumnChooser';
 
 export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare }) {
   const updateMutation = useUpdateOpportunity(projectId);
@@ -31,6 +33,33 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   }, [selectedOpportunityId]);
 
   const [expanded, setExpanded] = useState({});
+  const [columnVisibility, setColumnVisibility] = useState({});
+  const [columnOrder, setColumnOrder] = useState([]);
+  const isLoaded = useRef(false);
+
+  // Load layout from localStorage on mount
+  useEffect(() => {
+    const savedVisibility = localStorage.getItem(`dp_grid_visibility_${projectId}`);
+    const savedOrder = localStorage.getItem(`dp_grid_order_${projectId}`);
+    if (savedVisibility) setColumnVisibility(JSON.parse(savedVisibility));
+    if (savedOrder) setColumnOrder(JSON.parse(savedOrder));
+    
+    // Set loaded flag after initial mount to enable saving
+    setTimeout(() => { isLoaded.current = true; }, 100);
+  }, [projectId]);
+
+  // Save layout to localStorage on change
+  useEffect(() => {
+    if (isLoaded.current) {
+      localStorage.setItem(`dp_grid_visibility_${projectId}`, JSON.stringify(columnVisibility));
+    }
+  }, [columnVisibility, projectId]);
+
+  useEffect(() => {
+    if (isLoaded.current) {
+      localStorage.setItem(`dp_grid_order_${projectId}`, JSON.stringify(columnOrder));
+    }
+  }, [columnOrder, projectId]);
 
   const checkboxColumn = {
     id: 'select',
@@ -97,6 +126,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
       { accessorKey: 'assignee', header: 'Assignee', cell: EditableCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: EditableCell },
       { accessorKey: 'status', header: 'Status', cell: EditableCell },
+      { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
       { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: EditableCell },
     ],
     [compareQueue, viewMode, selectedOpportunityId]
@@ -123,6 +153,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
       { accessorKey: 'assignee', header: 'Assignee', cell: EditableCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: EditableCell },
       { accessorKey: 'status', header: 'Status', cell: EditableCell },
+      { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
       { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: EditableCell },
     ],
     [compareQueue, viewMode, selectedOpportunityId]
@@ -133,8 +164,10 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const table = useReactTable({
     data,
     columns,
-    state: { expanded },
+    state: { expanded, columnVisibility, columnOrder },
     onExpandedChange: setExpanded,
+    onColumnVisibilityChange: setColumnVisibility,
+    onColumnOrderChange: setColumnOrder,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     columnResizeMode: 'onChange',
@@ -144,9 +177,22 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   });
 
   return (
-    <div className="w-full h-full overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-      <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead className="bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700">
+    <div className="w-full h-full flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
+      {/* Table Header Toolbar */}
+      <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
+        <div className="flex items-center gap-2">
+          {/* We can add filters or other controls here later */}
+          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2">Matrix View</span>
+        </div>
+        <ColumnChooser table={table} />
+      </div>
+
+      <div className="flex-1 overflow-auto rounded-b-xl">
+        <table 
+          className="text-left text-sm whitespace-nowrap" 
+          style={{ tableLayout: 'fixed', width: table.getTotalSize() }}
+        >
+          <thead className="bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
@@ -213,7 +259,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           {/* Ghost Row for Quick Add */}
           <tr className="bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/50 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
             {table.getVisibleLeafColumns().map((column) => {
-              if (column.id === 'select' || column.id === 'open_panel') return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
+              if (column.id === 'select' || column.id === 'open_panel' || column.id === 'options') return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
               if (column.id === 'expander') {
                 return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-slate-400 text-center text-xs font-bold">+</td>;
               }
@@ -275,6 +321,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

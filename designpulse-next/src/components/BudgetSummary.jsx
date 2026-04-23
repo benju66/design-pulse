@@ -31,12 +31,10 @@ export default function BudgetSummary({ projectId, opportunities = [] }) {
       
       const impact = Number(opp.cost_impact) || 0;
 
-      if (opp.status === 'Approved') {
-        if (!hasOptions || lockedOption) {
-          approved += impact;
-        }
-      } else if (opp.status === 'Pending Review' || opp.status === 'Pending') {
-        if (!hasOptions || lockedOption) {
+      if (opp.status === 'Approved' || lockedOption) {
+        approved += impact;
+      } else if (opp.status === 'Pending Review' || opp.status === 'Pending' || opp.status === 'Pending Plan Update') {
+        if (!hasOptions) {
           pending += impact;
         }
       }

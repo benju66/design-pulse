@@ -20,7 +20,7 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 # Split by comma if the env var contains multiple domains, and natively support production
 allowed_origins = [url.strip() for url in FRONTEND_URL.split(",")]
-for default_url in ["http://localhost:3000", "https://sitepulse.build"]:
+for default_url in ["http://localhost:3000", "https://designpulse.build"]:
     if default_url not in allowed_origins:
         allowed_origins.append(default_url)
 

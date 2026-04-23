@@ -428,14 +428,28 @@ export function useToggleOptionBudget(opportunityId, projectId) {
 
       queryClient.setQueryData(['opportunities', projectId], old => {
         if (!old) return old;
-        const targetOpt = previousOptions?.find(opt => opt.id === optionId);
-        if (!targetOpt) return old;
+        
+        const allOptsForOpp = previousOptions?.filter(opt => opt.opportunity_id === opportunityId) || [];
+        
+        let newCostImpact = 0;
+        let newDaysImpact = 0;
+        
+        allOptsForOpp.forEach(opt => {
+          const isThisOption = opt.id === optionId;
+          const isOptIncluded = isThisOption ? isIncluded : opt.include_in_budget;
+          
+          if (isOptIncluded) {
+            newCostImpact += (Number(opt.cost_impact) || 0);
+            newDaysImpact += (Number(opt.days_impact) || 0);
+          }
+        });
+
         return old.map(opp => 
           opp.id === opportunityId 
             ? { 
                 ...opp, 
-                cost_impact: isIncluded ? (targetOpt.cost_impact || 0) : 0,
-                days_impact: isIncluded ? (targetOpt.days_impact || 0) : 0
+                cost_impact: newCostImpact,
+                days_impact: newDaysImpact
               } 
             : opp
         );

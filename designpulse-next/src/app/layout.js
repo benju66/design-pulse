@@ -15,8 +15,8 @@ const robotoMono = Roboto_Mono({
 });
 
 export const metadata = {
-  title: "SitePulse Visual Tracker",
-  description: "Visually track construction progress on floor plans.",
+  title: "DesignPulse Pre-Construction Engine",
+  description: "Pre-construction Decision Engine and Coordination Tracker.",
 };
 
 export default function RootLayout({ children }) {

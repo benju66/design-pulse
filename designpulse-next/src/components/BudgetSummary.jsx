@@ -1,7 +1,5 @@
 import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/supabaseClient';
-import { useProjectSettings } from '@/hooks/useProjectQueries';
+import { useProjectSettings, useAllProjectOptions } from '@/hooks/useProjectQueries';
 
 const TooltipPopover = ({ title, description }) => (
   <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl z-[100] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform -translate-y-2 group-hover:translate-y-0 pointer-events-none">
@@ -16,17 +14,7 @@ export default function BudgetSummary({ projectId, opportunities = [] }) {
   const { data: settings } = useProjectSettings(projectId);
   const originalBudget = settings?.original_budget ? Number(settings.original_budget) : 5000000;
 
-  const oppIds = useMemo(() => opportunities.map(o => o.id), [opportunities]);
-
-  const { data: allOptions = [] } = useQuery({
-    queryKey: ['all_options', oppIds],
-    queryFn: async () => {
-      if (oppIds.length === 0) return [];
-      const { data } = await supabase.from('opportunity_options').select('*').in('opportunity_id', oppIds);
-      return data || [];
-    },
-    enabled: oppIds.length > 0
-  });
+  const { data: allOptions = [] } = useAllProjectOptions(projectId);
 
   const { approvedChanges, pendingChanges, potentialExposure } = useMemo(() => {
     let approved = 0;

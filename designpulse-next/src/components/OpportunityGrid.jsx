@@ -55,7 +55,7 @@ const OpenPanelCell = ({ row }) => {
         }`}
         title="Open Details Panel"
       >
-        <PanelRight size={16} />
+        <PanelRight size={20} />
       </button>
     </div>
   );
@@ -110,12 +110,14 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     id: 'select',
     header: () => null,
     cell: CheckboxCell,
+    size: 40,
   }), []);
 
   const openPanelColumn = React.useMemo(() => ({
     id: 'open_panel',
     header: () => null,
     cell: OpenPanelCell,
+    size: 40,
   }), []);
 
   const flatColumns = useMemo(

@@ -201,7 +201,7 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
 
       <div className="mt-auto flex flex-col gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/50">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Include in Budget</span>
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Target for Forecast</span>
           <button
             onClick={() => {
               const isIncluded = !opt.include_in_budget;

@@ -69,3 +69,45 @@ export function useCreateOpportunity(projectId) {
     }
   });
 }
+
+export function useProjects() {
+  return useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error("Supabase Projects Error:", error);
+        return [];
+      }
+      return data;
+    }
+  });
+}
+
+export function useCreateProject() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (newProject) => {
+      const { data, error } = await supabase
+        .from('projects')
+        .insert([newProject])
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+    onError: (err) => {
+      console.error('Create Project Error:', err);
+      alert(`Failed to create project: ${err.message}`);
+    }
+  });
+}

@@ -11,7 +11,10 @@ export function useOpportunities(projectId) {
         .select('*')
         .eq('project_id', projectId)
         .order('created_at', { ascending: false });
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase Error:", error);
+        return [];
+      }
       return data;
     },
     enabled: !!projectId
@@ -41,6 +44,28 @@ export function useUpdateOpportunity(projectId) {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+    }
+  });
+}
+
+export function useCreateOpportunity(projectId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (newRow) => {
+      const { data, error } = await supabase
+        .from('opportunities')
+        .insert([{ project_id: projectId, status: 'Draft', cost_impact: 0, title: 'New Option', scope: 'General', ...newRow }])
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+    },
+    onError: (err) => {
+      console.error('Create Opportunity Error:', err);
+      alert(`Failed to add: ${err.message || 'Unknown error'}`);
     }
   });
 }

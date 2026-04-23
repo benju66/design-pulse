@@ -42,13 +42,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!loading) {
-      if (!session && pathname !== '/login') {
-        // Save the full URL (including query parameters like ?link_procore_project=...)
-        const currentUrl = encodeURIComponent(pathname + (window.location.search || ''));
-        router.push(`/login?returnTo=${currentUrl}`);
-      }
-    }
+    // TEMPORARILY DISABLED for MVP testing:
+    // if (!loading) {
+    //   if (!session && pathname !== '/login') {
+    //     const currentUrl = encodeURIComponent(pathname + (window.location.search || ''));
+    //     router.push(`/login?returnTo=${currentUrl}`);
+    //   }
+    // }
   }, [session, loading, pathname, router]);
 
   // NEW: Clean up the giant Supabase token hash from the URL after login
@@ -67,9 +67,10 @@ export function AuthProvider({ children }) {
   }
 
   // Prevent flash of unauthenticated content before redirect kicks in
-  if (!session && pathname !== '/login') {
-    return null; 
-  }
+  // TEMPORARILY DISABLED:
+  // if (!session && pathname !== '/login') {
+  //   return null; 
+  // }
 
   return (
     <AuthContext.Provider value={{ session }}>

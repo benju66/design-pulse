@@ -16,6 +16,7 @@ build/
 # Misc
 .DS_Store
 *.pem
+legend_debug.txt
 
 # Debug
 npm-debug.log*

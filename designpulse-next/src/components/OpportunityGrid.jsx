@@ -1,14 +1,14 @@
 "use client";
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
   getExpandedRowModel,
   flexRender,
 } from '@tanstack/react-table';
-import { ChevronRight, ChevronDown, ChevronUp, GripVertical, Settings, Paperclip, List, MessageSquare, Plus, X, Check } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronUp, GripVertical, Settings, Paperclip, List, MessageSquare, Plus, X, Check, PanelRight, Star } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, useSortable, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, useSortable, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useUpdateOpportunity, useCreateOpportunity, useOpportunityOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption } from '@/hooks/useProjectQueries';
 import { useUIStore } from '@/stores/useUIStore';
@@ -121,12 +121,270 @@ const SortableFieldCard = ({ id, title, children }) => {
   );
 };
 
-const ContendersMatrix = ({ opportunityId }) => {
+const SortableContenderCard = ({ opt, updateOption, deleteOption, lockOption, opportunityId, updateParentOpportunity }) => {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: opt.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`shrink-0 w-80 flex flex-col bg-white dark:bg-slate-900 border rounded-xl p-4 shadow-sm transition-all group relative ${
+        opt.is_locked
+          ? 'border-emerald-500 ring-2 ring-emerald-500/20 dark:ring-emerald-500/30'
+          : 'border-slate-200 dark:border-slate-800 hover:border-sky-300 dark:hover:border-sky-700'
+      }`}
+    >
+      <div 
+        {...attributes} 
+        {...listeners} 
+        className="absolute -top-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 shadow-sm transition-opacity z-10 hover:text-sky-500"
+        title="Drag to reorder"
+      >
+        <GripVertical size={16} />
+      </div>
+
+      <div className="flex justify-between items-start mb-2 pt-2">
+        <div className="flex-1 mr-2">
+          <input
+            className="font-bold text-lg bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-950 focus:border-sky-500 focus:ring-2 focus:ring-sky-500 rounded px-1.5 py-0.5 -ml-1.5 w-full text-slate-800 dark:text-slate-100 cursor-pointer focus:cursor-text transition-colors truncate mb-1.5"
+            defaultValue={opt.title}
+            placeholder="Option Title"
+            title="Click to edit title"
+            onBlur={(e) => {
+              if (e.target.value !== opt.title) updateOption.mutate({ id: opt.id, updates: { title: e.target.value } });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.target.blur();
+            }}
+          />
+          <input
+            list="category-options"
+            className="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full px-2.5 py-1 cursor-text outline-none hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-sky-500 transition-colors border-none w-36"
+            defaultValue={opt.category || 'Other'}
+            placeholder="Category..."
+            onBlur={(e) => {
+              const val = e.target.value.trim() || 'Other';
+              if (val !== (opt.category || 'Other')) {
+                updateOption.mutate({ id: opt.id, updates: { category: val } });
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.target.blur();
+            }}
+          />
+          <datalist id="category-options">
+            <option value="Existing Conditions" />
+            <option value="Arch Plans/Specs" />
+            <option value="Owner Standard" />
+            <option value="Budgeted Item" />
+            <option value="Other" />
+          </datalist>
+        </div>
+        <div className="flex gap-1 shrink-0 mt-1">
+          <button 
+            onClick={() => updateOption.mutate({ id: opt.id, updates: { is_favorite: !opt.is_favorite } })}
+            className={`p-1.5 rounded-full transition-colors ${
+              opt.is_favorite 
+                ? 'bg-amber-100 text-amber-500 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50' 
+                : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 hover:bg-amber-50 hover:text-amber-400 dark:hover:bg-slate-700'
+            }`}
+            title={opt.is_favorite ? "Remove Favorite" : "Mark as Favorite"}
+          >
+            <Star size={14} fill={opt.is_favorite ? 'currentColor' : 'none'} strokeWidth={opt.is_favorite ? 2 : 2.5} />
+          </button>
+          <button 
+            onClick={() => deleteOption.mutate(opt.id)}
+            className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-colors p-1.5"
+            title="Delete Option"
+          >
+            <X size={14} strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
+
+      <textarea
+        className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-2 mb-3 outline-none focus:ring-2 focus:ring-sky-500 resize-none h-16"
+        placeholder="Description & Pros/Cons..."
+        defaultValue={opt.description || ''}
+        onBlur={(e) => {
+          if (e.target.value !== opt.description) updateOption.mutate({ id: opt.id, updates: { description: e.target.value } });
+        }}
+      />
+
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Quantity / UoM</label>
+          <div className="flex bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded focus-within:ring-2 focus-within:ring-sky-500">
+            <input
+              type="number"
+              className="w-16 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5"
+              defaultValue={opt.quantity ?? 1}
+              onBlur={(e) => {
+                const qty = Number(e.target.value);
+                if (qty !== Number(opt.quantity)) {
+                  const newCost = qty * (opt.unit_cost || 0);
+                  updateOption.mutate({ id: opt.id, updates: { quantity: qty, cost_impact: newCost } });
+                }
+              }}
+            />
+            <select
+              className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none"
+              defaultValue={opt.uom || 'ls'}
+              onChange={(e) => updateOption.mutate({ id: opt.id, updates: { uom: e.target.value } })}
+            >
+              <option value="ls">ls</option>
+              <option value="ea">ea</option>
+              <option value="lf">lf</option>
+              <option value="sf">sf</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Unit Cost</label>
+          <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-1.5 focus-within:ring-2 focus-within:ring-sky-500">
+            <span className="text-slate-400 text-sm pl-1">$</span>
+            <input
+              type="number"
+              className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 px-1"
+              defaultValue={opt.unit_cost ?? opt.cost_impact ?? 0}
+              onBlur={(e) => {
+                const uc = Number(e.target.value);
+                if (uc !== Number(opt.unit_cost)) {
+                  const newCost = (opt.quantity ?? 1) * uc;
+                  updateOption.mutate({ id: opt.id, updates: { unit_cost: uc, cost_impact: newCost } });
+                }
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Total Cost</label>
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-1.5">
+            <span className="text-slate-500 dark:text-slate-400 text-sm pl-1">$</span>
+            <span className="w-full text-sm text-slate-800 dark:text-slate-200 px-1 font-bold truncate">
+              {Number(opt.cost_impact ?? 0).toLocaleString()}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Schedule</label>
+          <div className="flex bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded focus-within:ring-2 focus-within:ring-sky-500">
+            <input
+              type="number"
+              className="w-14 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5"
+              defaultValue={opt.days_impact}
+              onBlur={(e) => {
+                const val = Number(e.target.value);
+                if (val !== Number(opt.days_impact)) updateOption.mutate({ id: opt.id, updates: { days_impact: val } });
+              }}
+            />
+            <select
+              className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none"
+              defaultValue={opt.time_impact_uom || 'days'}
+              onChange={(e) => updateOption.mutate({ id: opt.id, updates: { time_impact_uom: e.target.value } })}
+            >
+              <option value="days">days</option>
+              <option value="wks">wks</option>
+              <option value="mos">mos</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-auto flex flex-col gap-2">
+        <button
+          onClick={() => {
+            const isIncluded = !opt.include_in_budget;
+            updateOption.mutate({ id: opt.id, updates: { include_in_budget: isIncluded } });
+            
+            if (isIncluded) {
+              updateParentOpportunity.mutate({ 
+                id: opportunityId, 
+                updates: { cost_impact: opt.cost_impact || 0, days_impact: opt.days_impact || 0 } 
+              });
+            } else {
+              updateParentOpportunity.mutate({ 
+                id: opportunityId, 
+                updates: { cost_impact: 0, days_impact: 0 } 
+              });
+            }
+          }}
+          className={`py-2 px-3 rounded-lg text-[13px] font-bold transition-all flex items-center justify-center gap-2 border ${
+            opt.include_in_budget
+              ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-700 shadow-sm'
+              : 'bg-white text-slate-500 border-slate-200 hover:bg-sky-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800'
+          }`}
+        >
+          {opt.include_in_budget ? <Check size={16} /> : <div className="w-3.5 h-3.5 border-2 border-current rounded-sm opacity-50" />}
+          Include in Budget
+        </button>
+
+        <button
+          onClick={() => lockOption.mutate(opt.id)}
+          disabled={opt.is_locked}
+          className={`py-2 px-3 rounded-lg text-[13px] font-bold transition-all flex items-center justify-center gap-2 ${
+            opt.is_locked
+              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shadow-sm'
+              : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+          }`}
+        >
+          {opt.is_locked ? <Check size={16} /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-current opacity-50" />}
+          Final Selection
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const ContendersMatrix = ({ opportunityId, updateParentOpportunity }) => {
   const { data: options = [] } = useOpportunityOptions(opportunityId);
   const createOption = useCreateOption(opportunityId);
   const updateOption = useUpdateOption(opportunityId);
   const lockOption = useLockOption(opportunityId);
   const deleteOption = useDeleteOption(opportunityId);
+
+  const [orderedOptions, setOrderedOptions] = useState([]);
+
+  useEffect(() => {
+    // Sync local state when external data changes, preserving their sort if they have an order_index
+    setOrderedOptions([...options].sort((a, b) => (a.order_index || 0) - (b.order_index || 0)));
+  }, [options]);
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = orderedOptions.findIndex(o => o.id === active.id);
+      const newIndex = orderedOptions.findIndex(o => o.id === over.id);
+      const newOrder = arrayMove(orderedOptions, oldIndex, newIndex);
+      setOrderedOptions(newOrder);
+      
+      newOrder.forEach((opt, idx) => {
+        if (opt.order_index !== idx) {
+           updateOption.mutate({ id: opt.id, updates: { order_index: idx } });
+        }
+      });
+    }
+  };
+
+  const sensors = useSensors(useSensor(PointerSensor));
+  const scrollRef = useRef(null);
+  const initialScrollDone = useRef(false);
+
+  useEffect(() => {
+    // When options are finally loaded into the DOM, force scroll to the far left.
+    if (options.length > 0 && !initialScrollDone.current) {
+      setTimeout(() => {
+        if (scrollRef.current) scrollRef.current.scrollLeft = 0;
+      }, 50);
+      initialScrollDone.current = true;
+    }
+  }, [options.length]);
 
   return (
     <div className="mb-6">
@@ -136,116 +394,32 @@ const ContendersMatrix = ({ opportunityId }) => {
           {options.length} Options
         </span>
       </h3>
-      <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
-        {options.map(opt => (
-          <div 
-            key={opt.id} 
-            className={`snap-start shrink-0 w-72 flex flex-col bg-white dark:bg-slate-900 border rounded-xl p-4 shadow-sm transition-all ${
-              opt.is_locked 
-                ? 'border-emerald-500 ring-2 ring-emerald-500/20 dark:ring-emerald-500/30' 
-                : 'border-slate-200 dark:border-slate-800 hover:border-sky-300 dark:hover:border-sky-700'
-            }`}
-          >
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex-1 mr-2">
-                <input
-                  className="font-bold text-lg bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-950 focus:border-sky-500 focus:ring-2 focus:ring-sky-500 rounded px-1.5 py-0.5 -ml-1.5 w-full text-slate-800 dark:text-slate-100 cursor-pointer focus:cursor-text transition-colors truncate mb-1.5"
-                  defaultValue={opt.title}
-                  placeholder="Option Title"
-                  title="Click to edit title"
-                  onBlur={(e) => {
-                    if (e.target.value !== opt.title) updateOption.mutate({ id: opt.id, updates: { title: e.target.value } });
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.target.blur();
-                  }}
-                />
-                <select
-                  className="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full px-2.5 py-1 cursor-pointer outline-none hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-sky-500 transition-colors border-none"
-                  defaultValue={opt.category || 'Other'}
-                  onChange={(e) => updateOption.mutate({ id: opt.id, updates: { category: e.target.value } })}
-                >
-                  <option value="Existing Conditions">Existing Conditions</option>
-                  <option value="Arch Plans/Specs">Arch Plans/Specs</option>
-                  <option value="Owner Standard">Owner Standard</option>
-                  <option value="Budgeted Item">Budgeted Item</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <button 
-                onClick={() => deleteOption.mutate(opt.id)}
-                className="text-slate-400 hover:text-rose-500 transition-colors p-1 mt-1 shrink-0"
-                title="Delete Option"
-              >
-                <X size={16} />
-              </button>
-            </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={orderedOptions.map(o => o.id)} strategy={horizontalListSortingStrategy}>
+          <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-6 pt-3 px-2">
+            {orderedOptions.map(opt => (
+              <SortableContenderCard 
+                key={opt.id} 
+                opt={opt} 
+                updateOption={updateOption} 
+                deleteOption={deleteOption} 
+                lockOption={lockOption} 
+                opportunityId={opportunityId}
+                updateParentOpportunity={updateParentOpportunity}
+              />
+            ))}
 
-            <textarea
-              className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-2 mb-3 outline-none focus:ring-2 focus:ring-sky-500 resize-none h-20"
-              placeholder="Description & Pros/Cons..."
-              defaultValue={opt.description || ''}
-              onBlur={(e) => {
-                if (e.target.value !== opt.description) updateOption.mutate({ id: opt.id, updates: { description: e.target.value } });
-              }}
-            />
-
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <div className="flex flex-col">
-                <label className="text-xs text-slate-500 mb-1">Cost Impact</label>
-                <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-1.5 focus-within:ring-2 focus-within:ring-sky-500">
-                  <span className="text-slate-400 text-sm pl-1">$</span>
-                  <input
-                    type="number"
-                    className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 px-1"
-                    defaultValue={opt.cost_impact}
-                    onBlur={(e) => {
-                      const val = Number(e.target.value);
-                      if (val !== Number(opt.cost_impact)) updateOption.mutate({ id: opt.id, updates: { cost_impact: val } });
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-slate-500 mb-1">Days Impact</label>
-                <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-1.5 focus-within:ring-2 focus-within:ring-sky-500">
-                  <input
-                    type="number"
-                    className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 px-1"
-                    defaultValue={opt.days_impact}
-                    onBlur={(e) => {
-                      const val = Number(e.target.value);
-                      if (val !== Number(opt.days_impact)) updateOption.mutate({ id: opt.id, updates: { days_impact: val } });
-                    }}
-                  />
-                  <span className="text-slate-400 text-sm pr-1">d</span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => lockOption.mutate(opt.id)}
-              disabled={opt.is_locked}
-              className={`mt-auto py-2 rounded-lg text-sm font-bold transition-all ${
-                opt.is_locked
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 flex justify-center items-center gap-2'
-                  : 'bg-slate-100 text-slate-600 hover:bg-sky-500 hover:text-white dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-sky-600'
-              }`}
+            {/* Add Option Card */}
+            <div 
+              onClick={() => createOption.mutate({})}
+              className="shrink-0 w-80 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors text-slate-500 hover:text-sky-600 dark:hover:text-sky-400"
             >
-              {opt.is_locked ? <><Check size={16} /> Locked Selection</> : 'Make Active / Lock'}
-            </button>
+              <Plus size={32} className="mb-2 opacity-50" />
+              <span className="font-semibold">+ Add Option</span>
+            </div>
           </div>
-        ))}
-
-        {/* Add Option Card */}
-        <div 
-          onClick={() => createOption.mutate({})}
-          className="snap-start shrink-0 w-72 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors text-slate-500 hover:text-sky-600 dark:hover:text-sky-400"
-        >
-          <Plus size={32} className="mb-2 opacity-50" />
-          <span className="font-semibold">+ Add Option</span>
-        </div>
-      </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 };
@@ -409,7 +583,7 @@ export const ExpandedCard = ({ row, updateData }) => {
       <div className="p-4 bg-slate-50 dark:bg-slate-900/50">
         {activeTab === 'Details' && (
           <>
-            <ContendersMatrix opportunityId={row.original.id} />
+            <ContendersMatrix opportunityId={row.original.id} updateParentOpportunity={updateData} />
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               {/* Primary Data Grid */}
               <SortableContext items={primaryFields.map(f => f.id)} strategy={rectSortingStrategy}>
@@ -523,9 +697,37 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     },
   };
 
+  const openPanelColumn = {
+    id: 'open_panel',
+    header: () => null,
+    cell: ({ row }) => (
+      <div className="flex items-center justify-center p-1">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (selectedOpportunityId === row.original.id) {
+              setSelectedOpportunityId(null);
+            } else {
+              setSelectedOpportunityId(row.original.id);
+            }
+          }}
+          className={`p-1 rounded transition-colors ${
+            selectedOpportunityId === row.original.id 
+              ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30' 
+              : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30'
+          }`}
+          title="Open Details Panel"
+        >
+          <PanelRight size={16} />
+        </button>
+      </div>
+    )
+  };
+
   const flatColumns = useMemo(
     () => [
       checkboxColumn,
+      ...(viewMode === 'split' ? [openPanelColumn] : []),
       { accessorKey: 'title', header: 'Title (Element)', cell: EditableCell },
       { accessorKey: 'location', header: 'Location', cell: EditableCell },
       { accessorKey: 'scope', header: 'Scope', cell: EditableCell },
@@ -543,12 +745,13 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
       { accessorKey: 'status', header: 'Status', cell: EditableCell },
       { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: EditableCell },
     ],
-    [compareQueue]
+    [compareQueue, viewMode, selectedOpportunityId]
   );
 
   const cardColumns = useMemo(
     () => [
       checkboxColumn,
+      ...(viewMode === 'split' ? [openPanelColumn] : []),
       {
         id: 'expander',
         header: () => null,
@@ -568,7 +771,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
       { accessorKey: 'status', header: 'Status', cell: EditableCell },
       { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: EditableCell },
     ],
-    [compareQueue]
+    [compareQueue, viewMode, selectedOpportunityId]
   );
 
   const columns = viewMode === 'card' ? cardColumns : flatColumns;
@@ -623,10 +826,9 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
               <React.Fragment key={row.id}>
                 <tr 
                   id={`row-${row.original.id}`}
-                  onClick={() => setSelectedOpportunityId(row.original.id)}
-                  className={`transition-colors cursor-pointer ${
+                  className={`transition-colors ${
                     isSelected 
-                      ? 'bg-sky-50 dark:bg-sky-900/20 border-l-2 border-sky-500' 
+                      ? 'bg-sky-50/50 dark:bg-sky-900/10 border-l-2 border-sky-500' 
                       : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
                   }`}
                 >
@@ -657,7 +859,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           {/* Ghost Row for Quick Add */}
           <tr className="bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/50 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
             {table.getVisibleLeafColumns().map((column) => {
-              if (column.id === 'select') return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
+              if (column.id === 'select' || column.id === 'open_panel') return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
               if (column.id === 'expander') {
                 return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-slate-400 text-center text-xs font-bold">+</td>;
               }

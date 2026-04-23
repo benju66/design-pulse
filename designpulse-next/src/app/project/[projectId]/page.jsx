@@ -20,7 +20,7 @@ export default function ProjectPage({ params }) {
   
   const [showMap, setShowMap] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
-  const [viewMode, setViewMode] = useState('flat'); // 'flat' | 'card' | 'split'
+  const [viewMode, setViewMode] = useState('split'); // 'split' | 'flat' | 'card'
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
   const { selectedOpportunityId } = useUIStore();
 
@@ -77,6 +77,17 @@ export default function ProjectPage({ params }) {
           <ThemeToggle />
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2">
             <button
+              onClick={() => setViewMode('split')}
+              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                viewMode === 'split' 
+                  ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+              title="Split View"
+            >
+              <PanelRight size={18} />
+            </button>
+            <button
               onClick={() => setViewMode('flat')}
               className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
                 viewMode === 'flat' 
@@ -97,17 +108,6 @@ export default function ProjectPage({ params }) {
               title="Card View"
             >
               <LayoutPanelTop size={18} />
-            </button>
-            <button
-              onClick={() => setViewMode('split')}
-              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
-                viewMode === 'split' 
-                  ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-              title="Split View"
-            >
-              <PanelRight size={18} />
             </button>
           </div>
           <button
@@ -169,7 +169,7 @@ export default function ProjectPage({ params }) {
               <OpportunityGrid 
                 projectId={projectId} 
                 data={filteredOpportunities} 
-                viewMode={viewMode === 'split' ? 'flat' : viewMode} 
+                viewMode={viewMode} 
                 onOpenCompare={() => setIsCompareModalOpen(true)}
               />
             )}

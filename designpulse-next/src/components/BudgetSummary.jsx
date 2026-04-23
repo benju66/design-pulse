@@ -3,9 +3,18 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { useProjectSettings } from '@/hooks/useProjectQueries';
 
+const TooltipPopover = ({ title, description }) => (
+  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl z-[100] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform -translate-y-2 group-hover:translate-y-0 pointer-events-none">
+    <div className="p-3 text-left">
+      <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">{title}</h4>
+      <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{description}</p>
+    </div>
+  </div>
+);
+
 export default function BudgetSummary({ projectId, opportunities = [] }) {
   const { data: settings } = useProjectSettings(projectId);
-  const ORIGINAL_BUDGET = settings?.original_budget ? Number(settings.original_budget) : 5000000;
+  const originalBudget = settings?.original_budget ? Number(settings.original_budget) : 5000000;
 
   const oppIds = useMemo(() => opportunities.map(o => o.id), [opportunities]);
 
@@ -19,62 +28,120 @@ export default function BudgetSummary({ projectId, opportunities = [] }) {
     enabled: oppIds.length > 0
   });
 
-  const { pendingChanges, approvedImpact, potentialExposure } = useMemo(() => {
-    let pending = 0;
+  const { approvedChanges, pendingChanges, potentialExposure } = useMemo(() => {
     let approved = 0;
+    let pending = 0;
     let exposure = 0;
     
     opportunities.forEach(opp => {
+      if (opp.status === 'Rejected') return;
+
       const oppOptions = allOptions.filter(o => o.opportunity_id === opp.id);
       const hasOptions = oppOptions.length > 0;
       const lockedOption = oppOptions.find(o => o.is_locked);
       
-      const impact = Number(opp.cost_impact) || 0;
+      const oppImpact = Number(opp.cost_impact) || 0;
 
       if (opp.status === 'Approved' || lockedOption) {
+        const impact = lockedOption ? (Number(lockedOption.cost_impact) || 0) : oppImpact;
         approved += impact;
       } else if (opp.status === 'Pending Review' || opp.status === 'Pending' || opp.status === 'Pending Plan Update') {
         if (!hasOptions) {
-          pending += impact;
+          pending += oppImpact;
+        } else {
+          const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
+          pending += maxImpact;
         }
-      }
-
-      // Calculate potential exposure (maximum cost variance)
-      if (hasOptions && !lockedOption) {
-        const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
-        if (maxImpact > 0) exposure += maxImpact; // Only count positive impacts as exposure
-      } else if (!hasOptions && opp.status !== 'Approved' && opp.status !== 'Rejected') {
-        if (impact > 0) exposure += impact;
+      } else {
+        // Draft / Exposure Items
+        if (!hasOptions) {
+          exposure += oppImpact;
+        } else {
+          const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
+          exposure += maxImpact;
+        }
       }
     });
 
-    return { pendingChanges: pending, approvedImpact: approved, potentialExposure: exposure };
+    return { approvedChanges: approved, pendingChanges: pending, potentialExposure: exposure };
   }, [opportunities, allOptions]);
 
-  const approvedTotal = ORIGINAL_BUDGET + approvedImpact;
+  const revisedBudget = originalBudget + approvedChanges;
+  const projectedBudget = revisedBudget + pendingChanges;
 
-  const formatCurrency = (val) => 
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+  const formatCurrency = (val, forcePlus = false) => {
+    if (isNaN(val)) return '$0';
+    const num = Number(val);
+    const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Math.abs(num));
+    if (num < 0) return `-${formatted}`;
+    if (num > 0 && forcePlus) return `+${formatted}`;
+    return formatted;
+  };
 
   return (
-    <div className="grid grid-cols-4 gap-4 mb-6">
-      <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      {/* Original Budget */}
+      <div className="relative group bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
         <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Original Budget</span>
-        <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(ORIGINAL_BUDGET)}</span>
+        <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(originalBudget)}</span>
+        <TooltipPopover 
+          title="Original Budget" 
+          description="The baseline financial target established at the start of the phase." 
+        />
       </div>
-      <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
+
+      {/* Approved Changes */}
+      <div className="relative group bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-xl p-4 flex flex-col">
+        <span className="text-sm text-emerald-600 dark:text-emerald-500 font-medium">Approved Changes</span>
+        <span className={`text-2xl font-bold ${approvedChanges < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
+          {formatCurrency(approvedChanges, true)}
+        </span>
+        <TooltipPopover 
+          title="Approved Changes" 
+          description="The total sum of all fully approved or locked VE items and alternates." 
+        />
+      </div>
+
+      {/* Revised Budget */}
+      <div className="relative group bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-4 flex flex-col">
+        <span className="text-sm text-sky-600 dark:text-sky-400 font-medium">Revised Budget</span>
+        <span className="text-2xl font-bold text-sky-700 dark:text-sky-300">{formatCurrency(revisedBudget)}</span>
+        <TooltipPopover 
+          title="Revised Budget" 
+          description="Original Budget + Approved Changes." 
+        />
+      </div>
+
+      {/* Pending Changes */}
+      <div className="relative group bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
         <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Pending Changes</span>
         <span className={`text-2xl font-bold ${pendingChanges < 0 ? 'text-emerald-500' : pendingChanges > 0 ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>
-          {pendingChanges > 0 ? '+' : ''}{formatCurrency(pendingChanges)}
+          {formatCurrency(pendingChanges, true)}
         </span>
+        <TooltipPopover 
+          title="Pending Changes" 
+          description="Items currently under review. If multiple options exist, the highest cost is used conservatively." 
+        />
       </div>
-      <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-4 flex flex-col">
-        <span className="text-sm text-sky-600 dark:text-sky-400 font-medium">Approved Total</span>
-        <span className="text-2xl font-bold text-sky-700 dark:text-sky-300">{formatCurrency(approvedTotal)}</span>
+
+      {/* Projected Budget */}
+      <div className="relative group bg-white dark:bg-slate-950 border-2 border-slate-300 dark:border-slate-700 rounded-xl p-4 flex flex-col shadow-sm ring-1 ring-slate-900/5 dark:ring-white/5">
+        <span className="text-sm text-slate-700 dark:text-slate-300 font-semibold">Projected Budget</span>
+        <span className="text-2xl font-extrabold text-slate-900 dark:text-white">{formatCurrency(projectedBudget)}</span>
+        <TooltipPopover 
+          title="Projected Budget" 
+          description="Revised Budget + Pending Changes. The expected final cost if all pending items are approved." 
+        />
       </div>
-      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex flex-col">
+
+      {/* Potential Exposure */}
+      <div className="relative group bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex flex-col">
         <span className="text-sm text-amber-600 dark:text-amber-400 font-medium">Potential Exposure</span>
-        <span className="text-2xl font-bold text-amber-700 dark:text-amber-300">+{formatCurrency(potentialExposure)}</span>
+        <span className="text-2xl font-bold text-amber-700 dark:text-amber-300">{formatCurrency(potentialExposure, true)}</span>
+        <TooltipPopover 
+          title="Potential Exposure" 
+          description="The worst-case cost scenario for all early-stage draft items not yet under formal review." 
+        />
       </div>
     </div>
   );

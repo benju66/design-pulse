@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
-import { useUpdateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useProjectSettings, useDeleteOpportunity } from '@/hooks/useProjectQueries';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { List, Paperclip, MessageSquare, Settings, ChevronDown } from 'lucide-react';
@@ -15,6 +15,7 @@ export const ExpandedCard = ({ row }) => {
   const params = useParams();
   const projectId = params?.projectId;
   const updateData = useUpdateOpportunity(projectId);
+  const deleteData = useDeleteOpportunity(projectId);
   const { data: settings } = useProjectSettings(projectId);
   const scopes = settings?.scopes || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
@@ -174,6 +175,18 @@ export const ExpandedCard = ({ row }) => {
             >
               <Settings size={18} />
               <span className="text-sm font-semibold">Configure Layout</span>
+            </button>
+            <div className="w-px h-5 bg-slate-300 dark:bg-slate-700" />
+            <button 
+              onClick={() => {
+                if (window.confirm('Are you sure you want to delete this item and all its options? This cannot be undone.')) {
+                  deleteData.mutate(row.original.id);
+                }
+              }}
+              className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-rose-100 dark:hover:bg-rose-900/30 text-rose-500 transition-colors"
+              title="Delete Item"
+            >
+              <span className="text-sm font-semibold">Delete</span>
             </button>
             {showSettings && (
               <div className="absolute right-0 top-10 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-20">

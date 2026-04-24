@@ -24,7 +24,8 @@ export function useProjectSettings(projectId) {
         sidebar_items: DEFAULT_SIDEBAR_ITEMS,
         project_name: projectId,
         location: 'Not Set',
-        original_budget: 0
+        original_budget: 0,
+        enable_audit_logging: false
       };
 
       if (!data) return defaultSettings;
@@ -35,7 +36,8 @@ export function useProjectSettings(projectId) {
         sidebar_items: data.sidebar_items?.length > 0 ? data.sidebar_items : defaultSettings.sidebar_items,
         project_name: data.project_name || defaultSettings.project_name,
         location: data.location || defaultSettings.location,
-        original_budget: data.original_budget ?? defaultSettings.original_budget
+        original_budget: data.original_budget ?? defaultSettings.original_budget,
+        enable_audit_logging: data.enable_audit_logging ?? defaultSettings.enable_audit_logging
       };
     },
     enabled: !!projectId
@@ -149,6 +151,28 @@ export function useCreateOpportunity(projectId) {
     onError: (err) => {
       console.error('Create Opportunity Error:', err);
       toast.error(`Failed to add: ${err.message || 'Unknown error'}`);
+    }
+  });
+}
+
+export function useDeleteOpportunity(projectId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      const { error } = await supabase
+        .from('opportunities')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      toast.success('Item deleted successfully.');
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+    },
+    onError: (err) => {
+      console.error('Delete Opportunity Error:', err);
+      toast.error(`Failed to delete: ${err.message || 'Unknown error'}`);
     }
   });
 }

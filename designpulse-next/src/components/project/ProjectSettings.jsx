@@ -52,7 +52,8 @@ export const ProjectSettings = ({ projectId }) => {
   const [projectInfo, setProjectInfo] = useState({
     project_name: '',
     location: '',
-    original_budget: 0
+    original_budget: 0,
+    enable_audit_logging: false
   });
   
   const [newCat, setNewCat] = useState('');
@@ -67,7 +68,8 @@ export const ProjectSettings = ({ projectId }) => {
       setProjectInfo({
         project_name: settings.project_name || projectId,
         location: settings.location || '',
-        original_budget: settings.original_budget || 0
+        original_budget: settings.original_budget || 0,
+        enable_audit_logging: settings.enable_audit_logging || false
       });
       setHasChanges(false);
     }
@@ -144,7 +146,8 @@ export const ProjectSettings = ({ projectId }) => {
         sidebar_items: sidebarItems,
         project_name: projectInfo.project_name,
         location: projectInfo.location,
-        original_budget: Number(projectInfo.original_budget)
+        original_budget: Number(projectInfo.original_budget),
+        enable_audit_logging: Boolean(projectInfo.enable_audit_logging)
       },
       { onSuccess: () => setHasChanges(false) }
     );
@@ -266,6 +269,30 @@ export const ProjectSettings = ({ projectId }) => {
                 />
               </div>
               <p className="text-xs text-slate-500 mt-1">This value sets the baseline for the Value Engineering Matrix.</p>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 dark:border-slate-800 pt-6 mt-6">
+            <h3 className="text-md font-bold text-slate-800 dark:text-slate-200 mb-4">Security & Compliance</h3>
+            <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950">
+              <div>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Enable Audit Logging</p>
+                <p className="text-xs text-slate-500 mt-1">Track all row-level changes (INSERT/UPDATE/DELETE) in the database.</p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => handleInfoChange('enable_audit_logging', !projectInfo.enable_audit_logging)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                  projectInfo.enable_audit_logging ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
+                }`}
+                title={projectInfo.enable_audit_logging ? "Disable audit logging" : "Enable audit logging"}
+              >
+                <span 
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
+                    projectInfo.enable_audit_logging ? 'translate-x-6' : 'translate-x-1'
+                  }`} 
+                />
+              </button>
             </div>
           </div>
         </div>

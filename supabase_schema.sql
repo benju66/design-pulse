@@ -208,3 +208,89 @@ CREATE TRIGGER trg_sync_parent_opportunity_totals
 AFTER INSERT OR UPDATE OR DELETE ON opportunity_options
 FOR EACH ROW
 EXECUTE FUNCTION sync_parent_opportunity_totals();
+
+-- 7. Audit Logging
+
+-- Alter Settings to include the toggle
+ALTER TABLE project_settings ADD COLUMN IF NOT EXISTS enable_audit_logging BOOLEAN DEFAULT false;
+
+-- Create Audit Logs Table
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    record_id uuid NOT NULL,
+    table_name text NOT NULL,
+    action_type text NOT NULL CHECK (action_type IN ('INSERT', 'UPDATE', 'DELETE')),
+    old_payload jsonb,
+    new_payload jsonb,
+    user_id uuid,
+    project_id text,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable RLS for audit_logs (Optional but recommended)
+-- ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "Enable full access for all users" ON audit_logs FOR ALL USING (true);
+
+-- Smart Trigger Function for Event Sourcing
+CREATE OR REPLACE FUNCTION process_audit_log()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_project_id text;
+  v_audit_enabled boolean;
+BEGIN
+  -- 1. Determine project_id based on table
+  IF TG_TABLE_NAME = 'opportunities' THEN
+    IF TG_OP = 'DELETE' THEN
+      v_project_id := OLD.project_id;
+    ELSE
+      v_project_id := NEW.project_id;
+    END IF;
+  ELSIF TG_TABLE_NAME = 'opportunity_options' THEN
+    IF TG_OP = 'DELETE' THEN
+      SELECT project_id INTO v_project_id FROM opportunities WHERE id = OLD.opportunity_id;
+    ELSE
+      SELECT project_id INTO v_project_id FROM opportunities WHERE id = NEW.opportunity_id;
+    END IF;
+  END IF;
+
+  -- 2. Gatekeeper Check: Respect the enable_audit_logging toggle
+  SELECT enable_audit_logging INTO v_audit_enabled
+  FROM project_settings
+  WHERE project_id = v_project_id;
+
+  IF v_audit_enabled IS NOT TRUE THEN
+    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+  END IF;
+
+  -- 3. Execute Logging
+  IF TG_OP = 'DELETE' THEN
+    INSERT INTO audit_logs (record_id, table_name, action_type, old_payload, user_id, project_id)
+    VALUES (OLD.id, TG_TABLE_NAME, 'DELETE', row_to_json(OLD)::jsonb, auth.uid(), v_project_id);
+    RETURN OLD;
+  ELSIF TG_OP = 'UPDATE' THEN
+    INSERT INTO audit_logs (record_id, table_name, action_type, old_payload, new_payload, user_id, project_id)
+    VALUES (NEW.id, TG_TABLE_NAME, 'UPDATE', row_to_json(OLD)::jsonb, row_to_json(NEW)::jsonb, auth.uid(), v_project_id);
+    RETURN NEW;
+  ELSIF TG_OP = 'INSERT' THEN
+    INSERT INTO audit_logs (record_id, table_name, action_type, new_payload, user_id, project_id)
+    VALUES (NEW.id, TG_TABLE_NAME, 'INSERT', row_to_json(NEW)::jsonb, auth.uid(), v_project_id);
+    RETURN NEW;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+-- Attach Triggers to Tables
+DROP TRIGGER IF EXISTS trg_audit_opportunities ON opportunities;
+CREATE TRIGGER trg_audit_opportunities
+AFTER INSERT OR UPDATE OR DELETE ON opportunities
+FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+DROP TRIGGER IF EXISTS trg_audit_opportunity_options ON opportunity_options;
+CREATE TRIGGER trg_audit_opportunity_options
+AFTER INSERT OR UPDATE OR DELETE ON opportunity_options
+FOR EACH ROW EXECUTE FUNCTION process_audit_log();

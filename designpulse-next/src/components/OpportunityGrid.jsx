@@ -4,6 +4,8 @@ import {
   useReactTable,
   getCoreRowModel,
   getExpandedRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
   flexRender,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -59,6 +61,8 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   }, [selectedOpportunityId]);
 
   const [expanded, setExpanded] = useState({});
+  const [sorting, setSorting] = useState([]);
+  const [globalFilter, setGlobalFilter] = useState('');
   const columnVisibility = useUIStore(state => state.gridColumnVisibility);
   const setColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
   const columnOrder = useUIStore(state => state.gridColumnOrder);
@@ -69,12 +73,16 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const table = useReactTable({
     data,
     columns,
-    state: { expanded, columnVisibility, columnOrder },
+    state: { expanded, columnVisibility, columnOrder, sorting, globalFilter },
     onExpandedChange: setExpanded,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnOrderChange: setColumnOrder,
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     columnResizeMode: 'onChange',
     getRowId: (row) => row.id,
     meta: {
@@ -103,8 +111,14 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
       {/* Table Header Toolbar */}
       <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
         <div className="flex items-center gap-2">
-          {/* We can add filters or other controls here later */}
-          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2">Matrix View</span>
+          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Matrix View</span>
+          <input 
+            type="text"
+            placeholder="Search items..."
+            value={globalFilter ?? ''}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
+          />
         </div>
         <ColumnChooser table={table} />
       </div>
@@ -176,8 +190,15 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
                   className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900"
                   style={{ width: header.getSize() }}
                 >
-                  <div className="truncate">
-                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  <div 
+                    className={`truncate flex items-center justify-between ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                    {{
+                      asc: <ChevronUp size={14} className="ml-1 inline-block shrink-0" />,
+                      desc: <ChevronDown size={14} className="ml-1 inline-block shrink-0" />,
+                    }[header.column.getIsSorted()] ?? null}
                   </div>
                   
                   {header.column.getCanResize() && (

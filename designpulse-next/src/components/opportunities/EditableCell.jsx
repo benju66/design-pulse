@@ -7,9 +7,14 @@ import { useUIStore } from '@/stores/useUIStore';
 const commonComparator = (prevProps, nextProps, checkOptions = false) => {
   if (prevProps.getValue() !== nextProps.getValue()) return false;
   if (checkOptions) {
-    const prevOptions = prevProps.table.options.meta?.optionsMap?.[prevProps.row.original.id];
-    const nextOptions = nextProps.table.options.meta?.optionsMap?.[nextProps.row.original.id];
-    if (prevOptions !== nextOptions) return false;
+    const prevOptions = prevProps.table.options.meta?.optionsMap?.[prevProps.row.original.id] || [];
+    const nextOptions = nextProps.table.options.meta?.optionsMap?.[nextProps.row.original.id] || [];
+    
+    // FAST ARRAY CHECK: Check length, then check object references inside
+    if (prevOptions.length !== nextOptions.length) return false;
+    for (let i = 0; i < prevOptions.length; i++) {
+      if (prevOptions[i] !== nextOptions[i]) return false; 
+    }
   }
   const prevActive = prevProps.table.options.meta?.activeCell || {};
   const nextActive = nextProps.table.options.meta?.activeCell || {};

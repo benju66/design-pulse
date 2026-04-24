@@ -1,14 +1,31 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { useAllProjectOptions, useProjectSettings } from '@/hooks/useProjectQueries';
+import { useProjectSettings } from '@/hooks/useProjectQueries';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
 
-export const CellWrapper = ({ row, column, displayValue, inputElement, className }) => {
-  const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+const commonComparator = (prevProps, nextProps, checkOptions = false) => {
+  if (prevProps.getValue() !== nextProps.getValue()) return false;
+  if (checkOptions) {
+    const prevOptions = prevProps.table.options.meta?.optionsMap?.[prevProps.row.original.id];
+    const nextOptions = nextProps.table.options.meta?.optionsMap?.[nextProps.row.original.id];
+    if (prevOptions !== nextOptions) return false;
+  }
+  const prevActive = prevProps.table.options.meta?.activeCell || {};
+  const nextActive = nextProps.table.options.meta?.activeCell || {};
+  const wasActive = prevActive.rowIndex === prevProps.row.index && prevActive.columnId === prevProps.column.id;
+  const isNowActive = nextActive.rowIndex === nextProps.row.index && nextActive.columnId === nextProps.column.id;
+  if (wasActive !== isNowActive) return false;
+  return true;
+};
+
+export const CellWrapper = ({ row, column, displayValue, inputElement, className, table }) => {
+  const activeCell = table?.options?.meta?.activeCell || {};
+  const setActiveCell = table?.options?.meta?.setActiveCell || (() => {});
+  const isCellActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const gridMode = useUIStore(state => state.gridMode);
   const isEditing = isCellActive && gridMode === 'edit';
-  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const setActiveCellState = useUIStore(state => state.setActiveCell);
   const setGridMode = useUIStore(state => state.setGridMode);
   const divRef = useRef(null);
 
@@ -72,6 +89,7 @@ export const TextCell = React.memo(({ getValue, row, column, table }) => {
     <CellWrapper
       row={row}
       column={column}
+      table={table}
       displayValue={value || ''}
       inputElement={(isActive, setGridMode) => (
         <input
@@ -87,13 +105,14 @@ export const TextCell = React.memo(({ getValue, row, column, table }) => {
       )}
     />
   );
-}, (prev, next) => prev.getValue() === next.getValue());
+}, (prev, next) => commonComparator(prev, next, false));
 
 export const StatusCell = React.memo(({ getValue, row, column, table }) => {
   const initialValue = getValue();
   const updateMutation = table.options.meta?.updateData;
-  const isActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
-  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const activeCell = table.options.meta?.activeCell || {};
+  const setActiveCell = table.options.meta?.setActiveCell || (() => {});
+  const isActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const selectRef = useRef(null);
 
   useEffect(() => {
@@ -118,7 +137,7 @@ export const StatusCell = React.memo(({ getValue, row, column, table }) => {
       <option value="Rejected">Rejected</option>
     </select>
   );
-}, (prev, next) => prev.getValue() === next.getValue());
+}, (prev, next) => commonComparator(prev, next, false));
 
 export const ScopeCell = React.memo(({ getValue, row, column, table }) => {
   const params = useParams();
@@ -127,8 +146,9 @@ export const ScopeCell = React.memo(({ getValue, row, column, table }) => {
   const initialValue = getValue();
   const updateMutation = table.options.meta?.updateData;
   const scopes = settings?.scopes || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
-  const isActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
-  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const activeCell = table.options.meta?.activeCell || {};
+  const setActiveCell = table.options.meta?.setActiveCell || (() => {});
+  const isActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const selectRef = useRef(null);
 
   useEffect(() => {
@@ -153,13 +173,14 @@ export const ScopeCell = React.memo(({ getValue, row, column, table }) => {
       ))}
     </select>
   );
-}, (prev, next) => prev.getValue() === next.getValue());
+}, (prev, next) => commonComparator(prev, next, false));
 
 export const PriorityCell = React.memo(({ getValue, row, column, table }) => {
   const initialValue = getValue();
   const updateMutation = table.options.meta?.updateData;
-  const isActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
-  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const activeCell = table.options.meta?.activeCell || {};
+  const setActiveCell = table.options.meta?.setActiveCell || (() => {});
+  const isActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const selectRef = useRef(null);
 
   useEffect(() => {
@@ -193,7 +214,7 @@ export const PriorityCell = React.memo(({ getValue, row, column, table }) => {
       <option value="Low" className="text-slate-500">Low</option>
     </select>
   );
-}, (prev, next) => prev.getValue() === next.getValue());
+}, (prev, next) => commonComparator(prev, next, false));
 
 export const ImpactCell = React.memo(({ getValue, row, column, table }) => {
   const initialValue = getValue();
@@ -205,10 +226,8 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }) => {
     setValue(initialValue);
   }, [initialValue]);
 
-  const params = useParams();
-  const projectId = params?.projectId;
-  const { data: allOptions = [] } = useAllProjectOptions(projectId);
-  const options = React.useMemo(() => allOptions.filter(o => o.opportunity_id === row.original.id), [allOptions, row.original.id]);
+  const optionsMap = table.options.meta?.optionsMap || {};
+  const options = optionsMap[row.original.id] || [];
 
   const onBlur = (setGridMode) => {
     if (value !== initialValue) {
@@ -253,6 +272,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }) => {
     <CellWrapper
       row={row}
       column={column}
+      table={table}
       className={colorClass}
       displayValue={displayValue}
       inputElement={(isActive, setGridMode) => (
@@ -269,4 +289,4 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }) => {
       )}
     />
   );
-}, (prev, next) => prev.getValue() === next.getValue());
+}, (prev, next) => commonComparator(prev, next, true));

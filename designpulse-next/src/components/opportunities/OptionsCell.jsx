@@ -1,13 +1,9 @@
 "use client";
 import React from 'react';
-import { useAllProjectOptions } from '@/hooks/useProjectQueries';
-import { useParams } from 'next/navigation';
 
-export const OptionsCell = ({ row }) => {
-  const params = useParams();
-  const projectId = params?.projectId;
-  const { data: allOptions = [] } = useAllProjectOptions(projectId);
-  const options = React.useMemo(() => allOptions.filter(o => o.opportunity_id === row.original.id), [allOptions, row.original.id]);
+export const OptionsCell = React.memo(({ row, table }) => {
+  const optionsMap = table.options.meta?.optionsMap || {};
+  const options = optionsMap[row.original.id] || [];
   
   if (!options || options.length === 0) {
     return <div className="flex items-center justify-center p-2 h-full"><span className="text-xs text-slate-300 dark:text-slate-600 italic">-</span></div>;
@@ -42,4 +38,9 @@ export const OptionsCell = ({ row }) => {
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  const prevOptions = prevProps.table.options.meta?.optionsMap?.[prevProps.row.original.id];
+  const nextOptions = nextProps.table.options.meta?.optionsMap?.[nextProps.row.original.id];
+  if (prevOptions !== nextOptions) return false;
+  return true;
+});

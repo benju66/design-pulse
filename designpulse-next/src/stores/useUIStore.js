@@ -32,22 +32,8 @@ export const useUIStore = create(
       setGridColumnOrder: (updater) => set((state) => ({ 
         gridColumnOrder: typeof updater === 'function' ? updater(state.gridColumnOrder) : updater 
       })),
-      activeCell: { rowIndex: null, columnId: null },
-      setActiveCell: (cell) => set({ activeCell: cell }),
       gridMode: 'navigate',
       setGridMode: (mode) => set({ gridMode: mode }),
-      pendingRows: {},
-      setPendingRow: (projectId, updater) => set((state) => ({ 
-        pendingRows: { 
-          ...state.pendingRows, 
-          [projectId]: typeof updater === 'function' ? updater(state.pendingRows[projectId] || {}) : updater 
-        } 
-      })),
-      clearPendingRow: (projectId) => set((state) => { 
-        const newPending = { ...state.pendingRows }; 
-        delete newPending[projectId]; 
-        return { pendingRows: newPending }; 
-      }),
       setCardOrder: (newOrder) => set({ cardOrder: newOrder }),
       toggleCardVisibility: (cardId) => set((state) => ({
         visibleCards: {

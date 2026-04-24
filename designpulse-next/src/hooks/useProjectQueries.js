@@ -22,7 +22,7 @@ export function useProjectSettings(projectId) {
         sidebar_items: DEFAULT_SIDEBAR_ITEMS,
         project_name: projectId,
         location: 'Not Set',
-        original_budget: 5000000
+        original_budget: 0
       };
 
       if (!data) return defaultSettings;

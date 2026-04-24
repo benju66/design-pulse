@@ -12,7 +12,7 @@ const TooltipPopover = ({ title, description }) => (
 
 export default function BudgetSummary({ projectId, opportunities = [] }) {
   const { data: settings } = useProjectSettings(projectId);
-  const originalBudget = settings?.original_budget ? Number(settings.original_budget) : 5000000;
+  const originalBudget = settings ? Number(settings.original_budget) : 0;
 
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
 

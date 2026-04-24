@@ -11,43 +11,61 @@ export const TextCell = React.memo(({ getValue, row, column, table }) => {
   const [isFocused, setIsFocused] = useState(false);
   const updateMutation = table.options.meta?.updateData;
   
-  const isActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const gridMode = useUIStore(state => state.gridMode);
+  const isEditing = isCellActive && gridMode === 'edit';
   const setActiveCell = useUIStore(state => state.setActiveCell);
+  const setGridMode = useUIStore(state => state.setGridMode);
   const inputRef = React.useRef(null);
+  const divRef = React.useRef(null);
 
   useEffect(() => {
-    if (isActive && inputRef.current) {
-      inputRef.current.focus();
+    if (isCellActive) {
+      if (isEditing && inputRef.current) inputRef.current.focus();
+      else if (!isEditing && divRef.current) divRef.current.focus();
     }
-  }, [isActive]);
-
-  useEffect(() => {
-    if (!isFocused) {
-      setValue(initialValue);
-    }
-  }, [initialValue, isFocused]);
+  }, [isCellActive, isEditing]);
 
   const onBlur = () => {
     setIsFocused(false);
     if (value !== initialValue) {
-      updateMutation.mutate({
-        id: row.original.id,
-        updates: { [column.id]: value }
-      });
+      updateMutation.mutate({ id: row.original.id, updates: { [column.id]: value } });
     }
   };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      e.preventDefault();
+      setGridMode('navigate');
+      onBlur();
+    }
+  };
+
+  if (!isEditing) {
+    return (
+      <div
+        ref={divRef}
+        tabIndex={0}
+        onClick={() => {
+          setActiveCell({ rowIndex: row.index, columnId: column.id });
+          setGridMode('navigate');
+        }}
+        onDoubleClick={() => setGridMode('edit')}
+        className="w-full h-full px-2 py-1 text-sm text-slate-900 dark:text-slate-100 min-h-[28px] outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 truncate cursor-text"
+      >
+        {value || ''}
+      </div>
+    );
+  }
 
   return (
     <input
       ref={inputRef}
       value={value || ''}
       onChange={(e) => setValue(e.target.value)}
-      onFocus={() => {
-        setIsFocused(true);
-        setActiveCell({ rowIndex: row.index, columnId: column.id });
-      }}
+      onFocus={() => setIsFocused(true)}
       onBlur={onBlur}
-      onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+      onKeyDown={handleKeyDown}
       className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100"
       type="text"
     />
@@ -130,29 +148,34 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }) => {
   const projectId = params?.projectId;
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   const options = React.useMemo(() => allOptions.filter(o => o.opportunity_id === row.original.id), [allOptions, row.original.id]);
-  const isActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const gridMode = useUIStore(state => state.gridMode);
+  const isEditing = isCellActive && gridMode === 'edit';
   const setActiveCell = useUIStore(state => state.setActiveCell);
+  const setGridMode = useUIStore(state => state.setGridMode);
   const inputRef = React.useRef(null);
+  const divRef = React.useRef(null);
 
   useEffect(() => {
-    if (isActive && inputRef.current) {
-      inputRef.current.focus();
+    if (isCellActive) {
+      if (isEditing && inputRef.current) inputRef.current.focus();
+      else if (!isEditing && divRef.current) divRef.current.focus();
     }
-  }, [isActive]);
-
-  useEffect(() => {
-    if (!isFocused) {
-      setValue(initialValue);
-    }
-  }, [initialValue, isFocused]);
+  }, [isCellActive, isEditing]);
 
   const onBlur = () => {
     setIsFocused(false);
     if (value !== initialValue) {
-      updateMutation.mutate({
-        id: row.original.id,
-        updates: { [column.id]: Number(value) || 0 }
-      });
+      const numericValue = value === '' ? null : Number(value);
+      updateMutation.mutate({ id: row.original.id, updates: { [column.id]: numericValue } });
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      e.preventDefault();
+      setGridMode('navigate');
+      onBlur();
     }
   };
 
@@ -174,21 +197,40 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }) => {
     );
   }
 
+  if (!isEditing) {
+    const displayValue = value === null || value === undefined ? '' : 
+      column.id === 'cost_impact' && value !== '' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(value) : value;
+      
+    return (
+      <div
+        ref={divRef}
+        tabIndex={0}
+        onClick={() => {
+          setActiveCell({ rowIndex: row.index, columnId: column.id });
+          setGridMode('navigate');
+        }}
+        onDoubleClick={() => setGridMode('edit')}
+        className={`w-full h-full px-2 py-1 text-sm text-slate-900 dark:text-slate-100 min-h-[28px] outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 truncate cursor-text ${
+          column.id === 'cost_impact' && value < 0 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : ''
+        } ${column.id === 'cost_impact' && value > 0 ? 'text-rose-600 dark:text-rose-400 font-medium' : ''}`}
+      >
+        {displayValue}
+      </div>
+    );
+  }
+
   return (
     <input
       ref={inputRef}
       value={value ?? ''}
       onChange={(e) => setValue(e.target.value)}
-      onFocus={() => {
-        setIsFocused(true);
-        setActiveCell({ rowIndex: row.index, columnId: column.id });
-      }}
+      onFocus={() => setIsFocused(true)}
       onBlur={onBlur}
-      onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-      className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100 ${
-        column.id === 'cost_impact' && value < 0 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : ''
-      }`}
+      onKeyDown={handleKeyDown}
       type="number"
+      className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100 ${
+        column.id === 'cost_impact' && value < 0 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : ''
+      } ${column.id === 'cost_impact' && value > 0 ? 'text-rose-600 dark:text-rose-400 font-medium' : ''}`}
     />
   );
 }, (prev, next) => prev.getValue() === next.getValue());

@@ -61,13 +61,27 @@ const OpenPanelCell = ({ row }) => {
   );
 };
 
+const EMPTY_ROW = {};
+
 export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare }) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const compareQueue = useUIStore(state => state.compareQueue);
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
-  const [pendingRow, setPendingRow] = useState({});
+  const pendingRow = useUIStore(state => state.pendingRows[projectId] || EMPTY_ROW);
+  const setPendingRow = (updater) => useUIStore.getState().setPendingRow(projectId, updater);
+  const clearPendingRow = () => useUIStore.getState().clearPendingRow(projectId);
+  const [ghostError, setGhostError] = useState(false);
+
+  const submitGhostRow = () => {
+    if (!pendingRow.title?.trim()) {
+      setGhostError(true);
+      setTimeout(() => setGhostError(false), 2000);
+      return;
+    }
+    createMutation.mutate(pendingRow, { onSuccess: () => clearPendingRow() });
+  };
 
   useEffect(() => {
     if (selectedOpportunityId) {
@@ -102,6 +116,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     () => [
       checkboxColumn,
       ...(viewMode === 'split' ? [openPanelColumn] : []),
+      { accessorKey: 'display_id', header: 'ID', cell: TextCell, size: 80 },
       { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
       { accessorKey: 'location', header: 'Location', cell: TextCell },
       { accessorKey: 'scope', header: 'Scope', cell: ScopeCell },
@@ -139,6 +154,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           </button>
         ),
       },
+      { accessorKey: 'display_id', header: 'ID', cell: TextCell, size: 80 },
       { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
       { accessorKey: 'location', header: 'Location', cell: TextCell },
       { accessorKey: 'assignee', header: 'Assignee', cell: TextCell },
@@ -203,6 +219,20 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           if (!keys.includes(e.key)) return;
           
           const state = useUIStore.getState();
+          const gridMode = state.gridMode;
+          
+          // Enter key enters edit mode natively if navigating
+          if (e.key === 'Enter') {
+            if (gridMode === 'navigate') {
+               e.preventDefault();
+               useUIStore.getState().setGridMode('edit');
+            }
+            return;
+          }
+
+          // If we are actively typing, never steal arrow keys
+          if (gridMode === 'edit') return;
+
           const activeCell = state.activeCell;
           if (activeCell.rowIndex === null || activeCell.columnId === null) return;
 
@@ -324,11 +354,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
                 return (
                   <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-center">
                     <button
-                      onClick={() => {
-                        if (Object.keys(pendingRow).length > 0) {
-                          createMutation.mutate(pendingRow, { onSuccess: () => setPendingRow({}) });
-                        }
-                      }}
+                      onClick={submitGhostRow}
                       className="p-1 mx-auto bg-sky-500 hover:bg-sky-600 text-white rounded shadow-sm flex items-center justify-center transition-colors"
                       title="Add Opportunity"
                     >
@@ -359,12 +385,10 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        if (Object.keys(pendingRow).length > 0) {
-                          createMutation.mutate(pendingRow, { onSuccess: () => setPendingRow({}) });
-                        }
+                        submitGhostRow();
                       }
                     }}
-                    className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400/70 dark:placeholder-slate-500/70 italic"
+                    className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400/70 dark:placeholder-slate-500/70 italic ${column.id === 'title' && ghostError ? 'ring-2 ring-rose-500 animate-pulse' : ''}`}
                   />
                 </td>
               );

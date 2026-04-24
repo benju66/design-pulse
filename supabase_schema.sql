@@ -22,6 +22,12 @@ CREATE TABLE IF NOT EXISTS project_settings (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 2.5 Project Sequences Table (For VE-001 IDs)
+CREATE TABLE IF NOT EXISTS project_sequences (
+  project_id text PRIMARY KEY,
+  current_value integer DEFAULT 0
+);
+
 -- 3. Opportunities (VE Log Items) Table
 CREATE TABLE IF NOT EXISTS opportunities (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -44,6 +50,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
   cost_impact numeric DEFAULT 0,
   days_impact numeric DEFAULT 0,
   design_markups jsonb DEFAULT '[]'::jsonb,
+  display_id text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -75,6 +82,29 @@ CREATE TABLE IF NOT EXISTS opportunity_options (
 -- CREATE POLICY "Enable full access for all users" ON opportunity_options FOR ALL USING (true);
 
 -- 5. RPCs (Stored Procedures)
+
+-- Generate Sequential Display ID for Opportunities
+CREATE OR REPLACE FUNCTION generate_opportunity_display_id()
+RETURNS TRIGGER AS $$
+DECLARE
+  next_val integer;
+BEGIN
+  INSERT INTO project_sequences (project_id, current_value)
+  VALUES (NEW.project_id, 1)
+  ON CONFLICT (project_id) 
+  DO UPDATE SET current_value = project_sequences.current_value + 1
+  RETURNING current_value INTO next_val;
+
+  NEW.display_id := 'VE-' || LPAD(next_val::text, 3, '0');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_generate_opportunity_display_id ON opportunities;
+CREATE TRIGGER trg_generate_opportunity_display_id
+BEFORE INSERT ON opportunities
+FOR EACH ROW
+EXECUTE FUNCTION generate_opportunity_display_id();
 
 -- Lock an option and update the parent opportunity
 CREATE OR REPLACE FUNCTION lock_opportunity_option(p_option_id UUID, p_opp_id UUID)

@@ -193,20 +193,25 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
             </tr>
           ))}
         </thead>
-        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+        
           {paddingTop > 0 && (
-            <tr>
-              <td style={{ height: `${paddingTop}px` }} colSpan={columns.length} />
-            </tr>
+            <tbody>
+              <tr>
+                <td style={{ height: `${paddingTop}px` }} colSpan={columns.length} />
+              </tr>
+            </tbody>
           )}
           {virtualItems.map((virtualRow) => {
             const row = rows[virtualRow.index];
             const isSelected = selectedOpportunityId === row.original.id;
             return (
-              <React.Fragment key={row.id}>
+              <tbody 
+                key={row.id}
+                ref={virtualizer.measureElement}
+                data-index={virtualRow.index}
+                className="border-b border-slate-100 dark:border-slate-800/50"
+              >
                 <tr 
-                  ref={virtualizer.measureElement}
-                  data-index={virtualRow.index}
                   id={`row-${row.original.id}`}
                   className={`transition-colors ${
                     isSelected 
@@ -227,97 +232,102 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
                     </td>
                   </tr>
                 )}
-              </React.Fragment>
+              </tbody>
             );
           })}
           {paddingBottom > 0 && (
-            <tr>
-              <td style={{ height: `${paddingBottom}px` }} colSpan={columns.length} />
-            </tr>
+            <tbody>
+              <tr>
+                <td style={{ height: `${paddingBottom}px` }} colSpan={columns.length} />
+              </tr>
+            </tbody>
           )}
           {data.length === 0 && (
-            <tr>
-              <td colSpan={15} className="px-4 py-8 text-center text-slate-500">
-                No VE or Alternates logged yet. Start typing below to add one!
-              </td>
-            </tr>
+            <tbody>
+              <tr>
+                <td colSpan={15} className="px-4 py-8 text-center text-slate-500">
+                  No VE or Alternates logged yet. Start typing below to add one!
+                </td>
+              </tr>
+            </tbody>
           )}
 
           {/* Ghost Row for Quick Add */}
-          <tr className="bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/50 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
-            {table.getVisibleLeafColumns().map((column) => {
-              if (column.id === 'select' || column.id === 'open_panel') return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
-              
-              if (column.id === 'options') {
-                const hasPendingData = Object.keys(pendingRow).length > 0;
+          <tbody>
+            <tr className="bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/50 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+              {table.getVisibleLeafColumns().map((column) => {
+                if (column.id === 'select' || column.id === 'open_panel') return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
+                
+                if (column.id === 'options') {
+                  const hasPendingData = Object.keys(pendingRow).length > 0;
+                  return (
+                    <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={submitGhostRow}
+                          className="p-1 bg-sky-500 hover:bg-sky-600 text-white rounded shadow-sm transition-colors"
+                          title="Add Opportunity"
+                        >
+                          <Plus size={16} />
+                        </button>
+                        <button
+                          onClick={clearPendingRow}
+                          disabled={!hasPendingData}
+                          className={`p-1 rounded shadow-sm transition-colors ${
+                            hasPendingData 
+                              ? 'bg-slate-200 hover:bg-rose-500 text-slate-500 hover:text-white cursor-pointer' 
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                          }`}
+                          title="Clear Row"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  );
+                }
+                if (column.id === 'expander') {
+                  return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-slate-400 text-center text-xs font-bold">+</td>;
+                }
+                if (column.id === 'status') {
+                  return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full">Draft</span></td>;
+                }
+                if (column.id === 'display_id') {
+                  return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Auto-ID</span></td>;
+                }
+                if (column.id === 'priority') {
+                  return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Medium</span></td>;
+                }
+                if (column.id === 'scope') {
+                  return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">General</span></td>;
+                }
                 return (
-                  <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={submitGhostRow}
-                        className="p-1 bg-sky-500 hover:bg-sky-600 text-white rounded shadow-sm transition-colors"
-                        title="Add Opportunity"
-                      >
-                        <Plus size={16} />
-                      </button>
-                      <button
-                        onClick={clearPendingRow}
-                        disabled={!hasPendingData}
-                        className={`p-1 rounded shadow-sm transition-colors ${
-                          hasPendingData 
-                            ? 'bg-slate-200 hover:bg-rose-500 text-slate-500 hover:text-white cursor-pointer' 
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'
-                        }`}
-                        title="Clear Row"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
+                  <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">
+                    <input
+                      type={column.id === 'cost_impact' || column.id === 'days_impact' ? 'number' : 'text'}
+                      placeholder={`+ Add ${typeof column.columnDef.header === 'string' ? column.columnDef.header : 'Item'}...`}
+                      value={pendingRow[column.id] === undefined ? '' : pendingRow[column.id]}
+                      onChange={(e) => {
+                        let val = e.target.value;
+                        if (column.id === 'cost_impact' || column.id === 'days_impact') {
+                          val = val === '' ? '' : Number(val);
+                        }
+                        setPendingRow(prev => ({ ...prev, [column.id]: val }));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          submitGhostRow();
+                        }
+                      }}
+                      className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400/70 dark:placeholder-slate-500/70 italic ${column.id === 'title' && ghostError ? 'ring-2 ring-rose-500 animate-pulse' : ''}`}
+                    />
                   </td>
                 );
-              }
-              if (column.id === 'expander') {
-                return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-slate-400 text-center text-xs font-bold">+</td>;
-              }
-              if (column.id === 'status') {
-                return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full">Draft</span></td>;
-              }
-              if (column.id === 'display_id') {
-                return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Auto-ID</span></td>;
-              }
-              if (column.id === 'priority') {
-                return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Medium</span></td>;
-              }
-              if (column.id === 'scope') {
-                return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">General</span></td>;
-              }
-              return (
-                <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">
-                  <input
-                    type={column.id === 'cost_impact' || column.id === 'days_impact' ? 'number' : 'text'}
-                    placeholder={`+ Add ${typeof column.columnDef.header === 'string' ? column.columnDef.header : 'Item'}...`}
-                    value={pendingRow[column.id] === undefined ? '' : pendingRow[column.id]}
-                    onChange={(e) => {
-                      let val = e.target.value;
-                      if (column.id === 'cost_impact' || column.id === 'days_impact') {
-                        val = val === '' ? '' : Number(val);
-                      }
-                      setPendingRow(prev => ({ ...prev, [column.id]: val }));
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        submitGhostRow();
-                      }
-                    }}
-                    className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400/70 dark:placeholder-slate-500/70 italic ${column.id === 'title' && ghostError ? 'ring-2 ring-rose-500 animate-pulse' : ''}`}
-                  />
-                </td>
-              );
-            })}
-          </tr>
-        </tbody>
-      </table>
+              })}
+            </tr>
+          </tbody>
+        </table>
 
       {compareQueue.length > 0 && (
         <div className="sticky bottom-0 w-full bg-slate-900 text-white p-4 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.2)] z-50 rounded-b-xl border-t border-slate-800">

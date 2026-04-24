@@ -3,6 +3,7 @@ import "./globals.css";
 import QueryProvider from "@/providers/QueryProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
+import { Toaster } from "sonner";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -31,6 +32,7 @@ export default function RootLayout({ children }) {
           <AuthProvider>
             <QueryProvider>{children}</QueryProvider>
           </AuthProvider>
+          <Toaster position="bottom-right" theme="system" richColors />
         </ThemeProvider>
       </body>
     </html>

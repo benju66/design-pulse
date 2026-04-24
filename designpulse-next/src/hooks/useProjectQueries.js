@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_SCOPES } from '@/lib/constants';
 import { calculateParentTotals } from '@/utils/financialMath';
+import { toast } from 'sonner';
 
 export function useProjectSettings(projectId) {
   return useQuery({
@@ -55,6 +56,10 @@ export function useUpdateProjectSettings(projectId) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['project_settings', projectId]);
+    },
+    onError: (err) => {
+      console.error('Update Project Settings Error:', err);
+      toast.error(`Failed to update settings: ${err.message || 'Unknown error'}`);
     }
   });
 }
@@ -118,6 +123,10 @@ export function useUpdateOpportunity(projectId) {
         if (!old) return old;
         return old.map(opp => opp.id === id ? { ...opp, ...updates } : opp);
       });
+    },
+    onError: (err) => {
+      console.error('Update Opportunity Error:', err);
+      toast.error(`Failed to update opportunity: ${err.message || 'Unknown error'}`);
     }
   });
 }
@@ -139,7 +148,7 @@ export function useCreateOpportunity(projectId) {
     },
     onError: (err) => {
       console.error('Create Opportunity Error:', err);
-      alert(`Failed to add: ${err.message || 'Unknown error'}`);
+      toast.error(`Failed to add: ${err.message || 'Unknown error'}`);
     }
   });
 }
@@ -181,7 +190,7 @@ export function useCreateProject() {
     },
     onError: (err) => {
       console.error('Create Project Error:', err);
-      alert(`Failed to create project: ${err.message}`);
+      toast.error(`Failed to create project: ${err.message}`);
     }
   });
 }
@@ -242,6 +251,7 @@ export function useCreateOption(opportunityId, projectId) {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
+      toast.error(`Failed to create option: ${err.message || 'Unknown error'}`);
     },
     onSuccess: (data) => {
       queryClient.setQueryData(['all_project_options', projectId], old => {
@@ -296,6 +306,7 @@ export function useUpdateOption(opportunityId, projectId) {
       if (context?.previousOpportunities) {
         queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
+      toast.error(`Failed to update option: ${err.message || 'Unknown error'}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
@@ -329,6 +340,7 @@ export function useDeleteOption(opportunityId, projectId) {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
+      toast.error(`Failed to delete option: ${err.message || 'Unknown error'}`);
     }
   });
 }
@@ -361,6 +373,7 @@ export function useReorderOptions(projectId) {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
+      toast.error(`Failed to reorder options: ${err.message || 'Unknown error'}`);
     }
   });
 }
@@ -404,6 +417,7 @@ export function useLockOption(opportunityId, projectId) {
       if (context?.previousOpportunities) {
         queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
+      toast.error(`Failed to lock option: ${err.message || 'Unknown error'}`);
     }
   });
 }
@@ -444,6 +458,7 @@ export function useToggleOptionBudget(opportunityId, projectId) {
       if (context?.previousOpportunities) {
         queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
+      toast.error(`Failed to toggle budget inclusion: ${err.message || 'Unknown error'}`);
     }
   });
 }

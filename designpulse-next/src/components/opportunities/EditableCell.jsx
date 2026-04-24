@@ -13,9 +13,15 @@ export const CellWrapper = ({ row, column, displayValue, inputElement, className
   const divRef = useRef(null);
 
   useEffect(() => {
+    let timeoutId;
     if (isCellActive && !isEditing && divRef.current) {
-      divRef.current.focus();
+      timeoutId = setTimeout(() => {
+        divRef.current?.focus();
+      }, 0);
     }
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [isCellActive, isEditing]);
 
   if (isEditing) {

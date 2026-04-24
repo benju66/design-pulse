@@ -50,6 +50,10 @@ export const TextCell = React.memo(({ getValue, row, column, table }) => {
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef(null);
 
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
   const onBlur = (setGridMode) => {
     if (value !== initialValue) {
       updateMutation.mutate({ id: row.original.id, updates: { [column.id]: value } });
@@ -197,6 +201,10 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }) => {
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef(null);
   
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
   const params = useParams();
   const projectId = params?.projectId;
   const { data: allOptions = [] } = useAllProjectOptions(projectId);

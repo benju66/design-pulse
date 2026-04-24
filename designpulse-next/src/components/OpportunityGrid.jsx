@@ -76,6 +76,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     columnResizeMode: 'onChange',
+    getRowId: (row) => row.id,
     meta: {
       updateData: updateMutation,
     },

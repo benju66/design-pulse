@@ -113,26 +113,29 @@ RETURNS void
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_cost_impact numeric;
-  v_days_impact numeric;
+  v_sum_cost numeric;
+  v_sum_days numeric;
 BEGIN
   -- 1. Update the include_in_budget flag on the option
   UPDATE opportunity_options
   SET include_in_budget = p_is_included
-  WHERE id = p_option_id
-  RETURNING cost_impact, days_impact INTO v_cost_impact, v_days_impact;
+  WHERE id = p_option_id;
 
-  -- 2. Update the parent opportunity row based on p_is_included
-  IF p_is_included THEN
-    UPDATE opportunities
-    SET cost_impact = v_cost_impact,
-        days_impact = v_days_impact
-    WHERE id = p_opp_id;
-  ELSE
-    UPDATE opportunities
-    SET cost_impact = 0,
-        days_impact = 0
-    WHERE id = p_opp_id;
+  -- 2. Safety Lock: If a final selection (is_locked = true) exists, DO NOT overwrite the parent's cost.
+  IF EXISTS (SELECT 1 FROM opportunity_options WHERE opportunity_id = p_opp_id AND is_locked = true) THEN
+    RETURN;
   END IF;
+
+  -- 3. Calculate the sum of all included options
+  SELECT COALESCE(SUM(cost_impact), 0), COALESCE(SUM(days_impact), 0)
+  INTO v_sum_cost, v_sum_days
+  FROM opportunity_options
+  WHERE opportunity_id = p_opp_id AND include_in_budget = true;
+
+  -- 4. Update the parent opportunity row with the new sum
+  UPDATE opportunities
+  SET cost_impact = v_sum_cost,
+      days_impact = v_sum_days
+  WHERE id = p_opp_id;
 END;
 $$;

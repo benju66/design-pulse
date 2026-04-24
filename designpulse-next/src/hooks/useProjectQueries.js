@@ -415,24 +415,10 @@ export function useLockOption(opportunityId, projectId) {
         );
       });
 
-      queryClient.setQueryData(['opportunities', projectId], old => {
-        if (!old) return old;
-        const targetOpt = previousOptions?.find(opt => opt.id === optionId);
-        if (!targetOpt) return old;
-        return old.map(opp => 
-          opp.id === opportunityId 
-            ? { 
-                ...opp, 
-                cost_impact: targetOpt.cost_impact || 0,
-                days_impact: targetOpt.days_impact || 0,
-                final_direction: `Locked: ${targetOpt.title}`,
-                status: 'Pending Plan Update'
-              } 
-            : opp
-        );
-      });
-
       return { previousOptions, previousOpportunities };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
     },
     onError: (err, optionId, context) => {
       if (context?.previousOptions) {
@@ -469,42 +455,10 @@ export function useToggleOptionBudget(opportunityId, projectId) {
         return old.map(opt => opt.id === optionId ? { ...opt, include_in_budget: isIncluded } : opt);
       });
 
-      queryClient.setQueryData(['opportunities', projectId], old => {
-        if (!old) return old;
-        
-        const allOptsForOpp = previousOptions?.filter(opt => opt.opportunity_id === opportunityId) || [];
-        
-        // Safety lock: if a final selection is already made, DO NOT overwrite the parent's cost via targeting.
-        const lockedOpt = allOptsForOpp.find(opt => opt.is_locked);
-        if (lockedOpt) {
-          return old;
-        }
-        
-        let newCostImpact = 0;
-        let newDaysImpact = 0;
-        
-        allOptsForOpp.forEach(opt => {
-          const isThisOption = opt.id === optionId;
-          const isOptIncluded = isThisOption ? isIncluded : opt.include_in_budget;
-          
-          if (isOptIncluded) {
-            newCostImpact += (Number(opt.cost_impact) || 0);
-            newDaysImpact += (Number(opt.days_impact) || 0);
-          }
-        });
-
-        return old.map(opp => 
-          opp.id === opportunityId 
-            ? { 
-                ...opp, 
-                cost_impact: newCostImpact,
-                days_impact: newDaysImpact
-              } 
-            : opp
-        );
-      });
-
       return { previousOptions, previousOpportunities };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
     },
     onError: (err, variables, context) => {
       if (context?.previousOptions) {

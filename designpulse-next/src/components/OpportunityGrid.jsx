@@ -67,6 +67,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const compareQueue = useUIStore(state => state.compareQueue);
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
+  const [pendingRow, setPendingRow] = useState({});
 
   useEffect(() => {
     if (selectedOpportunityId) {
@@ -78,33 +79,10 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   }, [selectedOpportunityId]);
 
   const [expanded, setExpanded] = useState({});
-  const [columnVisibility, setColumnVisibility] = useState({});
-  const [columnOrder, setColumnOrder] = useState([]);
-  const isLoaded = useRef(false);
-
-  // Load layout from localStorage on mount
-  useEffect(() => {
-    const savedVisibility = localStorage.getItem(`dp_grid_visibility_${projectId}`);
-    const savedOrder = localStorage.getItem(`dp_grid_order_${projectId}`);
-    if (savedVisibility) setColumnVisibility(JSON.parse(savedVisibility));
-    if (savedOrder) setColumnOrder(JSON.parse(savedOrder));
-    
-    // Set loaded flag after initial mount to enable saving
-    setTimeout(() => { isLoaded.current = true; }, 100);
-  }, [projectId]);
-
-  // Save layout to localStorage on change
-  useEffect(() => {
-    if (isLoaded.current) {
-      localStorage.setItem(`dp_grid_visibility_${projectId}`, JSON.stringify(columnVisibility));
-    }
-  }, [columnVisibility, projectId]);
-
-  useEffect(() => {
-    if (isLoaded.current) {
-      localStorage.setItem(`dp_grid_order_${projectId}`, JSON.stringify(columnOrder));
-    }
-  }, [columnOrder, projectId]);
+  const columnVisibility = useUIStore(state => state.gridColumnVisibility);
+  const setColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
+  const columnOrder = useUIStore(state => state.gridColumnOrder);
+  const setColumnOrder = useUIStore(state => state.setGridColumnOrder);
 
   const checkboxColumn = React.useMemo(() => ({
     id: 'select',
@@ -216,7 +194,46 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
         <ColumnChooser table={table} />
       </div>
 
-      <div ref={tableContainerRef} className="flex-1 overflow-auto rounded-b-xl">
+      <div 
+        ref={tableContainerRef} 
+        className="flex-1 overflow-auto rounded-b-xl outline-none"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'];
+          if (!keys.includes(e.key)) return;
+          
+          const state = useUIStore.getState();
+          const activeCell = state.activeCell;
+          if (activeCell.rowIndex === null || activeCell.columnId === null) return;
+
+          e.preventDefault();
+
+          const visibleCols = table.getVisibleLeafColumns().filter(c => 
+            c.id !== 'select' && c.id !== 'open_panel' && c.id !== 'expander' && c.id !== 'options'
+          );
+          
+          let { rowIndex, columnId } = activeCell;
+          let colIndex = visibleCols.findIndex(c => c.id === columnId);
+          if (colIndex === -1) colIndex = 0;
+
+          if (e.key === 'ArrowUp') rowIndex = Math.max(0, rowIndex - 1);
+          if (e.key === 'ArrowDown') rowIndex = Math.min(rows.length - 1, rowIndex + 1);
+          if (e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey)) {
+            if (colIndex > 0) colIndex -= 1;
+            else if (rowIndex > 0) { rowIndex -= 1; colIndex = visibleCols.length - 1; }
+          }
+          if (e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey)) {
+            if (colIndex < visibleCols.length - 1) colIndex += 1;
+            else if (rowIndex < rows.length - 1) { rowIndex += 1; colIndex = 0; }
+          }
+
+          const newColumnId = visibleCols[colIndex]?.id;
+          if (newColumnId) {
+            virtualizer.scrollToIndex(rowIndex, { align: 'auto' });
+            state.setActiveCell({ rowIndex, columnId: newColumnId });
+          }
+        }}
+      >
         <table 
           className="text-left text-sm whitespace-nowrap" 
           style={{ tableLayout: 'fixed', width: table.getTotalSize() }}
@@ -301,7 +318,25 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           {/* Ghost Row for Quick Add */}
           <tr className="bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/50 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
             {table.getVisibleLeafColumns().map((column) => {
-              if (column.id === 'select' || column.id === 'open_panel' || column.id === 'options') return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
+              if (column.id === 'select' || column.id === 'open_panel') return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
+              
+              if (column.id === 'options') {
+                return (
+                  <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-center">
+                    <button
+                      onClick={() => {
+                        if (Object.keys(pendingRow).length > 0) {
+                          createMutation.mutate(pendingRow, { onSuccess: () => setPendingRow({}) });
+                        }
+                      }}
+                      className="p-1 mx-auto bg-sky-500 hover:bg-sky-600 text-white rounded shadow-sm flex items-center justify-center transition-colors"
+                      title="Add Opportunity"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </td>
+                );
+              }
               if (column.id === 'expander') {
                 return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-slate-400 text-center text-xs font-bold">+</td>;
               }
@@ -313,24 +348,23 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
                   <input
                     type={column.id === 'cost_impact' || column.id === 'days_impact' ? 'number' : 'text'}
                     placeholder={`+ Add ${typeof column.columnDef.header === 'string' ? column.columnDef.header : 'Item'}...`}
-                    className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400/70 dark:placeholder-slate-500/70 italic"
-                    onBlur={(e) => {
-                      if (e.target.value.trim() !== '') {
-                        let val = e.target.value;
-                        if (column.id === 'cost_impact' || column.id === 'days_impact') val = Number(val) || 0;
-                        createMutation.mutate({ [column.id]: val });
-                        e.target.value = '';
+                    value={pendingRow[column.id] === undefined ? '' : pendingRow[column.id]}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (column.id === 'cost_impact' || column.id === 'days_impact') {
+                        val = val === '' ? '' : Number(val);
                       }
+                      setPendingRow(prev => ({ ...prev, [column.id]: val }));
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.target.value.trim() !== '') {
-                        let val = e.target.value;
-                        if (column.id === 'cost_impact' || column.id === 'days_impact') val = Number(val) || 0;
-                        createMutation.mutate({ [column.id]: val });
-                        e.target.value = '';
-                        e.target.blur();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (Object.keys(pendingRow).length > 0) {
+                          createMutation.mutate(pendingRow, { onSuccess: () => setPendingRow({}) });
+                        }
                       }
                     }}
+                    className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400/70 dark:placeholder-slate-500/70 italic"
                   />
                 </td>
               );

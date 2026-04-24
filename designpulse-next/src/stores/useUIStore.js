@@ -23,6 +23,16 @@ export const useUIStore = create(
         design_lock_phase: true,
       },
       compareQueue: [],
+      gridColumnVisibility: {},
+      setGridColumnVisibility: (updater) => set((state) => ({ 
+        gridColumnVisibility: typeof updater === 'function' ? updater(state.gridColumnVisibility) : updater 
+      })),
+      gridColumnOrder: [],
+      setGridColumnOrder: (updater) => set((state) => ({ 
+        gridColumnOrder: typeof updater === 'function' ? updater(state.gridColumnOrder) : updater 
+      })),
+      activeCell: { rowIndex: null, columnId: null },
+      setActiveCell: (cell) => set({ activeCell: cell }),
       setCardOrder: (newOrder) => set({ cardOrder: newOrder }),
       toggleCardVisibility: (cardId) => set((state) => ({
         visibleCards: {
@@ -42,6 +52,8 @@ export const useUIStore = create(
       partialize: (state) => ({
         cardOrder: state.cardOrder,
         visibleCards: state.visibleCards,
+        gridColumnVisibility: state.gridColumnVisibility,
+        gridColumnOrder: state.gridColumnOrder,
       }),
     }
   )

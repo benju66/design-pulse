@@ -79,9 +79,13 @@ export default function BudgetSummary({ projectId, opportunities = [] }) {
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-      {/* Original Budget */}
-      <div className="relative group bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      {/* Cluster 1: Financial Commitments */}
+      <div className="flex flex-col border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl p-4">
+        <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 px-1">Financial Commitments</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
+          {/* Original Budget */}
+          <div className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
         <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Original Budget</span>
         <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(originalBudget)}</span>
         <TooltipPopover 
@@ -90,8 +94,8 @@ export default function BudgetSummary({ projectId, opportunities = [] }) {
         />
       </div>
 
-      {/* Approved Changes */}
-      <div className="relative group bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-xl p-4 flex flex-col">
+          {/* Approved Changes */}
+          <div className="relative group bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-xl p-4 flex flex-col">
         <span className="text-sm text-emerald-600 dark:text-emerald-500 font-medium">Approved Changes</span>
         <span className={`text-2xl font-bold ${approvedChanges < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
           {formatCurrency(approvedChanges, true)}
@@ -102,18 +106,24 @@ export default function BudgetSummary({ projectId, opportunities = [] }) {
         />
       </div>
 
-      {/* Revised Budget */}
-      <div className="relative group bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-4 flex flex-col">
+          {/* Revised Budget */}
+          <div className="relative group bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-4 flex flex-col">
         <span className="text-sm text-sky-600 dark:text-sky-400 font-medium">Revised Budget</span>
         <span className="text-2xl font-bold text-sky-700 dark:text-sky-300">{formatCurrency(revisedBudget)}</span>
         <TooltipPopover 
           title="Revised Budget" 
           description="Original Budget + Approved Changes." 
         />
+          </div>
+        </div>
       </div>
 
-      {/* Pending Changes */}
-      <div className="relative group bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
+      {/* Cluster 2: Risk & Forecast */}
+      <div className="flex flex-col border-2 border-dashed border-slate-300 dark:border-slate-600 bg-amber-50/20 dark:bg-amber-900/5 rounded-2xl p-4">
+        <h3 className="text-sm font-bold text-amber-600/80 dark:text-amber-500/80 uppercase tracking-wider mb-4 px-1">Risk & Forecast</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
+          {/* Pending Changes */}
+          <div className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
         <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Pending Changes</span>
         <span className={`text-2xl font-bold ${pendingChanges < 0 ? 'text-emerald-500' : pendingChanges > 0 ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>
           {formatCurrency(pendingChanges, true)}
@@ -124,8 +134,8 @@ export default function BudgetSummary({ projectId, opportunities = [] }) {
         />
       </div>
 
-      {/* Projected Budget */}
-      <div className="relative group bg-white dark:bg-slate-950 border-2 border-slate-300 dark:border-slate-700 rounded-xl p-4 flex flex-col shadow-sm ring-1 ring-slate-900/5 dark:ring-white/5">
+          {/* Projected Budget */}
+          <div className="relative group bg-white dark:bg-slate-950 border-2 border-slate-300 dark:border-slate-700 rounded-xl p-4 flex flex-col shadow-sm ring-1 ring-slate-900/5 dark:ring-white/5">
         <span className="text-sm text-slate-700 dark:text-slate-300 font-semibold">Projected Budget</span>
         <span className="text-2xl font-extrabold text-slate-900 dark:text-white">{formatCurrency(projectedBudget)}</span>
         <TooltipPopover 
@@ -134,14 +144,16 @@ export default function BudgetSummary({ projectId, opportunities = [] }) {
         />
       </div>
 
-      {/* Potential Exposure */}
-      <div className="relative group bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex flex-col">
+          {/* Potential Exposure */}
+          <div className="relative group bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex flex-col">
         <span className="text-sm text-amber-600 dark:text-amber-400 font-medium">Potential Exposure</span>
         <span className="text-2xl font-bold text-amber-700 dark:text-amber-300">{formatCurrency(potentialExposure, true)}</span>
         <TooltipPopover 
           title="Potential Exposure" 
           description="The worst-case cost scenario for all early-stage draft items not yet under formal review." 
         />
+          </div>
+        </div>
       </div>
     </div>
   );

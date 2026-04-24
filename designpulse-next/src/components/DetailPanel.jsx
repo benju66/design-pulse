@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ExternalLink, Maximize, Minimize, X } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { ExpandedCard } from './opportunities/ExpandedCard';
@@ -11,6 +11,7 @@ export default function DetailPanel({ projectId, opportunities, viewMode }) {
   const [isMaximized, setIsMaximized] = useState(false);
   const [panelWidth, setPanelWidth] = useState(50); // percentage
   const [isDragging, setIsDragging] = useState(false);
+  const panelRef = useRef(null);
   const updateData = useUpdateOpportunity(projectId);
 
   if (viewMode !== 'split' || !selectedOpportunityId) return null;
@@ -25,9 +26,13 @@ export default function DetailPanel({ projectId, opportunities, viewMode }) {
     setIsDragging(true);
     const handleMouseMove = (moveEvent) => {
       const newWidth = ((window.innerWidth - moveEvent.clientX) / window.innerWidth) * 100;
-      setPanelWidth(Math.max(20, Math.min(newWidth, 80)));
+      const finalWidth = Math.max(20, Math.min(newWidth, 80));
+      if (panelRef.current) panelRef.current.style.width = finalWidth + '%';
     };
-    const handleMouseUp = () => {
+    const handleMouseUp = (upEvent) => {
+      const newWidth = ((window.innerWidth - upEvent.clientX) / window.innerWidth) * 100;
+      const finalWidth = Math.max(20, Math.min(newWidth, 80));
+      setPanelWidth(finalWidth);
       setIsDragging(false);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
@@ -40,6 +45,7 @@ export default function DetailPanel({ projectId, opportunities, viewMode }) {
 
   return (
     <div 
+      ref={panelRef}
       style={!isMaximized ? { width: `${panelWidth}%` } : {}}
       className={`relative bg-white dark:bg-slate-900 shadow-[rgba(0,0,0,0.1)_-4px_0px_10px_0px] border-l border-slate-200 dark:border-slate-800 z-10 flex flex-col shrink-0 max-w-full ${
         isMaximized ? 'absolute top-0 bottom-0 right-0 w-full z-50 transition-all duration-300' : (isDragging ? 'h-full transition-none' : 'h-full transition-all duration-300')

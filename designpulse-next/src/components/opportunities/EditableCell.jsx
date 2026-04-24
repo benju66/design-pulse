@@ -3,11 +3,23 @@ import React, { useState, useEffect } from 'react';
 import { useAllProjectOptions, useProjectSettings } from '@/hooks/useProjectQueries';
 import { useParams } from 'next/navigation';
 
+import { useUIStore } from '@/stores/useUIStore';
+
 export const TextCell = React.memo(({ getValue, row, column, table }) => {
   const initialValue = getValue();
   const [value, setValue] = useState(initialValue);
   const [isFocused, setIsFocused] = useState(false);
   const updateMutation = table.options.meta?.updateData;
+  
+  const isActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const inputRef = React.useRef(null);
+
+  useEffect(() => {
+    if (isActive && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isActive]);
 
   useEffect(() => {
     if (!isFocused) {
@@ -27,9 +39,13 @@ export const TextCell = React.memo(({ getValue, row, column, table }) => {
 
   return (
     <input
+      ref={inputRef}
       value={value || ''}
       onChange={(e) => setValue(e.target.value)}
-      onFocus={() => setIsFocused(true)}
+      onFocus={() => {
+        setIsFocused(true);
+        setActiveCell({ rowIndex: row.index, columnId: column.id });
+      }}
       onBlur={onBlur}
       onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
       className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100"
@@ -41,9 +57,20 @@ export const TextCell = React.memo(({ getValue, row, column, table }) => {
 export const StatusCell = React.memo(({ getValue, row, column, table }) => {
   const initialValue = getValue();
   const updateMutation = table.options.meta?.updateData;
+  const isActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const selectRef = React.useRef(null);
+
+  useEffect(() => {
+    if (isActive && selectRef.current) {
+      selectRef.current.focus();
+    }
+  }, [isActive]);
 
   return (
     <select
+      ref={selectRef}
+      onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
       value={initialValue}
       onChange={(e) => {
         updateMutation.mutate({ id: row.original.id, updates: { status: e.target.value } });
@@ -65,9 +92,20 @@ export const ScopeCell = React.memo(({ getValue, row, column, table }) => {
   const initialValue = getValue();
   const updateMutation = table.options.meta?.updateData;
   const scopes = settings?.scopes || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
+  const isActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const selectRef = React.useRef(null);
+
+  useEffect(() => {
+    if (isActive && selectRef.current) {
+      selectRef.current.focus();
+    }
+  }, [isActive]);
 
   return (
     <select
+      ref={selectRef}
+      onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
       value={initialValue || ''}
       onChange={(e) => {
         updateMutation.mutate({ id: row.original.id, updates: { scope: e.target.value } });
@@ -92,6 +130,15 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }) => {
   const projectId = params?.projectId;
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   const options = React.useMemo(() => allOptions.filter(o => o.opportunity_id === row.original.id), [allOptions, row.original.id]);
+  const isActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const inputRef = React.useRef(null);
+
+  useEffect(() => {
+    if (isActive && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isActive]);
 
   useEffect(() => {
     if (!isFocused) {
@@ -129,9 +176,13 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }) => {
 
   return (
     <input
+      ref={inputRef}
       value={value ?? ''}
       onChange={(e) => setValue(e.target.value)}
-      onFocus={() => setIsFocused(true)}
+      onFocus={() => {
+        setIsFocused(true);
+        setActiveCell({ rowIndex: row.index, columnId: column.id });
+      }}
       onBlur={onBlur}
       onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
       className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100 ${

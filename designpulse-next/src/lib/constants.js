@@ -1,4 +1,5 @@
 export const ALL_PRIMARY_FIELDS = [
+  { id: 'priority', label: 'Priority' },
   { id: 'cost_impact', label: 'Cost Impact' },
   { id: 'days_impact', label: 'Days Impact' },
   { id: 'assignee', label: 'Assignee' },

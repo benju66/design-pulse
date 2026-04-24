@@ -65,6 +65,21 @@ export const ExpandedCard = ({ row }) => {
           <option value="Rejected">Rejected</option>
         </select>
       );
+    } else if (field.id === 'priority') {
+      return (
+        <select
+          defaultValue={val || 'Medium'}
+          onChange={(e) => {
+            updateData.mutate({ id: row.original.id, updates: { priority: e.target.value } });
+          }}
+          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+        >
+          <option value="Critical" className="font-bold text-rose-600">Critical</option>
+          <option value="High" className="font-semibold text-amber-600">High</option>
+          <option value="Medium" className="font-medium text-sky-600">Medium</option>
+          <option value="Low" className="text-slate-500">Low</option>
+        </select>
+      );
     } else if (field.id === 'cost_impact' || field.id === 'days_impact') {
       return (
         <input

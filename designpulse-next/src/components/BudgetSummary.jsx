@@ -20,11 +20,17 @@ export default function BudgetSummary({ projectId, opportunities = [] }) {
     let approved = 0;
     let pending = 0;
     let exposure = 0;
+
+    const optionsByOppId = allOptions.reduce((acc, opt) => {
+      acc[opt.opportunity_id] = acc[opt.opportunity_id] || [];
+      acc[opt.opportunity_id].push(opt);
+      return acc;
+    }, {});
     
     opportunities.forEach(opp => {
       if (opp.status === 'Rejected') return;
 
-      const oppOptions = allOptions.filter(o => o.opportunity_id === opp.id);
+      const oppOptions = optionsByOppId[opp.id] || [];
       const hasOptions = oppOptions.length > 0;
       const lockedOption = oppOptions.find(o => o.is_locked);
       

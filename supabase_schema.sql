@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
   days_impact numeric DEFAULT 0,
   design_markups jsonb DEFAULT '[]'::jsonb,
   display_id text,
+  priority text DEFAULT 'Medium' CHECK (priority IN ('Critical', 'High', 'Medium', 'Low')),
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -106,14 +107,12 @@ BEFORE INSERT ON opportunities
 FOR EACH ROW
 EXECUTE FUNCTION generate_opportunity_display_id();
 
--- Lock an option and update the parent opportunity
+-- Lock an option and update the parent opportunity status
 CREATE OR REPLACE FUNCTION lock_opportunity_option(p_option_id UUID, p_opp_id UUID)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_cost_impact numeric;
-  v_days_impact numeric;
   v_option_title text;
 BEGIN
   -- 1. Set all options for this opportunity to unlocked
@@ -125,47 +124,87 @@ BEGIN
   UPDATE opportunity_options
   SET is_locked = true
   WHERE id = p_option_id
-  RETURNING cost_impact, days_impact, title INTO v_cost_impact, v_days_impact, v_option_title;
+  RETURNING title INTO v_option_title;
 
-  -- 3. Update the parent opportunity row
+  -- 3. Update the parent opportunity row (status and direction only)
   UPDATE opportunities
-  SET cost_impact = v_cost_impact,
-      days_impact = v_days_impact,
-      final_direction = 'Locked: ' || v_option_title,
+  SET final_direction = 'Locked: ' || v_option_title,
       status = 'Pending Plan Update'
   WHERE id = p_opp_id;
 END;
 $$;
 
--- Toggle an option's include_in_budget flag and update parent opportunity
+-- Toggle an option's include_in_budget flag
 CREATE OR REPLACE FUNCTION toggle_option_budget(p_option_id UUID, p_opp_id UUID, p_is_included BOOLEAN)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
-DECLARE
-  v_sum_cost numeric;
-  v_sum_days numeric;
 BEGIN
   -- 1. Update the include_in_budget flag on the option
   UPDATE opportunity_options
   SET include_in_budget = p_is_included
   WHERE id = p_option_id;
-
-  -- 2. Safety Lock: If a final selection (is_locked = true) exists, DO NOT overwrite the parent's cost.
-  IF EXISTS (SELECT 1 FROM opportunity_options WHERE opportunity_id = p_opp_id AND is_locked = true) THEN
-    RETURN;
-  END IF;
-
-  -- 3. Calculate the sum of all included options
-  SELECT COALESCE(SUM(cost_impact), 0), COALESCE(SUM(days_impact), 0)
-  INTO v_sum_cost, v_sum_days
-  FROM opportunity_options
-  WHERE opportunity_id = p_opp_id AND include_in_budget = true;
-
-  -- 4. Update the parent opportunity row with the new sum
-  UPDATE opportunities
-  SET cost_impact = v_sum_cost,
-      days_impact = v_sum_days
-  WHERE id = p_opp_id;
+  
+  -- The trigger will handle the financial rollup math.
 END;
 $$;
+
+-- 6. Trigger for Parent Rollup Math (Single Source of Truth)
+CREATE OR REPLACE FUNCTION sync_parent_opportunity_totals()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_opp_id uuid;
+  v_cost_impact numeric := 0;
+  v_days_impact numeric := 0;
+  v_has_options boolean := false;
+BEGIN
+  -- Determine the opportunity_id based on operation type
+  IF TG_OP = 'DELETE' THEN
+    v_opp_id := OLD.opportunity_id;
+  ELSE
+    v_opp_id := NEW.opportunity_id;
+  END IF;
+
+  -- Check if any options exist for this opportunity
+  SELECT EXISTS(SELECT 1 FROM opportunity_options WHERE opportunity_id = v_opp_id) INTO v_has_options;
+
+  IF v_has_options THEN
+    -- 1. Check for locked option
+    IF EXISTS (SELECT 1 FROM opportunity_options WHERE opportunity_id = v_opp_id AND is_locked = true) THEN
+      SELECT COALESCE(cost_impact, 0), COALESCE(days_impact, 0)
+      INTO v_cost_impact, v_days_impact
+      FROM opportunity_options
+      WHERE opportunity_id = v_opp_id AND is_locked = true
+      LIMIT 1;
+
+    -- 2. Check for included options (Hybrid)
+    ELSIF EXISTS (SELECT 1 FROM opportunity_options WHERE opportunity_id = v_opp_id AND include_in_budget = true) THEN
+      SELECT COALESCE(SUM(cost_impact), 0), COALESCE(SUM(days_impact), 0)
+      INTO v_cost_impact, v_days_impact
+      FROM opportunity_options
+      WHERE opportunity_id = v_opp_id AND include_in_budget = true;
+
+    -- 3. Default to MAX (Potential Exposure)
+    ELSE
+      SELECT COALESCE(MAX(cost_impact), 0), COALESCE(MAX(days_impact), 0)
+      INTO v_cost_impact, v_days_impact
+      FROM opportunity_options
+      WHERE opportunity_id = v_opp_id;
+    END IF;
+
+    -- Update the parent opportunity
+    UPDATE opportunities
+    SET cost_impact = v_cost_impact,
+        days_impact = v_days_impact
+    WHERE id = v_opp_id;
+  END IF;
+
+  RETURN NULL; -- AFTER trigger
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_parent_opportunity_totals ON opportunity_options;
+CREATE TRIGGER trg_sync_parent_opportunity_totals
+AFTER INSERT OR UPDATE OR DELETE ON opportunity_options
+FOR EACH ROW
+EXECUTE FUNCTION sync_parent_opportunity_totals();

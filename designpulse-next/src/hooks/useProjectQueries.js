@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_SCOPES } from '@/lib/constants';
+import { calculateParentTotals } from '@/utils/financialMath';
 
 export function useProjectSettings(projectId) {
   return useQuery({
@@ -281,35 +282,8 @@ export function useUpdateOption(opportunityId, projectId) {
       if (updatedOpt) {
         queryClient.setQueryData(['opportunities', projectId], old => {
           if (!old) return old;
-          
-          let newCostImpact = 0;
-          let newDaysImpact = 0;
-          
-          const allOptsForOpp = previousOptions?.filter(opt => opt.opportunity_id === opportunityId) || [];
-          const lockedOpt = allOptsForOpp.find(opt => opt.is_locked);
-          
-          if (lockedOpt) {
-              newCostImpact = lockedOpt.id === id && updates.cost_impact !== undefined ? Number(updates.cost_impact) : Number(lockedOpt.cost_impact || 0);
-              newDaysImpact = lockedOpt.id === id && updates.days_impact !== undefined ? Number(updates.days_impact) : Number(lockedOpt.days_impact || 0);
-          } else {
-              allOptsForOpp.forEach(opt => {
-                  const isThisOpt = opt.id === id;
-                  const optIsIncluded = isThisOpt && updates.include_in_budget !== undefined ? updates.include_in_budget : opt.include_in_budget;
-                  
-                  if (optIsIncluded) {
-                      const optCost = isThisOpt && updates.cost_impact !== undefined ? Number(updates.cost_impact) : Number(opt.cost_impact);
-                      const optDays = isThisOpt && updates.days_impact !== undefined ? Number(updates.days_impact) : Number(opt.days_impact);
-                      newCostImpact += (optCost || 0);
-                      newDaysImpact += (optDays || 0);
-                  }
-              });
-          }
-
-          return old.map(opp => 
-            opp.id === opportunityId 
-              ? { ...opp, cost_impact: newCostImpact, days_impact: newDaysImpact }
-              : opp
-          );
+          const { cost_impact, days_impact } = calculateParentTotals(opportunityId, previousOptions || [], updates, id);
+          return old.map(opp => opp.id === opportunityId ? { ...opp, cost_impact, days_impact } : opp);
         });
       }
 
@@ -322,6 +296,9 @@ export function useUpdateOption(opportunityId, projectId) {
       if (context?.previousOpportunities) {
         queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
     }
   });
 }

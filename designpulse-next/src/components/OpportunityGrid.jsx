@@ -19,47 +19,7 @@ import { ExpandedCard } from './opportunities/ExpandedCard';
 import { OptionsCell } from './opportunities/OptionsCell';
 import { ColumnChooser } from './opportunities/ColumnChooser';
 
-const CheckboxCell = ({ row }) => {
-  const isSelected = useUIStore(state => state.compareQueue.includes(row.original.id));
-  const toggleCompareItem = useUIStore(state => state.toggleCompareItem);
-  return (
-    <div className="flex items-center justify-center py-2 px-1">
-      <input 
-        type="checkbox" 
-        checked={isSelected}
-        onChange={() => toggleCompareItem(row.original.id)}
-        className="w-4 h-4 text-sky-600 bg-slate-100 border-slate-300 rounded focus:ring-sky-500 dark:focus:ring-sky-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer"
-      />
-    </div>
-  );
-};
-
-const OpenPanelCell = ({ row }) => {
-  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
-  const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
-  return (
-    <div className="flex items-center justify-center p-1">
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          if (selectedOpportunityId === row.original.id) {
-            setSelectedOpportunityId(null);
-          } else {
-            setSelectedOpportunityId(row.original.id);
-          }
-        }}
-        className={`p-1 rounded transition-colors ${
-          selectedOpportunityId === row.original.id 
-            ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30' 
-            : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30'
-        }`}
-        title="Open Details Panel"
-      >
-        <PanelRight size={20} />
-      </button>
-    </div>
-  );
-};
+import { useOpportunityColumns } from './opportunities/columns';
 
 const EMPTY_ROW = {};
 
@@ -73,6 +33,12 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const setPendingRow = (updater) => useUIStore.getState().setPendingRow(projectId, updater);
   const clearPendingRow = () => useUIStore.getState().clearPendingRow(projectId);
   const [ghostError, setGhostError] = useState(false);
+
+  useEffect(() => {
+    // Force wipe any corrupted draft data that might be stuck in Local Storage
+    clearPendingRow();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   const submitGhostRow = () => {
     if (!pendingRow.title?.trim()) {
@@ -98,75 +64,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const columnOrder = useUIStore(state => state.gridColumnOrder);
   const setColumnOrder = useUIStore(state => state.setGridColumnOrder);
 
-  const checkboxColumn = React.useMemo(() => ({
-    id: 'select',
-    header: () => null,
-    cell: CheckboxCell,
-    size: 40,
-  }), []);
-
-  const openPanelColumn = React.useMemo(() => ({
-    id: 'open_panel',
-    header: () => null,
-    cell: OpenPanelCell,
-    size: 40,
-  }), []);
-
-  const flatColumns = useMemo(
-    () => [
-      checkboxColumn,
-      ...(viewMode === 'split' ? [openPanelColumn] : []),
-      { accessorKey: 'display_id', header: 'ID', cell: TextCell, size: 80 },
-      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
-      { accessorKey: 'location', header: 'Location', cell: TextCell },
-      { accessorKey: 'scope', header: 'Scope', cell: ScopeCell },
-      { accessorKey: 'arch_plans_spec', header: 'Arch Plans/Spec', cell: TextCell },
-      { accessorKey: 'bok_standard', header: 'BOK Standard', cell: TextCell },
-      { accessorKey: 'existing_conditions', header: 'Existing Conditions', cell: TextCell },
-      { accessorKey: 'mep_impact', header: 'MEP Impact', cell: TextCell },
-      { accessorKey: 'owner_goals', header: 'Owner Goals', cell: TextCell },
-      { accessorKey: 'backing_required', header: 'Backing Req.', cell: TextCell },
-      { accessorKey: 'coordination_required', header: 'Coord Req.', cell: TextCell },
-      { accessorKey: 'design_lock_phase', header: 'Design Lock Phase', cell: TextCell },
-      { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
-      { accessorKey: 'assignee', header: 'Assignee', cell: TextCell },
-      { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
-      { accessorKey: 'status', header: 'Status', cell: StatusCell },
-      { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
-      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
-    ],
-    [viewMode, checkboxColumn, openPanelColumn]
-  );
-
-  const cardColumns = useMemo(
-    () => [
-      checkboxColumn,
-      ...(viewMode === 'split' ? [openPanelColumn] : []),
-      {
-        id: 'expander',
-        header: () => null,
-        cell: ({ row }) => (
-          <button
-            onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
-            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500"
-          >
-            {row.getIsExpanded() ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
-        ),
-      },
-      { accessorKey: 'display_id', header: 'ID', cell: TextCell, size: 80 },
-      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
-      { accessorKey: 'location', header: 'Location', cell: TextCell },
-      { accessorKey: 'assignee', header: 'Assignee', cell: TextCell },
-      { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
-      { accessorKey: 'status', header: 'Status', cell: StatusCell },
-      { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
-      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
-    ],
-    [viewMode, checkboxColumn, openPanelColumn]
-  );
-
-  const columns = viewMode === 'card' ? cardColumns : flatColumns;
+  const columns = useOpportunityColumns(viewMode);
 
   const table = useReactTable({
     data,
@@ -351,15 +249,30 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
               if (column.id === 'select' || column.id === 'open_panel') return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
               
               if (column.id === 'options') {
+                const hasPendingData = Object.keys(pendingRow).length > 0;
                 return (
                   <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-center">
-                    <button
-                      onClick={submitGhostRow}
-                      className="p-1 mx-auto bg-sky-500 hover:bg-sky-600 text-white rounded shadow-sm flex items-center justify-center transition-colors"
-                      title="Add Opportunity"
-                    >
-                      <Plus size={16} />
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={submitGhostRow}
+                        className="p-1 bg-sky-500 hover:bg-sky-600 text-white rounded shadow-sm transition-colors"
+                        title="Add Opportunity"
+                      >
+                        <Plus size={16} />
+                      </button>
+                      <button
+                        onClick={clearPendingRow}
+                        disabled={!hasPendingData}
+                        className={`p-1 rounded shadow-sm transition-colors ${
+                          hasPendingData 
+                            ? 'bg-slate-200 hover:bg-rose-500 text-slate-500 hover:text-white cursor-pointer' 
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                        }`}
+                        title="Clear Row"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
                   </td>
                 );
               }
@@ -368,6 +281,15 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
               }
               if (column.id === 'status') {
                 return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full">Draft</span></td>;
+              }
+              if (column.id === 'display_id') {
+                return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Auto-ID</span></td>;
+              }
+              if (column.id === 'priority') {
+                return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Medium</span></td>;
+              }
+              if (column.id === 'scope') {
+                return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">General</span></td>;
               }
               return (
                 <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">

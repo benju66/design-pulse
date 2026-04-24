@@ -6,8 +6,9 @@ export const useUIStore = create(
     (set) => ({
       selectedOpportunityId: null,
       setSelectedOpportunityId: (id) => set({ selectedOpportunityId: id }),
-      cardOrder: ['status', 'cost_impact', 'days_impact', 'assignee', 'arch_plans_spec', 'bok_standard', 'existing_conditions', 'mep_impact', 'owner_goals', 'final_direction', 'backing_required', 'coordination_required', 'design_lock_phase'],
+      cardOrder: ['priority', 'status', 'cost_impact', 'days_impact', 'assignee', 'arch_plans_spec', 'bok_standard', 'existing_conditions', 'mep_impact', 'owner_goals', 'final_direction', 'backing_required', 'coordination_required', 'design_lock_phase'],
       visibleCards: {
+        priority: true,
         status: true,
         cost_impact: true,
         days_impact: true,
@@ -68,7 +69,6 @@ export const useUIStore = create(
         visibleCards: state.visibleCards,
         gridColumnVisibility: state.gridColumnVisibility,
         gridColumnOrder: state.gridColumnOrder,
-        pendingRows: state.pendingRows,
       }),
     }
   )

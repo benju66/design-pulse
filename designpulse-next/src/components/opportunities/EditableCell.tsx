@@ -86,7 +86,7 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
     setValue(initialValue);
   }, [initialValue]);
 
-  const onBlur = (setGridMode: (mode: string) => void) => {
+  const onBlur = () => {
     if (value !== initialValue && updateMutation) {
       updateMutation.mutate({ id: row.original.id, updates: { [column.id]: value } });
     }
@@ -96,7 +96,7 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
     if (e.key === 'Enter' || e.key === 'Escape') {
       e.preventDefault();
       setGridMode('navigate');
-      onBlur(setGridMode);
+      onBlur();
     }
   };
 
@@ -106,13 +106,13 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
       column={column}
       table={table}
       displayValue={value || ''}
-      inputElement={(isActive, setGridMode) => (
+      inputElement={(_isActive, setGridMode) => (
         <input
           ref={inputRef}
           autoFocus
           value={value || ''}
           onChange={(e) => setValue(e.target.value)}
-          onBlur={() => onBlur(setGridMode)}
+          onBlur={onBlur}
           onKeyDown={(e) => handleKeyDown(e, setGridMode)}
           className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100"
           type="text"
@@ -250,7 +250,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   const optionsMap = table.options.meta?.optionsMap || {};
   const options = optionsMap[row.original.id] || [];
 
-  const onBlur = (setGridMode: (mode: string) => void) => {
+  const onBlur = () => {
     if (value !== initialValue && updateMutation) {
       const numericValue = value === '' ? null : Number(value);
       updateMutation.mutate({ id: row.original.id, updates: { [column.id]: numericValue } });
@@ -261,7 +261,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
     if (e.key === 'Enter' || e.key === 'Escape') {
       e.preventDefault();
       setGridMode('navigate');
-      onBlur(setGridMode);
+      onBlur();
     }
   };
 
@@ -297,13 +297,13 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
       table={table}
       className={colorClass}
       displayValue={displayValue}
-      inputElement={(isActive, setGridMode) => (
+      inputElement={(_isActive, setGridMode) => (
         <input
           ref={inputRef}
           autoFocus
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onBlur={() => onBlur(setGridMode)}
+          onBlur={onBlur}
           onKeyDown={(e) => handleKeyDown(e, setGridMode)}
           type="number"
           className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100 ${colorClass}`}

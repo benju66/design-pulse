@@ -138,7 +138,7 @@ export function useUpdateOpportunity(projectId: string) {
 
       return { previousOpportunities };
     },
-    onError: (err, variables, context) => {
+    onError: (err, _variables, context) => {
       if (context?.previousOpportunities) {
         queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
@@ -295,7 +295,7 @@ export function useCreateOption(opportunityId: string, projectId: string) {
 
       return { previousOptions };
     },
-    onError: (err, newOption, context) => {
+    onError: (err, _newOption, context) => {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
@@ -352,7 +352,7 @@ export function useUpdateOption(opportunityId: string, projectId: string) {
 
       return { previousOptions, previousOpportunities };
     },
-    onError: (err, variables, context) => {
+    onError: (err, _variables, context) => {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
@@ -367,7 +367,7 @@ export function useUpdateOption(opportunityId: string, projectId: string) {
   });
 }
 
-export function useDeleteOption(opportunityId: string, projectId: string) {
+export function useDeleteOption(_opportunityId: string, projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<
     string, 
@@ -394,7 +394,7 @@ export function useDeleteOption(opportunityId: string, projectId: string) {
 
       return { previousOptions };
     },
-    onError: (err, id, context) => {
+    onError: (err, _id, context) => {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
@@ -432,7 +432,7 @@ export function useReorderOptions(projectId: string) {
 
       return { previousOptions };
     },
-    onError: (err, variables, context) => {
+    onError: (err, _variables, context) => {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
@@ -478,7 +478,7 @@ export function useLockOption(opportunityId: string, projectId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
     },
-    onError: (err, optionId, context) => {
+    onError: (err, _optionId, context) => {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
@@ -524,7 +524,7 @@ export function useToggleOptionBudget(opportunityId: string, projectId: string) 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
     },
-    onError: (err, variables, context) => {
+    onError: (err, _variables, context) => {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }

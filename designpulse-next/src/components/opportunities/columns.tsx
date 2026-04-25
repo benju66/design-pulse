@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { TextCell, StatusCell, ScopeCell, ImpactCell, PriorityCell } from './EditableCell';

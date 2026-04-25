@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
   design_markups jsonb DEFAULT '[]'::jsonb,
   display_id text,
   priority text DEFAULT 'Medium' CHECK (priority IN ('Critical', 'High', 'Medium', 'Low')),
+  division text,
   cost_code text,
   arch_completed boolean DEFAULT false,
   mep_completed boolean DEFAULT false,
@@ -297,4 +298,20 @@ FOR EACH ROW EXECUTE FUNCTION process_audit_log();
 DROP TRIGGER IF EXISTS trg_audit_opportunity_options ON opportunity_options;
 CREATE TRIGGER trg_audit_opportunity_options
 AFTER INSERT OR UPDATE OR DELETE ON opportunity_options
+AFTER INSERT OR UPDATE OR DELETE ON opportunity_options
 FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+-- 8. Global Cost Codes Table
+CREATE TABLE IF NOT EXISTS cost_codes (
+  code text PRIMARY KEY,
+  description text NOT NULL,
+  is_division boolean DEFAULT false,
+  parent_division text,
+  category_l boolean DEFAULT false,
+  category_m boolean DEFAULT false,
+  category_s boolean DEFAULT false,
+  category_o boolean DEFAULT false
+);
+
+-- ALTER TABLE cost_codes ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "Enable full access for all users" ON cost_codes FOR ALL USING (true);

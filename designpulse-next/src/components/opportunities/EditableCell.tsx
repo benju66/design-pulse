@@ -313,11 +313,16 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   );
 }, (prev, next) => commonComparator(prev, next, true));
 
-export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
+export const DivisionCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const initialValue = getValue() as string | null | undefined;
   const [value, setValue] = useState(initialValue || '');
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const rawCostCodes = (table.options.meta as any)?.rawCostCodes || [];
+  const divisionOptions = rawCostCodes
+    .filter((c: any) => c.is_division)
+    .map((c: any) => `${c.code} - ${c.description}`);
 
   useEffect(() => {
     setValue(initialValue || '');
@@ -348,7 +353,7 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
           <input
             ref={inputRef}
             autoFocus
-            list="cost-codes"
+            list="divisions-list"
             value={value || ''}
             onChange={(e) => setValue(e.target.value)}
             onBlur={onBlur}
@@ -358,30 +363,93 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
           />
         )}
       />
-      <datalist id="cost-codes">
-        <option value="01-000 General Requirements" />
-        <option value="02-000 Existing Conditions" />
-        <option value="03-000 Concrete" />
-        <option value="04-000 Masonry" />
-        <option value="05-000 Metals" />
-        <option value="06-000 Wood, Plastics, and Composites" />
-        <option value="07-000 Thermal and Moisture Protection" />
-        <option value="08-000 Openings" />
-        <option value="09-000 Finishes" />
-        <option value="10-000 Specialties" />
-        <option value="11-000 Equipment" />
-        <option value="12-000 Furnishings" />
-        <option value="13-000 Special Construction" />
-        <option value="14-000 Conveying Equipment" />
-        <option value="21-000 Fire Suppression" />
-        <option value="22-000 Plumbing" />
-        <option value="23-000 HVAC" />
-        <option value="26-000 Electrical" />
-        <option value="27-000 Communications" />
-        <option value="28-000 Electronic Safety and Security" />
-        <option value="31-000 Earthwork" />
-        <option value="32-000 Exterior Improvements" />
-        <option value="33-000 Utilities" />
+      <datalist id="divisions-list">
+        {divisionOptions.map((opt: string) => (
+          <option key={opt} value={opt} />
+        ))}
+      </datalist>
+    </>
+  );
+}, (prev, next) => commonComparator(prev, next, false));
+
+export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
+  const initialValue = getValue() as string | null | undefined;
+  const [value, setValue] = useState(initialValue || '');
+  const updateMutation = table.options.meta?.updateData;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setValue(initialValue || '');
+  }, [initialValue]);
+
+  const rawCostCodes = (table.options.meta as any)?.rawCostCodes || [];
+  const currentDivisionStr = row.original.division || '';
+  const currentDivisionCode = currentDivisionStr.split(' ')[0] || '';
+
+  const onBlur = () => {
+    if (value !== initialValue && updateMutation) {
+      const updates: any = { [column.id]: value };
+      
+      // Auto-fill Division based on selected Cost Code
+      if (value) {
+        const parsedCode = value.split(' - ')[0]?.trim();
+        const matchedCode = rawCostCodes.find((c: any) => c.code === parsedCode && !c.is_division);
+        
+        if (matchedCode && matchedCode.parent_division) {
+          const parentDivObj = rawCostCodes.find((c: any) => c.code === matchedCode.parent_division && c.is_division);
+          if (parentDivObj) {
+            updates.division = `${parentDivObj.code} - ${parentDivObj.description}`;
+          }
+        }
+      }
+
+      updateMutation.mutate({ id: row.original.id, updates });
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: string) => void) => {
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      e.preventDefault();
+      setGridMode('navigate');
+      onBlur();
+    }
+  };
+
+  const costCodeOptions = rawCostCodes
+    .filter((c: any) => {
+      if (c.is_division) return false;
+      if (currentDivisionCode && c.parent_division) {
+        return c.parent_division === currentDivisionCode;
+      }
+      return true; // if no division selected, show all non-division codes
+    })
+    .map((c: any) => `${c.code} - ${c.description}`);
+
+  return (
+    <>
+      <CellWrapper
+        row={row}
+        column={column}
+        table={table}
+        displayValue={value || ''}
+        inputElement={(_isActive, setGridMode) => (
+          <input
+            ref={inputRef}
+            autoFocus
+            list={`cost-codes-list-${row.original.id}`}
+            value={value || ''}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={onBlur}
+            onKeyDown={(e) => handleKeyDown(e, setGridMode)}
+            className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100"
+            type="text"
+          />
+        )}
+      />
+      <datalist id={`cost-codes-list-${row.original.id}`}>
+        {costCodeOptions.map((opt: string) => (
+          <option key={opt} value={opt} />
+        ))}
       </datalist>
     </>
   );

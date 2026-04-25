@@ -1,12 +1,15 @@
 "use client";
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { Building2, Plus, ArrowRight } from 'lucide-react';
+import { Building2, Plus, ArrowRight, Settings } from 'lucide-react';
 import { useProjects, useCreateProject } from '@/hooks/useProjectQueries';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import GlobalSettingsModal from '@/components/dashboard/GlobalSettingsModal';
 
 export default function DashboardPage() {
   const { data: projects = [], isLoading } = useProjects();
   const createProject = useCreateProject();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Helper to instantly generate new test projects
   const handleCreateTestProject = () => {
@@ -29,15 +32,26 @@ export default function DashboardPage() {
         <div className="flex items-center gap-4">
           <ThemeToggle />
           <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-xl font-bold transition-colors shadow-sm"
+            title="Global Settings & Master Data"
+          >
+            <Settings size={20} />
+            <span className="hidden sm:inline">Master Data</span>
+          </button>
+          <button
             onClick={handleCreateTestProject}
             disabled={createProject.isPending}
             className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm disabled:opacity-50"
           >
             <Plus size={20} />
-            {createProject.isPending ? 'Creating...' : 'New Test Project'}
+            <span className="hidden sm:inline">{createProject.isPending ? 'Creating...' : 'New Test Project'}</span>
+            <span className="sm:hidden">{createProject.isPending ? '...' : 'New'}</span>
           </button>
         </div>
       </div>
+      
+      <GlobalSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center text-slate-500">

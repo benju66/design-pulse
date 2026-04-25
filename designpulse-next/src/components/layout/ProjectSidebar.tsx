@@ -1,7 +1,8 @@
 "use client";
 import { useState } from 'react';
 import * as LucideIcons from 'lucide-react';
-import { Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Settings, ChevronLeft, ChevronRight, Home } from 'lucide-react';
+import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useProjectSettings } from '@/hooks/useProjectQueries';
 import { DEFAULT_SIDEBAR_ITEMS } from '@/lib/constants';
@@ -48,12 +49,21 @@ export const ProjectSidebar = ({ projectId, currentView, setCurrentView }: Proje
       </button>
 
       <div className={`p-4 border-b border-slate-800 flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-        <h1 className={`font-bold text-white flex items-center ${isCollapsed ? 'justify-center' : 'gap-2 text-xl'}`}>
-          <div className="w-6 h-6 bg-sky-500 rounded-md shrink-0"></div>
-          {!isCollapsed && <span>Design Pulse</span>}
-        </h1>
+        <div className={`flex items-center justify-between w-full ${isCollapsed ? 'flex-col gap-4' : ''}`}>
+          <h1 className={`font-bold text-white flex items-center ${isCollapsed ? 'justify-center' : 'gap-2 text-xl'}`}>
+            <div className="w-6 h-6 bg-sky-500 rounded-md shrink-0"></div>
+            {!isCollapsed && <span>Design Pulse</span>}
+          </h1>
+          <Link 
+            href="/dashboard"
+            className="text-slate-400 hover:text-white transition-colors flex shrink-0 items-center justify-center p-1 rounded-md hover:bg-slate-800"
+            title="Back to Projects Dashboard"
+          >
+            <Home size={18} />
+          </Link>
+        </div>
         {!isCollapsed && (
-          <div className="mt-2 text-xs font-mono text-slate-500 bg-slate-950/50 px-2 py-1 rounded inline-block">
+          <div className="mt-2 text-xs font-mono text-slate-500 bg-slate-950/50 px-2 py-1 rounded inline-block self-start">
             PRJ: {projectId}
           </div>
         )}

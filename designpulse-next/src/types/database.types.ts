@@ -106,6 +106,7 @@ export interface Database {
           display_id: string | null
           priority: string | null
           created_at: string
+          division: string | null
         }
         Insert: {
           id?: string
@@ -131,6 +132,7 @@ export interface Database {
           display_id?: string | null
           priority?: string | null
           created_at?: string
+          division?: string | null
         }
         Update: {
           id?: string
@@ -156,6 +158,39 @@ export interface Database {
           display_id?: string | null
           priority?: string | null
           created_at?: string
+          division?: string | null
+        }
+      }
+      cost_codes: {
+        Row: {
+          code: string
+          description: string
+          is_division: boolean | null
+          parent_division: string | null
+          category_l: boolean | null
+          category_m: boolean | null
+          category_s: boolean | null
+          category_o: boolean | null
+        }
+        Insert: {
+          code: string
+          description: string
+          is_division?: boolean | null
+          parent_division?: string | null
+          category_l?: boolean | null
+          category_m?: boolean | null
+          category_s?: boolean | null
+          category_o?: boolean | null
+        }
+        Update: {
+          code?: string
+          description?: string
+          is_division?: boolean | null
+          parent_division?: string | null
+          category_l?: boolean | null
+          category_m?: boolean | null
+          category_s?: boolean | null
+          category_o?: boolean | null
         }
       }
       opportunity_options: {

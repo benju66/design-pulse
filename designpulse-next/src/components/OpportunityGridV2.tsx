@@ -17,6 +17,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions } from '@/hooks/useProjectQueries';
+import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
 
 import { ExpandedCard } from './opportunities/ExpandedCard';
@@ -40,6 +41,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
   const [activeCell, setActiveCell] = useState<{ rowIndex: number | null, columnId: string | null }>({ rowIndex: null, columnId: null });
 
+  const { data: rawCostCodes = [] } = useCostCodes();
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   const optionsMap = useMemo(() => {
     return allOptions.reduce((acc: Record<string, OpportunityOption[]>, option) => {
@@ -63,7 +65,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
-  const [grouping, setGrouping] = useState<GroupingState>(['cost_code']);
+  const [grouping, setGrouping] = useState<GroupingState>(['division']);
   
   const columnVisibility = useUIStore(state => state.gridColumnVisibility) as VisibilityState;
   const setColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
@@ -94,6 +96,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
       optionsMap,
       activeCell,
       setActiveCell,
+      rawCostCodes,
     },
   });
 
@@ -201,7 +204,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
                       <div className="flex justify-between items-center w-full">
                         <span className="flex items-center">
                           <span className="mr-2">{row.getIsExpanded() ? '▼' : '▶'}</span>
-                          {row.getValue('cost_code') ? `${row.getValue('cost_code')}` : 'Uncategorized / No Cost Code'}
+                          {row.getValue('division') ? `${row.getValue('division')}` : 'Uncategorized / No Division'}
                           <span className="ml-2 text-sm text-slate-500 font-normal">({row.subRows.length} items)</span>
                         </span>
                         

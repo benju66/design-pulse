@@ -15,6 +15,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions } from '@/hooks/useProjectQueries';
+import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
 
 import { ExpandedCard } from './opportunities/ExpandedCard';
@@ -38,6 +39,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
   const [activeCell, setActiveCell] = useState<{ rowIndex: number | null, columnId: string | null }>({ rowIndex: null, columnId: null });
 
+  const { data: rawCostCodes = [] } = useCostCodes();
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   const optionsMap = useMemo(() => {
     return allOptions.reduce((acc: Record<string, OpportunityOption[]>, option) => {
@@ -89,6 +91,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
       optionsMap,
       activeCell,
       setActiveCell,
+      rawCostCodes,
     },
   });
 

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, use } from 'react';
-import { List, LayoutPanelTop, PanelRight, PieChart, Plus } from 'lucide-react';
+import { List, LayoutPanelTop, PanelRight, Plus } from 'lucide-react';
 import MarkupCanvas from '@/components/MarkupCanvas';
 import OpportunityGrid from '@/components/OpportunityGrid';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
@@ -8,6 +8,7 @@ import CompareModal from '@/components/CompareModal';
 import BudgetSummary from '@/components/BudgetSummary';
 import BudgetSummaryV2 from '@/components/BudgetSummaryV2';
 import CoordinationBoard from '@/components/coordination/CoordinationBoard';
+import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
@@ -332,13 +333,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           )}
 
           {currentView === 'analytics' && (
-            <div className="p-8 w-full flex flex-col items-center justify-center h-full">
-              <PieChart size={64} className="text-slate-300 dark:text-slate-700 mb-6" />
-              <h3 className="text-2xl font-bold text-slate-700 dark:text-slate-300">Analytics Dashboard</h3>
-              <p className="text-slate-500 mt-2 text-center max-w-md">
-                Detailed cost breakdowns, schedule impact forecasting, and team performance metrics will be available here in a future update.
-              </p>
-            </div>
+            <AnalyticsDashboard projectId={projectId} opportunities={filteredOpportunities} />
           )}
 
           {currentView === 'coordination' && (

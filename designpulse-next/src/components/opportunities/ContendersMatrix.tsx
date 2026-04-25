@@ -72,7 +72,8 @@ export const ContendersMatrix = ({ opportunityId }: ContendersMatrixProps) => {
             {sortedOptions.map(opt => (
               <SortableContenderCard 
                 key={opt.id} 
-                opt={opt} 
+                opt={opt}
+                opportunityId={opportunityId}
                 categories={categories}
                 updateOption={updateOption} 
                 deleteOption={deleteOption} 

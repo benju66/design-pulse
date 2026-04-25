@@ -20,7 +20,11 @@ export const metadata = {
   description: "Pre-construction Decision Engine and Coordination Tracker.",
 };
 
-export default function RootLayout({ children }) {
+interface RootLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html
       lang="en"

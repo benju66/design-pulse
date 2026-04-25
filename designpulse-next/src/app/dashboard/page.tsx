@@ -1,5 +1,4 @@
 "use client";
-import React from 'react';
 import Link from 'next/link';
 import { Building2, Plus, ArrowRight } from 'lucide-react';
 import { useProjects, useCreateProject } from '@/hooks/useProjectQueries';

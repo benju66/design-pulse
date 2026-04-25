@@ -1,0 +1,66 @@
+"use client";
+import React, { use } from 'react';
+import { X } from 'lucide-react';
+import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
+import { useOpportunity, useUpdateOpportunity } from '@/hooks/useProjectQueries';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Row } from '@tanstack/react-table';
+import { Opportunity } from '@/types/models';
+
+interface ItemPageProps {
+  params: Promise<{ projectId: string; itemId: string }>;
+}
+
+export default function ItemPopOutPage({ params }: ItemPageProps) {
+  const resolvedParams = use(params);
+  const { projectId, itemId } = resolvedParams;
+  
+  const { data: opportunity, isLoading } = useOpportunity(itemId);
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-500">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!opportunity) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-500">
+        Item not found.
+      </div>
+    );
+  }
+
+  const mockRow = { original: opportunity } as Row<Opportunity>;
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm shrink-0">
+        <h1 className="text-xl font-bold truncate pr-4 text-slate-900 dark:text-white min-w-0 flex-1">
+          {opportunity.title || 'Untitled Opportunity'}
+        </h1>
+        <div className="flex items-center gap-4 shrink-0">
+          <ThemeToggle />
+          <button 
+            onClick={() => window.close()}
+            className="p-1.5 text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-md transition-colors"
+            title="Close Window"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-auto p-6 max-w-7xl mx-auto w-full">
+        <div className="bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 rounded-xl">
+          <div className="p-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl">
+            <div className="-m-4 border-none shadow-none bg-transparent">
+              <ExpandedCard row={mockRow} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

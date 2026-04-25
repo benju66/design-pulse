@@ -1,7 +1,11 @@
-import React from 'react';
 import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 
-export default function ViewportControls({ resetView, handleZoom }) {
+interface ViewportControlsProps {
+  resetView?: () => void;
+  handleZoom?: (dir: number) => void;
+}
+
+export default function ViewportControls({ resetView, handleZoom }: ViewportControlsProps) {
   const dockClass = 'pointer-events-auto flex flex-col gap-1 p-2 rounded-2xl border shadow-xl backdrop-blur-md z-20';
 
   return (

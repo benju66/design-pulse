@@ -6,7 +6,7 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 **Workflow Pipeline:** This is fundamentally a workflow application. It transforms static data into an interactive, spatial, and auditable state-machine. The pipeline begins with the **Decision Engine** (financial evaluation and option locking) and naturally progresses into **Design Coordination** (architectural/MEP updates based on locked decisions), with the architectural runway to add execution and field tracking phases later.
 
 ## 2. Tech Stack
-* **Frontend:** Next.js (App Router, React 19), Tailwind CSS v4, Lucide React.
+* **Frontend:** Next.js (App Router, React 19), TypeScript (Strict Mode, 100% Coverage), Tailwind CSS v4, Lucide React.
 * **State Management:** Zustand (UI state, view modes, compare queues).
 * **Data & Caching:** `@tanstack/react-query` paired with `idb-keyval` for Offline-First caching via IndexedDB.
 * **Data Grid:** `@tanstack/react-table` (Headless UI, configured for Excel-style fixed-layout resizing).
@@ -39,8 +39,8 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 # ⚠️ STRICT TECHNICAL GUARDRAILS (CRITICAL) ⚠️
 When generating, refactoring, or modifying code, you MUST adhere to the following constraints.
 
-## A. JavaScript & Browser Compatibility (iOS Safety)
-* **CRITICAL:** Explicitly **FORBID** the use of JavaScript regex "negative lookbehinds" (e.g., `(?<!...)`). This causes fatal crashes on older iOS WebKit engines. You MUST use standard loop-based logic, string splitting, or manual parsing to achieve the intended result.
+## A. TypeScript & Browser Compatibility (iOS Safety)
+* **CRITICAL:** Explicitly **FORBID** the use of JavaScript/TypeScript regex "negative lookbehinds" (e.g., `(?<!...)`). This causes fatal crashes on older iOS WebKit engines. You MUST use standard loop-based logic, string splitting, or manual parsing to achieve the intended result.
 
 ## B. Backend Separation of Concerns
 * **Next.js API Routes (`/api/...`):** Strictly reserved for Authentication flows (e.g., Procore OAuth). Do NOT build general data CRUD endpoints here.
@@ -48,8 +48,9 @@ When generating, refactoring, or modifying code, you MUST adhere to the followin
 * **Data Fetching:** Standard CRUD operations must be handled directly from the frontend using the `@supabase/supabase-js` client protected by RLS.
 
 ## C. Code Generation Instructions
-1.  **Respect the Cache:** Always use TanStack Query mutations (`onMutate`, `onSuccess`) to update the UI optimistically or invalidate queries. Do NOT force page reloads and do NOT use raw `useEffect` for data fetching.
-2.  **Tailwind First:** Use Tailwind utility classes. Strictly support `dark:` mode variants. 
-3.  **Headless UI:** Rely on the established `@tanstack/react-table` and `@dnd-kit` patterns. Avoid introducing heavy UI component libraries (like Material UI or Ant Design) that clash with the custom styling.
-4.  **Relational Math:** Remember that an Opportunity's true financial weight prior to approval is derived from its attached Options, not just the parent row.
-5.  **Proactive Innovation:** If you identify a more efficient algorithm, a superior architectural pattern, or a highly relevant library that falls outside these strict guardrails, you are encouraged to suggest it. However, you MUST explicitly propose the alternative, explain its benefits, and wait for explicit user approval before writing code that introduces new dependencies or alters the established tech stack.
+1.  **Strict TypeScript (No `any`):** The codebase strictly forbids the use of `any`. You must use `unknown` or exact interfaces for API payloads and TanStack generics. Furthermore, all Next.js App Router dynamic `params` must be typed and resolved as `Promises` (Next.js 15+ standard).
+2.  **Respect the Cache:** Always use TanStack Query mutations (`onMutate`, `onSuccess`) to update the UI optimistically or invalidate queries. Do NOT force page reloads and do NOT use raw `useEffect` for data fetching.
+3.  **Tailwind First:** Use Tailwind utility classes. Strictly support `dark:` mode variants. 
+4.  **Headless UI:** Rely on the established `@tanstack/react-table` and `@dnd-kit` patterns. Avoid introducing heavy UI component libraries (like Material UI or Ant Design) that clash with the custom styling.
+5.  **Relational Math:** Remember that an Opportunity's true financial weight prior to approval is derived from its attached Options, not just the parent row.
+6.  **Proactive Innovation:** If you identify a more efficient algorithm, a superior architectural pattern, or a highly relevant library that falls outside these strict guardrails, you are encouraged to suggest it. However, you MUST explicitly propose the alternative, explain its benefits, and wait for explicit user approval before writing code that introduces new dependencies or alters the established tech stack.

@@ -13,7 +13,7 @@ export const ALL_PRIMARY_FIELDS = [
   { id: 'backing_required', label: 'Backing Required' },
   { id: 'coordination_required', label: 'Coordination Required' },
   { id: 'design_lock_phase', label: 'Design Lock Phase' },
-];
+] as const;
 
 export const ADVANCED_FIELD_IDS = [
   'existing_conditions', 
@@ -21,7 +21,7 @@ export const ADVANCED_FIELD_IDS = [
   'backing_required', 
   'coordination_required', 
   'design_lock_phase'
-];
+] as const;
 
 export const DEFAULT_CATEGORIES = [
   "Existing Conditions",
@@ -29,17 +29,17 @@ export const DEFAULT_CATEGORIES = [
   "Owner Standard",
   "Budgeted Item",
   "Other"
-];
+] as const;
 
 export const DEFAULT_SCOPES = [
   "Corridor / Common",
   "Unit Interiors",
   "Back of House"
-];
+] as const;
 
 export const DEFAULT_SIDEBAR_ITEMS = [
   { id: 'dashboard', label: 'VE Matrix', iconName: 'LayoutDashboard', visible: true },
   { id: 'map', label: 'Map View', iconName: 'Map', visible: true },
   { id: 'analytics', label: 'Analytics', iconName: 'PieChart', visible: true },
   { id: 'coordination', label: 'Coordination Tracker', iconName: 'ListChecks', visible: true }
-];
+] as const;

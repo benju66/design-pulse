@@ -1,8 +1,15 @@
-export function calculateParentTotals(opportunityId, previousOptions, updates, targetOptionId) {
+import { OpportunityOption } from '@/types/models';
+
+export function calculateParentTotals(
+  opportunityId: string, 
+  previousOptions: OpportunityOption[], 
+  updates: Partial<OpportunityOption>, 
+  targetOptionId: string
+): { cost_impact: number; days_impact: number } {
   // Simulate the updated array of options locally for optimistic UI
   const allOptsForOpp = previousOptions
     .filter(opt => opt.opportunity_id === opportunityId)
-    .map(opt => opt.id === targetOptionId ? { ...opt, ...updates } : opt);
+    .map(opt => opt.id === targetOptionId ? { ...opt, ...updates } : opt) as OpportunityOption[];
 
   const lockedOpt = allOptsForOpp.find(opt => opt.is_locked);
   if (lockedOpt) {

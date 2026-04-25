@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -7,36 +7,40 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
   flexRender,
+  ExpandedState,
+  SortingState,
+  VisibilityState,
+  ColumnOrderState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronRight, ChevronDown, ChevronUp, GripVertical, Settings, Paperclip, List, MessageSquare, Plus, X, Check, PanelRight, Star } from 'lucide-react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, useSortable, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { useUpdateOpportunity, useCreateOpportunity, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useAllProjectOptions } from '@/hooks/useProjectQueries';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions } from '@/hooks/useProjectQueries';
 import { useUIStore } from '@/stores/useUIStore';
 
-import { TextCell, StatusCell, ScopeCell, ImpactCell } from './opportunities/EditableCell';
 import { ExpandedCard } from './opportunities/ExpandedCard';
-import { OptionsCell } from './opportunities/OptionsCell';
 import { ColumnChooser } from './opportunities/ColumnChooser';
-
 import { useOpportunityColumns } from './opportunities/columns';
 import GhostRow from './opportunities/GhostRow';
+import { Opportunity, OpportunityOption } from '@/types/models';
 
-const EMPTY_ROW = {};
+interface OpportunityGridProps {
+  projectId: string;
+  data: Opportunity[];
+  viewMode?: string;
+  onOpenCompare: () => void;
+}
 
-export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare }) {
+export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const compareQueue = useUIStore(state => state.compareQueue);
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
-  const [activeCell, setActiveCell] = useState({ rowIndex: null, columnId: null });
+  const [activeCell, setActiveCell] = useState<{ rowIndex: number | null, columnId: string | null }>({ rowIndex: null, columnId: null });
 
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   const optionsMap = useMemo(() => {
-    return allOptions.reduce((acc, option) => {
+    return allOptions.reduce((acc: Record<string, OpportunityOption[]>, option) => {
       if (!acc[option.opportunity_id]) {
         acc[option.opportunity_id] = [];
       }
@@ -54,17 +58,18 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     }
   }, [selectedOpportunityId]);
 
-  const [expanded, setExpanded] = useState({});
-  const [sorting, setSorting] = useState([]);
-  const [globalFilter, setGlobalFilter] = useState('');
-  const columnVisibility = useUIStore(state => state.gridColumnVisibility);
+  const [expanded, setExpanded] = useState<ExpandedState>({});
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState<string>('');
+  
+  const columnVisibility = useUIStore(state => state.gridColumnVisibility) as VisibilityState;
   const setColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
-  const columnOrder = useUIStore(state => state.gridColumnOrder);
+  const columnOrder = useUIStore(state => state.gridColumnOrder) as ColumnOrderState;
   const setColumnOrder = useUIStore(state => state.setGridColumnOrder);
 
   const columns = useOpportunityColumns(viewMode);
 
-  const table = useReactTable({
+  const table = useReactTable<Opportunity>({
     data,
     columns,
     state: { expanded, columnVisibility, columnOrder, sorting, globalFilter },
@@ -87,7 +92,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     },
   });
 
-  const tableContainerRef = useRef(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
   const { rows } = table.getRowModel();
 
   const virtualizer = useVirtualizer({
@@ -105,7 +110,6 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
 
   return (
     <div className="w-full h-full flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
-      {/* Table Header Toolbar */}
       <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Matrix View</span>
@@ -131,16 +135,14 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           const state = useUIStore.getState();
           const gridMode = state.gridMode;
           
-          // Enter key enters edit mode natively if navigating
           if (e.key === 'Enter') {
             if (gridMode === 'navigate') {
                e.preventDefault();
-               useUIStore.getState().setGridMode('edit');
+               state.setGridMode('edit');
             }
             return;
           }
 
-          // If we are actively typing, never steal arrow keys
           if (gridMode === 'edit') return;
 
           if (activeCell.rowIndex === null || activeCell.columnId === null) return;
@@ -194,7 +196,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
                     {{
                       asc: <ChevronUp size={14} className="ml-1 inline-block shrink-0" />,
                       desc: <ChevronDown size={14} className="ml-1 inline-block shrink-0" />,
-                    }[header.column.getIsSorted()] ?? null}
+                    }[header.column.getIsSorted() as string] ?? null}
                   </div>
                   
                   {header.column.getCanResize() && (
@@ -246,7 +248,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
                 {viewMode === 'card' && row.getIsExpanded() && (
                   <tr>
                     <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
-                      <ExpandedCard row={row} updateData={updateMutation} />
+                      <ExpandedCard row={row as any} />
                     </td>
                   </tr>
                 )}
@@ -272,7 +274,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
 
           {/* Ghost Row for Quick Add */}
           <tbody>
-            <GhostRow table={table} createMutation={createMutation} />
+            <GhostRow table={table as any} createMutation={createMutation as any} />
           </tbody>
         </table>
 

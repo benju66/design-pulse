@@ -3,8 +3,10 @@ import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { TextCell, StatusCell, ScopeCell, ImpactCell, PriorityCell } from './EditableCell';
 import { OptionsCell } from './OptionsCell';
+import { ColumnDef, Row } from '@tanstack/react-table';
+import { Opportunity } from '@/types/models';
 
-const CheckboxCell = ({ row }) => {
+const CheckboxCell = ({ row }: { row: Row<Opportunity> }) => {
   const isSelected = useUIStore(state => state.compareQueue.includes(row.original.id));
   const toggleCompareItem = useUIStore(state => state.toggleCompareItem);
   return (
@@ -19,7 +21,7 @@ const CheckboxCell = ({ row }) => {
   );
 };
 
-const OpenPanelCell = ({ row }) => {
+const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
   return (
@@ -46,29 +48,31 @@ const OpenPanelCell = ({ row }) => {
   );
 };
 
-export const useOpportunityColumns = (viewMode) => {
-  const checkboxColumn = useMemo(() => ({
+export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, unknown>[] => {
+  const checkboxColumn: ColumnDef<Opportunity, unknown> = useMemo(() => ({
     id: 'select',
     header: () => null,
     cell: CheckboxCell,
     size: 40,
   }), []);
 
-  const openPanelColumn = useMemo(() => ({
+  const openPanelColumn: ColumnDef<Opportunity, unknown> = useMemo(() => ({
     id: 'open_panel',
     header: () => null,
     cell: OpenPanelCell,
     size: 40,
   }), []);
 
-  const prioritySort = (rowA, rowB, columnId) => {
-    const weights = { 'Critical': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
-    const a = weights[rowA.getValue(columnId)] || 2;
-    const b = weights[rowB.getValue(columnId)] || 2;
+  const prioritySort = (rowA: Row<Opportunity>, rowB: Row<Opportunity>, columnId: string) => {
+    const weights: Record<string, number> = { 'Critical': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
+    const aVal = rowA.getValue(columnId) as string;
+    const bVal = rowB.getValue(columnId) as string;
+    const a = weights[aVal] || 2;
+    const b = weights[bVal] || 2;
     return a - b;
   };
 
-  const flatColumns = useMemo(
+  const flatColumns: ColumnDef<Opportunity, unknown>[] = useMemo(
     () => [
       checkboxColumn,
       ...(viewMode === 'split' ? [openPanelColumn] : []),
@@ -95,7 +99,7 @@ export const useOpportunityColumns = (viewMode) => {
     [viewMode, checkboxColumn, openPanelColumn]
   );
 
-  const cardColumns = useMemo(
+  const cardColumns: ColumnDef<Opportunity, unknown>[] = useMemo(
     () => [
       checkboxColumn,
       ...(viewMode === 'split' ? [openPanelColumn] : []),

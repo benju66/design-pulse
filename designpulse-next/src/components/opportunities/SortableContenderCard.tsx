@@ -1,10 +1,31 @@
 "use client";
-import React from 'react';
+
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, X, Star, Check } from 'lucide-react';
+import { GripVertical, X, Star } from 'lucide-react';
+import { OpportunityOption } from '@/types/models';
+import { UseMutationResult } from '@tanstack/react-query';
 
-export const SortableContenderCard = ({ opt, categories, updateOption, deleteOption, lockOption, toggleOptionBudget, opportunityId, hasLockedOption }) => {
+interface SortableContenderCardProps {
+  opt: OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean };
+  categories: string[];
+  updateOption: UseMutationResult<OpportunityOption, Error, { id: string; updates: Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }> }, unknown>;
+  deleteOption: UseMutationResult<string, Error, string, unknown>;
+  lockOption: UseMutationResult<unknown, Error, string, unknown>;
+  toggleOptionBudget: UseMutationResult<unknown, Error, { optionId: string; isIncluded: boolean }, unknown>;
+  opportunityId: string;
+  hasLockedOption: boolean;
+}
+
+export const SortableContenderCard = ({ 
+  opt, 
+  categories, 
+  updateOption, 
+  deleteOption, 
+  lockOption, 
+  toggleOptionBudget, 
+  hasLockedOption 
+}: SortableContenderCardProps) => {
 
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: opt.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -35,19 +56,19 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
             defaultValue={opt.title}
             placeholder="Option Title"
             title="Click to edit title"
-            disabled={opt.is_locked}
+            disabled={opt.is_locked || false}
             onBlur={(e) => {
               if (e.target.value !== opt.title) updateOption.mutate({ id: opt.id, updates: { title: e.target.value } });
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') e.target.blur();
+              if (e.key === 'Enter') e.currentTarget.blur();
             }}
           />
           <input
             list={`category-options-${opt.id}`}
             className="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full px-2.5 py-1 cursor-text outline-none hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-sky-500 transition-colors border-none w-36 disabled:opacity-70 disabled:cursor-not-allowed"
             defaultValue={opt.category || 'Other'}
-            disabled={opt.is_locked}
+            disabled={opt.is_locked || false}
             placeholder="Category..."
             onBlur={(e) => {
               const val = e.target.value.trim() || 'Other';
@@ -56,7 +77,7 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
               }
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') e.target.blur();
+              if (e.key === 'Enter') e.currentTarget.blur();
             }}
           />
           <datalist id={`category-options-${opt.id}`}>
@@ -91,7 +112,7 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
         className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-2 mb-3 outline-none focus:ring-2 focus:ring-sky-500 resize-none h-16 disabled:opacity-70 disabled:cursor-not-allowed"
         placeholder="Description & Pros/Cons..."
         defaultValue={opt.description || ''}
-        disabled={opt.is_locked}
+        disabled={opt.is_locked || false}
         onBlur={(e) => {
           if (e.target.value !== opt.description) updateOption.mutate({ id: opt.id, updates: { description: e.target.value } });
         }}
@@ -106,7 +127,7 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
               className="w-16 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.quantity || ''}
               placeholder="1"
-              disabled={opt.is_locked}
+              disabled={opt.is_locked || false}
               onBlur={(e) => {
                 const qty = Number(e.target.value);
                 if (qty !== Number(opt.quantity)) {
@@ -115,13 +136,13 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') e.target.blur();
+                if (e.key === 'Enter') e.currentTarget.blur();
               }}
             />
             <select
               className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.uom || 'ls'}
-              disabled={opt.is_locked}
+              disabled={opt.is_locked || false}
               onChange={(e) => updateOption.mutate({ id: opt.id, updates: { uom: e.target.value } })}
             >
               <option value="ls">ls</option>
@@ -141,7 +162,7 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
               className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 px-1 disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.unit_cost || opt.cost_impact || ''}
               placeholder="0"
-              disabled={opt.is_locked}
+              disabled={opt.is_locked || false}
               onBlur={(e) => {
                 const uc = Number(e.target.value);
                 if (uc !== Number(opt.unit_cost)) {
@@ -150,7 +171,7 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') e.target.blur();
+                if (e.key === 'Enter') e.currentTarget.blur();
               }}
             />
           </div>
@@ -176,19 +197,19 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
               className="w-14 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.days_impact || ''}
               placeholder="0"
-              disabled={opt.is_locked}
+              disabled={opt.is_locked || false}
               onBlur={(e) => {
                 const val = Number(e.target.value);
                 if (val !== Number(opt.days_impact)) updateOption.mutate({ id: opt.id, updates: { days_impact: val } });
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') e.target.blur();
+                if (e.key === 'Enter') e.currentTarget.blur();
               }}
             />
             <select
               className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.time_impact_uom || 'days'}
-              disabled={opt.is_locked}
+              disabled={opt.is_locked || false}
               onChange={(e) => updateOption.mutate({ id: opt.id, updates: { time_impact_uom: e.target.value } })}
             >
               <option value="days">days</option>
@@ -209,7 +230,7 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
             }}
             disabled={hasLockedOption}
             role="switch"
-            aria-checked={opt.include_in_budget}
+            aria-checked={opt.include_in_budget || false}
             className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
               opt.include_in_budget ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-600'
             } ${hasLockedOption ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -222,9 +243,9 @@ export const SortableContenderCard = ({ opt, categories, updateOption, deleteOpt
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Final Selection</span>
           <button
             onClick={() => lockOption.mutate(opt.id)}
-            disabled={opt.is_locked}
+            disabled={opt.is_locked || false}
             role="switch"
-            aria-checked={opt.is_locked}
+            aria-checked={opt.is_locked || false}
             className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
               opt.is_locked ? 'bg-emerald-500 cursor-default' : 'bg-slate-300 dark:bg-slate-600 cursor-pointer hover:bg-slate-400 dark:hover:bg-slate-500'
             }`}

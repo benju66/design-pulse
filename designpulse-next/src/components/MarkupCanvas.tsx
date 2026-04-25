@@ -1,18 +1,32 @@
 "use client";
-import React, { useState, useEffect, useRef, useMemo, forwardRef } from 'react';
+import { useState, useEffect, useRef, useMemo, forwardRef } from 'react';
 import { Stage, Layer, Image as KonvaImage, Line } from 'react-konva';
 import useImage from 'use-image';
 import { Check, ZoomIn, ZoomOut, Maximize, MousePointer2, PenTool } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
+import { KonvaEventObject } from 'konva/lib/Node';
+import { DesignMarkup } from '@/types/models';
 
-const MarkupCanvas = forwardRef(({
-  imageUrl = "/placeholder-floorplan.jpg", // placeholder if none
+export interface ExtendedDesignMarkup extends Omit<DesignMarkup, 'x' | 'y' | 'type'> {
+  opportunity_id?: string;
+  points: Array<{ pctX: number; pctY: number }>;
+  color: string;
+}
+
+export interface MarkupCanvasProps {
+  imageUrl?: string;
+  markups?: ExtendedDesignMarkup[];
+  onAddMarkup?: (markup: { points: Array<{ pctX: number; pctY: number }>; color: string }) => void;
+}
+
+const MarkupCanvas = forwardRef<unknown, MarkupCanvasProps>(({
+  imageUrl = "/placeholder-floorplan.jpg",
   markups = [],
   onAddMarkup = () => {},
 }, ref) => {
   const [image] = useImage(imageUrl, 'anonymous');
-  const stageRef = useRef(null);
-  const containerRef = useRef(null);
+  const stageRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
@@ -20,8 +34,8 @@ const MarkupCanvas = forwardRef(({
   const [stageScale, setStageScale] = useState(1);
   const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
   
-  const [toolMode, setToolMode] = useState('pan'); // pan, draw
-  const [draftPoints, setDraftPoints] = useState([]);
+  const [toolMode, setToolMode] = useState<'pan' | 'draw'>('pan');
+  const [draftPoints, setDraftPoints] = useState<Array<{ pctX: number; pctY: number }>>([]);
   const [isDraggingCanvas, setIsDraggingCanvas] = useState(false);
 
   useEffect(() => {
@@ -39,7 +53,7 @@ const MarkupCanvas = forwardRef(({
   }, []);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (toolMode === 'draw' && draftPoints.length > 0) {
           setDraftPoints([]);
@@ -64,8 +78,8 @@ const MarkupCanvas = forwardRef(({
     if (!stageW || !stageH || !image) {
       return { offsetX: 0, offsetY: 0, drawW: stageW || 800, drawH: stageH || 600, stageW, stageH };
     }
-    const nw = image.naturalWidth || image.width;
-    const nh = image.naturalHeight || image.height;
+    const nw = image.naturalWidth || (image as any).width;
+    const nh = image.naturalHeight || (image as any).height;
     const scale = Math.min(stageW / nw, stageH / nh);
     const drawW = nw * scale;
     const drawH = nh * scale;
@@ -74,11 +88,13 @@ const MarkupCanvas = forwardRef(({
     return { offsetX, offsetY, drawW, drawH, stageW, stageH };
   }, [image, dimensions]);
 
-  const handleWheel = (e) => {
+  const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     const stage = e.target.getStage();
+    if (!stage) return;
     const oldScale = stage.scaleX();
     const pointer = stage.getPointerPosition();
+    if (!pointer) return;
 
     const mousePointTo = {
       x: (pointer.x - stage.x()) / oldScale,
@@ -95,7 +111,7 @@ const MarkupCanvas = forwardRef(({
     });
   };
 
-  const handleZoom = (direction) => {
+  const handleZoom = (direction: number) => {
     const oldScale = stageScale;
     const scaleBy = 1.2;
     const newScale = direction === 1 ? oldScale * scaleBy : oldScale / scaleBy;
@@ -116,9 +132,12 @@ const MarkupCanvas = forwardRef(({
     setStagePosition({ x: 0, y: 0 });
   };
 
-  const handleStageClick = (e) => {
+  const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
+    if (!stage) return;
     const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+    
     const logicalX = (pointer.x - stage.x()) / stageScale;
     const logicalY = (pointer.y - stage.y()) / stageScale;
 
@@ -142,7 +161,7 @@ const MarkupCanvas = forwardRef(({
     }
   };
 
-  const toPixels = (pointsArray) => {
+  const toPixels = (pointsArray: Array<{ pctX: number; pctY: number }>) => {
     const { offsetX, offsetY, drawW, drawH } = layout;
     return pointsArray.flatMap((p) => [
       offsetX + p.pctX * drawW,
@@ -156,8 +175,7 @@ const MarkupCanvas = forwardRef(({
   else if (toolMode === 'pan') computedCursor = 'grab';
 
   return (
-    <div className="relative w-full h-full flex flex-col">
-      {/* Toolbar */}
+    <div ref={ref as any} className="relative w-full h-full flex flex-col">
       <div className="absolute top-4 left-4 z-10 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-1 flex gap-1">
         <button 
           onClick={() => setToolMode('pan')}
@@ -221,7 +239,6 @@ const MarkupCanvas = forwardRef(({
               )}
             </Layer>
             <Layer>
-              {/* Render Saved Markups */}
               {markups.map((markup, idx) => {
                 const isSelected = selectedOpportunityId === markup.opportunity_id;
                 return (
@@ -232,7 +249,7 @@ const MarkupCanvas = forwardRef(({
                     fill={`${markup.color}66`}
                     stroke={isSelected ? '#38bdf8' : markup.color}
                     strokeWidth={isSelected ? 4 / stageScale : 2 / stageScale}
-                    shadowColor={isSelected ? '#38bdf8' : null}
+                    shadowColor={isSelected ? '#38bdf8' : undefined}
                     shadowBlur={isSelected ? 10 / stageScale : 0}
                     tension={0}
                     onClick={(e) => {
@@ -255,7 +272,6 @@ const MarkupCanvas = forwardRef(({
                 );
               })}
 
-              {/* Render Draft Polygon */}
               {draftPoints.length > 0 && (
                 <Line
                   points={toPixels(draftPoints)}

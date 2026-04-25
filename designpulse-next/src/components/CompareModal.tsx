@@ -1,23 +1,29 @@
-import React from 'react';
+"use client";
 import { X } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { ExpandedCard } from './opportunities/ExpandedCard';
-import { useUpdateOpportunity } from '@/hooks/useProjectQueries';
+import { Opportunity } from '@/types/models';
+import { Row } from '@tanstack/react-table';
 
-export default function CompareModal({ isOpen, onClose, projectId, opportunities }) {
+interface CompareModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  projectId: string;
+  opportunities: Opportunity[];
+}
+
+export default function CompareModal({ isOpen, onClose, projectId: _projectId, opportunities }: CompareModalProps) {
   const compareQueue = useUIStore(state => state.compareQueue);
-  const updateData = useUpdateOpportunity(projectId);
 
   if (!isOpen) return null;
 
   const compareItems = opportunities.filter(opp => compareQueue.includes(opp.id));
   
-  // Create a dummy row object for ExpandedCard
-  const createMockRow = (opp) => ({
+  const createMockRow = (opp: Opportunity) => ({
     original: opp,
     getIsExpanded: () => true,
     toggleExpanded: () => {},
-  });
+  } as unknown as Row<Opportunity>);
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-6">
@@ -46,14 +52,13 @@ export default function CompareModal({ isOpen, onClose, projectId, opportunities
                   <h3 className="font-bold text-xl text-slate-800 dark:text-slate-100">{opp.title || 'Untitled Option'}</h3>
                   <div className="flex gap-6 mt-3 text-sm text-slate-500 dark:text-slate-400">
                     <span className="bg-slate-100 dark:bg-slate-900 px-3 py-1 rounded-full"><strong>Location:</strong> {opp.location || 'N/A'}</span>
-                    <span className={`px-3 py-1 rounded-full font-semibold ${opp.cost_impact < 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                    <span className={`px-3 py-1 rounded-full font-semibold ${(opp.cost_impact || 0) < 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'}`}>
                       <strong>Cost Impact:</strong> ${opp.cost_impact || 0}
                     </span>
                   </div>
                 </div>
-                {/* ExpandedCard already has margins, we subtract the top margin so it attaches to the header */}
                 <div className="-mt-4">
-                  <ExpandedCard row={createMockRow(opp)} updateData={updateData} />
+                  <ExpandedCard row={createMockRow(opp)} />
                 </div>
               </div>
             ))}

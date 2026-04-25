@@ -1,7 +1,14 @@
 "use client";
 import React from 'react';
+import { Row, Table } from '@tanstack/react-table';
+import { Opportunity } from '@/types/models';
 
-export const OptionsCell = React.memo(({ row, table }) => {
+interface OptionsCellProps {
+  row: Row<Opportunity>;
+  table: Table<Opportunity>;
+}
+
+export const OptionsCell = React.memo(({ row, table }: OptionsCellProps) => {
   const optionsMap = table.options.meta?.optionsMap || {};
   const options = optionsMap[row.original.id] || [];
   
@@ -9,7 +16,7 @@ export const OptionsCell = React.memo(({ row, table }) => {
     return <div className="flex items-center justify-center p-2 h-full"><span className="text-xs text-slate-300 dark:text-slate-600 italic">-</span></div>;
   }
 
-  const formatCurrency = (val) => 
+  const formatCurrency = (val: number) => 
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
   return (
@@ -28,8 +35,8 @@ export const OptionsCell = React.memo(({ row, table }) => {
                 <span className={`font-medium truncate mr-2 ${opt.is_locked ? 'text-sky-600 dark:text-sky-400 font-bold' : 'text-slate-700 dark:text-slate-200'}`}>
                   {opt.is_locked && '★ '}{opt.title}
                 </span>
-                <span className={`whitespace-nowrap font-mono text-xs font-semibold ${opt.cost_impact < 0 ? 'text-emerald-500' : opt.cost_impact > 0 ? 'text-rose-500' : 'text-slate-500'}`}>
-                  {opt.cost_impact > 0 ? '+' : ''}{formatCurrency(opt.cost_impact)}
+                <span className={`whitespace-nowrap font-mono text-xs font-semibold ${(opt.cost_impact || 0) < 0 ? 'text-emerald-500' : (opt.cost_impact || 0) > 0 ? 'text-rose-500' : 'text-slate-500'}`}>
+                  {(opt.cost_impact || 0) > 0 ? '+' : ''}{formatCurrency(opt.cost_impact || 0)}
                 </span>
               </li>
             ))}

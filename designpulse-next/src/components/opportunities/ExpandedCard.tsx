@@ -1,23 +1,29 @@
 "use client";
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
 import { useUpdateOpportunity, useProjectSettings, useDeleteOpportunity } from '@/hooks/useProjectQueries';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { List, Paperclip, MessageSquare, Settings, ChevronDown } from 'lucide-react';
 import { ALL_PRIMARY_FIELDS, ADVANCED_FIELD_IDS } from '@/lib/constants';
 
 import { ContendersMatrix } from './ContendersMatrix';
 import { SortableFieldCard } from './SortableFieldCard';
+import { Row } from '@tanstack/react-table';
+import { Opportunity } from '@/types/models';
 
-export const ExpandedCard = ({ row }) => {
+interface ExpandedCardProps {
+  row: Row<Opportunity>;
+}
+
+export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const params = useParams();
-  const projectId = params?.projectId;
+  const projectId = params?.projectId as string;
   const updateData = useUpdateOpportunity(projectId);
   const deleteData = useDeleteOpportunity(projectId);
   const { data: settings } = useProjectSettings(projectId);
-  const scopes = settings?.scopes || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
+  const scopes = (settings?.scopes as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
   const cardOrder = useUIStore(state => state.cardOrder);
   const setCardOrder = useUIStore(state => state.setCardOrder);
@@ -30,8 +36,8 @@ export const ExpandedCard = ({ row }) => {
     .map(id => ALL_PRIMARY_FIELDS.find(f => f.id === id))
     .filter(f => f && visibleCards[f.id]);
 
-  const primaryFields = activeFields.filter(f => !ADVANCED_FIELD_IDS.includes(f.id));
-  const advancedFields = activeFields.filter(f => ADVANCED_FIELD_IDS.includes(f.id));
+  const primaryFields = activeFields.filter(f => f && !ADVANCED_FIELD_IDS.includes(f.id as any));
+  const advancedFields = activeFields.filter(f => f && ADVANCED_FIELD_IDS.includes(f.id as any));
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -40,17 +46,17 @@ export const ExpandedCard = ({ row }) => {
     })
   );
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      const oldIndex = cardOrder.indexOf(active.id);
-      const newIndex = cardOrder.indexOf(over.id);
+      const oldIndex = cardOrder.indexOf(active.id as string);
+      const newIndex = cardOrder.indexOf(over.id as string);
       setCardOrder(arrayMove(cardOrder, oldIndex, newIndex));
     }
   };
 
-  const renderFieldInput = (field) => {
-    const val = row.original[field.id];
+  const renderFieldInput = (field: any) => {
+    const val = (row.original as any)[field.id];
     if (field.id === 'status') {
       return (
         <select
@@ -93,7 +99,7 @@ export const ExpandedCard = ({ row }) => {
               updateData.mutate({ id: row.original.id, updates: { [field.id]: num } });
             }
           }}
-          onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLElement).blur()}
         />
       );
     } else {
@@ -110,7 +116,7 @@ export const ExpandedCard = ({ row }) => {
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              e.target.blur();
+              (e.target as HTMLElement).blur();
             }
           }}
         />
@@ -217,9 +223,9 @@ export const ExpandedCard = ({ row }) => {
             <ContendersMatrix opportunityId={row.original.id} />
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               {/* Primary Data Grid */}
-              <SortableContext items={primaryFields.map(f => f.id)} strategy={rectSortingStrategy}>
+              <SortableContext items={primaryFields.map(f => f!.id)} strategy={rectSortingStrategy}>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-                  {primaryFields.map(f => (
+                  {primaryFields.map(f => f && (
                     <SortableFieldCard key={f.id} id={f.id} title={f.label}>
                       {renderFieldInput(f)}
                     </SortableFieldCard>
@@ -234,9 +240,9 @@ export const ExpandedCard = ({ row }) => {
                   <ChevronDown className="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-                  <SortableContext items={advancedFields.map(f => f.id)} strategy={rectSortingStrategy}>
+                  <SortableContext items={advancedFields.map(f => f!.id)} strategy={rectSortingStrategy}>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {advancedFields.map(f => (
+                      {advancedFields.map(f => f && (
                         <SortableFieldCard key={f.id} id={f.id} title={f.label}>
                           {renderFieldInput(f)}
                         </SortableFieldCard>

@@ -1,13 +1,21 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Eye, EyeOff, Info, Map } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map } from 'lucide-react';
 import { useProjectSettings, useUpdateProjectSettings } from '@/hooks/useProjectQueries';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as LucideIcons from 'lucide-react';
+import { SidebarItem } from '@/types/models';
 
-const SortableItem = ({ id, content, onRemove, renderExtra }) => {
+interface SortableItemProps {
+  id: string;
+  content: React.ReactNode;
+  onRemove?: () => void;
+  renderExtra?: () => React.ReactNode;
+}
+
+const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
   const style = { transform: CSS.Transform.toString(transform), transition };
 
@@ -39,15 +47,15 @@ const SortableItem = ({ id, content, onRemove, renderExtra }) => {
   );
 };
 
-export const ProjectSettings = ({ projectId }) => {
+export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   const { data: settings, isLoading } = useProjectSettings(projectId);
   const updateSettings = useUpdateProjectSettings(projectId);
   
   const [activeTab, setActiveTab] = useState('info'); // 'info' | 'categories' | 'scopes' | 'sidebar'
   
-  const [categories, setCategories] = useState([]);
-  const [scopes, setScopes] = useState([]);
-  const [sidebarItems, setSidebarItems] = useState([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [scopes, setScopes] = useState<string[]>([]);
+  const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   
   const [projectInfo, setProjectInfo] = useState({
     project_name: '',
@@ -62,13 +70,13 @@ export const ProjectSettings = ({ projectId }) => {
 
   useEffect(() => {
     if (settings) {
-      setCategories(settings.categories || []);
-      setScopes(settings.scopes || []);
-      setSidebarItems(settings.sidebar_items || []);
+      setCategories((settings.categories as string[]) || []);
+      setScopes((settings.scopes as string[]) || []);
+      setSidebarItems((settings.sidebar_items as unknown as SidebarItem[]) || []);
       setProjectInfo({
         project_name: settings.project_name || projectId,
         location: settings.location || '',
-        original_budget: settings.original_budget || 0,
+        original_budget: Number(settings.original_budget) || 0,
         enable_audit_logging: settings.enable_audit_logging || false
       });
       setHasChanges(false);
@@ -96,27 +104,27 @@ export const ProjectSettings = ({ projectId }) => {
     }
   };
 
-  const handleDragEndCategories = (event) => {
+  const handleDragEndCategories = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      const oldIndex = categories.indexOf(active.id);
-      const newIndex = categories.indexOf(over.id);
+      const oldIndex = categories.indexOf(active.id as string);
+      const newIndex = categories.indexOf(over.id as string);
       setCategories(arrayMove(categories, oldIndex, newIndex));
       setHasChanges(true);
     }
   };
 
-  const handleDragEndScopes = (event) => {
+  const handleDragEndScopes = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      const oldIndex = scopes.indexOf(active.id);
-      const newIndex = scopes.indexOf(over.id);
+      const oldIndex = scopes.indexOf(active.id as string);
+      const newIndex = scopes.indexOf(over.id as string);
       setScopes(arrayMove(scopes, oldIndex, newIndex));
       setHasChanges(true);
     }
   };
 
-  const handleDragEndSidebar = (event) => {
+  const handleDragEndSidebar = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       const oldIndex = sidebarItems.findIndex(i => i.id === active.id);
@@ -126,14 +134,14 @@ export const ProjectSettings = ({ projectId }) => {
     }
   };
 
-  const toggleSidebarItem = (id) => {
+  const toggleSidebarItem = (id: string) => {
     setSidebarItems(items => items.map(item => 
       item.id === id ? { ...item, visible: !item.visible } : item
     ));
     setHasChanges(true);
   };
 
-  const handleInfoChange = (field, value) => {
+  const handleInfoChange = (field: string, value: string | number | boolean) => {
     setProjectInfo(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
   };
@@ -143,7 +151,7 @@ export const ProjectSettings = ({ projectId }) => {
       { 
         categories,
         scopes,
-        sidebar_items: sidebarItems,
+        sidebar_items: sidebarItems as any,
         project_name: projectInfo.project_name,
         location: projectInfo.location,
         original_budget: Number(projectInfo.original_budget),
@@ -409,7 +417,7 @@ export const ProjectSettings = ({ projectId }) => {
             <SortableContext items={sidebarItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-2 mb-6">
                 {sidebarItems.map((item) => {
-                  const Icon = LucideIcons[item.iconName] || LucideIcons.Square;
+                  const Icon = (LucideIcons as any)[item.iconName] || LucideIcons.Square;
                   return (
                     <SortableItem 
                       key={item.id} 

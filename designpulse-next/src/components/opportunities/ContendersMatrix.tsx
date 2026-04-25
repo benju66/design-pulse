@@ -1,21 +1,25 @@
 "use client";
-import React, { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
 import { useAllProjectOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useToggleOptionBudget, useProjectSettings, useReorderOptions } from '@/hooks/useProjectQueries';
 import { DEFAULT_CATEGORIES } from '@/lib/constants';
 import { SortableContenderCard } from './SortableContenderCard';
 
-export const ContendersMatrix = ({ opportunityId }) => {
+interface ContendersMatrixProps {
+  opportunityId: string;
+}
+
+export const ContendersMatrix = ({ opportunityId }: ContendersMatrixProps) => {
   const params = useParams();
-  const projectId = params?.projectId;
+  const projectId = params?.projectId as string;
 
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   const options = useMemo(() => allOptions.filter(o => o.opportunity_id === opportunityId), [allOptions, opportunityId]);
   const { data: settings } = useProjectSettings(projectId);
-  const categories = settings?.categories || DEFAULT_CATEGORIES;
+  const categories = (settings?.categories as string[]) || DEFAULT_CATEGORIES;
 
   const createOption = useCreateOption(opportunityId, projectId);
   const updateOption = useUpdateOption(opportunityId, projectId);
@@ -30,7 +34,7 @@ export const ContendersMatrix = ({ opportunityId }) => {
 
   const hasLockedOption = useMemo(() => sortedOptions.some(o => o.is_locked), [sortedOptions]);
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       const oldIndex = sortedOptions.findIndex(o => o.id === active.id);
@@ -42,11 +46,10 @@ export const ContendersMatrix = ({ opportunityId }) => {
   };
 
   const sensors = useSensors(useSensor(PointerSensor));
-  const scrollRef = useRef(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
 
   useEffect(() => {
-    // When options are finally loaded into the DOM, force scroll to the far left.
     if (options.length > 0 && !initialScrollDone.current) {
       setTimeout(() => {
         if (scrollRef.current) scrollRef.current.scrollLeft = 0;
@@ -75,12 +78,10 @@ export const ContendersMatrix = ({ opportunityId }) => {
                 deleteOption={deleteOption} 
                 lockOption={lockOption} 
                 toggleOptionBudget={toggleOptionBudget}
-                opportunityId={opportunityId}
                 hasLockedOption={hasLockedOption}
               />
             ))}
 
-            {/* Add Option Card */}
             <div 
               onClick={() => createOption.mutate({})}
               className="shrink-0 w-80 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors text-slate-500 hover:text-sky-600 dark:hover:text-sky-400"

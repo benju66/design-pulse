@@ -1,9 +1,17 @@
 "use client";
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
+import { Table, Column } from '@tanstack/react-table';
+import { Opportunity } from '@/types/models';
+import { UseMutationResult } from '@tanstack/react-query';
 
-export default function GhostRow({ table, createMutation }) {
-  const [pendingRow, setPendingRow] = useState({});
+interface GhostRowProps {
+  table: Table<Opportunity>;
+  createMutation: UseMutationResult<Opportunity, Error, Partial<Opportunity>, unknown>;
+}
+
+export default function GhostRow({ table, createMutation }: GhostRowProps) {
+  const [pendingRow, setPendingRow] = useState<Partial<Opportunity>>({});
   const [ghostError, setGhostError] = useState(false);
 
   const submitGhostRow = () => {
@@ -20,7 +28,7 @@ export default function GhostRow({ table, createMutation }) {
 
   return (
     <tr className="bg-slate-50/50 dark:bg-slate-800/20 hover:bg-slate-100 dark:hover:bg-slate-800/50 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
-      {table.getVisibleLeafColumns().map((column) => {
+      {table.getVisibleLeafColumns().map((column: Column<Opportunity, unknown>) => {
         if (column.id === 'select' || column.id === 'open_panel') return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
         
         if (column.id === 'options') {
@@ -70,9 +78,9 @@ export default function GhostRow({ table, createMutation }) {
             <input
               type={column.id === 'cost_impact' || column.id === 'days_impact' ? 'number' : 'text'}
               placeholder={`+ Add ${typeof column.columnDef.header === 'string' ? column.columnDef.header : 'Item'}...`}
-              value={pendingRow[column.id] === undefined ? '' : pendingRow[column.id]}
+              value={(pendingRow as any)[column.id] === undefined ? '' : (pendingRow as any)[column.id]}
               onChange={(e) => {
-                let val = e.target.value;
+                let val: string | number = e.target.value;
                 if (column.id === 'cost_impact' || column.id === 'days_impact') {
                   val = val === '' ? '' : Number(val);
                 }

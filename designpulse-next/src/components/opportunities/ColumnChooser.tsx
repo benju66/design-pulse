@@ -1,11 +1,17 @@
 "use client";
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Settings, GripVertical, Check } from 'lucide-react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Table, Column } from '@tanstack/react-table';
+import { Opportunity } from '@/types/models';
 
-const SortableColumnItem = ({ column }) => {
+interface SortableColumnItemProps {
+  column: Column<Opportunity, unknown>;
+}
+
+const SortableColumnItem = ({ column }: SortableColumnItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -42,14 +48,17 @@ const SortableColumnItem = ({ column }) => {
   );
 };
 
-export const ColumnChooser = ({ table }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
+interface ColumnChooserProps {
+  table: Table<Opportunity>;
+}
 
-  // Close on outside click
+export const ColumnChooser = ({ table }: ColumnChooserProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -59,7 +68,6 @@ export const ColumnChooser = ({ table }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  // Extract columns that have a string header (i.e. exclude the select/expander action columns)
   const allColumns = table.getAllLeafColumns();
   const configurableColumns = allColumns.filter(c => typeof c.columnDef.header === 'string');
   const pinnedColumnIds = allColumns.filter(c => typeof c.columnDef.header !== 'string').map(c => c.id);
@@ -69,15 +77,14 @@ export const ColumnChooser = ({ table }) => {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (active.id !== over.id) {
+    if (over && active.id !== over.id) {
       const oldIndex = configurableColumns.findIndex(c => c.id === active.id);
       const newIndex = configurableColumns.findIndex(c => c.id === over.id);
       
       const newConfigurableOrder = arrayMove(configurableColumns.map(c => c.id), oldIndex, newIndex);
       
-      // Update table's overall column order (Pinned columns first, then configurable columns)
       table.setColumnOrder([...pinnedColumnIds, ...newConfigurableOrder]);
     }
   };
@@ -107,10 +114,8 @@ export const ColumnChooser = ({ table }) => {
                   checked={configurableColumns.every(c => c.getIsVisible())}
                   onChange={(e) => {
                     const isChecked = e.target.checked;
-                    const newVisibility = {};
-                    // Keep pinned columns visible
+                    const newVisibility: Record<string, boolean> = {};
                     pinnedColumnIds.forEach(id => newVisibility[id] = true);
-                    // Toggle all configurable columns
                     configurableColumns.forEach(c => newVisibility[c.id] = isChecked);
                     table.setColumnVisibility(newVisibility);
                   }}

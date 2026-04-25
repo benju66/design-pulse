@@ -1,10 +1,15 @@
 "use client";
-import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 
-export const SortableFieldCard = ({ id, title, children }) => {
+interface SortableFieldCardProps {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+}
+
+export const SortableFieldCard = ({ id, title, children }: SortableFieldCardProps) => {
   const {
     attributes,
     listeners,

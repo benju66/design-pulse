@@ -1,35 +1,41 @@
 "use client";
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { ExternalLink, Maximize, Minimize, X } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { ExpandedCard } from './opportunities/ExpandedCard';
-import { useUpdateOpportunity } from '@/hooks/useProjectQueries';
+import { Opportunity } from '@/types/models';
+import { Row } from '@tanstack/react-table';
 
-export default function DetailPanel({ projectId, opportunities, viewMode }) {
+interface DetailPanelProps {
+  projectId: string;
+  opportunities: Opportunity[];
+  viewMode: string;
+}
+
+export default function DetailPanel({ projectId, opportunities, viewMode }: DetailPanelProps) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
   const [isMaximized, setIsMaximized] = useState(false);
   const [panelWidth, setPanelWidth] = useState(50); // percentage
   const [isDragging, setIsDragging] = useState(false);
-  const panelRef = useRef(null);
-  const updateData = useUpdateOpportunity(projectId);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   if (viewMode !== 'split' || !selectedOpportunityId) return null;
 
   const opportunity = opportunities.find(o => o.id === selectedOpportunityId);
   if (!opportunity) return null;
 
-  const mockRow = { original: opportunity };
+  const mockRow = { original: opportunity } as Row<Opportunity>;
 
-  const startResize = (e) => {
+  const startResize = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
-    const handleMouseMove = (moveEvent) => {
+    const handleMouseMove = (moveEvent: MouseEvent) => {
       const newWidth = ((window.innerWidth - moveEvent.clientX) / window.innerWidth) * 100;
       const finalWidth = Math.max(20, Math.min(newWidth, 80));
       if (panelRef.current) panelRef.current.style.width = finalWidth + '%';
     };
-    const handleMouseUp = (upEvent) => {
+    const handleMouseUp = (upEvent: MouseEvent) => {
       const newWidth = ((window.innerWidth - upEvent.clientX) / window.innerWidth) * 100;
       const finalWidth = Math.max(20, Math.min(newWidth, 80));
       setPanelWidth(finalWidth);
@@ -90,7 +96,7 @@ export default function DetailPanel({ projectId, opportunities, viewMode }) {
       </div>
       <div className="flex-1 overflow-auto p-4 bg-slate-50 dark:bg-slate-900/50 min-w-0 w-full">
         <div className="-m-4 border-none shadow-none bg-transparent">
-          <ExpandedCard row={mockRow} updateData={updateData} />
+          <ExpandedCard row={mockRow} />
         </div>
       </div>
     </div>

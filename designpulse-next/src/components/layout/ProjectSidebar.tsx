@@ -1,17 +1,24 @@
 "use client";
-import React, { useState } from 'react';
+import { useState } from 'react';
 import * as LucideIcons from 'lucide-react';
 import { Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useProjectSettings } from '@/hooks/useProjectQueries';
 import { DEFAULT_SIDEBAR_ITEMS } from '@/lib/constants';
+import { SidebarItem } from '@/types/models';
 
-export const ProjectSidebar = ({ projectId, currentView, setCurrentView }) => {
+interface ProjectSidebarProps {
+  projectId: string;
+  currentView: string;
+  setCurrentView: (view: string) => void;
+}
+
+export const ProjectSidebar = ({ projectId, currentView, setCurrentView }: ProjectSidebarProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { data: settings } = useProjectSettings(projectId);
   
-  const viewItems = settings?.sidebar_items || DEFAULT_SIDEBAR_ITEMS;
-  const activeViewItems = viewItems.filter(item => item.visible);
+  const viewItems = (settings?.sidebar_items as unknown as SidebarItem[]) || (DEFAULT_SIDEBAR_ITEMS as unknown as SidebarItem[]);
+  const activeViewItems = viewItems.filter((item: SidebarItem) => item.visible);
 
   return (
     <div 
@@ -46,7 +53,7 @@ export const ProjectSidebar = ({ projectId, currentView, setCurrentView }) => {
         )}
         
         {activeViewItems.map(item => {
-          const Icon = LucideIcons[item.iconName] || LucideIcons.Square;
+          const Icon = (LucideIcons as any)[item.iconName] || LucideIcons.Square;
           const isActive = currentView === item.id;
           return (
             <button

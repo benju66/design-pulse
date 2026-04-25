@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export async function GET(request) {
+export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   
@@ -52,12 +52,14 @@ export async function GET(request) {
 
     // 4. Provision Supabase User
     const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+      process.env.SUPABASE_SERVICE_ROLE_KEY as string
     );
 
-    let { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-    let sitepulseUser = users.find(u => u.email === email);
+    let { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    if (listError) throw listError;
+    
+    let sitepulseUser = users.find((u: any) => u.email === email);
 
     if (!sitepulseUser) {
       const { data: newUser, error } = await supabaseAdmin.auth.admin.createUser({

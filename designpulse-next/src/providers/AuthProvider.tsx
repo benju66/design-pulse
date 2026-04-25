@@ -1,14 +1,19 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/supabaseClient';
 import { Loader2 } from 'lucide-react';
+import { Session } from '@supabase/supabase-js';
 
-const AuthContext = createContext({});
+interface AuthContextType {
+  session: Session | null;
+}
 
-export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null);
+const AuthContext = createContext<AuthContextType>({ session: null });
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();

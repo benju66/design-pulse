@@ -1,6 +1,6 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
-export async function exportToPDFService(activeSheetId, payload, token) {
+export async function exportToPDFService(activeSheetId: string, payload: unknown, token: string) {
   const response = await fetch(`${API_BASE_URL}/export-pdf/${activeSheetId}`, {
     method: 'POST',
     headers: { 
@@ -27,7 +27,7 @@ export async function exportToPDFService(activeSheetId, payload, token) {
   return { blob, filename };
 }
 
-export async function uploadFloorplanService(sheetId, file, pdfPageNumber, token) {
+export async function uploadFloorplanService(sheetId: string, file: File, pdfPageNumber: number, token: string) {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -50,7 +50,7 @@ export async function uploadFloorplanService(sheetId, file, pdfPageNumber, token
   return response.json();
 }
 
-export async function attachOriginalService(activeSheetId, file, token) {
+export async function attachOriginalService(activeSheetId: string, file: File, token: string) {
   const formData = new FormData();
   formData.append('file', file);
   
@@ -70,7 +70,7 @@ export async function attachOriginalService(activeSheetId, file, token) {
   return response.json();
 }
 
-export async function extractVectorsService(sheetId, token) {
+export async function extractVectorsService(sheetId: string, token: string) {
   const response = await fetch(`${API_BASE_URL}/extract-vectors/${sheetId}`, {
     method: 'GET',
     headers: {

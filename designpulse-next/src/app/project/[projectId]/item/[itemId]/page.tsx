@@ -1,8 +1,8 @@
 "use client";
-import React, { use } from 'react';
+import { use } from 'react';
 import { X } from 'lucide-react';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
-import { useOpportunity, useUpdateOpportunity } from '@/hooks/useProjectQueries';
+import { useOpportunity } from '@/hooks/useProjectQueries';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
@@ -13,7 +13,7 @@ interface ItemPageProps {
 
 export default function ItemPopOutPage({ params }: ItemPageProps) {
   const resolvedParams = use(params);
-  const { projectId, itemId } = resolvedParams;
+  const { itemId } = resolvedParams;
   
   const { data: opportunity, isLoading } = useOpportunity(itemId);
 

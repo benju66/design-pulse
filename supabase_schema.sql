@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS opportunities (
   design_markups jsonb DEFAULT '[]'::jsonb,
   display_id text,
   priority text DEFAULT 'Medium' CHECK (priority IN ('Critical', 'High', 'Medium', 'Low')),
+  cost_code text,
+  arch_completed boolean DEFAULT false,
+  mep_completed boolean DEFAULT false,
+  struct_completed boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

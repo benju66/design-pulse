@@ -312,3 +312,77 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
     />
   );
 }, (prev, next) => commonComparator(prev, next, true));
+
+export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
+  const initialValue = getValue() as string | null | undefined;
+  const [value, setValue] = useState(initialValue || '');
+  const updateMutation = table.options.meta?.updateData;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setValue(initialValue || '');
+  }, [initialValue]);
+
+  const onBlur = () => {
+    if (value !== initialValue && updateMutation) {
+      updateMutation.mutate({ id: row.original.id, updates: { [column.id]: value } });
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: string) => void) => {
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      e.preventDefault();
+      setGridMode('navigate');
+      onBlur();
+    }
+  };
+
+  return (
+    <>
+      <CellWrapper
+        row={row}
+        column={column}
+        table={table}
+        displayValue={value || ''}
+        inputElement={(_isActive, setGridMode) => (
+          <input
+            ref={inputRef}
+            autoFocus
+            list="cost-codes"
+            value={value || ''}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={onBlur}
+            onKeyDown={(e) => handleKeyDown(e, setGridMode)}
+            className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100"
+            type="text"
+          />
+        )}
+      />
+      <datalist id="cost-codes">
+        <option value="01-000 General Requirements" />
+        <option value="02-000 Existing Conditions" />
+        <option value="03-000 Concrete" />
+        <option value="04-000 Masonry" />
+        <option value="05-000 Metals" />
+        <option value="06-000 Wood, Plastics, and Composites" />
+        <option value="07-000 Thermal and Moisture Protection" />
+        <option value="08-000 Openings" />
+        <option value="09-000 Finishes" />
+        <option value="10-000 Specialties" />
+        <option value="11-000 Equipment" />
+        <option value="12-000 Furnishings" />
+        <option value="13-000 Special Construction" />
+        <option value="14-000 Conveying Equipment" />
+        <option value="21-000 Fire Suppression" />
+        <option value="22-000 Plumbing" />
+        <option value="23-000 HVAC" />
+        <option value="26-000 Electrical" />
+        <option value="27-000 Communications" />
+        <option value="28-000 Electronic Safety and Security" />
+        <option value="31-000 Earthwork" />
+        <option value="32-000 Exterior Improvements" />
+        <option value="33-000 Utilities" />
+      </datalist>
+    </>
+  );
+}, (prev, next) => commonComparator(prev, next, false));

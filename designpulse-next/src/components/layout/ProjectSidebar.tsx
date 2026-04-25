@@ -18,7 +18,21 @@ export const ProjectSidebar = ({ projectId, currentView, setCurrentView }: Proje
   const { data: settings } = useProjectSettings(projectId);
   
   const viewItems = (settings?.sidebar_items as unknown as SidebarItem[]) || (DEFAULT_SIDEBAR_ITEMS as unknown as SidebarItem[]);
-  const activeViewItems = viewItems.filter((item: SidebarItem) => item.visible);
+  
+  // Merge prototype views dynamically
+  const prototypeViews: SidebarItem[] = [
+    { id: 'dashboard-v2', label: 'Grid V2 (Proto)', iconName: 'LayoutDashboard', visible: true },
+    { id: 'coordination-v2', label: 'Kanban (Proto)', iconName: 'Kanban', visible: true }
+  ];
+  
+  const mergedItems = [...viewItems];
+  prototypeViews.forEach(pv => {
+    if (!mergedItems.find(i => i.id === pv.id)) {
+      mergedItems.push(pv);
+    }
+  });
+
+  const activeViewItems = mergedItems.filter((item: SidebarItem) => item.visible);
 
   return (
     <div 

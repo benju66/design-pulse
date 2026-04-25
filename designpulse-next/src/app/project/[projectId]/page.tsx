@@ -3,8 +3,11 @@ import React, { useState, use } from 'react';
 import { List, LayoutPanelTop, PanelRight, PieChart, Plus } from 'lucide-react';
 import MarkupCanvas from '@/components/MarkupCanvas';
 import OpportunityGrid from '@/components/OpportunityGrid';
+import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import CompareModal from '@/components/CompareModal';
 import BudgetSummary from '@/components/BudgetSummary';
+import BudgetSummaryV2 from '@/components/BudgetSummaryV2';
+import CoordinationBoard from '@/components/coordination/CoordinationBoard';
 import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
@@ -127,13 +130,14 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">
             {currentView === 'dashboard' && 'Value Engineering Matrix'}
+            {currentView === 'dashboard-v2' && 'Value Engineering Matrix V2'}
             {currentView === 'map' && 'Map View'}
             {currentView === 'analytics' && 'Project Analytics'}
             {currentView === 'coordination' && 'Design Coordination Tracker'}
             {currentView === 'settings' && 'Project Settings'}
           </h2>
           <div className="flex gap-3 items-center">
-            {currentView === 'dashboard' && (
+            {(currentView === 'dashboard' || currentView === 'dashboard-v2') && (
               <>
                 <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2">
                   <button
@@ -253,6 +257,63 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             </>
           )}
 
+          {currentView === 'dashboard-v2' && (
+            <>
+              {/* Main Grid Area */}
+              <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 ${
+                (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
+              }`}>
+                <div className="shrink-0">
+                  <BudgetSummaryV2 projectId={projectId} opportunities={opportunities} />
+                  
+                  {/* Scope Tabs */}
+                  <div className="flex gap-2 mb-4">
+                    {tabs.map(tab => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          activeTab === tab
+                            ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setCurrentView('settings')}
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800 flex items-center justify-center"
+                      title="Add New Scope Tab"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-hidden">
+                  {isLoading ? (
+                    <div className="h-full flex items-center justify-center text-slate-500">Loading log...</div>
+                  ) : (
+                    <OpportunityGridV2 
+                      projectId={projectId} 
+                      data={filteredOpportunities} 
+                      viewMode={viewMode} 
+                      onOpenCompare={() => setIsCompareModalOpen(true)}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Detail Panel */}
+              <DetailPanel 
+                projectId={projectId} 
+                opportunities={opportunities} 
+                viewMode={viewMode} 
+              />
+            </>
+          )}
+
           {currentView === 'map' && (
             <>
               <div className="w-full h-full relative bg-slate-50 dark:bg-slate-900 shrink-0">
@@ -288,6 +349,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 A structured checklist and tracker for MEP, structural, and architectural coordination tasks. Coming soon!
               </p>
             </div>
+          )}
+
+          {currentView === 'coordination-v2' && (
+            <CoordinationBoard projectId={projectId} opportunities={filteredOpportunities} />
           )}
 
         </div>

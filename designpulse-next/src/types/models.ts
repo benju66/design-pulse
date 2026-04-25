@@ -1,6 +1,11 @@
 import { Database } from './database.types';
 
-export type Opportunity = Database['public']['Tables']['opportunities']['Row'];
+export type Opportunity = Database['public']['Tables']['opportunities']['Row'] & {
+  cost_code?: string | null;
+  arch_completed?: boolean;
+  mep_completed?: boolean;
+  struct_completed?: boolean;
+};
 export type OpportunityOption = Database['public']['Tables']['opportunity_options']['Row'];
 export type ProjectSettings = Database['public']['Tables']['project_settings']['Row'];
 export type Project = Database['public']['Tables']['projects']['Row'];

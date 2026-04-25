@@ -1,0 +1,312 @@
+"use client";
+import { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getExpandedRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  getGroupedRowModel,
+  flexRender,
+  ExpandedState,
+  SortingState,
+  VisibilityState,
+  ColumnOrderState,
+  GroupingState,
+} from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions } from '@/hooks/useProjectQueries';
+import { useUIStore } from '@/stores/useUIStore';
+
+import { ExpandedCard } from './opportunities/ExpandedCard';
+import { ColumnChooser } from './opportunities/ColumnChooser';
+import { useOpportunityColumnsV2 } from './opportunities/columns-v2';
+import GhostRow from './opportunities/GhostRow';
+import { Opportunity, OpportunityOption } from '@/types/models';
+
+interface OpportunityGridProps {
+  projectId: string;
+  data: Opportunity[];
+  viewMode?: string;
+  onOpenCompare?: () => void;
+}
+
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare }: OpportunityGridProps) {
+  const updateMutation = useUpdateOpportunity(projectId);
+  const createMutation = useCreateOpportunity(projectId);
+  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const compareQueue = useUIStore(state => state.compareQueue);
+  const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
+  const [activeCell, setActiveCell] = useState<{ rowIndex: number | null, columnId: string | null }>({ rowIndex: null, columnId: null });
+
+  const { data: allOptions = [] } = useAllProjectOptions(projectId);
+  const optionsMap = useMemo(() => {
+    return allOptions.reduce((acc: Record<string, OpportunityOption[]>, option) => {
+      if (!acc[option.opportunity_id]) {
+        acc[option.opportunity_id] = [];
+      }
+      acc[option.opportunity_id].push(option);
+      return acc;
+    }, {});
+  }, [allOptions]);
+
+  useEffect(() => {
+    if (selectedOpportunityId) {
+      const element = document.getElementById(`row-${selectedOpportunityId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [selectedOpportunityId]);
+
+  const [expanded, setExpanded] = useState<ExpandedState>({});
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState<string>('');
+  const [grouping, setGrouping] = useState<GroupingState>(['cost_code']);
+  
+  const columnVisibility = useUIStore(state => state.gridColumnVisibility) as VisibilityState;
+  const setColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
+  const columnOrder = useUIStore(state => state.gridColumnOrder) as ColumnOrderState;
+  const setColumnOrder = useUIStore(state => state.setGridColumnOrder);
+
+  const columns = useOpportunityColumnsV2(viewMode);
+
+  const table = useReactTable<Opportunity>({
+    data,
+    columns,
+    state: { expanded, columnVisibility, columnOrder, sorting, globalFilter, grouping },
+    onExpandedChange: setExpanded,
+    onColumnVisibilityChange: setColumnVisibility,
+    onColumnOrderChange: setColumnOrder,
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    onGroupingChange: setGrouping,
+    getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getGroupedRowModel: getGroupedRowModel(),
+    columnResizeMode: 'onChange',
+    getRowId: (row) => row.id,
+    meta: {
+      updateData: updateMutation,
+      optionsMap,
+      activeCell,
+      setActiveCell,
+    },
+  });
+
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const { rows } = table.getRowModel();
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 44, // Base height
+    overscan: 5,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;
+  const paddingBottom = virtualItems.length > 0
+    ? virtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end || 0)
+    : 0;
+
+  return (
+    <div className="w-full h-full flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
+      <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Grid V2 View</span>
+          <input 
+            type="text"
+            placeholder="Search items..."
+            value={globalFilter ?? ''}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
+          />
+        </div>
+        <ColumnChooser table={table} />
+      </div>
+
+      <div 
+        ref={tableContainerRef} 
+        className="flex-1 overflow-auto rounded-b-xl outline-none"
+        tabIndex={0}
+      >
+        <table 
+          className="text-left text-sm whitespace-nowrap" 
+          style={{ tableLayout: 'fixed', width: table.getTotalSize() }}
+        >
+          <thead className="bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700 sticky top-0 z-10">
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <th 
+                  key={header.id} 
+                  className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900"
+                  style={{ width: header.getSize() }}
+                >
+                  <div 
+                    className={`truncate flex items-center justify-between ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                    {{
+                      asc: <ChevronUp size={14} className="ml-1 inline-block shrink-0" />,
+                      desc: <ChevronDown size={14} className="ml-1 inline-block shrink-0" />,
+                    }[header.column.getIsSorted() as string] ?? null}
+                  </div>
+                  
+                  {header.column.getCanResize() && (
+                    <div
+                      onMouseDown={header.getResizeHandler()}
+                      onTouchStart={header.getResizeHandler()}
+                      className={`absolute right-0 top-0 h-full w-1 cursor-col-resize user-select-none touch-none bg-sky-500 opacity-0 group-hover:opacity-100 transition-opacity ${
+                        header.column.getIsResizing() ? 'opacity-100 bg-sky-600 w-2' : ''
+                      }`}
+                    />
+                  )}
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+        
+          {paddingTop > 0 && (
+            <tbody>
+              <tr>
+                <td style={{ height: `${paddingTop}px` }} colSpan={columns.length} />
+              </tr>
+            </tbody>
+          )}
+          {virtualItems.map((virtualRow) => {
+            const row = rows[virtualRow.index];
+            const isSelected = selectedOpportunityId === row.original.id;
+            
+            if (row.getIsGrouped()) {
+              return (
+                <tbody 
+                  key={row.id}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualRow.index}
+                  className="border-b-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800"
+                >
+                  <tr>
+                    <td 
+                      colSpan={row.getVisibleCells().length} 
+                      className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
+                      onClick={row.getToggleExpandedHandler()}
+                    >
+                      <div className="flex justify-between items-center w-full">
+                        <span className="flex items-center">
+                          <span className="mr-2">{row.getIsExpanded() ? '▼' : '▶'}</span>
+                          {row.getValue('cost_code') ? `${row.getValue('cost_code')}` : 'Uncategorized / No Cost Code'}
+                          <span className="ml-2 text-sm text-slate-500 font-normal">({row.subRows.length} items)</span>
+                        </span>
+                        
+                        <div className="flex items-center gap-6">
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs text-slate-500 font-normal uppercase">Cost Impact</span>
+                            <span className={`text-sm ${Number(row.getValue('cost_impact')) > 0 ? 'text-rose-600' : Number(row.getValue('cost_impact')) < 0 ? 'text-emerald-600' : ''}`}>
+                              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(row.getValue('cost_impact')) || 0)}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs text-slate-500 font-normal uppercase">Days Impact</span>
+                            <span className="text-sm">{row.getValue('days_impact') || 0}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              );
+            }
+
+            return (
+              <tbody 
+                key={row.id}
+                ref={virtualizer.measureElement}
+                data-index={virtualRow.index}
+                className="border-b border-slate-100 dark:border-slate-800/50"
+              >
+                <tr 
+                  id={`row-${row.original.id}`}
+                  className={`transition-colors ${
+                    isSelected 
+                      ? 'bg-sky-50/50 dark:bg-sky-900/10 border-l-2 border-sky-500' 
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                  }`}
+                >
+                  {row.getVisibleCells().map((cell) => {
+                    if (cell.getIsGrouped()) return <td key={cell.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
+                    if (cell.getIsPlaceholder()) return <td key={cell.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800" />;
+                    return (
+                      <td key={cell.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    );
+                  })}
+                </tr>
+                {viewMode === 'card' && row.getIsExpanded() && (
+                  <tr>
+                    <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
+                      <ExpandedCard row={row as any} />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            );
+          })}
+          {paddingBottom > 0 && (
+            <tbody>
+              <tr>
+                <td style={{ height: `${paddingBottom}px` }} colSpan={columns.length} />
+              </tr>
+            </tbody>
+          )}
+          {data.length === 0 && (
+            <tbody>
+              <tr>
+                <td colSpan={15} className="px-4 py-8 text-center text-slate-500">
+                  No VE or Alternates logged yet. Start typing below to add one!
+                </td>
+              </tr>
+            </tbody>
+          )}
+
+          {/* Ghost Row for Quick Add */}
+          <tbody>
+            <GhostRow table={table as any} createMutation={createMutation as any} />
+          </tbody>
+        </table>
+
+      {compareQueue.length > 0 && onOpenCompare && (
+        <div className="sticky bottom-0 w-full bg-slate-900 text-white p-4 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.2)] z-50 rounded-b-xl border-t border-slate-800">
+          <div className="flex items-center gap-4">
+            <div className="bg-sky-500 text-white text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full">
+              {compareQueue.length}
+            </div>
+            <span className="font-medium text-sm text-slate-200">Options Selected</span>
+          </div>
+          <div className="flex gap-3">
+            <button 
+              onClick={clearCompareQueue}
+              className="px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
+            >
+              Clear
+            </button>
+            <button 
+              onClick={onOpenCompare}
+              className="px-6 py-2 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded-lg shadow-sm transition-colors text-sm"
+            >
+              Compare Options
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
+    </div>
+  );
+}

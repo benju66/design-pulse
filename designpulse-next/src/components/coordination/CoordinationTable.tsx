@@ -3,19 +3,17 @@ import React, { useState, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
-  getExpandedRowModel,
   flexRender,
-  ExpandedState,
   ColumnDef,
   CellContext
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronRight, ChevronDown, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
+
 import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity } from '@/hooks/useProjectQueries';
-import { DisciplineAccordion } from './DisciplineAccordion';
 import { CoordinationGhostRow } from './CoordinationGhostRow';
 import { TextCell, PriorityCell, StatusCell } from '@/components/opportunities/EditableCell';
+import { useUIStore } from '@/stores/useUIStore';
 
 interface Props {
   projectId: string;
@@ -34,17 +32,34 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
     { id: 'd_elec', label: 'Elec' },
     { id: 'd_plumb', label: 'Plumb' }
   ];
-  const disciplines: DisciplineConfig[] = (settings as any)?.disciplines || defaultDisciplines;
+  const rawDisciplines = (settings as any)?.disciplines;
+  const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
+    ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
+    : defaultDisciplines;
   const coordDetails = row.original.coordination_details || {};
 
   return (
-    <div className="flex gap-1 items-center px-2 py-1 h-full cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800" onClick={row.getToggleExpandedHandler()}>
+    <div className="flex gap-1 items-center px-2 py-1 h-full cursor-default">
       {disciplines.map((d: DisciplineConfig) => {
         const status = coordDetails[d.id]?.status || 'Not Required';
         if (status === 'Not Required') return null;
-        if (status === 'Complete') return <span key={d.id} title={`${d.label}: Complete`}><CheckCircle2 size={14} className="text-emerald-500" /></span>;
-        if (status === 'Pending' || status === 'Required') return <span key={d.id} title={`${d.label}: Pending`}><AlertCircle size={14} className="text-amber-500" /></span>;
-        return <span key={d.id} title={d.label}><Circle size={14} className="text-slate-300" /></span>;
+        
+        const isCompleted = status === 'Complete';
+        const isPending = status === 'Pending' || status === 'Required';
+        
+        let colorClass = 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
+        if (isCompleted) colorClass = 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800';
+        else if (isPending) colorClass = 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800';
+
+        return (
+          <div 
+            key={d.id} 
+            title={`${d.label}: ${status}`} 
+            className={`flex items-center justify-center w-5 h-5 rounded border text-[10px] font-bold ${colorClass}`}
+          >
+            {d.label.charAt(0).toUpperCase()}
+          </div>
+        );
       })}
       {disciplines.every((d: DisciplineConfig) => (coordDetails[d.id]?.status || 'Not Required') === 'Not Required') && (
         <span className="text-xs text-slate-400 italic">No tasks</span>
@@ -54,27 +69,14 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
 });
 
 export default function CoordinationTable({ projectId, opportunities }: Props) {
-  const [expanded, setExpanded] = useState<ExpandedState>({});
+  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
+  
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const [activeCell, setActiveCell] = useState<{ rowIndex: number | null, columnId: string | null }>({ rowIndex: null, columnId: null });
 
   const columns: ColumnDef<Opportunity, any>[] = [
-    {
-      id: 'expander',
-      header: () => null,
-      size: 40,
-      cell: ({ row }) => (
-        <div className="flex items-center justify-center h-full px-2">
-          <button
-            onClick={row.getToggleExpandedHandler()}
-            className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors"
-          >
-            {row.getIsExpanded() ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
-        </div>
-      ),
-    },
     {
       accessorKey: 'display_id',
       header: 'ID',
@@ -135,10 +137,7 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
   const table = useReactTable({
     data: opportunities,
     columns,
-    state: { expanded },
-    onExpandedChange: setExpanded,
     getCoreRowModel: getCoreRowModel(),
-    getExpandedRowModel: getExpandedRowModel(),
     getRowId: (row) => row.id,
     meta: {
       updateData: updateMutation,
@@ -205,20 +204,20 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
                   data-index={virtualRow.index}
                   className="border-b border-slate-100 dark:border-slate-800/50"
                 >
-                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <tr 
+                    onClick={() => setSelectedOpportunityId(row.original.id)}
+                    className={`cursor-pointer transition-colors ${
+                      row.original.id === selectedOpportunityId 
+                        ? 'bg-sky-50 dark:bg-sky-900/20 border-l-2 border-sky-500' 
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                    }`}
+                  >
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">
+                      <td key={cell.id} className="p-0 border-r border-slate-200 dark:border-slate-800 align-top">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}
                   </tr>
-                  {row.getIsExpanded() && (
-                    <tr>
-                      <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
-                        <DisciplineAccordion row={row} projectId={projectId} />
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               );
             })}

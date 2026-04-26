@@ -75,7 +75,14 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
       setCategories((settings.categories as string[]) || []);
       setScopes((settings.scopes as string[]) || []);
       setSidebarItems((settings.sidebar_items as unknown as SidebarItem[]) || []);
-      setDisciplines((settings.disciplines as DisciplineConfig[]) || []);
+      
+      const rawDisciplines = settings.disciplines;
+      setDisciplines(
+        Array.isArray(rawDisciplines) 
+          ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
+          : []
+      );
+      
       setProjectInfo({
         project_name: settings.project_name || projectId,
         location: settings.location || '',

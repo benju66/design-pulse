@@ -41,7 +41,10 @@ export const CoordinationCard = ({ opportunity, projectId }: CoordinationCardPro
     { id: 'd_elec', label: 'Elec' },
     { id: 'd_plumb', label: 'Plumb' }
   ];
-  const disciplines: DisciplineConfig[] = (settings as any)?.disciplines || defaultDisciplines;
+  const rawDisciplines = (settings as any)?.disciplines;
+  const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
+    ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
+    : defaultDisciplines;
   const coordDetails = opportunity.coordination_details || {};
 
   const togglePill = (e: React.MouseEvent, discipline: DisciplineConfig) => {

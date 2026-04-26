@@ -9,6 +9,7 @@ import BudgetSummary from '@/components/BudgetSummary';
 import BudgetSummaryV2 from '@/components/BudgetSummaryV2';
 import CoordinationBoard from '@/components/coordination/CoordinationBoard';
 import CoordinationTable from '@/components/coordination/CoordinationTable';
+import { CoordinationDetailPanel } from '@/components/coordination/CoordinationDetailPanel';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
 import { exportToPDFService } from '@/services/api';
@@ -376,7 +377,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
           {currentView === 'coordination' && (
             coordinationViewMode === 'table' ? (
-              <CoordinationTable projectId={projectId} opportunities={coordinationOpportunities} />
+              <>
+                <div className={`flex flex-col flex-1 min-w-0 ${selectedOpportunityId ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
+                  <CoordinationTable projectId={projectId} opportunities={coordinationOpportunities} />
+                </div>
+                {selectedOpportunityId && opportunities.find(o => o.id === selectedOpportunityId) && (
+                  <CoordinationDetailPanel 
+                    projectId={projectId} 
+                    opportunity={opportunities.find(o => o.id === selectedOpportunityId)!} 
+                  />
+                )}
+              </>
             ) : (
               <CoordinationBoard projectId={projectId} opportunities={coordinationOpportunities} />
             )

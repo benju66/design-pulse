@@ -26,9 +26,10 @@ export default function DesignDashboard({ opportunities }: Props) {
     let strCount = 0;
 
     lockedOpps.forEach(opp => {
-      if (opp.arch_completed) archCount++;
-      if (opp.mep_completed) mepCount++;
-      if (opp.struct_completed) strCount++;
+      const details = opp.coordination_details || {};
+      if (details['d_arch']?.status === 'Complete') archCount++;
+      if (details['d_mech']?.status === 'Complete' || details['d_elec']?.status === 'Complete' || details['d_plumb']?.status === 'Complete') mepCount++;
+      if (details['d_struct']?.status === 'Complete') strCount++;
     });
 
     return [

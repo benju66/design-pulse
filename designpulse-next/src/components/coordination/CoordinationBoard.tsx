@@ -1,5 +1,5 @@
 "use client";
-import React from 'react';
+
 import { Opportunity } from '@/types/models';
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { CoordinationColumn } from './CoordinationColumn';
@@ -50,10 +50,11 @@ export default function CoordinationBoard({ projectId, opportunities }: Coordina
 
     // Validation Logic
     if (targetColumnId === 'GC / Owner Review' || targetColumnId === 'Implemented') {
-      const isReady = opportunity.arch_completed && opportunity.mep_completed && opportunity.struct_completed;
-      if (!isReady) {
+      const details = opportunity.coordination_details || {};
+      const hasPending = Object.values(details).some(d => d?.status === 'Required' || d?.status === 'Pending');
+      if (hasPending) {
         toast.error('Coordination Incomplete', {
-          description: 'All discipline pills (ARCH, MEP, STR) must be completed before moving to Review or Implementation.',
+          description: 'All required discipline pills must be completed before moving to Review or Implementation.',
         });
         return; // Exits without calling mutation. dnd-kit will automatically snap back to original column because we do not have an optimistic state array.
       }

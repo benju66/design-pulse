@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS project_settings (
   categories jsonb DEFAULT '["Existing Conditions", "Arch Plans/Specs", "Owner Standard", "Budgeted Item", "Other"]'::jsonb,
   scopes jsonb DEFAULT '["Corridor / Common", "Unit Interiors", "Back of House"]'::jsonb,
   sidebar_items jsonb DEFAULT '[{"id": "dashboard", "label": "VE Matrix", "iconName": "LayoutDashboard", "visible": true}, {"id": "map", "label": "Map View", "iconName": "Map", "visible": true}, {"id": "analytics", "label": "Analytics", "iconName": "PieChart", "visible": true}, {"id": "coordination", "label": "Coordination Tracker", "iconName": "ListChecks", "visible": true}]'::jsonb,
+  disciplines jsonb DEFAULT '[{"id": "d_arch", "label": "Arch"}, {"id": "d_civil", "label": "Civil"}, {"id": "d_struct", "label": "Struct"}, {"id": "d_mech", "label": "Mech"}, {"id": "d_elec", "label": "Elec"}, {"id": "d_plumb", "label": "Plumb"}]'::jsonb,
   project_name text,
   location text,
   original_budget numeric DEFAULT 5000000,
@@ -54,9 +55,8 @@ CREATE TABLE IF NOT EXISTS opportunities (
   priority text DEFAULT 'Medium' CHECK (priority IN ('Critical', 'High', 'Medium', 'Low')),
   division text,
   cost_code text,
-  arch_completed boolean DEFAULT false,
-  mep_completed boolean DEFAULT false,
-  struct_completed boolean DEFAULT false,
+  record_type text DEFAULT 'VE' CHECK (record_type IN ('VE', 'Coordination')),
+  coordination_details jsonb DEFAULT '{}'::jsonb,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

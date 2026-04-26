@@ -1,12 +1,12 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map } from 'lucide-react';
+import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags } from 'lucide-react';
 import { useProjectSettings, useUpdateProjectSettings } from '@/hooks/useProjectQueries';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as LucideIcons from 'lucide-react';
-import { SidebarItem } from '@/types/models';
+import { SidebarItem, DisciplineConfig } from '@/types/models';
 
 interface SortableItemProps {
   id: string;
@@ -56,6 +56,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   const [categories, setCategories] = useState<string[]>([]);
   const [scopes, setScopes] = useState<string[]>([]);
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
+  const [disciplines, setDisciplines] = useState<DisciplineConfig[]>([]);
   
   const [projectInfo, setProjectInfo] = useState({
     project_name: '',
@@ -66,6 +67,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   
   const [newCat, setNewCat] = useState('');
   const [newScope, setNewScope] = useState('');
+  const [newDiscipline, setNewDiscipline] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
@@ -73,6 +75,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
       setCategories((settings.categories as string[]) || []);
       setScopes((settings.scopes as string[]) || []);
       setSidebarItems((settings.sidebar_items as unknown as SidebarItem[]) || []);
+      setDisciplines((settings.disciplines as DisciplineConfig[]) || []);
       setProjectInfo({
         project_name: settings.project_name || projectId,
         location: settings.location || '',
@@ -104,6 +107,14 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
     }
   };
 
+  const addDiscipline = () => {
+    if (newDiscipline.trim()) {
+      setDisciplines([...disciplines, { id: crypto.randomUUID(), label: newDiscipline.trim() }]);
+      setNewDiscipline('');
+      setHasChanges(true);
+    }
+  };
+
   const handleDragEndCategories = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -120,6 +131,16 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
       const oldIndex = scopes.indexOf(active.id as string);
       const newIndex = scopes.indexOf(over.id as string);
       setScopes(arrayMove(scopes, oldIndex, newIndex));
+      setHasChanges(true);
+    }
+  };
+
+  const handleDragEndDisciplines = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = disciplines.findIndex(d => d.id === active.id);
+      const newIndex = disciplines.findIndex(d => d.id === over.id);
+      setDisciplines(arrayMove(disciplines, oldIndex, newIndex));
       setHasChanges(true);
     }
   };
@@ -152,6 +173,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
         categories,
         scopes,
         sidebar_items: sidebarItems as any,
+        disciplines: disciplines as any,
         project_name: projectInfo.project_name,
         location: projectInfo.location,
         original_budget: Number(projectInfo.original_budget),
@@ -226,6 +248,17 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
         >
           <LayoutDashboard size={18} />
           Sidebar Menu
+        </button>
+        <button 
+          onClick={() => setActiveTab('disciplines')}
+          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
+            activeTab === 'disciplines' 
+              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Tags size={18} />
+          Coordination Disciplines
         </button>
       </div>
       
@@ -454,6 +487,56 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
           </DndContext>
           <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm text-slate-500 flex items-center gap-2 mt-6">
             <span>The <strong>Project Settings</strong> tab is locked to the bottom and cannot be disabled.</span>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'disciplines' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Disciplines</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            Define the engineering and design disciplines to track in the Coordination Tracker. Drag to reorder.
+          </p>
+
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndDisciplines}>
+            <SortableContext items={disciplines.map(d => d.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2 mb-6">
+                {disciplines.map((disc) => (
+                  <SortableItem 
+                    key={disc.id} 
+                    id={disc.id} 
+                    content={disc.label} 
+                    onRemove={() => {
+                      setDisciplines(disciplines.filter(d => d.id !== disc.id));
+                      setHasChanges(true);
+                    }} 
+                  />
+                ))}
+                {disciplines.length === 0 && (
+                  <div className="p-4 text-center text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
+                    No disciplines defined.
+                  </div>
+                )}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          <div className="flex gap-3">
+             <input 
+               type="text" 
+               value={newDiscipline}
+               onChange={e => setNewDiscipline(e.target.value)}
+               onKeyDown={e => e.key === 'Enter' && addDiscipline()}
+               placeholder="Add a new discipline..." 
+               className="flex-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
+             />
+             <button 
+               onClick={addDiscipline} 
+               disabled={!newDiscipline.trim()}
+               className="bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+             >
+               <Plus size={18} /> Add
+             </button>
           </div>
         </div>
       )}

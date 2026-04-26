@@ -23,6 +23,9 @@ export interface UIState {
   
   gridMode: 'navigate' | 'edit' | string;
   setGridMode: (mode: string) => void;
+  
+  coordinationViewMode: 'board' | 'table';
+  setCoordinationViewMode: (mode: 'board' | 'table') => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -65,6 +68,9 @@ export const useUIStore = create<UIState>()(
       gridMode: 'navigate',
       setGridMode: (mode) => set({ gridMode: mode }),
       
+      coordinationViewMode: 'table',
+      setCoordinationViewMode: (mode) => set({ coordinationViewMode: mode }),
+      
       setCardOrder: (newOrder) => set({ cardOrder: newOrder }),
       
       toggleCardVisibility: (cardId) => set((state) => ({
@@ -89,6 +95,7 @@ export const useUIStore = create<UIState>()(
         visibleCards: state.visibleCards,
         gridColumnVisibility: state.gridColumnVisibility,
         gridColumnOrder: state.gridColumnOrder,
+        coordinationViewMode: state.coordinationViewMode,
       }),
     }
   )

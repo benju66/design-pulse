@@ -35,6 +35,7 @@ export interface Database {
           categories: Json | null
           scopes: Json | null
           sidebar_items: Json | null
+          disciplines: Json | null
           project_name: string | null
           location: string | null
           original_budget: number | null
@@ -47,6 +48,7 @@ export interface Database {
           categories?: Json | null
           scopes?: Json | null
           sidebar_items?: Json | null
+          disciplines?: Json | null
           project_name?: string | null
           location?: string | null
           original_budget?: number | null
@@ -59,6 +61,7 @@ export interface Database {
           categories?: Json | null
           scopes?: Json | null
           sidebar_items?: Json | null
+          disciplines?: Json | null
           project_name?: string | null
           location?: string | null
           original_budget?: number | null
@@ -107,6 +110,8 @@ export interface Database {
           priority: string | null
           created_at: string
           division: string | null
+          record_type: string | null
+          coordination_details: Json | null
         }
         Insert: {
           id?: string
@@ -133,6 +138,8 @@ export interface Database {
           priority?: string | null
           created_at?: string
           division?: string | null
+          record_type?: string | null
+          coordination_details?: Json | null
         }
         Update: {
           id?: string
@@ -159,6 +166,8 @@ export interface Database {
           priority?: string | null
           created_at?: string
           division?: string | null
+          record_type?: string | null
+          coordination_details?: Json | null
         }
       }
       cost_codes: {

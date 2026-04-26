@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, use } from 'react';
-import { List, LayoutPanelTop, PanelRight, Plus } from 'lucide-react';
+import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid } from 'lucide-react';
 import MarkupCanvas from '@/components/MarkupCanvas';
 import OpportunityGrid from '@/components/OpportunityGrid';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
@@ -8,6 +8,7 @@ import CompareModal from '@/components/CompareModal';
 import BudgetSummary from '@/components/BudgetSummary';
 import BudgetSummaryV2 from '@/components/BudgetSummaryV2';
 import CoordinationBoard from '@/components/coordination/CoordinationBoard';
+import CoordinationTable from '@/components/coordination/CoordinationTable';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
 import { exportToPDFService } from '@/services/api';
@@ -34,6 +35,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [viewMode, setViewMode] = useState('split'); // 'split' | 'flat' | 'card'
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
+  const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
 
   const handleExport = async () => {
     try {
@@ -116,6 +119,14 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       : opportunities.filter(opp => opp.scope === activeTab);
   }, [opportunities, activeTab]);
 
+  const coordinationOpportunities = React.useMemo(() => {
+    return opportunities.filter(opp => {
+      if (opp.record_type === 'Coordination') return true;
+      if (opp.record_type === 'VE' && (opp.status === 'Pending Plan Update' || opp.status === 'Approved')) return true;
+      return false;
+    });
+  }, [opportunities]);
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       
@@ -195,6 +206,33 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   {createMutation.isPending ? 'Adding...' : '+ New Item'}
                 </button>
               </>
+            )}
+            
+            {currentView === 'coordination' && (
+              <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2">
+                <button
+                  onClick={() => setCoordinationViewMode('table')}
+                  className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                    coordinationViewMode === 'table' 
+                      ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                  title="Table View"
+                >
+                  <List size={18} />
+                </button>
+                <button
+                  onClick={() => setCoordinationViewMode('board')}
+                  className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                    coordinationViewMode === 'board' 
+                      ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                  title="Board View"
+                >
+                  <LayoutGrid size={18} />
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -337,17 +375,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           )}
 
           {currentView === 'coordination' && (
-            <div className="p-8 w-full flex flex-col items-center justify-center h-full">
-              <List size={64} className="text-slate-300 dark:text-slate-700 mb-6" />
-              <h3 className="text-2xl font-bold text-slate-700 dark:text-slate-300">Design Coordination Tracker</h3>
-              <p className="text-slate-500 mt-2 text-center max-w-md">
-                A structured checklist and tracker for MEP, structural, and architectural coordination tasks. Coming soon!
-              </p>
-            </div>
-          )}
-
-          {currentView === 'coordination-v2' && (
-            <CoordinationBoard projectId={projectId} opportunities={filteredOpportunities} />
+            coordinationViewMode === 'table' ? (
+              <CoordinationTable projectId={projectId} opportunities={coordinationOpportunities} />
+            ) : (
+              <CoordinationBoard projectId={projectId} opportunities={coordinationOpportunities} />
+            )
           )}
 
         </div>

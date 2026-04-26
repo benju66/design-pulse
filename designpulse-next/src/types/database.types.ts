@@ -109,6 +109,7 @@ export interface Database {
           display_id: string | null
           priority: string | null
           created_at: string
+          updated_at: string
           division: string | null
           record_type: string | null
           coordination_details: Json | null
@@ -137,6 +138,7 @@ export interface Database {
           display_id?: string | null
           priority?: string | null
           created_at?: string
+          updated_at?: string
           division?: string | null
           record_type?: string | null
           coordination_details?: Json | null
@@ -165,6 +167,7 @@ export interface Database {
           display_id?: string | null
           priority?: string | null
           created_at?: string
+          updated_at?: string
           division?: string | null
           record_type?: string | null
           coordination_details?: Json | null
@@ -215,6 +218,7 @@ export interface Database {
           is_locked: boolean | null
           include_in_budget: boolean | null
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -228,6 +232,7 @@ export interface Database {
           is_locked?: boolean | null
           include_in_budget?: boolean | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -241,6 +246,7 @@ export interface Database {
           is_locked?: boolean | null
           include_in_budget?: boolean | null
           created_at?: string
+          updated_at?: string
         }
       }
       audit_logs: {
@@ -276,6 +282,23 @@ export interface Database {
           user_id?: string | null
           project_id?: string | null
           created_at?: string
+        }
+      }
+      project_members: {
+        Row: {
+          project_id: string
+          user_id: string
+          role: 'owner' | 'gc_admin' | 'design_team' | 'viewer'
+        }
+        Insert: {
+          project_id: string
+          user_id: string
+          role: 'owner' | 'gc_admin' | 'design_team' | 'viewer'
+        }
+        Update: {
+          project_id?: string
+          user_id?: string
+          role?: 'owner' | 'gc_admin' | 'design_team' | 'viewer'
         }
       }
     }

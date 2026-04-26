@@ -8,7 +8,7 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 ## 2. Tech Stack
 * **Frontend:** Next.js (App Router, React 19), TypeScript (Strict Mode, 100% Coverage), Tailwind CSS v4, Lucide React.
 * **State Management:** Zustand (UI state, view modes, compare queues).
-* **Data & Caching:** `@tanstack/react-query` paired with `idb-keyval` for Offline-First caching via IndexedDB.
+* **Data & Caching:** `@tanstack/react-query` for high-performance frontend caching, utilizing atomic Supabase RPC-based state management.
 * **Data Grid:** `@tanstack/react-table` (Headless UI, configured for Excel-style fixed-layout resizing).
 * **Drag-and-Drop:** `@dnd-kit` (Used for Jira-style customizable widgets and reordering items).
 * **Spatial / Canvas:** `react-konva` (Renders high-fidelity floor plans with interactive vector markups).
@@ -29,6 +29,8 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 
 ## 5. Database Schema (Supabase PostgreSQL)
 * **SOURCE OF TRUTH:** You MUST read the `supabase_schema.sql` file in the root directory to understand the exact column names and types before writing any Supabase client queries or mutations.
+* `platform_admins`: Global super-user directory protected by strict RLS preventing privilege escalation.
+* `project_members`: Project-level relational table defining RBAC roles (`owner`, `gc_admin`, `design_team`, `viewer`).
 * `projects`: Master project records.
 * `project_settings`: JSONB configurations for dynamic `scopes`, `categories`, `sidebar_items`, and `disciplines` (Array of objects: `[{id: "...", label: "..."}]`).
 * `opportunities`: The parent VE log items. Contains `design_markups` JSONB and `coordination_details` JSONB.
@@ -43,7 +45,8 @@ When generating, refactoring, or modifying code, you MUST adhere to the followin
 * **CRITICAL:** Explicitly **FORBID** the use of JavaScript/TypeScript regex "negative lookbehinds" (e.g., `(?<!...)`). This causes fatal crashes on older iOS WebKit engines. You MUST use standard loop-based logic, string splitting, or manual parsing to achieve the intended result.
 
 ## B. Backend Separation of Concerns
-* **Next.js API Routes (`/api/...`):** Strictly reserved for Authentication flows (e.g., Procore OAuth). Do NOT build general data CRUD endpoints here.
+* **Next.js API Routes (`/api/...`):** Strictly reserved for Authentication flows (e.g., Supabase native Email/Password Auth, Procore OAuth). Do NOT build general data CRUD endpoints here.
+* **Security & Auth Queries:** The frontend CANNOT directly query the Supabase `auth.users` schema. You must use `SECURITY DEFINER` RPCs (like `get_system_users()`) to securely bridge authentication data into the public schema without leaking sensitive user metadata.
 * **Python FastAPI Backend:** Strictly dedicated to heavy processing tasks (PyMuPDF file conversions, vector extraction via Shapely). Do NOT use this for basic CRUD operations.
 * **Data Fetching:** Standard CRUD operations must be handled directly from the frontend using the `@supabase/supabase-js` client protected by RLS.
 

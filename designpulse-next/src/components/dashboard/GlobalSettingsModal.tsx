@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
+import { useAuth } from '@/providers/AuthProvider';
 import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users } from 'lucide-react';
 
 interface Props {
@@ -16,6 +17,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   const { data: isPlatformAdmin } = useIsPlatformAdmin();
   const { data: users, isLoading: usersLoading } = useSystemUsers();
   const toggleAdmin = useTogglePlatformAdmin();
+  const { session } = useAuth();
 
   if (!isOpen) return null;
 
@@ -179,14 +181,19 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                        {users?.map(user => (
+                        {users?.map(user => {
+                          const isSelf = user.id === session?.user?.id;
+                          return (
                           <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{user.email}</td>
+                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                              {user.email} 
+                              {isSelf && <span className="ml-2 text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full">You</span>}
+                            </td>
                             <td className="px-4 py-3 text-center">
                               <button 
                                 type="button"
                                 onClick={() => toggleAdmin.mutate({ userId: user.id, isAdmin: !user.is_platform_admin })}
-                                disabled={toggleAdmin.isPending}
+                                disabled={toggleAdmin.isPending || isSelf}
                                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 ${
                                   user.is_platform_admin ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
                                 }`}
@@ -199,7 +206,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
                               </button>
                             </td>
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                     </table>
                   </div>

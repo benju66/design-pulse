@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags, Users } from 'lucide-react';
 import { useProjectSettings, useUpdateProjectSettings, useProjectMembers, useAddProjectMember, useUpdateProjectMemberRole, useRemoveProjectMember } from '@/hooks/useProjectQueries';
 import { useSystemUsers } from '@/hooks/useGlobalQueries';
+import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -56,6 +57,10 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
 
   const { data: teamMembers, isLoading: teamLoading } = useProjectMembers(projectId);
   const { data: allUsers } = useSystemUsers();
+  const { data: isPlatformAdmin, isLoading: adminLoading } = useIsPlatformAdmin();
+
+  const currentUserRole = teamMembers?.find(m => m.user_id === session?.user?.id)?.role;
+  const canManageTeam = isPlatformAdmin || currentUserRole === 'owner' || currentUserRole === 'gc_admin';
   
   const addMemberMutation = useAddProjectMember(projectId);
   const updateRoleMutation = useUpdateProjectMemberRole(projectId);
@@ -204,8 +209,24 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
     );
   };
 
-  if (settingsLoading || teamLoading) {
-    return <div className="p-8 flex items-center justify-center text-slate-500">Loading settings...</div>;
+  if (settingsLoading || teamLoading || adminLoading) {
+    return (
+      <div className="p-8 max-w-4xl mx-auto w-full h-full overflow-y-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <div className="h-8 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse mb-2"></div>
+            <div className="h-4 w-96 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
+          </div>
+          <div className="h-10 w-36 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse"></div>
+        </div>
+        <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-800 pb-px">
+          {[...Array(5)].map((_, i) => (
+             <div key={i} className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-t-lg animate-pulse"></div>
+          ))}
+        </div>
+        <div className="h-96 w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl animate-pulse"></div>
+      </div>
+    );
   }
 
   return (
@@ -281,17 +302,19 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
           <Tags size={18} />
           Coordination Disciplines
         </button>
-        <button 
-          onClick={() => setActiveTab('team')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'team' 
-              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <Users size={18} />
-          Team Members
-        </button>
+        {canManageTeam && (
+          <button 
+            onClick={() => setActiveTab('team')}
+            className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
+              activeTab === 'team' 
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <Users size={18} />
+            Team Members
+          </button>
+        )}
       </div>
       
       {activeTab === 'info' && (

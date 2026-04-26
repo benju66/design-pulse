@@ -216,9 +216,10 @@ export function useCreateProject() {
   return useMutation<Project, Error, Partial<Project>>({
     mutationFn: async (newProject) => {
       const { data, error } = await supabase
-        .from('projects')
-        .insert([newProject])
-        .select()
+        .rpc('create_new_project', { 
+          p_name: newProject.name, 
+          p_description: newProject.description 
+        })
         .single();
         
       if (error) throw error;

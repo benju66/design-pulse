@@ -47,13 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // TEMPORARILY DISABLED for MVP testing:
-    // if (!loading) {
-    //   if (!session && pathname !== '/login') {
-    //     const currentUrl = encodeURIComponent(pathname + (window.location.search || ''));
-    //     router.push(`/login?returnTo=${currentUrl}`);
-    //   }
-    // }
+    if (!loading) {
+      if (!session && pathname !== '/login') {
+        const currentUrl = encodeURIComponent(pathname + (window.location.search || ''));
+        router.push(`/login?returnTo=${currentUrl}`);
+      }
+    }
   }, [session, loading, pathname, router]);
 
   // NEW: Clean up the giant Supabase token hash from the URL after login
@@ -72,10 +71,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // Prevent flash of unauthenticated content before redirect kicks in
-  // TEMPORARILY DISABLED:
-  // if (!session && pathname !== '/login') {
-  //   return null; 
-  // }
+  if (!session && pathname !== '/login') {
+    return null; 
+  }
 
   return (
     <AuthContext.Provider value={{ session }}>

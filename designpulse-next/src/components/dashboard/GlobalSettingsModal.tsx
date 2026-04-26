@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from 'react';
-import { useUploadCostCodesCSV } from '@/hooks/useGlobalQueries';
+import { useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin } from '@/hooks/useGlobalQueries';
+import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users } from 'lucide-react';
 
 interface Props {
@@ -12,6 +13,9 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<'cost_codes' | 'users'>('cost_codes');
   const [error, setError] = useState<string | null>(null);
   const uploadMutation = useUploadCostCodesCSV();
+  const { data: isPlatformAdmin } = useIsPlatformAdmin();
+  const { data: users, isLoading: usersLoading } = useSystemUsers();
+  const toggleAdmin = useTogglePlatformAdmin();
 
   if (!isOpen) return null;
 
@@ -157,16 +161,61 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
             </div>
           )}
 
-          {activeTab === 'users' && (
-            <div className="flex flex-col items-center justify-center h-full text-center max-w-sm mx-auto">
-              <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl mb-4 mt-12">
-                <Users size={32} className="text-slate-400 dark:text-slate-500" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">User Directory</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Pending secure RPC implementation. This tab will allow you to view all authenticated users and assign them Platform Admin privileges.
-              </p>
+          {activeTab === 'users' && isPlatformAdmin && (
+            <div className="max-w-3xl mx-auto flex flex-col h-full">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4">User Directory</h3>
+              {usersLoading ? (
+                <div className="flex items-center justify-center h-40">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
+                </div>
+              ) : (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex-1 flex flex-col">
+                  <div className="overflow-y-auto max-h-[400px]">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-slate-50 dark:bg-slate-950/50 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">Email</th>
+                          <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 text-center w-32">Platform Admin</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                        {users?.map(user => (
+                          <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{user.email}</td>
+                            <td className="px-4 py-3 text-center">
+                              <button 
+                                type="button"
+                                onClick={() => toggleAdmin.mutate({ userId: user.id, isAdmin: !user.is_platform_admin })}
+                                disabled={toggleAdmin.isPending}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 ${
+                                  user.is_platform_admin ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
+                                }`}
+                              >
+                                <span 
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
+                                    user.is_platform_admin ? 'translate-x-6' : 'translate-x-1'
+                                  }`} 
+                                />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
+          )}
+
+          {activeTab === 'users' && !isPlatformAdmin && (
+             <div className="flex flex-col items-center justify-center h-full text-center max-w-sm mx-auto">
+                <AlertCircle size={32} className="text-rose-500 mb-4 mt-12" />
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Access Denied</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  You must be a Platform Admin to view the Global User Directory.
+                </p>
+             </div>
           )}
         </div>
       </div>

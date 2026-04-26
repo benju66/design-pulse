@@ -287,8 +287,9 @@ export function useCreateOption(opportunityId: string, projectId: string) {
           description: null,
           category: null,
           order_index: 0,
-          created_at: new Date().toISOString(),
-          ...newOption 
+          ...newOption,
+          created_at: newOption.created_at ?? new Date().toISOString(),
+          updated_at: newOption.updated_at ?? new Date().toISOString()
         };
         return [...(old || []), optimisticOption];
       });
@@ -532,6 +533,76 @@ export function useToggleOptionBudget(opportunityId: string, projectId: string) 
         queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
       toast.error(`Failed to toggle budget inclusion: ${err.message || 'Unknown error'}`);
+    }
+  });
+}
+
+export interface ProjectMember {
+  project_id: string;
+  user_id: string;
+  role: 'owner' | 'gc_admin' | 'design_team' | 'viewer';
+  email: string;
+}
+
+export function useProjectMembers(projectId: string) {
+  return useQuery({
+    queryKey: ['project_members', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_project_members_with_email', { p_project_id: projectId });
+      if (error) throw error;
+      return data as ProjectMember[];
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useAddProjectMember(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string, role: string }) => {
+      const { error } = await supabase.from('project_members').insert({ project_id: projectId, user_id: userId, role });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_members', projectId] });
+    },
+    onError: (err) => {
+      console.error('Add Member Error:', err);
+      toast.error(`Failed to add member: ${err.message}`);
+    }
+  });
+}
+
+export function useUpdateProjectMemberRole(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string, role: string }) => {
+      const { error } = await supabase.from('project_members').update({ role }).eq('project_id', projectId).eq('user_id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_members', projectId] });
+    },
+    onError: (err) => {
+      console.error('Update Member Role Error:', err);
+      toast.error(`Failed to update role: ${err.message}`);
+    }
+  });
+}
+
+export function useRemoveProjectMember(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase.from('project_members').delete().eq('project_id', projectId).eq('user_id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_members', projectId] });
+    },
+    onError: (err) => {
+      console.error('Remove Member Error:', err);
+      toast.error(`Failed to remove member: ${err.message}`);
     }
   });
 }

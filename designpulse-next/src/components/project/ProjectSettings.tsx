@@ -1,7 +1,9 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags } from 'lucide-react';
-import { useProjectSettings, useUpdateProjectSettings } from '@/hooks/useProjectQueries';
+import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags, Users } from 'lucide-react';
+import { useProjectSettings, useUpdateProjectSettings, useProjectMembers, useAddProjectMember, useUpdateProjectMemberRole, useRemoveProjectMember } from '@/hooks/useProjectQueries';
+import { useSystemUsers } from '@/hooks/useGlobalQueries';
+import { useAuth } from '@/providers/AuthProvider';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -48,8 +50,20 @@ const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps)
 };
 
 export const ProjectSettings = ({ projectId }: { projectId: string }) => {
-  const { data: settings, isLoading } = useProjectSettings(projectId);
+  const { session } = useAuth();
+  const { data: settings, isLoading: settingsLoading } = useProjectSettings(projectId);
   const updateSettings = useUpdateProjectSettings(projectId);
+
+  const { data: teamMembers, isLoading: teamLoading } = useProjectMembers(projectId);
+  const { data: allUsers } = useSystemUsers();
+  
+  const addMemberMutation = useAddProjectMember(projectId);
+  const updateRoleMutation = useUpdateProjectMemberRole(projectId);
+  const removeMemberMutation = useRemoveProjectMember(projectId);
+
+  const [newMemberId, setNewMemberId] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState('viewer');
+
   
   const [activeTab, setActiveTab] = useState('info'); // 'info' | 'categories' | 'scopes' | 'sidebar'
   
@@ -190,7 +204,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
     );
   };
 
-  if (isLoading) {
+  if (settingsLoading || teamLoading) {
     return <div className="p-8 flex items-center justify-center text-slate-500">Loading settings...</div>;
   }
 
@@ -266,6 +280,17 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
         >
           <Tags size={18} />
           Coordination Disciplines
+        </button>
+        <button 
+          onClick={() => setActiveTab('team')}
+          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
+            activeTab === 'team' 
+              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Users size={18} />
+          Team Members
         </button>
       </div>
       
@@ -544,6 +569,107 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
              >
                <Plus size={18} /> Add
              </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'team' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Team Members</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            Manage who has access to this project and their permission levels.
+          </p>
+
+          <div className="flex gap-3 mb-6 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+            <div className="flex-1">
+              <select 
+                value={newMemberId}
+                onChange={e => setNewMemberId(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
+              >
+                <option value="">Select a user...</option>
+                {allUsers?.filter(u => !teamMembers?.find(m => m.user_id === u.id)).map(user => (
+                  <option key={user.id} value={user.id}>{user.email}</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-48">
+              <select 
+                value={newMemberRole}
+                onChange={e => setNewMemberRole(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
+              >
+                <option value="viewer">Viewer</option>
+                <option value="design_team">Design Team</option>
+                <option value="gc_admin">GC Admin</option>
+                <option value="owner">Owner</option>
+              </select>
+            </div>
+            <button 
+              onClick={() => {
+                if (newMemberId) {
+                  addMemberMutation.mutate({ userId: newMemberId, role: newMemberRole }, {
+                    onSuccess: () => setNewMemberId('')
+                  });
+                }
+              }}
+              disabled={!newMemberId || addMemberMutation.isPending}
+              className="bg-sky-500 hover:bg-sky-600 text-white px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
+            >
+              <Plus size={18} /> Add Member
+            </button>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-slate-50 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">Email</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 w-48">Role</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 w-24 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                {teamMembers?.map(member => {
+                  const isSelf = member.user_id === session?.user?.id;
+                  return (
+                    <tr key={member.user_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{member.email} {isSelf && <span className="ml-2 text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full">You</span>}</td>
+                      <td className="px-4 py-3">
+                        <select 
+                          value={member.role}
+                          onChange={e => updateRoleMutation.mutate({ userId: member.user_id, role: e.target.value })}
+                          disabled={isSelf || updateRoleMutation.isPending}
+                          className="bg-transparent text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-0 w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <option value="viewer">Viewer</option>
+                          <option value="design_team">Design Team</option>
+                          <option value="gc_admin">GC Admin</option>
+                          <option value="owner">Owner</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {!isSelf && (
+                          <button 
+                            onClick={() => removeMemberMutation.mutate(member.user_id)}
+                            disabled={removeMemberMutation.isPending}
+                            className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 p-1.5 rounded-md transition-colors disabled:opacity-50"
+                            title="Remove"
+                          >
+                            <X size={16} strokeWidth={2.5} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {teamMembers?.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-8 text-center text-slate-500">No team members assigned.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

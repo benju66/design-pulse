@@ -40,3 +40,39 @@ export function useUploadCostCodesCSV() {
     },
   });
 }
+
+export interface SystemUser {
+  id: string;
+  email: string;
+  is_platform_admin: boolean;
+}
+
+export function useSystemUsers() {
+  return useQuery({
+    queryKey: ['system_users'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_system_users');
+      if (error) throw error;
+      return data as SystemUser[];
+    },
+  });
+}
+
+export function useTogglePlatformAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, isAdmin }: { userId: string, isAdmin: boolean }) => {
+      if (isAdmin) {
+        const { error } = await supabase.from('platform_admins').insert({ user_id: userId });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('platform_admins').delete().eq('user_id', userId);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['system_users'] });
+      queryClient.invalidateQueries({ queryKey: ['is_platform_admin'] });
+    },
+  });
+}

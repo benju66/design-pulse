@@ -25,6 +25,8 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const { data: settings } = useProjectSettings(projectId);
   const scopes = (settings?.scopes as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
+  const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
+
   const cardOrder = useUIStore(state => state.cardOrder);
   const setCardOrder = useUIStore(state => state.setCardOrder);
   const visibleCards = useUIStore(state => state.visibleCards);
@@ -91,7 +93,8 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
       return (
         <input
           type="number"
-          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+          disabled={isLocked}
+          className={`w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none ${isLocked ? 'opacity-70 cursor-not-allowed' : ''}`}
           defaultValue={val || ''}
           onBlur={(e) => {
             const num = Number(e.target.value);
@@ -105,7 +108,8 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
     } else {
       return (
         <textarea
-          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none resize-none"
+          disabled={isLocked && field.id === 'title'}
+          className={`w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none resize-none ${isLocked && field.id === 'title' ? 'opacity-70 cursor-not-allowed' : ''}`}
           rows={2}
           defaultValue={val || ''}
           onBlur={(e) => {
@@ -220,7 +224,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
       <div className="p-4 bg-slate-50 dark:bg-slate-900/50">
         {activeTab === 'Details' && (
           <>
-            <ContendersMatrix opportunityId={row.original.id} />
+            <ContendersMatrix opportunityId={row.original.id} isLocked={isLocked} />
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               {/* Primary Data Grid */}
               <SortableContext items={primaryFields.map(f => f!.id)} strategy={rectSortingStrategy}>

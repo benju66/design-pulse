@@ -33,16 +33,23 @@ interface CellWrapperProps {
   inputElement: (isActive: boolean, setGridMode: (mode: string) => void) => React.ReactNode;
   className?: string;
   table: Table<Opportunity>;
+  disabled?: boolean;
 }
 
-export const CellWrapper = ({ row, column, displayValue, inputElement, className, table }: CellWrapperProps) => {
+export const CellWrapper = ({ row, column, displayValue, inputElement, className, table, disabled }: CellWrapperProps) => {
   const activeCell = table?.options?.meta?.activeCell || { rowIndex: null, columnId: null };
   const setActiveCell = table?.options?.meta?.setActiveCell || (() => {});
   const isCellActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const gridMode = useUIStore(state => state.gridMode);
-  const isEditing = isCellActive && gridMode === 'edit';
   const setGridMode = useUIStore(state => state.setGridMode);
+  const isEditing = isCellActive && gridMode === 'edit' && !disabled;
   const divRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isCellActive && gridMode === 'edit' && disabled) {
+      setGridMode('navigate'); // Instantly bounce them back out to prevent freezing
+    }
+  }, [isCellActive, gridMode, disabled, setGridMode]);
 
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -68,7 +75,9 @@ export const CellWrapper = ({ row, column, displayValue, inputElement, className
         setActiveCell({ rowIndex: row.index, columnId: column.id });
         setGridMode('navigate');
       }}
-      onDoubleClick={() => setGridMode('edit')}
+      onDoubleClick={() => {
+        if (!disabled) setGridMode('edit');
+      }}
       className={`w-full h-full px-2 py-1 text-sm min-h-[28px] outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 truncate cursor-text ${className || 'text-slate-900 dark:text-slate-100'}`}
     >
       {displayValue}
@@ -81,6 +90,9 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
   const [value, setValue] = useState(initialValue);
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
+  const disabled = column.id === 'title' && isLocked;
 
   useEffect(() => {
     setValue(initialValue);
@@ -102,6 +114,7 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
 
   return (
     <CellWrapper
+      disabled={disabled}
       row={row}
       column={column}
       table={table}
@@ -243,6 +256,9 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef<HTMLInputElement>(null);
   
+  const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
+  const disabled = isLocked;
+  
   useEffect(() => {
     setValue(initialValue ?? '');
   }, [initialValue]);
@@ -292,6 +308,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
 
   return (
     <CellWrapper
+      disabled={disabled}
       row={row}
       column={column}
       table={table}

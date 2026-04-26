@@ -10,9 +10,10 @@ import { SortableContenderCard } from './SortableContenderCard';
 
 interface ContendersMatrixProps {
   opportunityId: string;
+  isLocked?: boolean;
 }
 
-export const ContendersMatrix = ({ opportunityId }: ContendersMatrixProps) => {
+export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixProps) => {
   const params = useParams();
   const projectId = params?.projectId as string;
 
@@ -80,16 +81,19 @@ export const ContendersMatrix = ({ opportunityId }: ContendersMatrixProps) => {
                 lockOption={lockOption} 
                 toggleOptionBudget={toggleOptionBudget}
                 hasLockedOption={hasLockedOption}
+                isLocked={isLocked}
               />
             ))}
 
-            <div 
-              onClick={() => createOption.mutate({})}
-              className="shrink-0 w-80 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors text-slate-500 hover:text-sky-600 dark:hover:text-sky-400"
-            >
-              <Plus size={32} className="mb-2 opacity-50" />
-              <span className="font-semibold">+ Add Option</span>
-            </div>
+            {!isLocked && (
+              <div 
+                onClick={() => createOption.mutate({})}
+                className="shrink-0 w-80 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors text-slate-500 hover:text-sky-600 dark:hover:text-sky-400"
+              >
+                <Plus size={32} className="mb-2 opacity-50" />
+                <span className="font-semibold">+ Add Option</span>
+              </div>
+            )}
           </div>
         </SortableContext>
       </DndContext>

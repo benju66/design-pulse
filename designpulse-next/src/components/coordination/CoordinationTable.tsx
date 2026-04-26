@@ -1,14 +1,17 @@
 "use client";
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
   flexRender,
   ColumnDef,
-  CellContext
+  CellContext,
+  SortingState
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity } from '@/hooks/useProjectQueries';
 import { CoordinationGhostRow } from './CoordinationGhostRow';
@@ -32,7 +35,7 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
     { id: 'd_elec', label: 'Elec' },
     { id: 'd_plumb', label: 'Plumb' }
   ];
-  const rawDisciplines = (settings as any)?.disciplines;
+  const rawDisciplines = settings?.disciplines;
   const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
     ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
     : defaultDisciplines;
@@ -75,6 +78,18 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const [activeCell, setActiveCell] = useState<{ rowIndex: number | null, columnId: string | null }>({ rowIndex: null, columnId: null });
+
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState<string>('');
+
+  useEffect(() => {
+    if (selectedOpportunityId) {
+      const element = document.getElementById(`row-${selectedOpportunityId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [selectedOpportunityId]);
 
   const columns: ColumnDef<Opportunity, any>[] = [
     {
@@ -137,7 +152,13 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
   const table = useReactTable({
     data: opportunities,
     columns,
+    state: { sorting, globalFilter },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    columnResizeMode: 'onChange',
     getRowId: (row) => row.id,
     meta: {
       updateData: updateMutation,
@@ -167,9 +188,22 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
     <div className="w-full h-full flex flex-col p-6 overflow-hidden">
       <div className="flex-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative overflow-hidden flex flex-col">
         
+        <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Coordination List</span>
+            <input 
+              type="text"
+              placeholder="Search tasks..."
+              value={globalFilter ?? ''}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
+            />
+          </div>
+        </div>
+
         <div 
           ref={tableContainerRef} 
-          className="flex-1 overflow-auto rounded-xl outline-none"
+          className="flex-1 overflow-auto rounded-b-xl outline-none"
         >
           <table 
             className="text-left text-sm whitespace-nowrap" 
@@ -181,10 +215,29 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
                   {headerGroup.headers.map((header) => (
                     <th 
                       key={header.id} 
-                      className="px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900"
+                      className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900"
                       style={{ width: header.getSize() }}
                     >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      <div 
+                        className={`truncate flex items-center justify-between ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                        {{
+                          asc: <ChevronUp size={14} className="ml-1 inline-block shrink-0" />,
+                          desc: <ChevronDown size={14} className="ml-1 inline-block shrink-0" />,
+                        }[header.column.getIsSorted() as string] ?? null}
+                      </div>
+                      
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize user-select-none touch-none bg-sky-500 opacity-0 group-hover:opacity-100 transition-opacity ${
+                            header.column.getIsResizing() ? 'opacity-100 bg-sky-600 w-2' : ''
+                          }`}
+                        />
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -205,6 +258,7 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
                   className="border-b border-slate-100 dark:border-slate-800/50"
                 >
                   <tr 
+                    id={`row-${row.original.id}`}
                     onClick={() => setSelectedOpportunityId(row.original.id)}
                     className={`cursor-pointer transition-colors ${
                       row.original.id === selectedOpportunityId 

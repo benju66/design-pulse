@@ -30,8 +30,8 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 ## 5. Database Schema (Supabase PostgreSQL)
 * **SOURCE OF TRUTH:** You MUST read the `supabase_schema.sql` file in the root directory to understand the exact column names and types before writing any Supabase client queries or mutations.
 * `projects`: Master project records.
-* `project_settings`: JSONB configurations for dynamic `scopes`, `categories`, and `sidebar_items`.
-* `opportunities`: The parent VE log items. Contains a `design_markups` JSONB array linking decisions to spatial floor plan coordinates.
+* `project_settings`: JSONB configurations for dynamic `scopes`, `categories`, `sidebar_items`, and `disciplines` (Array of objects: `[{id: "...", label: "..."}]`).
+* `opportunities`: The parent VE log items. Contains `design_markups` JSONB and `coordination_details` JSONB.
 * `opportunity_options`: The relational contenders. Linked to `opportunities` via `opportunity_id` (Foreign Key, Cascade Delete).
 
 ---
@@ -53,4 +53,5 @@ When generating, refactoring, or modifying code, you MUST adhere to the followin
 3.  **Tailwind First:** Use Tailwind utility classes. Strictly support `dark:` mode variants. 
 4.  **Headless UI:** Rely on the established `@tanstack/react-table` and `@dnd-kit` patterns. Avoid introducing heavy UI component libraries (like Material UI or Ant Design) that clash with the custom styling.
 5.  **Relational Math:** Remember that an Opportunity's true financial weight prior to approval is derived from its attached Options, not just the parent row.
-6.  **Proactive Innovation:** If you identify a more efficient algorithm, a superior architectural pattern, or a highly relevant library that falls outside these strict guardrails, you are encouraged to suggest it. However, you MUST explicitly propose the alternative, explain its benefits, and wait for explicit user approval before writing code that introduces new dependencies or alters the established tech stack.
+6.  **JSONB Data Integrity (Immutable IDs):** When managing dynamic user-defined fields (like `disciplines`), always use immutable IDs (e.g., `crypto.randomUUID()`) as keys in the JSONB objects rather than display labels. If a user deletes a dynamic field, the data remains orphaned in the JSONB object. This acts as a "soft delete" data retention feature. Do NOT write cleanup scripts to delete orphaned JSONB keys. When mutating JSONB, ensure you use shallow/deep merging (e.g., `...opportunity.coordination_details as Record<string, any>`) to avoid overwriting sibling properties.
+7.  **Proactive Innovation:** If you identify a more efficient algorithm, a superior architectural pattern, or a highly relevant library that falls outside these strict guardrails, you are encouraged to suggest it. However, you MUST explicitly propose the alternative, explain its benefits, and wait for explicit user approval before writing code that introduces new dependencies or alters the established tech stack.

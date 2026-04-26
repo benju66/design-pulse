@@ -27,7 +27,7 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
     { id: 'd_elec', label: 'Elec' },
     { id: 'd_plumb', label: 'Plumb' }
   ];
-  const rawDisciplines = (settings as any)?.disciplines;
+  const rawDisciplines = settings?.disciplines;
   const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
     ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
     : defaultDisciplines;

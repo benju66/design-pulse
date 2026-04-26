@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import { useUploadCostCodesCSV } from '@/hooks/useGlobalQueries';
-import { X, UploadCloud, AlertCircle } from 'lucide-react';
+import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -9,6 +9,7 @@ interface Props {
 }
 
 export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
+  const [activeTab, setActiveTab] = useState<'cost_codes' | 'users'>('cost_codes');
   const [error, setError] = useState<string | null>(null);
   const uploadMutation = useUploadCostCodesCSV();
 
@@ -89,39 +90,82 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-          <h2 className="text-lg font-bold text-slate-800 dark:text-white">Global Settings (Master Data)</h2>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl w-full max-w-2xl h-[600px] overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
+          <h2 className="text-lg font-bold text-slate-800 dark:text-white">Platform Administration</h2>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors">
             <X size={18} />
           </button>
         </div>
 
-        <div className="p-6">
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-            Upload a master CSV to populate the Global Cost Codes & Divisions. The file must have the following columns in exact order: <strong>Code, Description, L, M, S, O</strong>. This will completely overwrite existing codes.
-          </p>
+        {/* Tabs Bar */}
+        <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900">
+          <button
+            onClick={() => setActiveTab('cost_codes')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'cost_codes'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <FileSpreadsheet size={18} />
+            Global Cost Codes
+          </button>
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'users'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Users size={18} />
+            User Directory
+          </button>
+        </div>
 
-          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 dark:bg-slate-800 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-              <UploadCloud className="w-8 h-8 mb-2 text-slate-500" />
-              <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold">
-                {uploadMutation.isPending ? 'Uploading...' : 'Click to upload CSV'}
+        <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-950">
+          {activeTab === 'cost_codes' && (
+            <div className="max-w-xl mx-auto">
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+                Upload a master CSV to populate the Global Cost Codes & Divisions. The file must have the following columns in exact order: <strong>Code, Description, L, M, S, O</strong>. This will completely overwrite existing codes.
               </p>
-            </div>
-            <input 
-              type="file" 
-              className="hidden" 
-              accept=".csv" 
-              onChange={handleFileUpload} 
-              disabled={uploadMutation.isPending}
-            />
-          </label>
 
-          {error && (
-            <div className="mt-4 p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-lg text-sm flex items-start gap-2">
-              <AlertCircle size={16} className="shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 dark:bg-slate-800/50 dark:border-slate-700 hover:bg-sky-50 hover:border-sky-300 dark:hover:bg-sky-900/20 dark:hover:border-sky-700 transition-colors group">
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <UploadCloud className="w-10 h-10 mb-3 text-slate-400 group-hover:text-sky-500 transition-colors" />
+                  <p className="text-sm text-slate-600 dark:text-slate-300 font-semibold mb-1">
+                    {uploadMutation.isPending ? 'Uploading to database...' : 'Click or drag file to upload'}
+                  </p>
+                  <p className="text-xs text-slate-500">CSV files only</p>
+                </div>
+                <input 
+                  type="file" 
+                  className="hidden" 
+                  accept=".csv" 
+                  onChange={handleFileUpload} 
+                  disabled={uploadMutation.isPending}
+                />
+              </label>
+
+              {error && (
+                <div className="mt-6 p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl text-sm flex items-start gap-3 border border-rose-100 dark:border-rose-900/50">
+                  <AlertCircle size={20} className="shrink-0 mt-0.5" />
+                  <span className="leading-relaxed font-medium">{error}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'users' && (
+            <div className="flex flex-col items-center justify-center h-full text-center max-w-sm mx-auto">
+              <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl mb-4 mt-12">
+                <Users size={32} className="text-slate-400 dark:text-slate-500" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">User Directory</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Pending secure RPC implementation. This tab will allow you to view all authenticated users and assign them Platform Admin privileges.
+              </p>
             </div>
           )}
         </div>

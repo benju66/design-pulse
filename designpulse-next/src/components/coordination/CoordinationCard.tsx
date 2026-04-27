@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useUpdateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
@@ -45,34 +45,81 @@ export const CoordinationCard = ({ opportunity, projectId }: CoordinationCardPro
   const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
     ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
     : defaultDisciplines;
-  const coordDetails = opportunity.coordination_details || {};
+  const [localDetails, setLocalDetails] = useState<Record<string, any>>(opportunity.coordination_details as Record<string, any> || {});
+  const pendingDetailsRef = useRef<Record<string, any>>({});
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setLocalDetails(opportunity.coordination_details as Record<string, any> || {});
+  }, [opportunity.coordination_details]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        if (Object.keys(pendingDetailsRef.current).length > 0) {
+          updateMutation.mutate({
+            id: opportunity.id,
+            updates: {
+              coordination_details: { 
+                ...(opportunity.coordination_details as object || {}), 
+                ...pendingDetailsRef.current 
+              }
+            }
+          });
+          pendingDetailsRef.current = {};
+        }
+        timeoutRef.current = null;
+      }
+    };
+  }, [opportunity.id, opportunity.coordination_details, updateMutation]);
 
   const togglePill = (e: React.MouseEvent, discipline: DisciplineConfig) => {
     e.stopPropagation();
     e.preventDefault();
     
-    const currentStatus = coordDetails[discipline.id]?.status || 'Not Required';
+    const currentStatus = localDetails[discipline.id]?.status || 'Not Required';
     // Cycle logic: Not Required -> Pending -> Complete -> Not Required
     let newStatus = 'Pending';
     if (currentStatus === 'Pending' || currentStatus === 'Required') newStatus = 'Complete';
     else if (currentStatus === 'Complete') newStatus = 'Not Required';
     
-    const updatedDetails = {
-      ...(coordDetails as Record<string, any>),
+    // 1. Instant local visual update
+    setLocalDetails(prev => ({
+      ...prev,
       [discipline.id]: {
-        notes: (coordDetails as any)[discipline.id]?.notes || '',
+        ...(prev[discipline.id] || {}),
+        status: newStatus
+      }
+    }));
+
+    // 2. Accumulate in ref
+    pendingDetailsRef.current = {
+      ...pendingDetailsRef.current,
+      [discipline.id]: {
+        notes: localDetails[discipline.id]?.notes || '',
         status: newStatus
       }
     };
     
-    updateMutation.mutate({ 
-      id: opportunity.id, 
-      updates: { coordination_details: updatedDetails } 
-    });
+    // 3. Debounce network mutation
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      updateMutation.mutate({ 
+        id: opportunity.id, 
+        updates: { 
+          coordination_details: { 
+            ...(opportunity.coordination_details as object || {}), 
+            ...pendingDetailsRef.current 
+          } 
+        } 
+      });
+      pendingDetailsRef.current = {}; // reset after flush
+    }, 500);
   };
 
   const renderPill = (discipline: DisciplineConfig) => {
-    const status = coordDetails[discipline.id]?.status || 'Not Required';
+    const status = localDetails[discipline.id]?.status || 'Not Required';
     const isCompleted = status === 'Complete';
     const isPending = status === 'Pending' || status === 'Required';
     
@@ -99,7 +146,7 @@ export const CoordinationCard = ({ opportunity, projectId }: CoordinationCardPro
   };
 
   // Only show the "+" button if some disciplines are hidden, so we have a way to add them
-  const hasHiddenDisciplines = disciplines.some((d: DisciplineConfig) => (coordDetails[d.id]?.status || 'Not Required') === 'Not Required');
+  const hasHiddenDisciplines = disciplines.some((d: DisciplineConfig) => (localDetails[d.id]?.status || 'Not Required') === 'Not Required');
 
   return (
     <div 

@@ -35,6 +35,9 @@ export interface UIState {
   
   isBudgetSummaryCollapsed: boolean;
   toggleBudgetSummary: () => void;
+  
+  isCoordSummaryCollapsed: boolean;
+  toggleCoordSummary: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -82,7 +85,7 @@ export const useUIStore = create<UIState>()(
         coordColumnVisibility: typeof updater === 'function' ? updater(state.coordColumnVisibility) : updater 
       })),
       
-      coordColumnOrder: [],
+      coordColumnOrder: ['select', 'open_panel', 'display_id', 'record_type', 'title', 'final_direction', 'priority', 'status', 'due_date', 'discipline_status'],
       setCoordColumnOrder: (updater) => set((state) => ({ 
         coordColumnOrder: typeof updater === 'function' ? updater(state.coordColumnOrder) : updater 
       })),
@@ -92,6 +95,9 @@ export const useUIStore = create<UIState>()(
       
       isBudgetSummaryCollapsed: false,
       toggleBudgetSummary: () => set((state) => ({ isBudgetSummaryCollapsed: !state.isBudgetSummaryCollapsed })),
+      
+      isCoordSummaryCollapsed: false,
+      toggleCoordSummary: () => set((state) => ({ isCoordSummaryCollapsed: !state.isCoordSummaryCollapsed })),
       
       setCardOrder: (newOrder) => set({ cardOrder: newOrder }),
       
@@ -121,6 +127,7 @@ export const useUIStore = create<UIState>()(
         coordColumnOrder: state.coordColumnOrder,
         coordinationViewMode: state.coordinationViewMode,
         isBudgetSummaryCollapsed: state.isBudgetSummaryCollapsed ?? false,
+        isCoordSummaryCollapsed: state.isCoordSummaryCollapsed ?? false,
       }),
     }
   )

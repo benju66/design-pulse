@@ -17,7 +17,7 @@ import { ChevronUp, ChevronDown, PanelRight } from 'lucide-react';
 import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity } from '@/hooks/useProjectQueries';
 import { CoordinationGhostRow } from './CoordinationGhostRow';
-import { TextCell, PriorityCell, StatusCell } from '@/components/opportunities/EditableCell';
+import { TextCell, PriorityCell } from '@/components/opportunities/EditableCell';
 import { useUIStore } from '@/stores/useUIStore';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
@@ -76,6 +76,82 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
   );
 });
 
+const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
+  const initialValue = getValue() as string;
+  const [value, setValue] = useState(initialValue);
+  const updateData = (table.options.meta as any)?.updateData;
+  const { activeCell, setActiveCell } = (table.options.meta as any) || {};
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  const onBlur = () => {
+    if (value !== initialValue && updateData) {
+      updateData.mutate({ id: row.original.id, updates: { [column.id]: value } });
+    }
+    if (activeCell?.rowIndex === row.index && activeCell?.columnId === column.id) {
+      setActiveCell({ rowIndex: null, columnId: null });
+    }
+  };
+
+  const isActive = activeCell?.rowIndex === row.index && activeCell?.columnId === column.id;
+
+  if (isActive) {
+    return (
+      <div className="w-full h-full p-0 flex">
+        <select
+          value={value || 'Draft'}
+          onChange={e => setValue(e.target.value)}
+          onBlur={onBlur}
+          autoFocus
+          className="w-full h-full px-2 py-1.5 text-xs bg-white dark:bg-slate-800 border border-sky-500 rounded outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100"
+        >
+          <option value="Draft">Draft</option>
+          <option value="In Drafting">In Drafting</option>
+          <option value="Ready for Review">Ready for Review</option>
+          <option value="Implemented">Implemented</option>
+        </select>
+      </div>
+    );
+  }
+
+  let colorClass = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
+  if (value === 'In Drafting') colorClass = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+  else if (value === 'Ready for Review') colorClass = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+  else if (value === 'Implemented') colorClass = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+
+  return (
+    <div 
+      className="w-full h-full px-2 py-1.5 flex items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80 group"
+      onClick={() => setActiveCell?.({ rowIndex: row.index, columnId: column.id })}
+    >
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorClass} group-hover:ring-1 group-hover:ring-slate-300 dark:group-hover:ring-slate-600`}>
+        {value || 'Draft'}
+      </span>
+    </div>
+  );
+});
+
+const CheckboxCell = ({ row }: { row: Row<Opportunity> }) => {
+  const isSelected = useUIStore(state => state.compareQueue.includes(row.original.id));
+  const toggleCompareItem = useUIStore(state => state.toggleCompareItem);
+  return (
+    <div className="flex items-center justify-center py-2 px-1">
+      <input 
+        type="checkbox" 
+        checked={isSelected}
+        onChange={(e) => {
+          e.stopPropagation();
+          toggleCompareItem(row.original.id);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-4 h-4 text-sky-600 bg-slate-100 border-slate-300 rounded focus:ring-sky-500 dark:focus:ring-sky-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer"
+      />
+    </div>
+  );
+};
+
 const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
@@ -107,7 +183,6 @@ const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
 
 export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat' }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
-  const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
   
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
@@ -132,6 +207,18 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
 
   const columns: ColumnDef<Opportunity, any>[] = [
     {
+      id: 'select',
+      header: () => null,
+      cell: CheckboxCell,
+      size: 40,
+    },
+    {
+      id: 'open_panel',
+      header: '',
+      size: 40,
+      cell: OpenPanelCell,
+    },
+    {
       accessorKey: 'display_id',
       header: 'ID',
       size: 80,
@@ -140,7 +227,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
     {
       accessorKey: 'record_type',
       header: 'Type',
-      size: 100,
+      size: 130,
       cell: ({ getValue }) => {
         const type = getValue<string>() || 'VE';
         return (
@@ -187,7 +274,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
       accessorKey: 'status',
       header: 'Status',
       size: 140,
-      cell: StatusCell,
+      cell: CoordinationStatusCell,
     },
     {
       accessorKey: 'due_date',
@@ -200,12 +287,6 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
       header: 'Disciplines',
       size: 150,
       cell: DisciplineStatusCell,
-    },
-    {
-      id: 'open_panel',
-      header: '',
-      size: 40,
-      cell: OpenPanelCell,
     }
   ];
 
@@ -323,8 +404,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
                 >
                   <tr 
                     id={`row-${row.original.id}`}
-                    onClick={() => setSelectedOpportunityId(row.original.id)}
-                    className={`cursor-pointer transition-colors ${
+                    className={`transition-colors ${
                       row.original.id === selectedOpportunityId 
                         ? 'bg-sky-50 dark:bg-sky-900/20 border-l-2 border-sky-500' 
                         : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'

@@ -10,6 +10,7 @@ import BudgetSummaryV2 from '@/components/BudgetSummaryV2';
 import CoordinationBoard from '@/components/coordination/CoordinationBoard';
 import CoordinationTable from '@/components/coordination/CoordinationTable';
 import { CoordinationDetailPanel } from '@/components/coordination/CoordinationDetailPanel';
+import { CoordinationSummary } from '@/components/coordination/CoordinationSummary';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
 import { exportToPDFService } from '@/services/api';
@@ -387,21 +388,26 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           )}
 
           {currentView === 'coordination' && (
-            coordinationViewMode.startsWith('table') ? (
-              <>
-                <div className={`flex flex-col flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
-                  <CoordinationTable projectId={projectId} opportunities={coordinationOpportunities} viewMode={coordinationViewMode.replace('table-', '')} />
-                </div>
-                {coordinationViewMode === 'table-split' && selectedOpportunityId && opportunities.find(o => o.id === selectedOpportunityId) && (
-                  <CoordinationDetailPanel 
-                    projectId={projectId} 
-                    opportunity={opportunities.find(o => o.id === selectedOpportunityId)!} 
-                  />
+            <div className="flex flex-col h-full w-full">
+              <CoordinationSummary opportunities={coordinationOpportunities} />
+              <div className="flex flex-1 overflow-hidden">
+                {coordinationViewMode.startsWith('table') ? (
+                  <>
+                    <div className={`flex flex-col flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
+                      <CoordinationTable projectId={projectId} opportunities={coordinationOpportunities} viewMode={coordinationViewMode.replace('table-', '')} />
+                    </div>
+                    {coordinationViewMode === 'table-split' && selectedOpportunityId && opportunities.find(o => o.id === selectedOpportunityId) && (
+                      <CoordinationDetailPanel 
+                        projectId={projectId} 
+                        opportunity={opportunities.find(o => o.id === selectedOpportunityId)!} 
+                      />
+                    )}
+                  </>
+                ) : (
+                  <CoordinationBoard projectId={projectId} opportunities={coordinationOpportunities} />
                 )}
-              </>
-            ) : (
-              <CoordinationBoard projectId={projectId} opportunities={coordinationOpportunities} />
-            )
+              </div>
+            </div>
           )}
 
         </div>

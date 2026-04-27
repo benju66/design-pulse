@@ -15,7 +15,7 @@ interface CoordinationBoardProps {
 const COLUMNS = [
   { id: 'Pending Plan Update', title: 'Pending Plan Update' },
   { id: 'In Drafting', title: 'In Drafting' },
-  { id: 'GC / Owner Review', title: 'GC / Owner Review' },
+  { id: 'Ready for Review', title: 'Ready for Review' },
   { id: 'Implemented', title: 'Implemented' },
 ];
 
@@ -49,7 +49,7 @@ export default function CoordinationBoard({ projectId, opportunities }: Coordina
     if (currentColumnId === targetColumnId) return;
 
     // Validation Logic
-    if (targetColumnId === 'GC / Owner Review' || targetColumnId === 'Implemented') {
+    if (targetColumnId === 'Ready for Review' || targetColumnId === 'Implemented') {
       const details = opportunity.coordination_details || {};
       const hasPending = Object.values(details).some(d => d?.status === 'Required' || d?.status === 'Pending');
       if (hasPending) {

@@ -1,10 +1,10 @@
 "use client";
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
-import { useAllProjectOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useToggleOptionBudget, useProjectSettings, useReorderOptions } from '@/hooks/useProjectQueries';
+import { useAllProjectOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useToggleOptionBudget, useProjectSettings, useReorderOptions, useCurrentUserPermissions, useUnlockOpportunityOption } from '@/hooks/useProjectQueries';
 import { DEFAULT_CATEGORIES } from '@/lib/constants';
 import { SortableContenderCard } from './SortableContenderCard';
 
@@ -28,6 +28,10 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
   const toggleOptionBudget = useToggleOptionBudget(opportunityId, projectId);
   const deleteOption = useDeleteOption(opportunityId, projectId);
   const reorderOptions = useReorderOptions(projectId);
+
+  const { can_unlock_options } = useCurrentUserPermissions(projectId);
+  const unlockMutation = useUnlockOpportunityOption(projectId);
+  const [unlockConfirmOppId, setUnlockConfirmOppId] = useState<string | null>(null);
 
   const sortedOptions = useMemo(() => {
     return [...options].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
@@ -82,6 +86,8 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
                 toggleOptionBudget={toggleOptionBudget}
                 hasLockedOption={hasLockedOption}
                 isLocked={isLocked}
+                canUnlock={can_unlock_options}
+                onUnlockClick={() => setUnlockConfirmOppId(opportunityId)}
               />
             ))}
 
@@ -97,6 +103,33 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
           </div>
         </SortableContext>
       </DndContext>
+
+      {unlockConfirmOppId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full overflow-hidden p-6 border border-slate-200 dark:border-slate-800">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Unlock Decision</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+              Are you sure you want to unlock this item? This will revert the Opportunity to 'Draft' status, clear the final direction, and shift the locked cost back into Pending/Potential exposure.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button 
+                onClick={() => setUnlockConfirmOppId(null)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                disabled={unlockMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => unlockMutation.mutate(unlockConfirmOppId, { onSuccess: () => setUnlockConfirmOppId(null) })}
+                className="px-4 py-2 text-sm font-bold bg-rose-500 hover:bg-rose-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                disabled={unlockMutation.isPending}
+              >
+                {unlockMutation.isPending ? 'Unlocking...' : 'Yes, Unlock'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

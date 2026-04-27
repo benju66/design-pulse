@@ -4,6 +4,9 @@ import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_SCOPES } from '@/lib
 import { calculateParentTotals } from '@/utils/financialMath';
 import { toast } from 'sonner';
 import { Opportunity, OpportunityOption, ProjectSettings, Project } from '@/types/models';
+import { useAuth } from '@/providers/AuthProvider';
+import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
+import { useRolePermissions } from '@/hooks/useGlobalQueries';
 
 export function useProjectSettings(projectId: string | null) {
   return useQuery<ProjectSettings, Error>({
@@ -626,6 +629,45 @@ export function useRemoveProjectMember(projectId: string) {
     onError: (err) => {
       console.error('Remove Member Error:', err);
       toast.error(`Failed to remove member: ${err.message}`);
+    }
+  });
+}
+
+export function useCurrentUserPermissions(projectId: string | null) {
+  const { session } = useAuth();
+  const { data: members } = useProjectMembers(projectId || '');
+  const { data: isPlatformAdmin } = useIsPlatformAdmin();
+  const { data: rolePermissions } = useRolePermissions();
+
+  const defaultPerms = { can_lock_options: false, can_unlock_options: false, can_manage_team: false, can_edit_project_settings: false, can_manage_budget: false, can_edit_records: false, can_delete_records: false, can_view_audit_logs: false };
+
+  if (isPlatformAdmin) {
+    return Object.keys(defaultPerms).reduce((acc, key) => ({ ...acc, [key]: true }), {} as typeof defaultPerms);
+  }
+
+  if (!session?.user?.id || !members || !rolePermissions) return defaultPerms;
+
+  const userMember = members.find(m => m.user_id === session.user.id);
+  if (!userMember) return defaultPerms;
+
+  const perms = rolePermissions.find(rp => rp.role === userMember.role);
+  return perms || defaultPerms;
+}
+
+export function useUnlockOpportunityOption(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (oppId: string) => {
+      const { error } = await supabase.rpc('unlock_opportunity_option', { p_opp_id: oppId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+      toast.success('Option unlocked successfully');
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to unlock option: ${err.message || 'Unknown error'}`);
     }
   });
 }

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, ScopeCell, ImpactCell, PriorityCell, CostCodeCell, DisplayIdCell } from './EditableCell';
+import { TextCell, StatusCell, ScopeCell, ImpactCell, PriorityCell, CostCodeCell, DivisionCell, DisplayIdCell } from './EditableCell';
 import { OptionsCell } from './OptionsCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
@@ -77,19 +77,12 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       checkboxColumn,
       ...(viewMode === 'split' ? [openPanelColumn] : []),
       { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
-      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
-      { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
-      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
-      { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 120 },
-      { accessorKey: 'status', header: 'Status', cell: StatusCell },
-      { accessorKey: 'scope', header: 'Scope', cell: ScopeCell },
-      { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
-      { accessorKey: 'assignee', header: 'Assignee', cell: TextCell },
-      { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
-      { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
-      /*
       { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
+      { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 120 },
+      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
+      { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
       { accessorKey: 'location', header: 'Location', cell: TextCell },
+      { accessorKey: 'scope', header: 'Scope', cell: ScopeCell },
       { accessorKey: 'arch_plans_spec', header: 'Arch Plans/Spec', cell: TextCell },
       { accessorKey: 'bok_standard', header: 'BOK Standard', cell: TextCell },
       { accessorKey: 'existing_conditions', header: 'Existing Conditions', cell: TextCell },
@@ -98,7 +91,12 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       { accessorKey: 'backing_required', header: 'Backing Req.', cell: TextCell },
       { accessorKey: 'coordination_required', header: 'Coord Req.', cell: TextCell },
       { accessorKey: 'design_lock_phase', header: 'Design Lock Phase', cell: TextCell },
-      */
+      { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
+      { accessorKey: 'assignee', header: 'Assignee', cell: TextCell },
+      { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
+      { accessorKey: 'status', header: 'Status', cell: StatusCell },
+      { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
+      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
     ],
     [viewMode, checkboxColumn, openPanelColumn]
   );
@@ -120,20 +118,16 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
         ),
       },
       { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
-      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
-      { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
-      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
+      { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 120 },
-      { accessorKey: 'status', header: 'Status', cell: StatusCell },
-      { accessorKey: 'scope', header: 'Scope', cell: ScopeCell },
+      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
+      { accessorKey: 'location', header: 'Location', cell: TextCell },
       { accessorKey: 'assignee', header: 'Assignee', cell: TextCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
-      { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
-      /*
-      { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
-      { accessorKey: 'location', header: 'Location', cell: TextCell },
-      */
+      { accessorKey: 'status', header: 'Status', cell: StatusCell },
+      { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
+      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
     ],
     [viewMode, checkboxColumn, openPanelColumn]
   );

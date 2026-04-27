@@ -2,7 +2,7 @@
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, X, Star } from 'lucide-react';
+import { GripVertical, X, Star, RotateCcw } from 'lucide-react';
 import { OpportunityOption } from '@/types/models';
 import { UseMutationResult } from '@tanstack/react-query';
 
@@ -16,6 +16,8 @@ interface SortableContenderCardProps {
   opportunityId: string;
   hasLockedOption: boolean;
   isLocked?: boolean;
+  canUnlock?: boolean;
+  onUnlockClick?: () => void;
 }
 
 export const SortableContenderCard = ({ 
@@ -26,7 +28,9 @@ export const SortableContenderCard = ({
   lockOption, 
   toggleOptionBudget, 
   hasLockedOption,
-  isLocked
+  isLocked,
+  canUnlock,
+  onUnlockClick
 }: SortableContenderCardProps) => {
 
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: opt.id });
@@ -247,17 +251,27 @@ export const SortableContenderCard = ({
 
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Final Selection</span>
-          <button
-            onClick={() => lockOption.mutate(opt.id)}
-            disabled={opt.is_locked || isLocked}
-            role="switch"
-            aria-checked={opt.is_locked || false}
-            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
-              opt.is_locked ? 'bg-emerald-500 cursor-default' : 'bg-slate-300 dark:bg-slate-600 cursor-pointer hover:bg-slate-400 dark:hover:bg-slate-500'
-            }`}
-          >
-            <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${opt.is_locked ? 'translate-x-4' : 'translate-x-0'}`} />
-          </button>
+          {opt.is_locked && canUnlock ? (
+            <button
+              onClick={onUnlockClick}
+              className="flex items-center justify-center gap-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 dark:text-rose-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+            >
+              <RotateCcw size={14} strokeWidth={2.5} />
+              Unlock
+            </button>
+          ) : (
+            <button
+              onClick={() => lockOption.mutate(opt.id)}
+              disabled={opt.is_locked || isLocked}
+              role="switch"
+              aria-checked={opt.is_locked || false}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+                opt.is_locked ? 'bg-emerald-500 cursor-default' : 'bg-slate-300 dark:bg-slate-600 cursor-pointer hover:bg-slate-400 dark:hover:bg-slate-500'
+              }`}
+            >
+              <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${opt.is_locked ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+          )}
         </div>
       </div>
     </div>

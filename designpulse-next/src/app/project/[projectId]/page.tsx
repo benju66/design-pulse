@@ -253,7 +253,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           {currentView === 'dashboard' && (
             <>
               {/* Main Grid Area */}
-              <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 ${
+              <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${
                 (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
               }`}>
                 <div className="shrink-0">
@@ -310,7 +310,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           {currentView === 'dashboard-v2' && (
             <>
               {/* Main Grid Area */}
-              <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 ${
+              <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${
                 (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
               }`}>
                 <div className="shrink-0">

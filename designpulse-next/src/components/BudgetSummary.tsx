@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
 import { useProjectSettings, useAllProjectOptions } from '@/hooks/useProjectQueries';
 import { Opportunity } from '@/types/models';
+import { useUIStore } from '@/stores/useUIStore';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 
 interface TooltipPopoverProps {
   title: string;
@@ -26,6 +29,9 @@ export default function BudgetSummary({ projectId, opportunities = [] }: BudgetS
   const originalBudget = settings ? Number(settings.original_budget) : 0;
 
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
+  
+  const isBudgetSummaryCollapsed = useUIStore(state => state.isBudgetSummaryCollapsed);
+  const toggleBudgetSummary = useUIStore(state => state.toggleBudgetSummary);
 
   const { approvedChanges, pendingChanges, potentialExposure } = useMemo(() => {
     let approved = 0;
@@ -95,82 +101,174 @@ export default function BudgetSummary({ projectId, opportunities = [] }: BudgetS
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-      {/* Cluster 1: Financial Commitments */}
-      <div className="flex flex-col border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl p-4">
-        <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 px-1">Financial Commitments</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
-          {/* Original Budget */}
-          <div className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
-            <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Original Budget</span>
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(originalBudget)}</span>
-            <TooltipPopover 
-              title="Original Budget" 
-              description="The baseline financial target established at the start of the phase." 
-            />
+    <AnimatePresence mode="wait">
+      {isBudgetSummaryCollapsed ? (
+        <motion.div
+          key="micro"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 mb-6 shadow-sm overflow-x-auto"
+        >
+          <div className="flex items-center gap-4 px-2 whitespace-nowrap">
+            <div className="relative group flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Original:</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white">{formatCurrency(originalBudget)}</span>
+              <TooltipPopover title="Original Budget" description="The baseline financial target established at the start of the phase." />
+            </div>
+            
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+            
+            <div className="relative group flex items-center gap-2">
+              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-500">Approved:</span>
+              <span className={`text-sm font-bold ${approvedChanges < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
+                {formatCurrency(approvedChanges, true)}
+              </span>
+              <TooltipPopover title="Approved Changes" description="The total sum of all fully approved or locked VE items and alternates." />
+            </div>
+            
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+            
+            <div className="relative group flex items-center gap-2">
+              <span className="text-xs font-semibold text-sky-600 dark:text-sky-400">Revised:</span>
+              <span className="text-sm font-bold text-sky-700 dark:text-sky-300">{formatCurrency(revisedBudget)}</span>
+              <TooltipPopover title="Revised Budget" description="Original Budget + Approved Changes." />
+            </div>
+
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+            
+            <div className="relative group flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Pending:</span>
+              <span className={`text-sm font-bold ${pendingChanges < 0 ? 'text-emerald-500' : pendingChanges > 0 ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>
+                {formatCurrency(pendingChanges, true)}
+              </span>
+              <TooltipPopover title="Pending Changes" description="Items currently under review." />
+            </div>
+
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+            
+            <div className="relative group flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Projected:</span>
+              <span className="text-sm font-extrabold text-slate-900 dark:text-white">{formatCurrency(projectedBudget)}</span>
+              <TooltipPopover title="Projected Budget" description="Revised Budget + Pending Changes." />
+            </div>
+
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+
+            <div className="relative group flex items-center gap-2">
+              <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Exposure:</span>
+              <span className="text-sm font-bold text-amber-700 dark:text-amber-300">{formatCurrency(potentialExposure, true)}</span>
+              <TooltipPopover title="Potential Exposure" description="The worst-case cost scenario for all early-stage draft items not yet under formal review." />
+            </div>
+          </div>
+          
+          <div className="ml-auto flex items-center pl-4 border-l border-slate-200 dark:border-slate-700">
+            <button 
+              onClick={toggleBudgetSummary}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-300 transition-colors"
+              title="Expand Summary"
+            >
+              <ChevronDown size={18} strokeWidth={2.5} />
+            </button>
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div
+          key="macro"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="grid grid-cols-1 @5xl:grid-cols-2 gap-6 mb-6 relative group/macro"
+        >
+          <div className="absolute -top-3 -right-3 z-10">
+            <button 
+              onClick={toggleBudgetSummary}
+              className="p-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 shadow-sm transition-all hover:scale-105 opacity-0 group-hover/macro:opacity-100 focus:opacity-100"
+              title="Collapse Summary"
+            >
+              <ChevronUp size={16} strokeWidth={2.5} />
+            </button>
           </div>
 
-          {/* Approved Changes */}
-          <div className="relative group bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-xl p-4 flex flex-col">
-            <span className="text-sm text-emerald-600 dark:text-emerald-500 font-medium">Approved Changes</span>
-            <span className={`text-2xl font-bold ${approvedChanges < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
-              {formatCurrency(approvedChanges, true)}
-            </span>
-            <TooltipPopover 
-              title="Approved Changes" 
-              description="The total sum of all fully approved or locked VE items and alternates." 
-            />
+          {/* Cluster 1: Financial Commitments */}
+          <div className="flex flex-col border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl p-4">
+            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 px-1">Financial Commitments</h3>
+            <div className="grid grid-cols-1 @3xl:grid-cols-3 gap-4 h-full">
+              {/* Original Budget */}
+              <div className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
+                <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Original Budget</span>
+                <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(originalBudget)}</span>
+                <TooltipPopover 
+                  title="Original Budget" 
+                  description="The baseline financial target established at the start of the phase." 
+                />
+              </div>
+
+              {/* Approved Changes */}
+              <div className="relative group bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 rounded-xl p-4 flex flex-col">
+                <span className="text-sm text-emerald-600 dark:text-emerald-500 font-medium">Approved Changes</span>
+                <span className={`text-2xl font-bold ${approvedChanges < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
+                  {formatCurrency(approvedChanges, true)}
+                </span>
+                <TooltipPopover 
+                  title="Approved Changes" 
+                  description="The total sum of all fully approved or locked VE items and alternates." 
+                />
+              </div>
+
+              {/* Revised Budget */}
+              <div className="relative group bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-4 flex flex-col">
+                <span className="text-sm text-sky-600 dark:text-sky-400 font-medium">Revised Budget</span>
+                <span className="text-2xl font-bold text-sky-700 dark:text-sky-300">{formatCurrency(revisedBudget)}</span>
+                <TooltipPopover 
+                  title="Revised Budget" 
+                  description="Original Budget + Approved Changes." 
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Revised Budget */}
-          <div className="relative group bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-4 flex flex-col">
-            <span className="text-sm text-sky-600 dark:text-sky-400 font-medium">Revised Budget</span>
-            <span className="text-2xl font-bold text-sky-700 dark:text-sky-300">{formatCurrency(revisedBudget)}</span>
-            <TooltipPopover 
-              title="Revised Budget" 
-              description="Original Budget + Approved Changes." 
-            />
-          </div>
-        </div>
-      </div>
+          {/* Cluster 2: Risk & Forecast */}
+          <div className="flex flex-col border-2 border-dashed border-slate-300 dark:border-slate-600 bg-amber-50/20 dark:bg-amber-900/5 rounded-2xl p-4">
+            <h3 className="text-sm font-bold text-amber-600/80 dark:text-amber-500/80 uppercase tracking-wider mb-4 px-1">Risk & Forecast</h3>
+            <div className="grid grid-cols-1 @3xl:grid-cols-3 gap-4 h-full">
+              {/* Pending Changes */}
+              <div className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
+                <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Pending Changes</span>
+                <span className={`text-2xl font-bold ${pendingChanges < 0 ? 'text-emerald-500' : pendingChanges > 0 ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>
+                  {formatCurrency(pendingChanges, true)}
+                </span>
+                <TooltipPopover 
+                  title="Pending Changes" 
+                  description="Items currently under review. If multiple options exist, the highest cost is used conservatively." 
+                />
+              </div>
 
-      {/* Cluster 2: Risk & Forecast */}
-      <div className="flex flex-col border-2 border-dashed border-slate-300 dark:border-slate-600 bg-amber-50/20 dark:bg-amber-900/5 rounded-2xl p-4">
-        <h3 className="text-sm font-bold text-amber-600/80 dark:text-amber-500/80 uppercase tracking-wider mb-4 px-1">Risk & Forecast</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
-          {/* Pending Changes */}
-          <div className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
-            <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Pending Changes</span>
-            <span className={`text-2xl font-bold ${pendingChanges < 0 ? 'text-emerald-500' : pendingChanges > 0 ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>
-              {formatCurrency(pendingChanges, true)}
-            </span>
-            <TooltipPopover 
-              title="Pending Changes" 
-              description="Items currently under review. If multiple options exist, the highest cost is used conservatively." 
-            />
-          </div>
+              {/* Projected Budget */}
+              <div className="relative group bg-white dark:bg-slate-950 border-2 border-slate-300 dark:border-slate-700 rounded-xl p-4 flex flex-col shadow-sm ring-1 ring-slate-900/5 dark:ring-white/5">
+                <span className="text-sm text-slate-700 dark:text-slate-300 font-semibold">Projected Budget</span>
+                <span className="text-2xl font-extrabold text-slate-900 dark:text-white">{formatCurrency(projectedBudget)}</span>
+                <TooltipPopover 
+                  title="Projected Budget" 
+                  description="Revised Budget + Pending Changes. The expected final cost if all pending items are approved." 
+                />
+              </div>
 
-          {/* Projected Budget */}
-          <div className="relative group bg-white dark:bg-slate-950 border-2 border-slate-300 dark:border-slate-700 rounded-xl p-4 flex flex-col shadow-sm ring-1 ring-slate-900/5 dark:ring-white/5">
-            <span className="text-sm text-slate-700 dark:text-slate-300 font-semibold">Projected Budget</span>
-            <span className="text-2xl font-extrabold text-slate-900 dark:text-white">{formatCurrency(projectedBudget)}</span>
-            <TooltipPopover 
-              title="Projected Budget" 
-              description="Revised Budget + Pending Changes. The expected final cost if all pending items are approved." 
-            />
+              {/* Potential Exposure */}
+              <div className="relative group bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex flex-col">
+                <span className="text-sm text-amber-600 dark:text-amber-400 font-medium">Potential Exposure</span>
+                <span className="text-2xl font-bold text-amber-700 dark:text-amber-300">{formatCurrency(potentialExposure, true)}</span>
+                <TooltipPopover 
+                  title="Potential Exposure" 
+                  description="The worst-case cost scenario for all early-stage draft items not yet under formal review." 
+                />
+              </div>
+            </div>
           </div>
-
-          {/* Potential Exposure */}
-          <div className="relative group bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex flex-col">
-            <span className="text-sm text-amber-600 dark:text-amber-400 font-medium">Potential Exposure</span>
-            <span className="text-2xl font-bold text-amber-700 dark:text-amber-300">{formatCurrency(potentialExposure, true)}</span>
-            <TooltipPopover 
-              title="Potential Exposure" 
-              description="The worst-case cost scenario for all early-stage draft items not yet under formal review." 
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

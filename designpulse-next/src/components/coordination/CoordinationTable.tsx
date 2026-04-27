@@ -9,7 +9,8 @@ import {
   ColumnDef,
   CellContext,
   SortingState,
-  Row
+  Row,
+  getExpandedRowModel
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronUp, ChevronDown, PanelRight } from 'lucide-react';
@@ -18,10 +19,13 @@ import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity } from '
 import { CoordinationGhostRow } from './CoordinationGhostRow';
 import { TextCell, PriorityCell, StatusCell } from '@/components/opportunities/EditableCell';
 import { useUIStore } from '@/stores/useUIStore';
+import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
+import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
 
 interface Props {
   projectId: string;
   opportunities: Opportunity[];
+  viewMode?: string;
 }
 
 // Custom Discipline Status Cell
@@ -75,6 +79,7 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
 const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
+  const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
   return (
     <div className="flex items-center justify-center p-1">
       <button
@@ -84,6 +89,7 @@ const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
             setSelectedOpportunityId(null);
           } else {
             setSelectedOpportunityId(row.original.id);
+            setCoordinationViewMode('table-split');
           }
         }}
         className={`p-1 rounded transition-colors ${
@@ -99,7 +105,7 @@ const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
   );
 };
 
-export default function CoordinationTable({ projectId, opportunities }: Props) {
+export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat' }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
   
@@ -109,6 +115,11 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
+  
+  const coordColumnVisibility = useUIStore(state => state.coordColumnVisibility);
+  const setCoordColumnVisibility = useUIStore(state => state.setCoordColumnVisibility);
+  const coordColumnOrder = useUIStore(state => state.coordColumnOrder);
+  const setCoordColumnOrder = useUIStore(state => state.setCoordColumnOrder);
 
   useEffect(() => {
     if (selectedOpportunityId) {
@@ -201,10 +212,13 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
   const table = useReactTable({
     data: opportunities,
     columns,
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, columnVisibility: coordColumnVisibility, columnOrder: coordColumnOrder },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnVisibilityChange: setCoordColumnVisibility,
+    onColumnOrderChange: setCoordColumnOrder,
     getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     columnResizeMode: 'onChange',
@@ -248,6 +262,7 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
               className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
             />
           </div>
+          <ColumnChooser table={table as any} />
         </div>
 
         <div 
@@ -316,11 +331,18 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
                     }`}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="p-0 border-r border-slate-200 dark:border-slate-800 align-top">
+                      <td key={cell.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}
                   </tr>
+                  {viewMode === 'card' && row.getIsExpanded() && (
+                    <tr>
+                      <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
+                        <ExpandedCard row={row as any} />
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               );
             })}

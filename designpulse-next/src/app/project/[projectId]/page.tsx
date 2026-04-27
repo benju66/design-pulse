@@ -222,16 +222,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             {currentView === 'coordination' && (
               <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2">
                 <button
-                  onClick={() => setCoordinationViewMode('table')}
+                  onClick={() => setCoordinationViewMode('table-split')}
                   className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
-                    coordinationViewMode === 'table' 
+                    coordinationViewMode === 'table-split' 
                       ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                   }`}
-                  title="Table View"
+                  title="Split View"
                 >
-                  <List size={18} />
+                  <PanelRight size={18} />
                 </button>
+                <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
                 <button
                   onClick={() => setCoordinationViewMode('board')}
                   className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
@@ -386,12 +387,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           )}
 
           {currentView === 'coordination' && (
-            coordinationViewMode === 'table' ? (
+            coordinationViewMode.startsWith('table') ? (
               <>
-                <div className={`flex flex-col flex-1 min-w-0 ${selectedOpportunityId ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
-                  <CoordinationTable projectId={projectId} opportunities={coordinationOpportunities} />
+                <div className={`flex flex-col flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
+                  <CoordinationTable projectId={projectId} opportunities={coordinationOpportunities} viewMode={coordinationViewMode.replace('table-', '')} />
                 </div>
-                {selectedOpportunityId && opportunities.find(o => o.id === selectedOpportunityId) && (
+                {coordinationViewMode === 'table-split' && selectedOpportunityId && opportunities.find(o => o.id === selectedOpportunityId) && (
                   <CoordinationDetailPanel 
                     projectId={projectId} 
                     opportunity={opportunities.find(o => o.id === selectedOpportunityId)!} 

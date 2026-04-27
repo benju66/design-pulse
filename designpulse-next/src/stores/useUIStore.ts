@@ -24,8 +24,14 @@ export interface UIState {
   gridMode: 'navigate' | 'edit' | string;
   setGridMode: (mode: string) => void;
   
-  coordinationViewMode: 'board' | 'table';
-  setCoordinationViewMode: (mode: 'board' | 'table') => void;
+  coordColumnVisibility: Record<string, boolean>;
+  setCoordColumnVisibility: (updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
+  
+  coordColumnOrder: string[];
+  setCoordColumnOrder: (updater: string[] | ((old: string[]) => string[])) => void;
+  
+  coordinationViewMode: 'board' | 'table-split';
+  setCoordinationViewMode: (mode: 'board' | 'table-split') => void;
   
   isBudgetSummaryCollapsed: boolean;
   toggleBudgetSummary: () => void;
@@ -71,7 +77,17 @@ export const useUIStore = create<UIState>()(
       gridMode: 'navigate',
       setGridMode: (mode) => set({ gridMode: mode }),
       
-      coordinationViewMode: 'table',
+      coordColumnVisibility: {},
+      setCoordColumnVisibility: (updater) => set((state) => ({ 
+        coordColumnVisibility: typeof updater === 'function' ? updater(state.coordColumnVisibility) : updater 
+      })),
+      
+      coordColumnOrder: [],
+      setCoordColumnOrder: (updater) => set((state) => ({ 
+        coordColumnOrder: typeof updater === 'function' ? updater(state.coordColumnOrder) : updater 
+      })),
+      
+      coordinationViewMode: 'table-split',
       setCoordinationViewMode: (mode) => set({ coordinationViewMode: mode }),
       
       isBudgetSummaryCollapsed: false,
@@ -101,6 +117,8 @@ export const useUIStore = create<UIState>()(
         visibleCards: state.visibleCards,
         gridColumnVisibility: state.gridColumnVisibility,
         gridColumnOrder: state.gridColumnOrder,
+        coordColumnVisibility: state.coordColumnVisibility,
+        coordColumnOrder: state.coordColumnOrder,
         coordinationViewMode: state.coordinationViewMode,
         isBudgetSummaryCollapsed: state.isBudgetSummaryCollapsed ?? false,
       }),

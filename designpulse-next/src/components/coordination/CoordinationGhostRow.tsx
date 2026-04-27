@@ -14,7 +14,9 @@ export const CoordinationGhostRow = ({ table, createMutation }: CoordinationGhos
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && title.trim()) {
       e.preventDefault();
+      const optimisticId = crypto.randomUUID();
       createMutation.mutate({ 
+        id: optimisticId,
         title: title.trim(),
         record_type: 'Coordination',
         cost_impact: 0,

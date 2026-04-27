@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
+import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { Opportunity, DisciplineConfig, DisciplineDetails } from '@/types/models';
 import { useUpdateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
@@ -113,6 +113,13 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
         </div>
         
         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white dark:bg-slate-950 pl-2">
+          <button 
+            onClick={() => window.open(`/project/${projectId}/item/${opportunity.id}`, '_blank')}
+            className="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+            title="Pop-out in new window"
+          >
+            <ExternalLink size={18} />
+          </button>
           <button 
             onClick={() => setIsMaximized(!isMaximized)}
             className="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"

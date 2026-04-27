@@ -124,6 +124,14 @@ export const CoordinationCard = ({ opportunity, projectId }: CoordinationCardPro
         {opportunity.title}
       </h4>
 
+      {opportunity.final_direction && (
+        <div className="text-[11px] font-medium text-sky-600 dark:text-sky-400 mb-3 bg-sky-50 dark:bg-sky-900/20 px-2 py-1 rounded border border-sky-100 dark:border-sky-800/50 line-clamp-2" title={opportunity.final_direction}>
+          {opportunity.final_direction.startsWith('Locked: ') 
+            ? opportunity.final_direction.substring(8) 
+            : opportunity.final_direction}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700/50">
         <div className="flex flex-wrap gap-1">
           {disciplines.map((d: DisciplineConfig) => renderPill(d))}

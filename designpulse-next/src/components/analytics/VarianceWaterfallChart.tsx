@@ -1,29 +1,35 @@
 "use client";
 import { useMemo } from 'react';
-import { Opportunity } from '@/types/models';
+import { useTradeVariances } from '@/hooks/useProjectQueries';
 
 interface Props {
-  opportunities: Opportunity[];
+  projectId: string;
 }
 
-export default function VarianceWaterfallChart({ opportunities }: Props) {
-  const trades = useMemo(() => {
-    const map = opportunities.reduce((acc, opp) => {
-      const code = opp.cost_code || 'Uncategorized';
-      if (!acc[code]) acc[code] = 0;
-      acc[code] += Number(opp.cost_impact) || 0;
-      return acc;
-    }, {} as Record<string, number>);
+export default function VarianceWaterfallChart({ projectId }: Props) {
+  // Hook into the new RPC Aggregation
+  const { data: varianceMetrics, isLoading } = useTradeVariances(projectId);
 
-    return Object.entries(map)
-      .map(([code, variance]) => ({ code, variance }))
-      .sort((a, b) => b.variance - a.variance);
-  }, [opportunities]);
+  const trades = useMemo(() => {
+    if (!varianceMetrics) return [];
+    return varianceMetrics.map((m: any) => ({
+      code: m.cost_code,
+      variance: Number(m.total_variance)
+    })).sort((a: any, b: any) => b.variance - a.variance);
+  }, [varianceMetrics]);
 
   const maxDeviation = useMemo(() => {
     if (trades.length === 0) return 1;
-    return Math.max(1, ...trades.map(t => Math.abs(t.variance)));
+    return Math.max(1, ...trades.map((t: any) => Math.abs(t.variance)));
   }, [trades]);
+
+  if (isLoading) {
+    return (
+      <div className="flex w-full h-48 items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full max-w-4xl mx-auto pt-2">
@@ -35,7 +41,7 @@ export default function VarianceWaterfallChart({ opportunities }: Props) {
         {trades.length === 0 && (
           <div className="text-center text-sm text-slate-500 py-4">No data to display. Add options to see variances.</div>
         )}
-        {trades.map((trade) => {
+        {trades.map((trade: any) => {
           const isSavings = trade.variance < 0;
           const barWidth = `${(Math.abs(trade.variance) / maxDeviation) * 50}%`;
 

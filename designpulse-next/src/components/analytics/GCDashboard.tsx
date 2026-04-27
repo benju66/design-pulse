@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import { Opportunity } from '@/types/models';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
+import { useGCBottleneckMetrics } from '@/hooks/useProjectQueries';
 
 interface Props {
   projectId: string;
@@ -10,7 +11,7 @@ interface Props {
 
 const COLORS = ['#38bdf8', '#818cf8', '#c084fc', '#f472b6', '#fb7185', '#94a3b8'];
 
-export default function GCDashboard({ opportunities }: Props) {
+export default function GCDashboard({ projectId, opportunities }: Props) {
   const unlockedStatuses = ['Draft', 'Pending Review'];
   const unlockedOpps = useMemo(() => opportunities.filter(o => o.status && unlockedStatuses.includes(o.status)), [opportunities]);
 
@@ -19,20 +20,17 @@ export default function GCDashboard({ opportunities }: Props) {
     return unlockedOpps.reduce((sum, opp) => sum + (Number(opp.days_impact) || 0), 0);
   }, [unlockedOpps]);
 
+  // Hook into the new RPC Aggregation
+  const { data: bottleneckMetrics, isLoading: isBottleneckLoading } = useGCBottleneckMetrics(projectId);
+
   // Bar Chart: Bottleneck by Assignee
   const bottleneckData = useMemo(() => {
-    const assigneeMap = unlockedOpps.reduce((acc, opp) => {
-      // Empty State Trap Fix
-      const assignee = opp.assignee?.trim() ? opp.assignee : 'Unassigned';
-      if (!acc[assignee]) acc[assignee] = 0;
-      acc[assignee] += 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    return Object.entries(assigneeMap)
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [unlockedOpps]);
+    if (!bottleneckMetrics) return [];
+    return bottleneckMetrics.map((m: any) => ({
+      name: m.assignee,
+      count: Number(m.pending_count)
+    })).sort((a: any, b: any) => b.count - a.count);
+  }, [bottleneckMetrics]);
 
   // Trade Heatmap
   const tradeHeatmap = useMemo(() => {
@@ -105,7 +103,11 @@ export default function GCDashboard({ opportunities }: Props) {
       {/* Bottom: Bottleneck Bar Chart */}
       <div className="xl:col-span-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm h-96 flex flex-col">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">Bottleneck Analysis (Pending Items by Assignee)</h3>
-        {bottleneckData.length === 0 ? (
+        {isBottleneckLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-500"></div>
+          </div>
+        ) : bottleneckData.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">No pending items found.</div>
         ) : (
           <div className="flex-1 min-h-0 relative">
@@ -116,7 +118,7 @@ export default function GCDashboard({ opportunities }: Props) {
                 <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12, fill: '#64748b' }} />
                 <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={40}>
-                  {bottleneckData.map((entry, index) => (
+                  {bottleneckData.map((entry: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.name === 'Unassigned' ? '#ef4444' : COLORS[index % COLORS.length]} />
                   ))}
                 </Bar>

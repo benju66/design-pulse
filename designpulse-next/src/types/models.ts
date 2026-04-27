@@ -11,7 +11,10 @@ export interface DisciplineDetails {
   status: 'Required' | 'Pending' | 'Complete' | 'Not Required';
   notes: string;
 }
-export type OpportunityOption = Database['public']['Tables']['opportunity_options']['Row'];
+export type OpportunityOption = Database['public']['Tables']['opportunity_options']['Row'] & {
+  requires_coordination?: boolean | null;
+  coordination_requirements?: Record<string, boolean> | null;
+};
 export type CostCode = Database['public']['Tables']['cost_codes']['Row'];
 export type ProjectSettings = Database['public']['Tables']['project_settings']['Row'] & {
   disciplines?: DisciplineConfig[];

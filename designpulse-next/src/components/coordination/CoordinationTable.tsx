@@ -152,6 +152,21 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
       cell: TextCell,
     },
     {
+      accessorKey: 'final_direction',
+      header: 'Final Selection',
+      size: 200,
+      cell: ({ getValue }) => {
+        const val = getValue<string>();
+        if (!val) return <div className="px-2 py-1.5 text-xs text-slate-400">--</div>;
+        const displayVal = val.startsWith('Locked: ') ? val.substring(8) : val;
+        return (
+          <div className="px-2 py-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 truncate" title={displayVal}>
+            {displayVal}
+          </div>
+        );
+      }
+    },
+    {
       accessorKey: 'priority',
       header: 'Priority',
       size: 100,

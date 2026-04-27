@@ -110,6 +110,8 @@ CREATE TABLE IF NOT EXISTS opportunity_options (
   order_index integer DEFAULT 0,
   is_locked boolean DEFAULT false,
   include_in_budget boolean DEFAULT false,
+  requires_coordination boolean DEFAULT true,
+  coordination_requirements jsonb DEFAULT '{}'::jsonb,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -385,7 +387,7 @@ $$;
 CREATE OR REPLACE FUNCTION enforce_financial_immutability()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-  IF OLD.status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented') THEN
+  IF OLD.status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented', 'Approved') THEN
     IF OLD.cost_impact IS DISTINCT FROM NEW.cost_impact OR OLD.days_impact IS DISTINCT FROM NEW.days_impact OR OLD.title IS DISTINCT FROM NEW.title THEN
       RAISE EXCEPTION 'Financial immutability enforced: Cannot modify core fields of locked records';
     END IF;
@@ -405,7 +407,7 @@ BEGIN
     SELECT status INTO v_parent_status FROM opportunities WHERE id = NEW.opportunity_id;
   END IF;
 
-  IF v_parent_status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented') THEN
+  IF v_parent_status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented', 'Approved') THEN
     RAISE EXCEPTION 'Financial immutability enforced: Cannot modify options of a locked opportunity';
   END IF;
 
@@ -582,7 +584,7 @@ BEGIN
     RETURN NEW; 
   END IF;
 
-  IF OLD.status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented') THEN
+  IF OLD.status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented', 'Approved') THEN
     IF OLD.cost_impact IS DISTINCT FROM NEW.cost_impact OR OLD.days_impact IS DISTINCT FROM NEW.days_impact OR OLD.title IS DISTINCT FROM NEW.title THEN
       RAISE EXCEPTION 'Financial immutability enforced: Cannot modify core fields of locked records';
     END IF;
@@ -607,7 +609,7 @@ BEGIN
     SELECT status INTO v_parent_status FROM opportunities WHERE id = NEW.opportunity_id;
   END IF;
 
-  IF v_parent_status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented') THEN
+  IF v_parent_status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented', 'Approved') THEN
     RAISE EXCEPTION 'Financial immutability enforced: Cannot modify options of a locked opportunity';
   END IF;
 
@@ -643,6 +645,11 @@ DECLARE
   v_option_title text;
   v_option_cost numeric;
   v_option_days numeric;
+  v_requires_coord boolean;
+  v_coord_reqs jsonb;
+  v_new_coord_details jsonb := '{}'::jsonb;
+  k text;
+  v text;
 BEGIN
   IF NOT public.has_project_permission((SELECT project_id FROM opportunities WHERE id = p_opp_id), 'can_lock_options') THEN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to lock options';
@@ -650,8 +657,34 @@ BEGIN
 
   UPDATE opportunities SET status = 'Draft' WHERE id = p_opp_id;
   UPDATE opportunity_options SET is_locked = false WHERE opportunity_id = p_opp_id;
-  UPDATE opportunity_options SET is_locked = true WHERE id = p_option_id RETURNING title, cost_impact, days_impact INTO v_option_title, v_option_cost, v_option_days;
-  UPDATE opportunities SET final_direction = 'Locked: ' || v_option_title, status = 'Pending Plan Update', cost_impact = v_option_cost, days_impact = v_option_days WHERE id = p_opp_id;
+  
+  UPDATE opportunity_options SET is_locked = true WHERE id = p_option_id 
+  RETURNING title, cost_impact, days_impact, COALESCE(requires_coordination, true), COALESCE(coordination_requirements, '{}'::jsonb) 
+  INTO v_option_title, v_option_cost, v_option_days, v_requires_coord, v_coord_reqs;
+  
+  FOR k, v IN SELECT key, value FROM jsonb_each_text(v_coord_reqs) LOOP
+    IF v = 'true' THEN
+      v_new_coord_details := jsonb_set(v_new_coord_details, ARRAY[k], '{"status": "Pending", "notes": ""}'::jsonb, true);
+    END IF;
+  END LOOP;
+
+  IF v_requires_coord THEN
+    UPDATE opportunities SET 
+      final_direction = 'Locked: ' || v_option_title, 
+      status = 'Pending Plan Update', 
+      cost_impact = v_option_cost, 
+      days_impact = v_option_days,
+      coordination_details = v_new_coord_details
+    WHERE id = p_opp_id;
+  ELSE
+    UPDATE opportunities SET 
+      final_direction = 'Locked: ' || v_option_title, 
+      status = 'Approved', 
+      cost_impact = v_option_cost, 
+      days_impact = v_option_days,
+      coordination_details = '{}'::jsonb
+    WHERE id = p_opp_id;
+  END IF;
 END;
 $$;
 

@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Opportunity } from '@/types/models';
 import VarianceWaterfallChart from './VarianceWaterfallChart';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useOwnerROIMetrics } from '@/hooks/useProjectQueries';
 
 interface Props {
   projectId: string;
@@ -11,15 +12,14 @@ interface Props {
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 
-export default function OwnerDashboard({ opportunities }: Props) {
+export default function OwnerDashboard({ projectId, opportunities }: Props) {
   // KPI: Average Age of Pending Items
   const avgPendingDays = useMemo(() => {
     const pendingOpps = opportunities.filter(o => o.status === 'Pending Review');
     if (pendingOpps.length === 0) return 0;
-    
+
     const now = new Date().getTime();
     const totalDays = pendingOpps.reduce((sum, opp) => {
-      // created_at might be missing depending on schema mock, fallback to due_date or 0
       const created = opp.created_at ? new Date(opp.created_at).getTime() : now;
       const diffTime = Math.abs(now - created);
       return sum + Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -27,30 +27,21 @@ export default function OwnerDashboard({ opportunities }: Props) {
     return Math.round(totalDays / pendingOpps.length);
   }, [opportunities]);
 
+  // Hook into the new RPC Aggregation
+  const { data: roiMetrics, isLoading: isRoiLoading } = useOwnerROIMetrics(projectId);
+
   // Pie Chart: ROI Distribution
   const pieData = useMemo(() => {
-    // Group approved items (locked) by scope
-    const lockedStatuses = ['Pending Plan Update', 'In Drafting', 'GC / Owner Review', 'Implemented', 'Approved'];
-    
-    const scopeMap = opportunities
-      .filter(o => o.status && lockedStatuses.includes(o.status))
-      .reduce((acc, opp) => {
-        const impact = Number(opp.cost_impact) || 0;
-        // The owner wants to see ROI/Savings distribution. Usually, savings are negative.
-        if (impact < 0) {
-          const scope = opp.scope || 'Uncategorized';
-          if (!acc[scope]) acc[scope] = 0;
-          acc[scope] += impact; // This is negative
-        }
-        return acc;
-      }, {} as Record<string, number>);
-
-    return Object.entries(scopeMap).map(([name, rawValue]) => ({
-      name,
-      rawValue, // e.g. -15000
-      value: Math.abs(rawValue) // Math Trap Fix: Absolute value for slice angle
-    })).sort((a, b) => b.value - a.value);
-  }, [opportunities]);
+    if (!roiMetrics) return [];
+    return roiMetrics.map((m: any) => {
+      const savings = Number(m.total_savings);
+      return {
+        name: m.scope,
+        rawValue: savings, // Absolute positive savings from RPC
+        value: savings
+      };
+    }).sort((a: any, b: any) => b.value - a.value);
+  }, [roiMetrics]);
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -69,7 +60,7 @@ export default function OwnerDashboard({ opportunities }: Props) {
 
   return (
     <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
-      
+
       {/* Top Left: KPI */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm flex flex-col justify-center items-center h-80">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-2">Avg Age of Pending Items</h3>
@@ -80,7 +71,11 @@ export default function OwnerDashboard({ opportunities }: Props) {
       {/* Top Right: ROI Pie Chart */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm h-80 flex flex-col">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">ROI Distribution (Savings by Scope)</h3>
-        {pieData.length === 0 ? (
+        {isRoiLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-500"></div>
+          </div>
+        ) : pieData.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">No approved savings logged yet.</div>
         ) : (
           <div className="flex-1 min-h-0 relative">
@@ -100,7 +95,7 @@ export default function OwnerDashboard({ opportunities }: Props) {
                   ))}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
-                <Legend verticalAlign="bottom" height={36}/>
+                <Legend verticalAlign="bottom" height={36} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -110,7 +105,7 @@ export default function OwnerDashboard({ opportunities }: Props) {
       {/* Bottom: Variance Waterfall */}
       <div className="xl:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">Trade Variance Waterfall</h3>
-        <VarianceWaterfallChart opportunities={opportunities} />
+        <VarianceWaterfallChart projectId={projectId} opportunities={opportunities} />
       </div>
 
     </div>

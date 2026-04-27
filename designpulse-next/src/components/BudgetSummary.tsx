@@ -109,7 +109,7 @@ export default function BudgetSummary({ projectId, opportunities = [] }: BudgetS
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 mb-6 shadow-sm overflow-x-auto"
+          className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 mb-6 shadow-sm overflow-x-auto overflow-y-hidden hide-scrollbar"
         >
           <div className="flex items-center gap-4 px-2 whitespace-nowrap">
             <div className="relative group flex items-center gap-2">

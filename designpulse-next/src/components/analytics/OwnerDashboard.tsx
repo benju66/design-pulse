@@ -90,7 +90,7 @@ export default function OwnerDashboard({ projectId, opportunities }: Props) {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {pieData.map((_, index) => (
+                  {pieData.map((_: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -105,7 +105,7 @@ export default function OwnerDashboard({ projectId, opportunities }: Props) {
       {/* Bottom: Variance Waterfall */}
       <div className="xl:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">Trade Variance Waterfall</h3>
-        <VarianceWaterfallChart projectId={projectId} opportunities={opportunities} />
+        <VarianceWaterfallChart projectId={projectId} />
       </div>
 
     </div>

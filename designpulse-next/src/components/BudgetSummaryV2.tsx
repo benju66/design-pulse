@@ -42,7 +42,7 @@ export default function BudgetSummaryV2({ projectId, opportunities }: BudgetSumm
         </div>
       </div>
 
-      <VarianceWaterfallChart opportunities={opportunities} />
+      <VarianceWaterfallChart projectId={projectId} />
     </div>
   );
 }

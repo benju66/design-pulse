@@ -115,9 +115,19 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     : ['Corridor / Common', 'Unit Interiors', 'Back of House'];
   const tabs = ['All', ...dynamicScopes];
   const filteredOpportunities = React.useMemo(() => {
+    const baseMatrixItems = opportunities.filter(opp => {
+      if (opp.record_type === 'VE') return true;
+      if (opp.record_type === 'Coordination') {
+        const cost = Number(opp.cost_impact) || 0;
+        const days = Number(opp.days_impact) || 0;
+        const isEscalated = (opp.coordination_details as Record<string, any>)?.is_escalated === true;
+        return cost !== 0 || days !== 0 || isEscalated;
+      }
+      return false;
+    });
     return activeTab === 'All' 
-      ? opportunities 
-      : opportunities.filter(opp => opp.scope === activeTab);
+      ? baseMatrixItems 
+      : baseMatrixItems.filter(opp => opp.scope === activeTab);
   }, [opportunities, activeTab]);
 
   const coordinationOpportunities = React.useMemo(() => {

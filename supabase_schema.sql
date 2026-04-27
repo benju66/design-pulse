@@ -40,15 +40,30 @@ CREATE TABLE IF NOT EXISTS project_settings (
   location text,
   original_budget numeric DEFAULT 5000000,
   enable_audit_logging boolean DEFAULT false,
+  ve_column_order jsonb DEFAULT '[]'::jsonb,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- 2.5 Project Sequences Table (For VE-001 IDs)
 CREATE TABLE IF NOT EXISTS project_sequences (
-  project_id uuid PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  project_id uuid REFERENCES projects(id) ON DELETE CASCADE,
   current_value integer DEFAULT 0
 );
+
+-- Safely ensure the primary key exists in case the table was created previously without one
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conrelid = 'project_sequences'::regclass 
+    AND contype = 'p'
+  ) THEN
+    ALTER TABLE project_sequences ADD PRIMARY KEY (project_id);
+  END IF;
+EXCEPTION WHEN OTHERS THEN 
+  NULL; 
+END $$;
 
 -- 3. Opportunities (VE Log Items) Table
 CREATE TABLE IF NOT EXISTS opportunities (
@@ -110,6 +125,19 @@ CREATE TABLE IF NOT EXISTS cost_codes (
   category_o boolean DEFAULT false
 );
 
+-- 5.5 Audit Logs Table
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  record_id uuid NOT NULL,
+  table_name text NOT NULL,
+  action_type text NOT NULL,
+  old_payload jsonb,
+  new_payload jsonb,
+  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  project_id uuid REFERENCES projects(id) ON DELETE CASCADE,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- 6. Helper RPCs for Authorization (MUST be defined before RLS)
 CREATE OR REPLACE FUNCTION public.is_platform_admin() RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER AS $$
@@ -131,6 +159,7 @@ ALTER TABLE opportunity_options ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform_admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cost_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- 8. Security Policies
 
@@ -238,6 +267,17 @@ CREATE POLICY "Admins can delete opportunity_options"
     )
   );
 
+-- Audit Logs
+DROP POLICY IF EXISTS "Admins can view all audit logs" ON audit_logs;
+CREATE POLICY "Admins can view all audit logs" 
+  ON audit_logs FOR SELECT 
+  USING (is_platform_admin());
+
+DROP POLICY IF EXISTS "Project Admins can view project audit logs" ON audit_logs;
+CREATE POLICY "Project Admins can view project audit logs" 
+  ON audit_logs FOR SELECT 
+  USING (public.get_user_project_role(project_id::uuid) IN ('owner', 'gc_admin'));
+
 -- 9. RPCs (Stored Procedures)
 
 CREATE OR REPLACE FUNCTION create_new_project(p_name text, p_description text)
@@ -297,7 +337,12 @@ BEGIN
   DO UPDATE SET current_value = project_sequences.current_value + 1
   RETURNING current_value INTO next_val;
 
-  NEW.display_id := 'VE-' || LPAD(next_val::text, 3, '0');
+  IF NEW.record_type = 'Coordination' THEN
+    NEW.display_id := 'CD-' || LPAD(next_val::text, 3, '0');
+  ELSE
+    NEW.display_id := 'VE-' || LPAD(next_val::text, 3, '0');
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -306,6 +351,8 @@ CREATE OR REPLACE FUNCTION lock_opportunity_option(p_option_id UUID, p_opp_id UU
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_option_title text;
+  v_option_cost numeric;
+  v_option_days numeric;
   v_project_id uuid;
 BEGIN
   SELECT project_id INTO v_project_id FROM opportunities WHERE id = p_opp_id;
@@ -315,8 +362,8 @@ BEGIN
 
   UPDATE opportunities SET status = 'Draft' WHERE id = p_opp_id;
   UPDATE opportunity_options SET is_locked = false WHERE opportunity_id = p_opp_id;
-  UPDATE opportunity_options SET is_locked = true WHERE id = p_option_id RETURNING title INTO v_option_title;
-  UPDATE opportunities SET final_direction = 'Locked: ' || v_option_title, status = 'Pending Plan Update' WHERE id = p_opp_id;
+  UPDATE opportunity_options SET is_locked = true WHERE id = p_option_id RETURNING title, cost_impact, days_impact INTO v_option_title, v_option_cost, v_option_days;
+  UPDATE opportunities SET final_direction = 'Locked: ' || v_option_title, status = 'Pending Plan Update', cost_impact = v_option_cost, days_impact = v_option_days WHERE id = p_opp_id;
 END;
 $$;
 

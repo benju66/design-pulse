@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, ScopeCell, ImpactCell, PriorityCell, CostCodeCell, DivisionCell } from './EditableCell';
+import { TextCell, StatusCell, ScopeCell, ImpactCell, PriorityCell, CostCodeCell, DivisionCell, DisplayIdCell } from './EditableCell';
 import { OptionsCell } from './OptionsCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
@@ -76,7 +76,7 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
     () => [
       checkboxColumn,
       ...(viewMode === 'split' ? [openPanelColumn] : []),
-      { accessorKey: 'display_id', header: 'ID', cell: TextCell, size: 80 },
+      { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
       { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 120 },
       { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
@@ -117,7 +117,7 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
           </button>
         ),
       },
-      { accessorKey: 'display_id', header: 'ID', cell: TextCell, size: 80 },
+      { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
       { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 120 },
       { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },

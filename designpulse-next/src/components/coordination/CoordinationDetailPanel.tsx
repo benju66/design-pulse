@@ -156,6 +156,37 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
           </div>
         </div>
 
+        {/* Manual Escalation */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4 shadow-sm">
+             <div>
+                <h4 className="text-sm font-bold text-purple-900 dark:text-purple-300">Escalate to VE Matrix</h4>
+                <p className="text-xs font-semibold text-purple-700/80 dark:text-purple-400/80 mt-1">Send this item to Pre-Construction for financial review.</p>
+             </div>
+              <button 
+                onClick={() => {
+                  const isEscalated = (opportunity.coordination_details as Record<string, any>)?.is_escalated === true;
+                  updateMutation.mutate({
+                    id: opportunity.id,
+                    updates: { 
+                      coordination_details: { 
+                        ...(opportunity.coordination_details as Record<string, any>), 
+                        is_escalated: !isEscalated 
+                      } as any
+                    }
+                  });
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm ${
+                  (opportunity.coordination_details as Record<string, any>)?.is_escalated === true 
+                    ? 'bg-purple-600 text-white shadow-purple-500/30 hover:bg-purple-700' 
+                    : 'bg-white text-purple-600 border border-purple-200 hover:bg-purple-50 dark:bg-slate-800 dark:border-purple-800 dark:hover:bg-slate-700'
+                }`}
+             >
+                {(opportunity.coordination_details as Record<string, any>)?.is_escalated === true ? 'Escalated' : 'Escalate'}
+             </button>
+          </div>
+        </div>
+
         {/* Disciplines Workspace */}
         <div className="flex flex-col gap-3">
           <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider pl-1">Disciplines</h4>

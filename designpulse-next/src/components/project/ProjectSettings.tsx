@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags, Users } from 'lucide-react';
+import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags, Users, TableProperties } from 'lucide-react';
 import { useProjectSettings, useUpdateProjectSettings, useProjectMembers, useAddProjectMember, useUpdateProjectMemberRole, useRemoveProjectMember } from '@/hooks/useProjectQueries';
 import { useSystemUsers } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
@@ -17,6 +17,31 @@ interface SortableItemProps {
   onRemove?: () => void;
   renderExtra?: () => React.ReactNode;
 }
+
+const DEFAULT_VE_COLUMNS = [
+  { id: 'display_id', label: 'ID' },
+  { id: 'title', label: 'Task / Item' },
+  { id: 'division', label: 'CSI Division' },
+  { id: 'cost_code', label: 'Cost Code' },
+  { id: 'priority', label: 'Priority' },
+  { id: 'location', label: 'Location' },
+  { id: 'scope', label: 'Scope' },
+  { id: 'status', label: 'Status' },
+  { id: 'options', label: 'Options / Contenders' },
+  { id: 'cost_impact', label: 'Cost Impact ($)' },
+  { id: 'days_impact', label: 'Days Impact' },
+  { id: 'assignee', label: 'Assignee' },
+  { id: 'due_date', label: 'Due Date' },
+  { id: 'arch_plans_spec', label: 'Arch Plans/Spec' },
+  { id: 'bok_standard', label: 'BOK Standard' },
+  { id: 'existing_conditions', label: 'Existing Conditions' },
+  { id: 'mep_impact', label: 'MEP Impact' },
+  { id: 'owner_goals', label: 'Owner Goals' },
+  { id: 'backing_required', label: 'Backing Req.' },
+  { id: 'coordination_required', label: 'Coord Req.' },
+  { id: 'design_lock_phase', label: 'Design Lock Phase' },
+  { id: 'final_direction', label: 'Final Direction' }
+];
 
 const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
@@ -76,6 +101,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   const [scopes, setScopes] = useState<string[]>([]);
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [disciplines, setDisciplines] = useState<DisciplineConfig[]>([]);
+  const [veColumns, setVeColumns] = useState<{id: string, label: string}[]>([]);
   
   const [projectInfo, setProjectInfo] = useState({
     project_name: '',
@@ -101,6 +127,21 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
           ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
           : []
       );
+      
+      const savedOrder = settings.ve_column_order || [];
+      if (savedOrder.length > 0) {
+        const sorted = [...DEFAULT_VE_COLUMNS].sort((a, b) => {
+          const indexA = savedOrder.indexOf(a.id);
+          const indexB = savedOrder.indexOf(b.id);
+          if (indexA === -1 && indexB === -1) return 0;
+          if (indexA === -1) return 1;
+          if (indexB === -1) return -1;
+          return indexA - indexB;
+        });
+        setVeColumns(sorted);
+      } else {
+        setVeColumns(DEFAULT_VE_COLUMNS);
+      }
       
       setProjectInfo({
         project_name: settings.project_name || projectId,
@@ -181,6 +222,16 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
     }
   };
 
+  const handleDragEndVeColumns = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = veColumns.findIndex(c => c.id === active.id);
+      const newIndex = veColumns.findIndex(c => c.id === over.id);
+      setVeColumns(arrayMove(veColumns, oldIndex, newIndex));
+      setHasChanges(true);
+    }
+  };
+
   const toggleSidebarItem = (id: string) => {
     setSidebarItems(items => items.map(item => 
       item.id === id ? { ...item, visible: !item.visible } : item
@@ -203,7 +254,8 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
         project_name: projectInfo.project_name,
         location: projectInfo.location,
         original_budget: Number(projectInfo.original_budget),
-        enable_audit_logging: Boolean(projectInfo.enable_audit_logging)
+        enable_audit_logging: Boolean(projectInfo.enable_audit_logging),
+        ve_column_order: veColumns.map(c => c.id)
       },
       { onSuccess: () => setHasChanges(false) }
     );
@@ -301,6 +353,17 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
         >
           <Tags size={18} />
           Coordination Disciplines
+        </button>
+        <button 
+          onClick={() => setActiveTab('ve_matrix')}
+          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
+            activeTab === 've_matrix' 
+              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <TableProperties size={18} />
+          VE Matrix
         </button>
         {canManageTeam && (
           <button 
@@ -593,6 +656,29 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
                <Plus size={18} /> Add
              </button>
           </div>
+        </div>
+      )}
+
+      {activeTab === 've_matrix' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">VE Matrix Configuration</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            Set the default column order for the VE Matrix. Drag items to rearrange them. Note: individual users can still temporarily reorder columns using the View menu.
+          </p>
+
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndVeColumns}>
+            <SortableContext items={veColumns.map(c => c.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2 mb-6">
+                {veColumns.map((col) => (
+                  <SortableItem 
+                    key={col.id} 
+                    id={col.id} 
+                    content={col.label}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         </div>
       )}
 

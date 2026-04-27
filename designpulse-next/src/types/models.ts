@@ -15,6 +15,7 @@ export type OpportunityOption = Database['public']['Tables']['opportunity_option
 export type CostCode = Database['public']['Tables']['cost_codes']['Row'];
 export type ProjectSettings = Database['public']['Tables']['project_settings']['Row'] & {
   disciplines?: DisciplineConfig[];
+  ve_column_order?: string[];
 };
 export type Project = Database['public']['Tables']['projects']['Row'];
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];

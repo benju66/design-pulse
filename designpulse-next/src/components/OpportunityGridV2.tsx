@@ -16,7 +16,7 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions, useProjectSettings } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
 
@@ -69,10 +69,20 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   
   const columnVisibility = useUIStore(state => state.gridColumnVisibility) as VisibilityState;
   const setColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
-  const columnOrder = useUIStore(state => state.gridColumnOrder) as ColumnOrderState;
-  const setColumnOrder = useUIStore(state => state.setGridColumnOrder);
-
+  
   const columns = useOpportunityColumnsV2(viewMode);
+  const { data: settings } = useProjectSettings(projectId);
+  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
+
+  useEffect(() => {
+    if (settings?.ve_column_order && settings.ve_column_order.length > 0) {
+      // Find the pinned columns that are not configurable and put them first
+      const allColIds = columns.map(c => (c as any).accessorKey || c.id).filter(Boolean);
+      const configuredIds = settings.ve_column_order;
+      const pinnedIds = allColIds.filter(id => !configuredIds.includes(id as string));
+      setColumnOrder([...pinnedIds, ...configuredIds] as string[]);
+    }
+  }, [settings?.ve_column_order, columns]);
 
   const table = useReactTable<Opportunity>({
     data,

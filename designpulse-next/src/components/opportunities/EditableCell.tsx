@@ -471,3 +471,42 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
     </>
   );
 }, (prev, next) => commonComparator(prev, next, false));
+
+export const DisplayIdCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
+  const value = getValue() as string | null | undefined;
+  const recordType = row.original.record_type;
+  const displayValue = value || '';
+
+  if (recordType === 'Coordination') {
+    return (
+      <CellWrapper
+        disabled={true}
+        row={row}
+        column={column}
+        table={table}
+        className="w-full h-full flex items-center cursor-default"
+        displayValue={
+          <span 
+            className="px-1.5 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+            title="Escalated from Design Coordination"
+          >
+            {displayValue}
+          </span>
+        }
+        inputElement={() => null}
+      />
+    );
+  }
+
+  return (
+    <CellWrapper
+      disabled={true}
+      row={row}
+      column={column}
+      table={table}
+      className="text-slate-600 dark:text-slate-400 font-mono text-sm cursor-default"
+      displayValue={displayValue}
+      inputElement={() => null}
+    />
+  );
+}, (prev, next) => commonComparator(prev, next, false));

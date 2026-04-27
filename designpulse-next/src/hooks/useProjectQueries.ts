@@ -27,7 +27,8 @@ export function useProjectSettings(projectId: string | null) {
         project_name: projectId,
         location: 'Not Set',
         original_budget: 0,
-        enable_audit_logging: false
+        enable_audit_logging: false,
+        ve_column_order: []
       };
 
       if (!data) return defaultSettings as ProjectSettings;
@@ -40,7 +41,8 @@ export function useProjectSettings(projectId: string | null) {
         project_name: data.project_name || defaultSettings.project_name,
         location: data.location || defaultSettings.location,
         original_budget: data.original_budget ?? defaultSettings.original_budget,
-        enable_audit_logging: data.enable_audit_logging ?? defaultSettings.enable_audit_logging
+        enable_audit_logging: data.enable_audit_logging ?? defaultSettings.enable_audit_logging,
+        ve_column_order: data.ve_column_order ?? defaultSettings.ve_column_order
       } as ProjectSettings;
     },
     enabled: !!projectId
@@ -124,7 +126,7 @@ export function useUpdateOpportunity(projectId: string) {
         .eq('id', id)
         .select()
         .single();
-      if (error) throw error;
+      if (error) throw new Error(error.message || JSON.stringify(error));
       return data as Opportunity;
     },
     onMutate: async ({ id, updates }) => {
@@ -157,7 +159,7 @@ export function useCreateOpportunity(projectId: string) {
         .insert([{ project_id: projectId, status: 'Draft', cost_impact: 0, title: 'New Option', scope: 'General', ...newRow }])
         .select()
         .single();
-      if (error) throw error;
+      if (error) throw new Error(error.message || JSON.stringify(error));
       return data as Opportunity;
     },
     onSuccess: () => {
@@ -466,6 +468,8 @@ export function useLockOption(opportunityId: string, projectId: string) {
       const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
       const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
 
+      const optionToLock = previousOptions?.find(o => o.id === optionId);
+
       queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
         if (!old) return old;
         return old.map(opt => 
@@ -474,6 +478,23 @@ export function useLockOption(opportunityId: string, projectId: string) {
             : opt
         );
       });
+
+      if (optionToLock) {
+        queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+          if (!old) return old;
+          return old.map(opp => 
+            opp.id === opportunityId 
+              ? { 
+                  ...opp, 
+                  status: 'Pending Plan Update',
+                  final_direction: `Locked: ${optionToLock.title}`,
+                  cost_impact: optionToLock.cost_impact,
+                  days_impact: optionToLock.days_impact
+                }
+              : opp
+          );
+        });
+      }
 
       return { previousOptions, previousOpportunities };
     },

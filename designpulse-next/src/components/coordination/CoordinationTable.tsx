@@ -8,10 +8,11 @@ import {
   flexRender,
   ColumnDef,
   CellContext,
-  SortingState
+  SortingState,
+  Row
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, PanelRight } from 'lucide-react';
 import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity } from '@/hooks/useProjectQueries';
 import { CoordinationGhostRow } from './CoordinationGhostRow';
@@ -70,6 +71,33 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
     </div>
   );
 });
+
+const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
+  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
+  return (
+    <div className="flex items-center justify-center p-1">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (selectedOpportunityId === row.original.id) {
+            setSelectedOpportunityId(null);
+          } else {
+            setSelectedOpportunityId(row.original.id);
+          }
+        }}
+        className={`p-1 rounded transition-colors ${
+          selectedOpportunityId === row.original.id 
+            ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/30' 
+            : 'text-slate-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+        }`}
+        title="Open Details Panel"
+      >
+        <PanelRight size={20} />
+      </button>
+    </div>
+  );
+};
 
 export default function CoordinationTable({ projectId, opportunities }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
@@ -146,6 +174,12 @@ export default function CoordinationTable({ projectId, opportunities }: Props) {
       header: 'Disciplines',
       size: 150,
       cell: DisciplineStatusCell,
+    },
+    {
+      id: 'open_panel',
+      header: '',
+      size: 40,
+      cell: OpenPanelCell,
     }
   ];
 

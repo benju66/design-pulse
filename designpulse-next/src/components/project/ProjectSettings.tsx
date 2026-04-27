@@ -21,17 +21,19 @@ interface SortableItemProps {
 const DEFAULT_VE_COLUMNS = [
   { id: 'display_id', label: 'ID' },
   { id: 'title', label: 'Task / Item' },
-  { id: 'division', label: 'CSI Division' },
-  { id: 'cost_code', label: 'Cost Code' },
-  { id: 'priority', label: 'Priority' },
-  { id: 'location', label: 'Location' },
-  { id: 'scope', label: 'Scope' },
-  { id: 'status', label: 'Status' },
   { id: 'options', label: 'Options / Contenders' },
   { id: 'cost_impact', label: 'Cost Impact ($)' },
-  { id: 'days_impact', label: 'Days Impact' },
+  { id: 'cost_code', label: 'Cost Code' },
+  { id: 'status', label: 'Status' },
+  { id: 'scope', label: 'Scope' },
+  { id: 'priority', label: 'Priority' },
   { id: 'assignee', label: 'Assignee' },
   { id: 'due_date', label: 'Due Date' },
+  { id: 'final_direction', label: 'Final Direction' },
+  /*
+  { id: 'division', label: 'CSI Division' },
+  { id: 'location', label: 'Location' },
+  { id: 'days_impact', label: 'Days Impact' },
   { id: 'arch_plans_spec', label: 'Arch Plans/Spec' },
   { id: 'bok_standard', label: 'BOK Standard' },
   { id: 'existing_conditions', label: 'Existing Conditions' },
@@ -39,8 +41,8 @@ const DEFAULT_VE_COLUMNS = [
   { id: 'owner_goals', label: 'Owner Goals' },
   { id: 'backing_required', label: 'Backing Req.' },
   { id: 'coordination_required', label: 'Coord Req.' },
-  { id: 'design_lock_phase', label: 'Design Lock Phase' },
-  { id: 'final_direction', label: 'Final Direction' }
+  { id: 'design_lock_phase', label: 'Design Lock Phase' }
+  */
 ];
 
 const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps) => {

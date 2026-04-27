@@ -77,3 +77,64 @@ export function useTogglePlatformAdmin() {
     },
   });
 }
+
+export interface RolePermission {
+  role: 'owner' | 'gc_admin' | 'design_team' | 'viewer';
+  can_lock_options: boolean;
+  can_unlock_options: boolean;
+  can_manage_team: boolean;
+  can_edit_project_settings: boolean;
+  can_manage_budget: boolean;
+  can_edit_records: boolean;
+  can_delete_records: boolean;
+  can_view_audit_logs: boolean;
+}
+
+export function useRolePermissions() {
+  return useQuery({
+    queryKey: ['role_permissions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('role_permissions')
+        .select('*');
+      if (error) throw error;
+      
+      const roleOrder = ['owner', 'gc_admin', 'design_team', 'viewer'];
+      return (data as RolePermission[]).sort((a, b) => {
+        return roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role);
+      });
+    },
+  });
+}
+
+export function useUpdateRolePermission() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ role, field, value }: { role: string, field: keyof Omit<RolePermission, 'role'>, value: boolean }) => {
+      const { error } = await supabase
+        .from('role_permissions')
+        .update({ [field]: value })
+        .eq('role', role);
+      if (error) throw error;
+    },
+    onMutate: async (newUpdate) => {
+      await queryClient.cancelQueries({ queryKey: ['role_permissions'] });
+      const previousPermissions = queryClient.getQueryData<RolePermission[]>(['role_permissions']);
+
+      queryClient.setQueryData<RolePermission[]>(['role_permissions'], old => 
+        old?.map(p => p.role === newUpdate.role ? { ...p, [newUpdate.field]: newUpdate.value } : p)
+      );
+
+      return { previousPermissions };
+    },
+    onError: (_err, _newUpdate, context) => {
+      if (context?.previousPermissions) {
+        queryClient.setQueryData(['role_permissions'], context.previousPermissions);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['role_permissions'] });
+    },
+  });
+}

@@ -1,9 +1,9 @@
 "use client";
 import React, { useState } from 'react';
-import { useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin } from '@/hooks/useGlobalQueries';
+import { useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
-import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users } from 'lucide-react';
+import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -11,13 +11,16 @@ interface Props {
 }
 
 export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
-  const [activeTab, setActiveTab] = useState<'cost_codes' | 'users'>('cost_codes');
+  const [activeTab, setActiveTab] = useState<'cost_codes' | 'users' | 'permissions'>('cost_codes');
   const [error, setError] = useState<string | null>(null);
   const uploadMutation = useUploadCostCodesCSV();
   const { data: isPlatformAdmin } = useIsPlatformAdmin();
   const { data: users, isLoading: usersLoading } = useSystemUsers();
   const toggleAdmin = useTogglePlatformAdmin();
   const { session } = useAuth();
+  
+  const { data: rolePermissions, isLoading: permissionsLoading } = useRolePermissions();
+  const updatePermission = useUpdateRolePermission();
 
   if (!isOpen) return null;
 
@@ -128,6 +131,17 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
             <Users size={18} />
             User Directory
           </button>
+          <button
+            onClick={() => setActiveTab('permissions')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'permissions'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <ShieldCheck size={18} />
+            Role Permissions
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-950">
@@ -233,6 +247,85 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
                   You must be a Platform Admin to view the Global User Directory.
                 </p>
              </div>
+          )}
+
+          {activeTab === 'permissions' && !isPlatformAdmin && (
+             <div className="flex flex-col items-center justify-center h-full text-center max-w-sm mx-auto">
+                <AlertCircle size={32} className="text-rose-500 mb-4 mt-12" />
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Access Denied</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  You must be a Platform Admin to manage Role Permissions.
+                </p>
+             </div>
+          )}
+
+          {activeTab === 'permissions' && isPlatformAdmin && (
+            <div className="max-w-3xl mx-auto flex flex-col h-full">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Global Role Permissions</h3>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
+                Configure the dynamic access matrix. These settings apply globally across all projects. Changes are saved automatically.
+              </p>
+              
+              {permissionsLoading ? (
+                <div className="flex items-center justify-center h-40">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
+                </div>
+              ) : (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex-1 flex flex-col">
+                  <div className="overflow-y-auto max-h-[400px]">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-slate-50 dark:bg-slate-950/50 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">Permission</th>
+                          {rolePermissions?.map(rp => (
+                            <th key={rp.role} className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 text-center capitalize w-28">
+                              {rp.role.replace('_', ' ')}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                        {[
+                          { label: 'Edit Records', key: 'can_edit_records' },
+                          { label: 'Delete Records', key: 'can_delete_records' },
+                          { label: 'Lock Options', key: 'can_lock_options' },
+                          { label: 'Unlock Options', key: 'can_unlock_options' },
+                          { label: 'Manage Budget', key: 'can_manage_budget' },
+                          { label: 'Manage Team', key: 'can_manage_team' },
+                          { label: 'Edit Settings', key: 'can_edit_project_settings' },
+                          { label: 'View Audit Logs', key: 'can_view_audit_logs' },
+                        ].map((perm) => (
+                          <tr key={perm.key} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-medium">
+                              {perm.label}
+                            </td>
+                            {rolePermissions?.map(rp => (
+                              <td key={rp.role} className="px-4 py-3 text-center">
+                                <input 
+                                  type="checkbox"
+                                  className="w-4 h-4 text-sky-500 bg-slate-100 border-slate-300 rounded focus:ring-sky-500 dark:focus:ring-sky-600 dark:ring-offset-slate-900 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer disabled:opacity-50"
+                                  checked={rp[perm.key as keyof Omit<RolePermission, 'role'>] as boolean}
+                                  onChange={() => {
+                                    updatePermission.mutate({ 
+                                      role: rp.role, 
+                                      field: perm.key as keyof Omit<RolePermission, 'role'>, 
+                                      value: !rp[perm.key as keyof Omit<RolePermission, 'role'>] 
+                                    });
+                                  }}
+                                  disabled={updatePermission.isPending && updatePermission.variables?.role === rp.role && updatePermission.variables?.field === perm.key}
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

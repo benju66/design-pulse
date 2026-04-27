@@ -26,6 +26,9 @@ export interface UIState {
   
   coordinationViewMode: 'board' | 'table';
   setCoordinationViewMode: (mode: 'board' | 'table') => void;
+  
+  isBudgetSummaryCollapsed: boolean;
+  toggleBudgetSummary: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -71,6 +74,9 @@ export const useUIStore = create<UIState>()(
       coordinationViewMode: 'table',
       setCoordinationViewMode: (mode) => set({ coordinationViewMode: mode }),
       
+      isBudgetSummaryCollapsed: false,
+      toggleBudgetSummary: () => set((state) => ({ isBudgetSummaryCollapsed: !state.isBudgetSummaryCollapsed })),
+      
       setCardOrder: (newOrder) => set({ cardOrder: newOrder }),
       
       toggleCardVisibility: (cardId) => set((state) => ({
@@ -96,6 +102,7 @@ export const useUIStore = create<UIState>()(
         gridColumnVisibility: state.gridColumnVisibility,
         gridColumnOrder: state.gridColumnOrder,
         coordinationViewMode: state.coordinationViewMode,
+        isBudgetSummaryCollapsed: state.isBudgetSummaryCollapsed ?? false,
       }),
     }
   )

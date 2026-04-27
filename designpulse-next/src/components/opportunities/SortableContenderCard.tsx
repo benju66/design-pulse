@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useCallback, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, X, Star, RotateCcw } from 'lucide-react';
@@ -36,6 +37,44 @@ export const SortableContenderCard = ({
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: opt.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
 
+  // Accumulating Debounce Strategy
+  const pendingUpdates = useRef<Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }>>({});
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushUpdates = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (Object.keys(pendingUpdates.current).length === 0) return;
+
+    updateOption.mutate({ 
+      id: opt.id, 
+      updates: pendingUpdates.current 
+    });
+
+    pendingUpdates.current = {};
+  }, [opt.id, updateOption]);
+
+  const queueUpdate = useCallback((newUpdates: Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }>) => {
+    pendingUpdates.current = { ...pendingUpdates.current, ...newUpdates };
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      flushUpdates();
+    }, 500);
+  }, [flushUpdates]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        flushUpdates();
+      }
+    };
+  }, [flushUpdates]);
+
   return (
     <div
       ref={setNodeRef}
@@ -66,7 +105,7 @@ export const SortableContenderCard = ({
             title="Click to edit title"
             disabled={opt.is_locked || isLocked}
             onBlur={(e) => {
-              if (e.target.value !== opt.title) updateOption.mutate({ id: opt.id, updates: { title: e.target.value } });
+              if (e.target.value !== opt.title) queueUpdate({ title: e.target.value });
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.currentTarget.blur();
@@ -81,7 +120,7 @@ export const SortableContenderCard = ({
             onBlur={(e) => {
               const val = e.target.value.trim() || 'Other';
               if (val !== (opt.category || 'Other')) {
-                updateOption.mutate({ id: opt.id, updates: { category: val } });
+                queueUpdate({ category: val });
               }
             }}
             onKeyDown={(e) => {
@@ -96,7 +135,10 @@ export const SortableContenderCard = ({
         </div>
         <div className="flex gap-1 shrink-0 mt-1">
           <button 
-            onClick={() => updateOption.mutate({ id: opt.id, updates: { is_favorite: !opt.is_favorite } })}
+            onClick={() => {
+              flushUpdates();
+              updateOption.mutate({ id: opt.id, updates: { is_favorite: !opt.is_favorite } });
+            }}
             className={`p-1.5 rounded-full transition-colors ${
               opt.is_favorite 
                 ? 'bg-amber-100 text-amber-500 dark:bg-amber-900/30 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50' 
@@ -108,7 +150,10 @@ export const SortableContenderCard = ({
             <Star size={14} fill={opt.is_favorite ? 'currentColor' : 'none'} strokeWidth={opt.is_favorite ? 2 : 2.5} />
           </button>
           <button 
-            onClick={() => deleteOption.mutate(opt.id)}
+            onClick={() => {
+              flushUpdates();
+              deleteOption.mutate(opt.id);
+            }}
             className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-colors p-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Delete Option"
             disabled={opt.is_locked || isLocked}
@@ -124,7 +169,7 @@ export const SortableContenderCard = ({
         defaultValue={opt.description || ''}
         disabled={opt.is_locked || isLocked}
         onBlur={(e) => {
-          if (e.target.value !== opt.description) updateOption.mutate({ id: opt.id, updates: { description: e.target.value } });
+          if (e.target.value !== opt.description) queueUpdate({ description: e.target.value });
         }}
       />
 
@@ -141,8 +186,9 @@ export const SortableContenderCard = ({
               onBlur={(e) => {
                 const qty = Number(e.target.value);
                 if (qty !== Number(opt.quantity)) {
-                  const newCost = qty * (opt.unit_cost || 0);
-                  updateOption.mutate({ id: opt.id, updates: { quantity: qty, cost_impact: newCost } });
+                  const currentUnitCost = pendingUpdates.current.unit_cost ?? opt.unit_cost ?? 0;
+                  const newCost = qty * currentUnitCost;
+                  queueUpdate({ quantity: qty, cost_impact: newCost });
                 }
               }}
               onKeyDown={(e) => {
@@ -153,7 +199,7 @@ export const SortableContenderCard = ({
               className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.uom || 'ls'}
               disabled={opt.is_locked || isLocked}
-              onChange={(e) => updateOption.mutate({ id: opt.id, updates: { uom: e.target.value } })}
+              onChange={(e) => queueUpdate({ uom: e.target.value })}
             >
               <option value="ls">ls</option>
               <option value="ea">ea</option>
@@ -176,8 +222,9 @@ export const SortableContenderCard = ({
               onBlur={(e) => {
                 const uc = Number(e.target.value);
                 if (uc !== Number(opt.unit_cost)) {
-                  const newCost = (opt.quantity ?? 1) * uc;
-                  updateOption.mutate({ id: opt.id, updates: { unit_cost: uc, cost_impact: newCost } });
+                  const currentQuantity = pendingUpdates.current.quantity ?? opt.quantity ?? 1;
+                  const newCost = currentQuantity * uc;
+                  queueUpdate({ unit_cost: uc, cost_impact: newCost });
                 }
               }}
               onKeyDown={(e) => {
@@ -210,7 +257,7 @@ export const SortableContenderCard = ({
               disabled={opt.is_locked || isLocked}
               onBlur={(e) => {
                 const val = Number(e.target.value);
-                if (val !== Number(opt.days_impact)) updateOption.mutate({ id: opt.id, updates: { days_impact: val } });
+                if (val !== Number(opt.days_impact)) queueUpdate({ days_impact: val });
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') e.currentTarget.blur();
@@ -220,7 +267,7 @@ export const SortableContenderCard = ({
               className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.time_impact_uom || 'days'}
               disabled={opt.is_locked || isLocked}
-              onChange={(e) => updateOption.mutate({ id: opt.id, updates: { time_impact_uom: e.target.value } })}
+              onChange={(e) => queueUpdate({ time_impact_uom: e.target.value })}
             >
               <option value="days">days</option>
               <option value="wks">wks</option>
@@ -235,6 +282,7 @@ export const SortableContenderCard = ({
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Target for Forecast</span>
           <button
             onClick={() => {
+              flushUpdates();
               const isIncluded = !opt.include_in_budget;
               toggleOptionBudget.mutate({ optionId: opt.id, isIncluded });
             }}
@@ -261,7 +309,10 @@ export const SortableContenderCard = ({
             </button>
           ) : (
             <button
-              onClick={() => lockOption.mutate(opt.id)}
+              onClick={() => {
+              flushUpdates();
+              lockOption.mutate(opt.id);
+            }}
               disabled={opt.is_locked || isLocked}
               role="switch"
               aria-checked={opt.is_locked || false}

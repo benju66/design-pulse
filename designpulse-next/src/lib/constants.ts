@@ -41,5 +41,7 @@ export const DEFAULT_SIDEBAR_ITEMS = [
   { id: 'dashboard', label: 'VE Matrix', iconName: 'LayoutDashboard', visible: true },
   { id: 'map', label: 'Map View', iconName: 'Map', visible: true },
   { id: 'analytics', label: 'Analytics', iconName: 'PieChart', visible: true },
-  { id: 'coordination', label: 'Coordination Tracker', iconName: 'ListChecks', visible: true }
+  { id: 'coordination', label: 'Coordination Tracker', iconName: 'ListChecks', visible: true },
+  { id: 'dashboard-v2', label: 'Grid V2 (Proto)', iconName: 'LayoutDashboard', visible: true },
+  { id: 'coordination-v2', label: 'Kanban (Proto)', iconName: 'Kanban', visible: true }
 ] as const;

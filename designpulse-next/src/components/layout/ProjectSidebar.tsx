@@ -20,16 +20,11 @@ export const ProjectSidebar = ({ projectId, currentView, setCurrentView }: Proje
   
   const viewItems = (settings?.sidebar_items as unknown as SidebarItem[]) || (DEFAULT_SIDEBAR_ITEMS as unknown as SidebarItem[]);
   
-  // Merge prototype views dynamically
-  const prototypeViews: SidebarItem[] = [
-    { id: 'dashboard-v2', label: 'Grid V2 (Proto)', iconName: 'LayoutDashboard', visible: true },
-    { id: 'coordination-v2', label: 'Kanban (Proto)', iconName: 'Kanban', visible: true }
-  ];
-  
+  // Merge missing default views dynamically (e.g. newly added features)
   const mergedItems = [...viewItems];
-  prototypeViews.forEach(pv => {
-    if (!mergedItems.find(i => i.id === pv.id)) {
-      mergedItems.push(pv);
+  DEFAULT_SIDEBAR_ITEMS.forEach(defaultItem => {
+    if (!mergedItems.find(i => i.id === defaultItem.id)) {
+      mergedItems.push({ ...defaultItem } as SidebarItem);
     }
   });
 

@@ -2,42 +2,59 @@
 import { useMemo } from 'react';
 import { Opportunity } from '@/types/models';
 import { RadialBarChart, RadialBar, Legend, ResponsiveContainer, PolarAngleAxis, Tooltip } from 'recharts';
+import { useDesignCompletionMetrics, useProjectSettings } from '@/hooks/useProjectQueries';
 
 interface Props {
   projectId: string;
   opportunities: Opportunity[];
 }
 
-export default function DesignDashboard({ opportunities }: Props) {
-  // Items in locked workflow phases where design coordination occurs
+// Fallback color palette if project settings lack colors
+const COLOR_PALETTE = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+export default function DesignDashboard({ projectId, opportunities }: Props) {
+  // We still calculate the local lists for the sidebar list UI
   const lockedStatuses = ['Pending Plan Update', 'In Drafting', 'GC / Owner Review', 'Implemented', 'Approved'];
-  const lockedOpps = useMemo(() => opportunities.filter(o => o.status && lockedStatuses.includes(o.status)), [opportunities]);
+  const lockedOpps = useMemo(() => opportunities.filter(o => {
+    if (o.record_type === 'Coordination') return true;
+    if (o.record_type === 'VE' && o.status && lockedStatuses.includes(o.status)) return true;
+    return false;
+  }), [opportunities]);
   const totalLockedItems = lockedOpps.length;
 
-  // Pending Plan Updates List
   const pendingPlanUpdates = useMemo(() => {
     return lockedOpps.filter(o => o.status === 'Pending Plan Update');
   }, [lockedOpps]);
 
-  // Radial Bar Chart: Discipline Completion
+  // Hook into the new RPC Aggregations
+  const { data: metrics, isLoading } = useDesignCompletionMetrics(projectId);
+  const { data: settings } = useProjectSettings(projectId);
+
+  // Dynamic Radial Bar Chart: Discipline Completion
   const disciplineData = useMemo(() => {
-    let archCount = 0;
-    let mepCount = 0;
-    let strCount = 0;
+    if (!metrics) return [];
 
-    lockedOpps.forEach(opp => {
-      const details = opp.coordination_details || {};
-      if (details['d_arch']?.status === 'Complete') archCount++;
-      if (details['d_mech']?.status === 'Complete' || details['d_elec']?.status === 'Complete' || details['d_plumb']?.status === 'Complete') mepCount++;
-      if (details['d_struct']?.status === 'Complete') strCount++;
-    });
+    const rawDisciplines = settings?.disciplines || [];
+    const disciplines = Array.isArray(rawDisciplines) 
+      ? rawDisciplines.map((d: any, i) => 
+          typeof d === 'string' 
+            ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d, color: COLOR_PALETTE[i % COLOR_PALETTE.length] } 
+            : { ...d, color: d.color || COLOR_PALETTE[i % COLOR_PALETTE.length] }
+        )
+      : [];
 
-    return [
-      { name: 'STR Completion', count: strCount, fill: '#f59e0b' },
-      { name: 'MEP Completion', count: mepCount, fill: '#3b82f6' },
-      { name: 'ARCH Completion', count: archCount, fill: '#10b981' }
-    ];
-  }, [lockedOpps]);
+    // Filter RPC response to only 'Complete' status
+    const completeMetrics = metrics.filter((m: any) => m.status === 'Complete');
+
+    return disciplines.map(disc => {
+      const match = completeMetrics.find((m: any) => m.discipline_id === disc.id);
+      return {
+        name: `${disc.label} Completion`,
+        count: match ? Number(match.count) : 0,
+        fill: disc.color
+      };
+    }).filter(d => d.count > 0); // Hide disciplines with 0 tasks to keep the chart clean
+  }, [metrics, settings]);
 
   const CustomRadialTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -56,7 +73,7 @@ export default function DesignDashboard({ opportunities }: Props) {
   const renderLegend = (props: any) => {
     const { payload } = props;
     return (
-      <ul className="flex justify-center gap-4 mt-4">
+      <ul className="flex flex-wrap justify-center gap-4 mt-4">
         {payload.map((entry: any, index: number) => (
           <li key={`item-${index}`} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
             <span className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }}></span>
@@ -75,7 +92,11 @@ export default function DesignDashboard({ opportunities }: Props) {
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-2">Discipline Sign-off Completion</h3>
         <p className="text-xs text-slate-400 mb-4">Total Locked Items: {totalLockedItems}</p>
         
-        {totalLockedItems === 0 ? (
+        {isLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-500"></div>
+          </div>
+        ) : totalLockedItems === 0 ? (
           <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">No locked items found.</div>
         ) : (
           <div className="flex-1 min-h-0 relative">
@@ -90,7 +111,6 @@ export default function DesignDashboard({ opportunities }: Props) {
                 startAngle={90}
                 endAngle={-270}
               >
-                {/* Scaling Trap Fix */}
                 <PolarAngleAxis type="number" domain={[0, totalLockedItems]} angleAxisId={0} tick={false} />
                 <RadialBar
                   background

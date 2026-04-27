@@ -763,3 +763,73 @@ CREATE POLICY "Project Admins can view project audit logs"
 
 -- Enable Realtime for the target tables to broadcast changes over WebSockets
 ALTER PUBLICATION supabase_realtime ADD TABLE opportunities, opportunity_options;
+
+-- ==========================================
+-- ANALYTICS RPCs (Phase 4)
+-- ==========================================
+
+-- 1. Trade Variances
+CREATE OR REPLACE FUNCTION get_project_trade_variances(p_project_id UUID)
+RETURNS TABLE (cost_code text, total_variance numeric)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NOT (public.is_platform_admin() OR public.get_user_project_role(p_project_id) IS NOT NULL) THEN RAISE EXCEPTION 'Unauthorized'; END IF;
+  
+  RETURN QUERY 
+  SELECT COALESCE(o.cost_code, 'Unassigned'), SUM(o.cost_impact) 
+  FROM opportunities o 
+  WHERE o.project_id = p_project_id
+  GROUP BY COALESCE(o.cost_code, 'Unassigned');
+END;
+$$;
+
+-- 2. GC Bottleneck Metrics
+CREATE OR REPLACE FUNCTION get_gc_bottleneck_metrics(p_project_id UUID)
+RETURNS TABLE (assignee text, pending_count bigint)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NOT (public.is_platform_admin() OR public.get_user_project_role(p_project_id) IS NOT NULL) THEN RAISE EXCEPTION 'Unauthorized'; END IF;
+  
+  RETURN QUERY 
+  SELECT COALESCE(o.assignee, 'Unassigned'), COUNT(*) 
+  FROM opportunities o 
+  WHERE o.project_id = p_project_id AND o.status IN ('Draft', 'Pending Review', 'Pending') 
+  GROUP BY COALESCE(o.assignee, 'Unassigned');
+END;
+$$;
+
+-- 3. Owner ROI Metrics (Savings)
+CREATE OR REPLACE FUNCTION get_owner_roi_metrics(p_project_id UUID)
+RETURNS TABLE (scope text, total_savings numeric)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NOT (public.is_platform_admin() OR public.get_user_project_role(p_project_id) IS NOT NULL) THEN RAISE EXCEPTION 'Unauthorized'; END IF;
+  
+  RETURN QUERY 
+  SELECT COALESCE(o.scope, 'General'), ABS(SUM(o.cost_impact)) 
+  FROM opportunities o 
+  WHERE o.project_id = p_project_id 
+    AND o.cost_impact < 0 
+    AND o.status IN ('Approved', 'Pending Plan Update', 'Implemented') 
+  GROUP BY COALESCE(o.scope, 'General');
+END;
+$$;
+
+-- 4. Design Completion Metrics (Dynamic JSONB Parsing)
+CREATE OR REPLACE FUNCTION get_design_completion_metrics(p_project_id UUID)
+RETURNS TABLE (discipline_id text, status text, count bigint)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NOT (public.is_platform_admin() OR public.get_user_project_role(p_project_id) IS NOT NULL) THEN RAISE EXCEPTION 'Unauthorized'; END IF;
+  
+  RETURN QUERY 
+  SELECT key AS discipline_id, value->>'status' AS status, COUNT(*) 
+  FROM opportunities o, jsonb_each(o.coordination_details)
+  WHERE o.project_id = p_project_id 
+    AND (
+      o.record_type = 'Coordination' 
+      OR (o.record_type = 'VE' AND o.status IN ('Pending Plan Update', 'In Drafting', 'GC / Owner Review', 'Implemented', 'Approved'))
+    )
+  GROUP BY key, value->>'status';
+END;
+$$;

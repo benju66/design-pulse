@@ -686,6 +686,11 @@ $$;
 
 
 -- 6. Upgrade RLS Policies to use Dynamic RBAC
+-- Projects
+DROP POLICY IF EXISTS "Admins can update projects" ON projects;
+CREATE POLICY "Admins can update projects" 
+  ON projects FOR UPDATE USING (public.has_project_permission(id, 'can_edit_project_settings'));
+
 -- Project Members
 DROP POLICY IF EXISTS "Admins can insert project members" ON project_members;
 CREATE POLICY "Admins can insert project members" 

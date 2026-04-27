@@ -370,6 +370,7 @@ export function useUpdateOption(opportunityId: string, projectId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
     }
   });
 }
@@ -503,6 +504,7 @@ export function useLockOption(opportunityId: string, projectId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
     },
     onError: (err, _optionId, context) => {
       if (context?.previousOptions) {
@@ -549,6 +551,7 @@ export function useToggleOptionBudget(opportunityId: string, projectId: string) 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
     },
     onError: (err, _variables, context) => {
       if (context?.previousOptions) {

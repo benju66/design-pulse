@@ -12,11 +12,16 @@ const commonComparator = (prevProps: CellContext<Opportunity, unknown>, nextProp
     const prevOptions = prevProps.table.options.meta?.optionsMap?.[prevProps.row.original.id] || [];
     const nextOptions = nextProps.table.options.meta?.optionsMap?.[nextProps.row.original.id] || [];
     
-    // FAST ARRAY CHECK: Check length, then check object references inside
-    if (prevOptions.length !== nextOptions.length) return false;
-    for (let i = 0; i < prevOptions.length; i++) {
-      if (prevOptions[i] !== nextOptions[i]) return false; 
-    }
+    const getHash = (opts: any[]) => {
+      if (!opts || opts.length === 0) return '0-false-0-0';
+      const hasLocked = opts.some(o => o.is_locked);
+      const colId = nextProps.column.id;
+      const min = Math.min(...opts.map(o => Number(o[colId]) || 0));
+      const max = Math.max(...opts.map(o => Number(o[colId]) || 0));
+      return `${opts.length}-${hasLocked}-${min}-${max}`;
+    };
+
+    if (getHash(prevOptions) !== getHash(nextOptions)) return false;
   }
   const prevActive = prevProps.table.options.meta?.activeCell || { rowIndex: null, columnId: null };
   const nextActive = nextProps.table.options.meta?.activeCell || { rowIndex: null, columnId: null };
@@ -293,7 +298,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
       : `${v} days`;
 
     return (
-      <div className="w-full h-full px-2 py-1 text-sm italic text-slate-400 dark:text-slate-500 flex items-center">
+      <div className="w-full h-full px-2 py-1 text-sm min-h-[28px] truncate italic text-slate-400 dark:text-slate-500 cursor-default">
         {min === max ? formatVal(min) : `${formatVal(min)} to ${formatVal(max)}`}
       </div>
     );

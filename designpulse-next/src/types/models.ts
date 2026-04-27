@@ -17,7 +17,9 @@ export type ProjectSettings = Database['public']['Tables']['project_settings']['
   disciplines?: DisciplineConfig[];
   ve_column_order?: string[];
 };
-export type Project = Database['public']['Tables']['projects']['Row'];
+export type Project = Database['public']['Tables']['projects']['Row'] & {
+  project_number?: string | null;
+};
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
 
 // Strictly typing the JSONB columns

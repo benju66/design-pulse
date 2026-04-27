@@ -46,13 +46,6 @@ export const OptionsCell = React.memo(({ row, table }: OptionsCellProps) => {
     </div>
   );
 }, (prevProps, nextProps) => {
-  const prevOptions = prevProps.table.options.meta?.optionsMap?.[prevProps.row.original.id] || [];
-  const nextOptions = nextProps.table.options.meta?.optionsMap?.[nextProps.row.original.id] || [];
-  
-  if (prevOptions.length !== nextOptions.length) return false;
-  for (let i = 0; i < prevOptions.length; i++) {
-    if (prevOptions[i] !== nextOptions[i]) return false;
-  }
-  
+  if (prevProps.row.original !== nextProps.row.original) return false;
   return true;
 });

@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   description text,
+  project_number text UNIQUE,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -280,13 +281,13 @@ CREATE POLICY "Project Admins can view project audit logs"
 
 -- 9. RPCs (Stored Procedures)
 
-CREATE OR REPLACE FUNCTION create_new_project(p_name text, p_description text)
+CREATE OR REPLACE FUNCTION create_new_project(p_name text, p_description text, p_project_number text)
 RETURNS SETOF projects
 LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_project projects%ROWTYPE;
 BEGIN
-  INSERT INTO projects (name, description) VALUES (p_name, p_description) RETURNING * INTO v_project;
+  INSERT INTO projects (name, description, project_number) VALUES (p_name, p_description, p_project_number) RETURNING * INTO v_project;
   INSERT INTO project_members (project_id, user_id, role) VALUES (v_project.id, auth.uid(), 'owner');
   RETURN NEXT v_project;
   RETURN;
@@ -750,3 +751,10 @@ DROP POLICY IF EXISTS "Project Admins can view project audit logs" ON audit_logs
 CREATE POLICY "Project Admins can view project audit logs" 
   ON audit_logs FOR SELECT 
   USING (public.has_project_permission(project_id::uuid, 'can_view_audit_logs'));
+
+-- ==========================================
+-- REALTIME SUBSCRIPTIONS
+-- ==========================================
+
+-- Enable Realtime for the target tables to broadcast changes over WebSockets
+ALTER PUBLICATION supabase_realtime ADD TABLE opportunities, opportunity_options;

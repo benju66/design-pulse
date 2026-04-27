@@ -6,23 +6,11 @@ import { useUIStore } from '@/stores/useUIStore';
 import { CellContext, Row, Column, Table } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
 
-const commonComparator = (prevProps: CellContext<Opportunity, unknown>, nextProps: CellContext<Opportunity, unknown>, checkOptions = false) => {
+const commonComparator = (prevProps: CellContext<Opportunity, unknown>, nextProps: CellContext<Opportunity, unknown>, _checkOptions = false) => {
   if (prevProps.getValue() !== nextProps.getValue()) return false;
-  if (checkOptions) {
-    const prevOptions = prevProps.table.options.meta?.optionsMap?.[prevProps.row.original.id] || [];
-    const nextOptions = nextProps.table.options.meta?.optionsMap?.[nextProps.row.original.id] || [];
-    
-    const getHash = (opts: any[]) => {
-      if (!opts || opts.length === 0) return '0-false-0-0';
-      const hasLocked = opts.some(o => o.is_locked);
-      const colId = nextProps.column.id;
-      const min = Math.min(...opts.map(o => Number(o[colId]) || 0));
-      const max = Math.max(...opts.map(o => Number(o[colId]) || 0));
-      return `${opts.length}-${hasLocked}-${min}-${max}`;
-    };
-
-    if (getHash(prevOptions) !== getHash(nextOptions)) return false;
-  }
+  // Rely on React Query's structural sharing. 
+  // If the row reference changed, the data changed. Re-render instantly!
+  if (prevProps.row.original !== nextProps.row.original) return false;
   const prevActive = prevProps.table.options.meta?.activeCell || { rowIndex: null, columnId: null };
   const nextActive = nextProps.table.options.meta?.activeCell || { rowIndex: null, columnId: null };
   const wasActive = prevActive.rowIndex === prevProps.row.index && prevActive.columnId === prevProps.column.id;

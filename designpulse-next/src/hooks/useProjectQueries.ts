@@ -215,6 +215,29 @@ export function useProjects() {
   });
 }
 
+export function useUpdateProjectCore(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<Project, Error, Partial<Project>>({
+    mutationFn: async (updates) => {
+      const { data, error } = await supabase
+        .from('projects')
+        .update(updates)
+        .eq('id', projectId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as Project;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+    onError: (err) => {
+      console.error('Update Project Core Error:', err);
+      toast.error(`Failed to update project details: ${err.message || 'Unknown error'}`);
+    }
+  });
+}
+
 export function useCreateProject() {
   const queryClient = useQueryClient();
   
@@ -269,9 +292,10 @@ export function useCreateOption(opportunityId: string, projectId: string) {
     { previousOptions: OpportunityOption[] | undefined }
   >({
     mutationFn: async (newOption) => {
+      const realUUID = (newOption as any).id; // ID generated in onMutate
       const { data, error } = await supabase
         .from('opportunity_options')
-        .insert([{ opportunity_id: opportunityId, title: 'New Contender', ...newOption }])
+        .insert([{ opportunity_id: opportunityId, title: 'New Contender', ...newOption, id: realUUID }])
         .select()
         .single();
       if (error) throw error;
@@ -279,11 +303,15 @@ export function useCreateOption(opportunityId: string, projectId: string) {
     },
     onMutate: async (newOption) => {
       await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
       const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
       
+      const realUUID = crypto.randomUUID();
+      (newOption as any).id = realUUID;
+
       queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
         const optimisticOption: OpportunityOption = { 
-          id: `temp-${Date.now()}`, 
+          id: realUUID, 
           opportunity_id: opportunityId, 
           title: 'New Contender', 
           cost_impact: 0,
@@ -300,6 +328,12 @@ export function useCreateOption(opportunityId: string, projectId: string) {
         return [...(old || []), optimisticOption];
       });
 
+      // Optimistically update the parent row cache to force structural sharing change
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp => opp.id === opportunityId ? { ...opp } : opp);
+      });
+
       return { previousOptions };
     },
     onError: (err, _newOption, context) => {
@@ -308,11 +342,9 @@ export function useCreateOption(opportunityId: string, projectId: string) {
       }
       toast.error(`Failed to create option: ${err.message || 'Unknown error'}`);
     },
-    onSuccess: (data) => {
-      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
-        if (!old) return old;
-        return old.map(opt => opt.id.toString().startsWith('temp-') ? data : opt);
-      });
+    onSuccess: () => {
+      // Data is already set accurately by onMutate. 
+      // Supabase Realtime will trigger the invalidation.
     }
   });
 }
@@ -375,13 +407,13 @@ export function useUpdateOption(opportunityId: string, projectId: string) {
   });
 }
 
-export function useDeleteOption(_opportunityId: string, projectId: string) {
+export function useDeleteOption(opportunityId: string, projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<
     string, 
     Error, 
     string, 
-    { previousOptions: OpportunityOption[] | undefined }
+    { previousOptions: OpportunityOption[] | undefined; previousOpportunities: Opportunity[] | undefined }
   >({
     mutationFn: async (id) => {
       const { error } = await supabase
@@ -393,18 +425,29 @@ export function useDeleteOption(_opportunityId: string, projectId: string) {
     },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      
       const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
       
       queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
         if (!old) return old;
         return old.filter(opt => opt.id !== id);
       });
 
-      return { previousOptions };
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp => opp.id === opportunityId ? { ...opp } : opp);
+      });
+
+      return { previousOptions, previousOpportunities };
     },
     onError: (err, _id, context) => {
       if (context?.previousOptions) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
+      }
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
       toast.error(`Failed to delete option: ${err.message || 'Unknown error'}`);
     }
@@ -547,6 +590,11 @@ export function useToggleOptionBudget(opportunityId: string, projectId: string) 
         return old.map(opt => opt.id === optionId ? { ...opt, include_in_budget: isIncluded } : opt);
       });
 
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp => opp.id === opportunityId ? { ...opp } : opp);
+      });
+
       return { previousOptions, previousOpportunities };
     },
     onSuccess: () => {
@@ -659,17 +707,51 @@ export function useCurrentUserPermissions(projectId: string | null) {
 
 export function useUnlockOpportunityOption(projectId: string) {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<
+    void, 
+    Error, 
+    string, 
+    { previousOptions: OpportunityOption[] | undefined; previousOpportunities: Opportunity[] | undefined }
+  >({
     mutationFn: async (oppId: string) => {
       const { error } = await supabase.rpc('unlock_opportunity_option', { p_opp_id: oppId });
       if (error) throw error;
+    },
+    onMutate: async (oppId) => {
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+
+      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+
+      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
+        if (!old) return old;
+        return old.map(opt => opt.opportunity_id === oppId ? { ...opt, is_locked: false } : opt);
+      });
+
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp => 
+          opp.id === oppId 
+            ? { ...opp, status: 'Draft', final_direction: null }
+            : opp
+        );
+      });
+
+      return { previousOptions, previousOpportunities };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
       queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
       toast.success('Option unlocked successfully');
     },
-    onError: (err: any) => {
+    onError: (err, _oppId, context) => {
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
+      }
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
       toast.error(`Failed to unlock option: ${err.message || 'Unknown error'}`);
     }
   });

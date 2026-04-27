@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags, Users, TableProperties } from 'lucide-react';
-import { useProjectSettings, useUpdateProjectSettings, useProjectMembers, useAddProjectMember, useUpdateProjectMemberRole, useRemoveProjectMember } from '@/hooks/useProjectQueries';
+import { useProjects, useUpdateProjectCore, useProjectSettings, useUpdateProjectSettings, useProjectMembers, useAddProjectMember, useUpdateProjectMemberRole, useRemoveProjectMember } from '@/hooks/useProjectQueries';
 import { useSystemUsers } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
@@ -80,6 +80,10 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   const { session } = useAuth();
   const { data: settings, isLoading: settingsLoading } = useProjectSettings(projectId);
   const updateSettings = useUpdateProjectSettings(projectId);
+  
+  const { data: projects } = useProjects();
+  const currentProject = projects?.find(p => p.id === projectId);
+  const updateProjectCore = useUpdateProjectCore(projectId);
 
   const { data: teamMembers, isLoading: teamLoading } = useProjectMembers(projectId);
   const { data: allUsers } = useSystemUsers();
@@ -110,6 +114,8 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
     original_budget: 0,
     enable_audit_logging: false
   });
+  
+  const [projectNumber, setProjectNumber] = useState('');
   
   const [newCat, setNewCat] = useState('');
   const [newScope, setNewScope] = useState('');
@@ -157,9 +163,12 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
         original_budget: Number(settings.original_budget) || 0,
         enable_audit_logging: settings.enable_audit_logging || false
       });
+      if (currentProject) {
+        setProjectNumber(currentProject.project_number || '');
+      }
       setHasChanges(false);
     }
-  }, [settings, projectId]);
+  }, [settings, currentProject, projectId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -253,6 +262,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   };
 
   const handleSave = () => {
+    updateProjectCore.mutate({ project_number: projectNumber || null });
     updateSettings.mutate(
       { 
         categories,
@@ -395,6 +405,22 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
               Basic details about this project. These will be used in exports and dashboard summaries.
             </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6 mb-6">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Number</label>
+              <input 
+                type="text" 
+                value={projectNumber}
+                onChange={e => {
+                  setProjectNumber(e.target.value);
+                  setHasChanges(true);
+                }}
+                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium uppercase"
+                placeholder="e.g. 26-123"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-6">

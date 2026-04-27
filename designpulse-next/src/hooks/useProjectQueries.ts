@@ -543,6 +543,7 @@ export interface ProjectMember {
   user_id: string;
   role: 'owner' | 'gc_admin' | 'design_team' | 'viewer';
   email: string;
+  name: string | null;
 }
 
 export function useProjectMembers(projectId: string) {

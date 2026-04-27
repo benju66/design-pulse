@@ -44,6 +44,7 @@ export function useUploadCostCodesCSV() {
 export interface SystemUser {
   id: string;
   email: string;
+  name: string | null;
   is_platform_admin: boolean;
 }
 

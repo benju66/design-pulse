@@ -47,6 +47,8 @@ When generating, refactoring, or modifying code, you MUST adhere to the followin
 ## B. Backend Separation of Concerns
 * **Next.js API Routes (`/api/...`):** Strictly reserved for Authentication flows (e.g., Supabase native Email/Password Auth, Procore OAuth). Do NOT build general data CRUD endpoints here.
 * **Security & Auth Queries:** The frontend CANNOT directly query the Supabase `auth.users` schema. You must use `SECURITY DEFINER` RPCs (like `get_system_users()`) to securely bridge authentication data into the public schema without leaking sensitive user metadata.
+* **RLS & Junction Table Recursion:** When writing Row Level Security (RLS) policies for junction tables (like `project_members`) that check a user's role within that same table, NEVER query the table directly in the policy (e.g., `EXISTS (SELECT 1 FROM project_members...)`). This triggers infinite recursion and evaluation failures. You MUST create a `SECURITY DEFINER` helper function (like `get_user_project_role()`) to bypass RLS safely and use that function within the policy's `USING` or `WITH CHECK` clauses.
+* **Foreign Keys to Auth:** When referencing `auth.users(id)`, ensure the constraint explicitly points to `auth.users` and that `REFERENCES` permissions are correctly established. RLS applies before foreign key checks, so ensure your RLS policies pass before diagnosing FK constraint errors.
 * **Python FastAPI Backend:** Strictly dedicated to heavy processing tasks (PyMuPDF file conversions, vector extraction via Shapely). Do NOT use this for basic CRUD operations.
 * **Data Fetching:** Standard CRUD operations must be handled directly from the frontend using the `@supabase/supabase-js` client protected by RLS.
 

@@ -176,7 +176,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
                     <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead className="bg-slate-50 dark:bg-slate-950/50 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
                         <tr>
-                          <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">Email</th>
+                          <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">User</th>
                           <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 text-center w-32">Platform Admin</th>
                         </tr>
                       </thead>
@@ -185,9 +185,19 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
                           const isSelf = user.id === session?.user?.id;
                           return (
                           <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                              {user.email} 
-                              {isSelf && <span className="ml-2 text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full">You</span>}
+                            <td className="px-4 py-3">
+                              {user.name ? (
+                                <div className="flex flex-col">
+                                  <div className="text-slate-700 dark:text-slate-300 font-medium">
+                                    {user.name} {isSelf && <span className="ml-2 text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full">You</span>}
+                                  </div>
+                                  <div className="text-xs text-slate-500">{user.email}</div>
+                                </div>
+                              ) : (
+                                <div className="text-slate-700 dark:text-slate-300">
+                                  {user.email} {isSelf && <span className="ml-2 text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full">You</span>}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-center">
                               <button 

@@ -612,7 +612,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
               >
                 <option value="">Select a user...</option>
                 {allUsers?.filter(u => !teamMembers?.find(m => m.user_id === u.id)).map(user => (
-                  <option key={user.id} value={user.id}>{user.email}</option>
+                  <option key={user.id} value={user.id}>{user.name ? `${user.name} (${user.email})` : user.email}</option>
                 ))}
               </select>
             </div>
@@ -647,7 +647,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-slate-50 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">Email</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">User</th>
                   <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 w-48">Role</th>
                   <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 w-24 text-right">Actions</th>
                 </tr>
@@ -657,7 +657,20 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
                   const isSelf = member.user_id === session?.user?.id;
                   return (
                     <tr key={member.user_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{member.email} {isSelf && <span className="ml-2 text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full">You</span>}</td>
+                      <td className="px-4 py-3">
+                        {member.name ? (
+                          <div className="flex flex-col">
+                            <div className="text-slate-700 dark:text-slate-300 font-medium">
+                              {member.name} {isSelf && <span className="ml-2 text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full">You</span>}
+                            </div>
+                            <div className="text-xs text-slate-500">{member.email}</div>
+                          </div>
+                        ) : (
+                          <div className="text-slate-700 dark:text-slate-300">
+                            {member.email} {isSelf && <span className="ml-2 text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full">You</span>}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <select 
                           value={member.role}

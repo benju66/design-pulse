@@ -10,7 +10,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSo
 import { CSS } from '@dnd-kit/utilities';
 import * as LucideIcons from 'lucide-react';
 import { SidebarItem, DisciplineConfig } from '@/types/models';
-import { DEFAULT_SIDEBAR_ITEMS } from '@/lib/constants';
+import { DEFAULT_SIDEBAR_ITEMS, DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface SortableItemProps {
   id: string;
@@ -141,7 +141,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
       setDisciplines(
         Array.isArray(rawDisciplines) 
           ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
-          : []
+          : [...DEFAULT_DISCIPLINES]
       );
       
       const savedOrder = settings.ve_column_order || [];

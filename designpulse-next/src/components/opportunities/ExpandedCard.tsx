@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
-import { useUpdateOpportunity, useProjectSettings, useDeleteOpportunity } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useProjectSettings, useDeleteOpportunity, useProjectMembers } from '@/hooks/useProjectQueries';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { List, Paperclip, MessageSquare, Settings, ChevronDown } from 'lucide-react';
@@ -10,6 +10,7 @@ import { ALL_PRIMARY_FIELDS, ADVANCED_FIELD_IDS } from '@/lib/constants';
 
 import { ContendersMatrix } from './ContendersMatrix';
 import { SortableFieldCard } from './SortableFieldCard';
+import { AssigneeSelect } from './AssigneeSelect';
 import { Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
 
@@ -23,6 +24,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const updateData = useUpdateOpportunity(projectId);
   const deleteData = useDeleteOpportunity(projectId);
   const { data: settings } = useProjectSettings(projectId);
+  const { data: members = [] } = useProjectMembers(projectId);
   const scopes = (settings?.scopes as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
   const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
@@ -104,6 +106,18 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
           }}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLElement).blur()}
         />
+      );
+    } else if (field.id === 'assignee') {
+      return (
+        <div className="relative w-full">
+          <AssigneeSelect
+            value={val || ''}
+            members={members}
+            onChange={(newValue) => {
+              updateData.mutate({ id: row.original.id, updates: { assignee: newValue } });
+            }}
+          />
+        </div>
       );
     } else {
       return (

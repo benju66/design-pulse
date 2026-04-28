@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, ScopeCell, ImpactCell, PriorityCell, CostCodeCell, DivisionCell, DisplayIdCell } from './EditableCell';
+import { TextCell, StatusCell, ScopeCell, ImpactCell, PriorityCell, CostCodeCell, DivisionCell, DisplayIdCell, AssigneeCell } from './EditableCell';
 import { OptionsCell } from './OptionsCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
@@ -87,7 +87,7 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       { accessorKey: 'status', header: 'Status', cell: StatusCell },
       { accessorKey: 'scope', header: 'Scope', cell: ScopeCell },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
-      { accessorKey: 'assignee', header: 'Assignee', cell: TextCell },
+      { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
       // { accessorKey: 'location', header: 'Location', cell: TextCell },
       // { accessorKey: 'arch_plans_spec', header: 'Arch Plans/Spec', cell: TextCell },
@@ -129,7 +129,7 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       { accessorKey: 'status', header: 'Status', cell: StatusCell },
       { accessorKey: 'scope', header: 'Scope', cell: ScopeCell },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
-      { accessorKey: 'assignee', header: 'Assignee', cell: TextCell },
+      { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
       // { accessorKey: 'location', header: 'Location', cell: TextCell },
       // { accessorKey: 'arch_plans_spec', header: 'Arch Plans/Spec', cell: TextCell },

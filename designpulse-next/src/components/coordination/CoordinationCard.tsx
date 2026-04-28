@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Opportunity, DisciplineConfig } from '@/types/models';
-import { useUpdateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useProjectSettings, useProjectMembers } from '@/hooks/useProjectQueries';
 import { CheckCircle2, Circle } from 'lucide-react';
+import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface CoordinationCardProps {
   opportunity: Opportunity;
@@ -17,6 +18,7 @@ export const CoordinationCard = ({ opportunity, projectId }: CoordinationCardPro
   
   const updateMutation = useUpdateOpportunity(projectId);
   const { data: settings } = useProjectSettings(projectId);
+  const { data: members = [] } = useProjectMembers(projectId);
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
@@ -33,18 +35,10 @@ export const CoordinationCard = ({ opportunity, projectId }: CoordinationCardPro
 
   const dueColor = isDueSoon() ? 'text-rose-500' : 'text-slate-500 dark:text-slate-400';
 
-  const defaultDisciplines: DisciplineConfig[] = [
-    { id: 'd_arch', label: 'Arch' },
-    { id: 'd_civil', label: 'Civil' },
-    { id: 'd_struct', label: 'Struct' },
-    { id: 'd_mech', label: 'Mech' },
-    { id: 'd_elec', label: 'Elec' },
-    { id: 'd_plumb', label: 'Plumb' }
-  ];
   const rawDisciplines = settings?.disciplines;
   const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
     ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
-    : defaultDisciplines;
+    : DEFAULT_DISCIPLINES;
   const [localDetails, setLocalDetails] = useState<Record<string, any>>(opportunity.coordination_details as Record<string, any> || {});
   const pendingDetailsRef = useRef<Record<string, any>>({});
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -188,11 +182,39 @@ export const CoordinationCard = ({ opportunity, projectId }: CoordinationCardPro
             </div>
           )}
         </div>
-        {opportunity.assignee && (
-          <div className="ml-2 w-6 h-6 rounded-full bg-sky-100 dark:bg-sky-900/50 flex items-center justify-center text-[10px] font-bold text-sky-700 dark:text-sky-400 shrink-0" title={opportunity.assignee}>
-            {opportunity.assignee.substring(0, 2).toUpperCase()}
-          </div>
-        )}
+        {opportunity.assignee && (() => {
+          const emails = opportunity.assignee.split(',').map(e => e.trim()).filter(Boolean);
+          const assignedMembers = emails.map(email => {
+            const matched = members.find((m: any) => m.email === email || m.name === email);
+            return {
+              email: matched?.email || email,
+              displayName: matched ? (matched.name || matched.email) : email
+            };
+          });
+
+          if (assignedMembers.length === 0) return null;
+
+          return (
+            <div className="flex items-center -space-x-2 ml-2">
+              {assignedMembers.slice(0, 3).map((m, i) => (
+                <div key={i} className="group relative w-6 h-6 rounded-full bg-sky-100 dark:bg-sky-900/50 flex items-center justify-center text-[10px] font-bold text-sky-700 dark:text-sky-400 shrink-0 cursor-pointer shadow-sm border border-white dark:border-slate-800">
+                  {m.displayName.substring(0, 2).toUpperCase()}
+                  {!isDragging && (
+                    <div className="absolute bottom-full mb-1 right-0 hidden group-hover:block z-[60] bg-slate-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap shadow-xl">
+                      <div className="font-bold">{m.displayName}</div>
+                      {m.email && m.email !== m.displayName && <div className="text-slate-400 text-[10px]">{m.email}</div>}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {assignedMembers.length > 3 && (
+                <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-700 dark:text-slate-400 shrink-0 cursor-pointer shadow-sm border border-white dark:border-slate-800">
+                  +{assignedMembers.length - 3}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

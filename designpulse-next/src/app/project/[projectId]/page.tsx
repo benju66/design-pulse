@@ -12,6 +12,7 @@ import CoordinationTable from '@/components/coordination/CoordinationTable';
 import { CoordinationDetailPanel } from '@/components/coordination/CoordinationDetailPanel';
 import { CoordinationSummary } from '@/components/coordination/CoordinationSummary';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
+import MyDeskDashboard from '@/components/mydesk/MyDeskDashboard';
 import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
@@ -158,6 +159,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             {currentView === 'map' && 'Map View'}
             {currentView === 'analytics' && 'Project Analytics'}
             {currentView === 'coordination' && 'Design Coordination Tracker'}
+            {currentView === 'my-desk' && 'My Desk'}
             {currentView === 'settings' && 'Project Settings'}
           </h2>
           <div className="flex gap-3 items-center">
@@ -385,6 +387,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
           {currentView === 'analytics' && (
             <AnalyticsDashboard projectId={projectId} opportunities={filteredOpportunities} />
+          )}
+
+          {currentView === 'my-desk' && (
+            <MyDeskDashboard projectId={projectId} opportunities={opportunities} />
           )}
 
           {currentView === 'coordination' && (

@@ -3,6 +3,7 @@ import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, C
 import { useUIStore } from '@/stores/useUIStore';
 import { Opportunity, DisciplineConfig, DisciplineDetails } from '@/types/models';
 import { useUpdateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
+import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface CoordinationDetailPanelProps {
   projectId: string;
@@ -19,18 +20,10 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
   const updateMutation = useUpdateOpportunity(projectId);
   const { data: settings } = useProjectSettings(projectId);
   
-  const defaultDisciplines: DisciplineConfig[] = [
-    { id: 'd_arch', label: 'Arch' },
-    { id: 'd_civil', label: 'Civil' },
-    { id: 'd_struct', label: 'Struct' },
-    { id: 'd_mech', label: 'Mech' },
-    { id: 'd_elec', label: 'Elec' },
-    { id: 'd_plumb', label: 'Plumb' }
-  ];
   const rawDisciplines = settings?.disciplines;
   const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
     ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
-    : defaultDisciplines;
+    : DEFAULT_DISCIPLINES;
   const [localDetails, setLocalDetails] = useState<Record<string, any>>(opportunity.coordination_details as Record<string, any> || {});
   const pendingDetailsRef = useRef<Record<string, any>>({});
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);

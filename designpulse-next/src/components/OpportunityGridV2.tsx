@@ -16,7 +16,7 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions, useProjectSettings } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
 
@@ -31,9 +31,11 @@ interface OpportunityGridProps {
   data: Opportunity[];
   viewMode?: string;
   onOpenCompare?: () => void;
+  isolateState?: boolean;
+  hideGhostRow?: boolean;
 }
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
@@ -67,22 +69,28 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const [globalFilter, setGlobalFilter] = useState<string>('');
   const [grouping, setGrouping] = useState<GroupingState>(['division']);
   
-  const columnVisibility = useUIStore(state => state.gridColumnVisibility) as VisibilityState;
-  const setColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
+  const globalColumnVisibility = useUIStore(state => state.gridColumnVisibility) as VisibilityState;
+  const setGlobalColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
+  
+  const [localColumnVisibility, setLocalColumnVisibility] = useState<VisibilityState>({});
+  
+  const columnVisibility = isolateState ? localColumnVisibility : globalColumnVisibility;
+  const setColumnVisibility = isolateState ? setLocalColumnVisibility : setGlobalColumnVisibility as any;
   
   const columns = useOpportunityColumnsV2(viewMode);
   const { data: settings } = useProjectSettings(projectId);
+  const { data: projectMembers = [] } = useProjectMembers(projectId);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
 
   useEffect(() => {
-    if (settings?.ve_column_order && settings.ve_column_order.length > 0) {
+    if (!isolateState && settings?.ve_column_order && settings.ve_column_order.length > 0) {
       // Find the pinned columns that are not configurable and put them first
       const allColIds = columns.map(c => (c as any).accessorKey || c.id).filter(Boolean);
       const configuredIds = settings.ve_column_order;
       const pinnedIds = allColIds.filter(id => !configuredIds.includes(id as string));
       setColumnOrder([...pinnedIds, ...configuredIds] as string[]);
     }
-  }, [settings?.ve_column_order, columns]);
+  }, [settings?.ve_column_order, columns, isolateState]);
 
   const table = useReactTable<Opportunity>({
     data,
@@ -107,6 +115,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
       activeCell,
       setActiveCell,
       rawCostCodes,
+      projectMembers,
     },
   });
 
@@ -283,16 +292,18 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
             <tbody>
               <tr>
                 <td colSpan={15} className="px-4 py-8 text-center text-slate-500">
-                  No VE or Alternates logged yet. Start typing below to add one!
+                  {hideGhostRow ? "No tasks assigned to you right now." : "No VE or Alternates logged yet. Start typing below to add one!"}
                 </td>
               </tr>
             </tbody>
           )}
 
           {/* Ghost Row for Quick Add */}
-          <tbody>
-            <GhostRow table={table as any} createMutation={createMutation as any} />
-          </tbody>
+          {!hideGhostRow && (
+            <tbody>
+              <GhostRow table={table as any} createMutation={createMutation as any} />
+            </tbody>
+          )}
         </table>
 
       {compareQueue.length > 0 && onOpenCompare && (

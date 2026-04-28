@@ -1,13 +1,13 @@
 "use client";
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Building2, Plus, ArrowRight, Settings, LogOut, X } from 'lucide-react';
+import { Building2, Plus, ArrowRight, Settings, X } from 'lucide-react';
 import { useProjects } from '@/hooks/useProjectQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import GlobalSettingsModal from '@/components/dashboard/GlobalSettingsModal';
 import CreateProjectModal from '@/components/dashboard/CreateProjectModal';
-import { supabase } from '@/supabaseClient';
+import UserAccountDropdown from '@/components/layout/UserAccountDropdown';
 
 export default function DashboardPage() {
   const { data: projects = [], isLoading } = useProjects();
@@ -41,16 +41,9 @@ export default function DashboardPage() {
         <div className="flex items-center gap-4 h-11">
           <ThemeToggle />
           
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              window.location.href = '/login';
-            }}
-            className="flex items-center justify-center bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-900/30 text-slate-500 hover:text-rose-500 w-10 h-10 rounded-xl transition-colors shadow-sm"
-            title="Log out"
-          >
-            <LogOut size={18} />
-          </button>
+          <div className="w-48">
+            <UserAccountDropdown isCollapsed={false} />
+          </div>
 
           {isAuthLoading ? (
             <>

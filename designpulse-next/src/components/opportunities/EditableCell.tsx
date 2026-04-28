@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
 import { CellContext, Row, Column, Table } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
+import { AssigneeSelect } from './AssigneeSelect';
 
 const commonComparator = (prevProps: CellContext<Opportunity, unknown>, nextProps: CellContext<Opportunity, unknown>, _checkOptions = false) => {
   if (prevProps.getValue() !== nextProps.getValue()) return false;
@@ -500,6 +501,78 @@ export const DisplayIdCell = React.memo(({ getValue, row, column, table }: CellC
       className="text-slate-600 dark:text-slate-400 font-mono text-sm cursor-default"
       displayValue={displayValue}
       inputElement={() => null}
+    />
+  );
+}, (prev, next) => commonComparator(prev, next, false));
+
+export const AssigneeCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
+  const initialValue = getValue() as string | null | undefined;
+  const updateMutation = table.options.meta?.updateData;
+  const projectMembers = (table.options.meta as any)?.projectMembers || [];
+  
+  const activeCell = table.options.meta?.activeCell || { rowIndex: null, columnId: null };
+  const setActiveCell = table.options.meta?.setActiveCell || (() => {});
+  const isActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
+  const selectRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (isActive && selectRef.current) {
+      selectRef.current.focus();
+    }
+  }, [isActive]);
+
+  const emails = initialValue ? initialValue.split(',').map(e => e.trim()).filter(Boolean) : [];
+  const assignedMembers = emails.map(email => {
+    const matched = projectMembers.find((m: any) => m.email === email || m.name === email);
+    return {
+      email: matched?.email || email,
+      displayName: matched ? (matched.name || matched.email) : email
+    };
+  });
+
+  const displayElement = assignedMembers.length > 0 ? (
+    <div 
+      className="flex items-center w-full h-full cursor-pointer overflow-hidden gap-1" 
+      title={assignedMembers.map(m => `${m.displayName}${m.email && m.email !== m.displayName ? `\n${m.email}` : ''}`).join('\n\n')}
+    >
+      {assignedMembers.slice(0, 3).map((m, i) => (
+        <div key={i} className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400 flex items-center justify-center text-[10px] font-bold shrink-0 shadow-sm border border-white dark:border-slate-800 -ml-2 first:ml-0">
+          {m.displayName.substring(0, 2).toUpperCase()}
+        </div>
+      ))}
+      {assignedMembers.length > 3 && (
+        <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 flex items-center justify-center text-[10px] font-bold shrink-0 shadow-sm border border-white dark:border-slate-800 -ml-2">
+          +{assignedMembers.length - 3}
+        </div>
+      )}
+    </div>
+  ) : (
+    <div className="w-full h-full flex items-center text-slate-300 dark:text-slate-600">
+      --
+    </div>
+  );
+
+  return (
+    <CellWrapper
+      row={row}
+      column={column}
+      table={table}
+      displayValue={displayElement}
+      inputElement={(_isActive, setGridMode) => (
+        <div className="w-full h-full flex items-center px-1 bg-white dark:bg-slate-900" onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}>
+          <AssigneeSelect
+            value={initialValue || ''}
+            members={projectMembers}
+            autoFocus={true}
+            onChange={(newValue) => {
+              if (updateMutation) {
+                updateMutation.mutate({ id: row.original.id, updates: { [column.id]: newValue } });
+              }
+            }}
+            onClose={() => setGridMode('navigate')}
+          />
+        </div>
+      )}
     />
   );
 }, (prev, next) => commonComparator(prev, next, false));

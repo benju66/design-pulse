@@ -9,5 +9,6 @@ declare module '@tanstack/react-table' {
     activeCell: { rowIndex: number | null; columnId: string | null };
     setActiveCell: (cell: { rowIndex: number | null; columnId: string | null }) => void;
     rawCostCodes?: CostCode[];
+    projectMembers?: any[];
   }
 }

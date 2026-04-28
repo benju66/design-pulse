@@ -295,8 +295,8 @@ DROP FUNCTION IF EXISTS create_new_project(text, text, text);
 
 CREATE OR REPLACE FUNCTION create_new_project(
   p_name text, 
-  p_description text, 
-  p_project_number text,
+  p_description text DEFAULT NULL, 
+  p_project_number text DEFAULT NULL,
   p_procore_project_id text DEFAULT NULL,
   p_procore_company_id text DEFAULT NULL
 )

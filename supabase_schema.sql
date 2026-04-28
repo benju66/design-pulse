@@ -13,9 +13,16 @@ CREATE TABLE IF NOT EXISTS projects (
   name text NOT NULL,
   description text,
   project_number text UNIQUE,
+  procore_project_id text UNIQUE,
+  procore_company_id text,
   is_archived boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Safely add columns if the table already exists
+ALTER TABLE projects 
+ADD COLUMN IF NOT EXISTS procore_project_id text UNIQUE,
+ADD COLUMN IF NOT EXISTS procore_company_id text;
 
 -- 1.5 Platform Admins Table
 CREATE TABLE IF NOT EXISTS platform_admins (
@@ -284,14 +291,27 @@ CREATE POLICY "Project Admins can view project audit logs"
 
 -- 9. RPCs (Stored Procedures)
 
-CREATE OR REPLACE FUNCTION create_new_project(p_name text, p_description text, p_project_number text)
+DROP FUNCTION IF EXISTS create_new_project(text, text, text);
+
+CREATE OR REPLACE FUNCTION create_new_project(
+  p_name text, 
+  p_description text, 
+  p_project_number text,
+  p_procore_project_id text DEFAULT NULL,
+  p_procore_company_id text DEFAULT NULL
+)
 RETURNS SETOF projects
 LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_project projects%ROWTYPE;
 BEGIN
-  INSERT INTO projects (name, description, project_number) VALUES (p_name, p_description, p_project_number) RETURNING * INTO v_project;
-  INSERT INTO project_members (project_id, user_id, role) VALUES (v_project.id, auth.uid(), 'owner');
+  INSERT INTO projects (name, description, project_number, procore_project_id, procore_company_id) 
+  VALUES (p_name, p_description, p_project_number, p_procore_project_id, p_procore_company_id) 
+  RETURNING * INTO v_project;
+  
+  INSERT INTO project_members (project_id, user_id, role) 
+  VALUES (v_project.id, auth.uid(), 'owner');
+  
   RETURN NEXT v_project;
   RETURN;
 END;

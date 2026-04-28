@@ -116,6 +116,8 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   });
   
   const [projectNumber, setProjectNumber] = useState('');
+  const [procoreProjectId, setProcoreProjectId] = useState('');
+  const [procoreCompanyId, setProcoreCompanyId] = useState('');
   
   const [newCat, setNewCat] = useState('');
   const [newScope, setNewScope] = useState('');
@@ -165,6 +167,8 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
       });
       if (currentProject) {
         setProjectNumber(currentProject.project_number || '');
+        setProcoreProjectId(currentProject.procore_project_id || '');
+        setProcoreCompanyId(currentProject.procore_company_id || '');
       }
       setHasChanges(false);
     }
@@ -262,7 +266,11 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   };
 
   const handleSave = () => {
-    updateProjectCore.mutate({ project_number: projectNumber || null });
+    updateProjectCore.mutate({ 
+      project_number: projectNumber || null,
+      procore_project_id: procoreProjectId.trim() || null,
+      procore_company_id: procoreCompanyId.trim() || null
+    });
     updateSettings.mutate(
       { 
         categories,
@@ -407,7 +415,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-3 gap-6 mb-6">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Number</label>
               <input 
@@ -419,6 +427,34 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
                 }}
                 className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium uppercase"
                 placeholder="e.g. 26-123"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Procore Project ID</label>
+              <input 
+                type="text" 
+                value={procoreProjectId}
+                onChange={e => {
+                  setProcoreProjectId(e.target.value);
+                  setHasChanges(true);
+                }}
+                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
+                placeholder="e.g. 1234567"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Procore Company ID</label>
+              <input 
+                type="text" 
+                value={procoreCompanyId}
+                onChange={e => {
+                  setProcoreCompanyId(e.target.value);
+                  setHasChanges(true);
+                }}
+                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
+                placeholder="e.g. 890123"
               />
             </div>
           </div>

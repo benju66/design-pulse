@@ -247,7 +247,9 @@ export function useCreateProject() {
         .rpc('create_new_project', { 
           p_name: newProject.name, 
           p_description: newProject.description,
-          p_project_number: newProject.project_number || null
+          p_project_number: newProject.project_number || null,
+          p_procore_project_id: newProject.procore_project_id || null,
+          p_procore_company_id: newProject.procore_company_id || null
         })
         .single();
         

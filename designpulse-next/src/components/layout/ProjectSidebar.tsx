@@ -1,12 +1,13 @@
 "use client";
 import { useState } from 'react';
 import * as LucideIcons from 'lucide-react';
-import { Settings, ChevronLeft, ChevronRight, Home } from 'lucide-react';
+import { Settings, ChevronLeft, ChevronRight, Home, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useProjectSettings } from '@/hooks/useProjectQueries';
 import { DEFAULT_SIDEBAR_ITEMS } from '@/lib/constants';
 import { SidebarItem } from '@/types/models';
+import { supabase } from '@/supabaseClient';
 
 interface ProjectSidebarProps {
   projectId: string;
@@ -115,9 +116,25 @@ export const ProjectSidebar = ({ projectId, currentView, setCurrentView }: Proje
         </button>
       </div>
 
-      <div className={`p-4 border-t border-slate-800 mt-auto flex items-center bg-slate-950/30 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-        {!isCollapsed && <span className="text-xs font-medium text-slate-400">Theme Preference</span>}
-        <ThemeToggle />
+      <div className={`p-4 border-t border-slate-800 mt-auto flex flex-col gap-4 bg-slate-950/30`}>
+        <button
+          onClick={async () => {
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+          }}
+          title={isCollapsed ? 'Log out' : undefined}
+          className={`flex items-center rounded-lg font-medium transition-all ${
+            isCollapsed ? 'p-2 justify-center' : 'gap-3 px-3 py-2 text-sm'
+          } hover:bg-rose-500/10 hover:text-rose-400 text-slate-400`}
+        >
+          <LogOut size={18} className="shrink-0" />
+          {!isCollapsed && <span>Log out</span>}
+        </button>
+
+        <div className={`flex items-center border-t border-slate-800/50 pt-4 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+          {!isCollapsed && <span className="text-xs font-medium text-slate-400">Theme Preference</span>}
+          <ThemeToggle />
+        </div>
       </div>
     </div>
   );

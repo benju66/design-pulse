@@ -5,9 +5,11 @@ import { X } from 'lucide-react';
 interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
+  procoreProjectId?: string;
+  procoreCompanyId?: string;
 }
 
-export default function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps) {
+export default function CreateProjectModal({ isOpen, onClose, procoreProjectId, procoreCompanyId }: CreateProjectModalProps) {
   const createProject = useCreateProject();
   const [newProjectData, setNewProjectData] = useState({
     name: '',
@@ -24,7 +26,9 @@ export default function CreateProjectModal({ isOpen, onClose }: CreateProjectMod
     createProject.mutate({
       name: newProjectData.name.trim(),
       description: newProjectData.description.trim() || undefined,
-      project_number: newProjectData.project_number.trim() || null
+      project_number: newProjectData.project_number.trim() || null,
+      procore_project_id: procoreProjectId || null,
+      procore_company_id: procoreCompanyId || null
     }, {
       onSuccess: () => {
         setNewProjectData({ name: '', description: '', project_number: '' });
@@ -43,6 +47,14 @@ export default function CreateProjectModal({ isOpen, onClose }: CreateProjectMod
             <X size={24} />
           </button>
         </div>
+
+        {procoreProjectId && (
+          <div className="px-6 pt-4">
+            <div className="bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 px-4 py-3 rounded-xl text-sm font-medium border border-sky-200 dark:border-sky-800">
+              🔗 This project will be linked to Procore Project ID: <strong>{procoreProjectId}</strong>
+            </div>
+          </div>
+        )}
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="space-y-2">

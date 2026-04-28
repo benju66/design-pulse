@@ -80,7 +80,8 @@ const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: Cel
   const initialValue = getValue() as string;
   const [value, setValue] = useState(initialValue);
   const updateData = (table.options.meta as any)?.updateData;
-  const { activeCell, setActiveCell } = (table.options.meta as any) || {};
+  const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
 
   useEffect(() => {
     setValue(initialValue);
@@ -90,14 +91,12 @@ const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: Cel
     if (value !== initialValue && updateData) {
       updateData.mutate({ id: row.original.id, updates: { [column.id]: value } });
     }
-    if (activeCell?.rowIndex === row.index && activeCell?.columnId === column.id) {
-      setActiveCell({ rowIndex: null, columnId: null });
+    if (isCellActive) {
+      setActiveCell(null);
     }
   };
 
-  const isActive = activeCell?.rowIndex === row.index && activeCell?.columnId === column.id;
-
-  if (isActive) {
+  if (isCellActive) {
     return (
       <div className="w-full h-full p-0 flex">
         <select
@@ -124,7 +123,7 @@ const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: Cel
   return (
     <div 
       className="w-full h-full px-2 py-1.5 flex items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80 group"
-      onClick={() => setActiveCell?.({ rowIndex: row.index, columnId: column.id })}
+      onClick={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
     >
       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorClass} group-hover:ring-1 group-hover:ring-slate-300 dark:group-hover:ring-slate-600`}>
         {value || 'Draft'}
@@ -186,7 +185,6 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
-  const [activeCell, setActiveCell] = useState<{ rowIndex: number | null, columnId: string | null }>({ rowIndex: null, columnId: null });
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
@@ -306,8 +304,6 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
     getRowId: (row) => row.id,
     meta: {
       updateData: updateMutation,
-      activeCell,
-      setActiveCell,
       projectId,
     } as any
   });

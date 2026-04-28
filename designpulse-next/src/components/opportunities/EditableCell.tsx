@@ -9,14 +9,7 @@ import { AssigneeSelect } from './AssigneeSelect';
 
 const commonComparator = (prevProps: CellContext<Opportunity, unknown>, nextProps: CellContext<Opportunity, unknown>, _checkOptions = false) => {
   if (prevProps.getValue() !== nextProps.getValue()) return false;
-  // Rely on React Query's structural sharing. 
-  // If the row reference changed, the data changed. Re-render instantly!
   if (prevProps.row.original !== nextProps.row.original) return false;
-  const prevActive = prevProps.table.options.meta?.activeCell || { rowIndex: null, columnId: null };
-  const nextActive = nextProps.table.options.meta?.activeCell || { rowIndex: null, columnId: null };
-  const wasActive = prevActive.rowIndex === prevProps.row.index && prevActive.columnId === prevProps.column.id;
-  const isNowActive = nextActive.rowIndex === nextProps.row.index && nextActive.columnId === nextProps.column.id;
-  if (wasActive !== isNowActive) return false;
   return true;
 };
 
@@ -31,9 +24,8 @@ interface CellWrapperProps {
 }
 
 export const CellWrapper = ({ row, column, displayValue, inputElement, className, table, disabled }: CellWrapperProps) => {
-  const activeCell = table?.options?.meta?.activeCell || { rowIndex: null, columnId: null };
-  const setActiveCell = table?.options?.meta?.setActiveCell || (() => {});
-  const isCellActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
+  const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
   const gridMode = useUIStore(state => state.gridMode);
   const setGridMode = useUIStore(state => state.setGridMode);
   const isEditing = isCellActive && gridMode === 'edit' && !disabled;
@@ -72,7 +64,7 @@ export const CellWrapper = ({ row, column, displayValue, inputElement, className
       onDoubleClick={() => {
         if (!disabled) setGridMode('edit');
       }}
-      className={`w-full h-full px-2 py-1 text-sm min-h-[28px] outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 truncate cursor-text ${className || 'text-slate-900 dark:text-slate-100'}`}
+      className={`w-full h-full px-2 py-1 text-sm min-h-[28px] outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 truncate cursor-text ${className || 'text-slate-900 dark:text-slate-100'} ${isCellActive && !isEditing ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20' : ''}`}
     >
       {displayValue}
     </div>
@@ -89,21 +81,38 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
   const disabled = (column.id === 'title' && isLocked) || !permissions.can_edit_records;
 
+  const isSubmitting = useRef(false);
+
   useEffect(() => {
     setValue(initialValue);
   }, [initialValue]);
 
   const onBlur = () => {
+    if (isSubmitting.current) return;
     if (value !== initialValue && updateMutation) {
-      updateMutation.mutate({ id: row.original.id, updates: { [column.id]: value } });
+      isSubmitting.current = true;
+      updateMutation.mutate({ id: row.original.id, updates: { [column.id]: value } }, {
+        onSettled: () => { isSubmitting.current = false; }
+      });
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: string) => void) => {
-    if (e.key === 'Enter' || e.key === 'Escape') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: 'navigate' | 'edit') => void) => {
+    const moveActiveCell = (table.options.meta as any)?.moveActiveCell;
+    if (e.key === 'Enter') {
       e.preventDefault();
-      setGridMode('navigate');
       onBlur();
+      setGridMode('navigate');
+      if (moveActiveCell) moveActiveCell('down');
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      onBlur();
+      setGridMode('navigate');
+      if (moveActiveCell) moveActiveCell(e.shiftKey ? 'left' : 'right');
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setValue(initialValue);
+      setGridMode('navigate');
     }
   };
 
@@ -133,17 +142,17 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
 export const StatusCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const initialValue = getValue() as string;
   const updateMutation = table.options.meta?.updateData;
-  const activeCell = table.options.meta?.activeCell || { rowIndex: null, columnId: null };
-  const setActiveCell = table.options.meta?.setActiveCell || (() => {});
+  const setGridMode = useUIStore(state => state.setGridMode);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
-  const isActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const selectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
-    if (isActive && selectRef.current) {
+    if (isCellActive && selectRef.current) {
       selectRef.current.focus();
     }
-  }, [isActive]);
+  }, [isCellActive]);
 
   return (
     <select
@@ -155,8 +164,9 @@ export const StatusCell = React.memo(({ getValue, row, column, table }: CellCont
         if (updateMutation) {
           updateMutation.mutate({ id: row.original.id, updates: { status: e.target.value } });
         }
+        setGridMode('navigate');
       }}
-      className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm font-medium cursor-pointer text-slate-900 dark:text-slate-100"
+      className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm font-medium cursor-pointer text-slate-900 dark:text-slate-100 ${isCellActive ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20' : ''}`}
     >
       <option value="Draft">Draft</option>
       <option value="Pending Review">Pending Review</option>
@@ -173,17 +183,17 @@ export const BuildingAreaCell = React.memo(({ getValue, row, column, table }: Ce
   const initialValue = getValue() as string | null | undefined;
   const updateMutation = table.options.meta?.updateData;
   const buildingAreas = (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
-  const activeCell = table.options.meta?.activeCell || { rowIndex: null, columnId: null };
-  const setActiveCell = table.options.meta?.setActiveCell || (() => {});
+  const setGridMode = useUIStore(state => state.setGridMode);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
-  const isActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const selectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
-    if (isActive && selectRef.current) {
+    if (isCellActive && selectRef.current) {
       selectRef.current.focus();
     }
-  }, [isActive]);
+  }, [isCellActive]);
 
   return (
     <select
@@ -195,8 +205,9 @@ export const BuildingAreaCell = React.memo(({ getValue, row, column, table }: Ce
         if (updateMutation) {
           updateMutation.mutate({ id: row.original.id, updates: { building_area: e.target.value } });
         }
+        setGridMode('navigate');
       }}
-      className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm font-medium cursor-pointer text-slate-900 dark:text-slate-100"
+      className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm font-medium cursor-pointer text-slate-900 dark:text-slate-100 ${isCellActive ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20' : ''}`}
     >
       <option value="" disabled className="text-slate-400">Select Building Area</option>
       {buildingAreas.map((area) => (
@@ -209,17 +220,17 @@ export const BuildingAreaCell = React.memo(({ getValue, row, column, table }: Ce
 export const PriorityCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const initialValue = getValue() as string | null | undefined;
   const updateMutation = table.options.meta?.updateData;
-  const activeCell = table.options.meta?.activeCell || { rowIndex: null, columnId: null };
-  const setActiveCell = table.options.meta?.setActiveCell || (() => {});
+  const setGridMode = useUIStore(state => state.setGridMode);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
-  const isActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const selectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
-    if (isActive && selectRef.current) {
+    if (isCellActive && selectRef.current) {
       selectRef.current.focus();
     }
-  }, [isActive]);
+  }, [isCellActive]);
 
   const priorityColors: Record<string, string> = {
     'Critical': 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 font-bold',
@@ -240,8 +251,9 @@ export const PriorityCell = React.memo(({ getValue, row, column, table }: CellCo
         if (updateMutation) {
           updateMutation.mutate({ id: row.original.id, updates: { priority: e.target.value } });
         }
+        setGridMode('navigate');
       }}
-      className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm cursor-pointer ${currentClass}`}
+      className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm cursor-pointer ${currentClass} ${isCellActive ? 'ring-2 ring-sky-400' : ''}`}
     >
       <option value="Critical" className="font-bold text-rose-600">Critical</option>
       <option value="High" className="font-semibold text-amber-600">High</option>
@@ -261,6 +273,8 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
   const disabled = isLocked || !permissions.can_edit_records;
   
+  const isSubmitting = useRef(false);
+
   useEffect(() => {
     setValue(initialValue ?? '');
   }, [initialValue]);
@@ -269,17 +283,32 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   const options = optionsMap[row.original.id] || [];
 
   const onBlur = () => {
+    if (isSubmitting.current) return;
     if (value !== initialValue && updateMutation) {
+      isSubmitting.current = true;
       const numericValue = value === '' ? null : Number(value);
-      updateMutation.mutate({ id: row.original.id, updates: { [column.id]: numericValue } });
+      updateMutation.mutate({ id: row.original.id, updates: { [column.id]: numericValue } }, {
+        onSettled: () => { isSubmitting.current = false; }
+      });
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: string) => void) => {
-    if (e.key === 'Enter' || e.key === 'Escape') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: 'navigate' | 'edit') => void) => {
+    const moveActiveCell = (table.options.meta as any)?.moveActiveCell;
+    if (e.key === 'Enter') {
       e.preventDefault();
-      setGridMode('navigate');
       onBlur();
+      setGridMode('navigate');
+      if (moveActiveCell) moveActiveCell('down');
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      onBlur();
+      setGridMode('navigate');
+      if (moveActiveCell) moveActiveCell(e.shiftKey ? 'left' : 'right');
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setValue(initialValue ?? '');
+      setGridMode('navigate');
     }
   };
 
@@ -345,21 +374,38 @@ export const DivisionCell = React.memo(({ getValue, row, column, table }: CellCo
     .filter((c: any) => c.is_division)
     .map((c: any) => `${c.code} - ${c.description}`);
 
+  const isSubmitting = useRef(false);
+
   useEffect(() => {
     setValue(initialValue || '');
   }, [initialValue]);
 
   const onBlur = () => {
+    if (isSubmitting.current) return;
     if (value !== initialValue && updateMutation) {
-      updateMutation.mutate({ id: row.original.id, updates: { [column.id]: value } });
+      isSubmitting.current = true;
+      updateMutation.mutate({ id: row.original.id, updates: { [column.id]: value } }, {
+        onSettled: () => { isSubmitting.current = false; }
+      });
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: string) => void) => {
-    if (e.key === 'Enter' || e.key === 'Escape') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: 'navigate' | 'edit') => void) => {
+    const moveActiveCell = (table.options.meta as any)?.moveActiveCell;
+    if (e.key === 'Enter') {
       e.preventDefault();
-      setGridMode('navigate');
       onBlur();
+      setGridMode('navigate');
+      if (moveActiveCell) moveActiveCell('down');
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      onBlur();
+      setGridMode('navigate');
+      if (moveActiveCell) moveActiveCell(e.shiftKey ? 'left' : 'right');
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setValue(initialValue || '');
+      setGridMode('navigate');
     }
   };
 
@@ -402,6 +448,8 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
   const disabled = !permissions.can_edit_records;
 
+  const isSubmitting = useRef(false);
+
   useEffect(() => {
     setValue(initialValue || '');
   }, [initialValue]);
@@ -411,7 +459,9 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
   const currentDivisionCode = currentDivisionStr.split(' ')[0] || '';
 
   const onBlur = () => {
+    if (isSubmitting.current) return;
     if (value !== initialValue && updateMutation) {
+      isSubmitting.current = true;
       const updates: any = { [column.id]: value };
       
       // Auto-fill Division based on selected Cost Code
@@ -427,15 +477,28 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
         }
       }
 
-      updateMutation.mutate({ id: row.original.id, updates });
+      updateMutation.mutate({ id: row.original.id, updates }, {
+        onSettled: () => { isSubmitting.current = false; }
+      });
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: string) => void) => {
-    if (e.key === 'Enter' || e.key === 'Escape') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: 'navigate' | 'edit') => void) => {
+    const moveActiveCell = (table.options.meta as any)?.moveActiveCell;
+    if (e.key === 'Enter') {
       e.preventDefault();
-      setGridMode('navigate');
       onBlur();
+      setGridMode('navigate');
+      if (moveActiveCell) moveActiveCell('down');
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      onBlur();
+      setGridMode('navigate');
+      if (moveActiveCell) moveActiveCell(e.shiftKey ? 'left' : 'right');
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setValue(initialValue || '');
+      setGridMode('navigate');
     }
   };
 

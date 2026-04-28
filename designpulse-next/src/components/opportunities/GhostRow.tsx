@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Table, Column } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
@@ -13,14 +13,22 @@ interface GhostRowProps {
 export default function GhostRow({ table, createMutation }: GhostRowProps) {
   const [pendingRow, setPendingRow] = useState<Partial<Opportunity>>({});
   const [ghostError, setGhostError] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const submitGhostRow = () => {
     if (!pendingRow.title?.trim()) {
       setGhostError(true);
       setTimeout(() => setGhostError(false), 2000);
+      if (titleInputRef.current) titleInputRef.current.focus();
       return;
     }
-    createMutation.mutate(pendingRow, { onSuccess: () => setPendingRow({}) });
+    const newId = crypto.randomUUID();
+    createMutation.mutate({ ...pendingRow, id: newId }, { 
+      onSuccess: () => {
+        setPendingRow({});
+        if (titleInputRef.current) titleInputRef.current.focus();
+      } 
+    });
   };
 
   const clearPendingRow = () => setPendingRow({});
@@ -61,39 +69,31 @@ export default function GhostRow({ table, createMutation }: GhostRowProps) {
         if (column.id === 'expander') {
           return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-slate-400 text-center text-xs font-bold">+</td>;
         }
-        if (column.id === 'status') {
-          return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full">Draft</span></td>;
+        if (column.id === 'title') {
+          return (
+            <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">
+              <input
+                ref={titleInputRef}
+                autoFocus
+                type="text"
+                placeholder="+ Add Item..."
+                value={pendingRow.title || ''}
+                onChange={(e) => setPendingRow(prev => ({ ...prev, title: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitGhostRow();
+                  }
+                }}
+                className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400/70 dark:placeholder-slate-500/70 italic ${ghostError ? 'ring-2 ring-rose-500 animate-pulse' : ''}`}
+              />
+            </td>
+          );
         }
-        if (column.id === 'display_id') {
-          return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Auto-ID</span></td>;
-        }
-        if (column.id === 'priority') {
-          return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Medium</span></td>;
-        }
-        if (column.id === 'building_area') {
-          return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Not Set</span></td>;
-        }
+        
         return (
-          <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">
-            <input
-              type={column.id === 'cost_impact' || column.id === 'days_impact' ? 'number' : 'text'}
-              placeholder={`+ Add ${typeof column.columnDef.header === 'string' ? column.columnDef.header : 'Item'}...`}
-              value={(pendingRow as any)[column.id] === undefined ? '' : (pendingRow as any)[column.id]}
-              onChange={(e) => {
-                let val: string | number = e.target.value;
-                if (column.id === 'cost_impact' || column.id === 'days_impact') {
-                  val = val === '' ? '' : Number(val);
-                }
-                setPendingRow(prev => ({ ...prev, [column.id]: val }));
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  submitGhostRow();
-                }
-              }}
-              className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400/70 dark:placeholder-slate-500/70 italic ${column.id === 'title' && ghostError ? 'ring-2 ring-rose-500 animate-pulse' : ''}`}
-            />
+          <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle">
+            <span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60 text-center cursor-not-allowed select-none">-</span>
           </td>
         );
       })}

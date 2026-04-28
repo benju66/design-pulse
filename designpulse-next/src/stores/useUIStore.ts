@@ -21,8 +21,11 @@ export interface UIState {
   gridColumnOrder: string[];
   setGridColumnOrder: (updater: string[] | ((old: string[]) => string[])) => void;
   
-  gridMode: 'navigate' | 'edit' | string;
-  setGridMode: (mode: string) => void;
+  gridMode: 'navigate' | 'edit';
+  setGridMode: (mode: 'navigate' | 'edit') => void;
+  
+  activeCell: { rowIndex: number; columnId: string } | null;
+  setActiveCell: (cell: { rowIndex: number; columnId: string } | null) => void;
   
   coordColumnVisibility: Record<string, boolean>;
   setCoordColumnVisibility: (updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
@@ -79,6 +82,9 @@ export const useUIStore = create<UIState>()(
       
       gridMode: 'navigate',
       setGridMode: (mode) => set({ gridMode: mode }),
+      
+      activeCell: null,
+      setActiveCell: (cell) => set({ activeCell: cell }),
       
       coordColumnVisibility: {},
       setCoordColumnVisibility: (updater) => set((state) => ({ 

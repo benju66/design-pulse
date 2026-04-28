@@ -19,6 +19,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
+import { useGridNavigation } from '@/hooks/useGridNavigation';
 
 import { ExpandedCard } from './opportunities/ExpandedCard';
 import { ColumnChooser } from './opportunities/ColumnChooser';
@@ -41,7 +42,6 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const compareQueue = useUIStore(state => state.compareQueue);
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
-  const [activeCell, setActiveCell] = useState<{ rowIndex: number | null, columnId: string | null }>({ rowIndex: null, columnId: null });
 
   const { data: rawCostCodes = [] } = useCostCodes();
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
@@ -113,12 +113,10 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
     meta: {
       updateData: updateMutation,
       optionsMap,
-      activeCell,
-      setActiveCell,
       rawCostCodes,
       projectMembers,
       permissions,
-    },
+    } as any,
   });
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -130,6 +128,9 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
     estimateSize: () => 44, // Base height
     overscan: 5,
   });
+
+  const { handleKeyDown, moveActiveCell } = useGridNavigation(table as any, virtualizer);
+  (table.options.meta as any).moveActiveCell = moveActiveCell;
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;
@@ -157,6 +158,9 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
         ref={tableContainerRef} 
         className="flex-1 overflow-auto rounded-b-xl outline-none"
         tabIndex={0}
+        onKeyDown={(e) => {
+          if (handleKeyDown) handleKeyDown(e as any);
+        }}
       >
         <table 
           className="text-left text-sm whitespace-nowrap" 

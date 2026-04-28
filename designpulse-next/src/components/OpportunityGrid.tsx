@@ -17,6 +17,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
+import { useGridNavigation } from '@/hooks/useGridNavigation';
 
 import { ExpandedCard } from './opportunities/ExpandedCard';
 import { ColumnChooser } from './opportunities/ColumnChooser';
@@ -39,7 +40,6 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const compareQueue = useUIStore(state => state.compareQueue);
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
-  const [activeCell, setActiveCell] = useState<{ rowIndex: number | null, columnId: string | null }>({ rowIndex: null, columnId: null });
 
   const { data: rawCostCodes = [] } = useCostCodes();
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
@@ -108,12 +108,11 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     meta: {
       updateData: updateMutation,
       optionsMap,
-      activeCell,
-      setActiveCell,
       rawCostCodes,
       projectMembers,
       permissions,
-    },
+      // moveActiveCell will be injected later or we can just pass it directly if we define it before table
+    } as any,
   });
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -125,6 +124,11 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     estimateSize: () => 44, // Base height
     overscan: 5,
   });
+
+  const { handleKeyDown, moveActiveCell } = useGridNavigation(table as any, virtualizer);
+  
+  // Inject moveActiveCell into meta since we need virtualizer first
+  (table.options.meta as any).moveActiveCell = moveActiveCell;
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;
@@ -153,50 +157,8 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
         className="flex-1 overflow-auto rounded-b-xl outline-none"
         tabIndex={0}
         onKeyDown={(e) => {
-          const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'];
-          if (!keys.includes(e.key)) return;
-          
-          const state = useUIStore.getState();
-          const gridMode = state.gridMode;
-          
-          if (e.key === 'Enter') {
-            if (gridMode === 'navigate') {
-               e.preventDefault();
-               state.setGridMode('edit');
-            }
-            return;
-          }
-
-          if (gridMode === 'edit') return;
-
-          if (activeCell.rowIndex === null || activeCell.columnId === null) return;
-
-          e.preventDefault();
-
-          const visibleCols = table.getVisibleLeafColumns().filter(c => 
-            c.id !== 'select' && c.id !== 'open_panel' && c.id !== 'expander' && c.id !== 'options'
-          );
-          
-          let { rowIndex, columnId } = activeCell;
-          let colIndex = visibleCols.findIndex(c => c.id === columnId);
-          if (colIndex === -1) colIndex = 0;
-
-          if (e.key === 'ArrowUp') rowIndex = Math.max(0, rowIndex - 1);
-          if (e.key === 'ArrowDown') rowIndex = Math.min(rows.length - 1, rowIndex + 1);
-          if (e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey)) {
-            if (colIndex > 0) colIndex -= 1;
-            else if (rowIndex > 0) { rowIndex -= 1; colIndex = visibleCols.length - 1; }
-          }
-          if (e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey)) {
-            if (colIndex < visibleCols.length - 1) colIndex += 1;
-            else if (rowIndex < rows.length - 1) { rowIndex += 1; colIndex = 0; }
-          }
-
-          const newColumnId = visibleCols[colIndex]?.id;
-          if (newColumnId) {
-            virtualizer.scrollToIndex(rowIndex, { align: 'auto' });
-            setActiveCell({ rowIndex, columnId: newColumnId });
-          }
+          // ensure the hook handleKeyDown is called
+          if (handleKeyDown) handleKeyDown(e);
         }}
       >
         <table 

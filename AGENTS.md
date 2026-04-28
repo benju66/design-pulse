@@ -32,7 +32,7 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 * `platform_admins`: Global super-user directory protected by strict RLS preventing privilege escalation.
 * `project_members`: Project-level relational table defining RBAC roles (`owner`, `gc_admin`, `design_team`, `viewer`).
 * `projects`: Master project records.
-* `project_settings`: JSONB configurations for dynamic `scopes`, `categories`, `sidebar_items`, and `disciplines` (Array of objects: `[{id: "...", label: "..."}]`).
+* `project_settings`: JSONB configurations for dynamic `building_areas`, `categories`, `sidebar_items`, and `disciplines` (Array of objects: `[{id: "...", label: "..."}]`).
 * `opportunities`: The parent VE log items. Contains `design_markups` JSONB and `coordination_details` JSONB.
 * `opportunity_options`: The relational contenders. Linked to `opportunities` via `opportunity_id` (Foreign Key, Cascade Delete).
 

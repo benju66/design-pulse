@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
   project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title text NOT NULL DEFAULT 'New Option',
   location text,
-  building_area text DEFAULT 'General',
+  building_area text,
   arch_plans_spec text,
   bok_standard text,
   existing_conditions text,

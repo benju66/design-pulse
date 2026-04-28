@@ -70,8 +70,8 @@ export default function GhostRow({ table, createMutation }: GhostRowProps) {
         if (column.id === 'priority') {
           return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Medium</span></td>;
         }
-        if (column.id === 'scope') {
-          return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">General</span></td>;
+        if (column.id === 'building_area') {
+          return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle"><span className="text-sm text-slate-400 px-2 py-1 italic block w-full h-full opacity-60">Not Set</span></td>;
         }
         return (
           <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">

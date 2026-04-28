@@ -96,7 +96,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       opp.title,
       opp.priority,
       opp.location,
-      opp.scope,
+      opp.building_area,
       opp.status,
       opp.cost_impact,
       opp.days_impact
@@ -112,10 +112,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     window.URL.revokeObjectURL(url);
   };
 
-  const dynamicScopes = (settings?.scopes && Array.isArray(settings.scopes) && settings.scopes.length > 0) 
-    ? (settings.scopes as string[]) 
+  const dynamicBuildingAreas = (settings?.building_areas && Array.isArray(settings.building_areas) && settings.building_areas.length > 0) 
+    ? (settings.building_areas as string[]) 
     : ['Corridor / Common', 'Unit Interiors', 'Back of House'];
-  const tabs = ['All', ...dynamicScopes];
+  const tabs = ['All', ...dynamicBuildingAreas];
   const filteredOpportunities = React.useMemo(() => {
     const baseMatrixItems = opportunities.filter(opp => {
       if (opp.record_type === 'VE') return true;
@@ -129,7 +129,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     });
     return activeTab === 'All' 
       ? baseMatrixItems 
-      : baseMatrixItems.filter(opp => opp.scope === activeTab);
+      : baseMatrixItems.filter(opp => opp.building_area === activeTab);
   }, [opportunities, activeTab]);
 
   const coordinationOpportunities = React.useMemo(() => {
@@ -213,7 +213,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   Export PDF
                 </button>
                 <button 
-                  onClick={() => createMutation.mutate({ scope: activeTab !== 'All' ? activeTab : (dynamicScopes[0] || 'Corridor / Common') })}
+                  onClick={() => createMutation.mutate({ building_area: activeTab !== 'All' ? activeTab : (dynamicBuildingAreas[0] || 'Corridor / Common') })}
                   disabled={createMutation.isPending}
                   className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold rounded-xl shadow-sm transition-colors disabled:opacity-50"
                 >

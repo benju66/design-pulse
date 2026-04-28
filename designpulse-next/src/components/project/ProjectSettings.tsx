@@ -29,7 +29,7 @@ const DEFAULT_VE_COLUMNS = [
   { id: 'division', label: 'CSI Division' },
   { id: 'cost_code', label: 'Cost Code' },
   { id: 'status', label: 'Status' },
-  { id: 'scope', label: 'Scope' },
+  { id: 'buildingArea', label: 'Building Area' },
   { id: 'priority', label: 'Priority' },
   { id: 'assignee', label: 'Assignee' },
   { id: 'due_date', label: 'Due Date' },
@@ -100,10 +100,10 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   const [newMemberRole, setNewMemberRole] = useState('viewer');
 
   
-  const [activeTab, setActiveTab] = useState('info'); // 'info' | 'categories' | 'scopes' | 'sidebar'
+  const [activeTab, setActiveTab] = useState('info'); // 'info' | 'categories' | 'buildingAreas' | 'sidebar'
   
   const [categories, setCategories] = useState<string[]>([]);
-  const [scopes, setScopes] = useState<string[]>([]);
+  const [buildingAreas, setBuildingAreas] = useState<string[]>([]);
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [disciplines, setDisciplines] = useState<DisciplineConfig[]>([]);
   const [veColumns, setVeColumns] = useState<{id: string, label: string}[]>([]);
@@ -120,14 +120,14 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   const [procoreCompanyId, setProcoreCompanyId] = useState('');
   
   const [newCat, setNewCat] = useState('');
-  const [newScope, setNewScope] = useState('');
+  const [newBuildingArea, setNewBuildingArea] = useState('');
   const [newDiscipline, setNewDiscipline] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     if (settings) {
       setCategories((settings.categories as string[]) || []);
-      setScopes((settings.scopes as string[]) || []);
+      setBuildingAreas((settings.building_areas as string[]) || []);
       const savedSidebarItems = (settings.sidebar_items as unknown as SidebarItem[]) || [];
       const mergedSidebarItems = [...savedSidebarItems];
       DEFAULT_SIDEBAR_ITEMS.forEach(defaultItem => {
@@ -187,10 +187,10 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
     }
   };
 
-  const addScope = () => {
-    if (newScope.trim() && !scopes.includes(newScope.trim())) {
-      setScopes([...scopes, newScope.trim()]);
-      setNewScope('');
+  const addBuildingArea = () => {
+    if (newBuildingArea.trim() && !buildingAreas.includes(newBuildingArea.trim())) {
+      setBuildingAreas([...buildingAreas, newBuildingArea.trim()]);
+      setNewBuildingArea('');
       setHasChanges(true);
     }
   };
@@ -213,12 +213,12 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
     }
   };
 
-  const handleDragEndScopes = (event: DragEndEvent) => {
+  const handleDragEndBuildingAreas = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      const oldIndex = scopes.indexOf(active.id as string);
-      const newIndex = scopes.indexOf(over.id as string);
-      setScopes(arrayMove(scopes, oldIndex, newIndex));
+      const oldIndex = buildingAreas.indexOf(active.id as string);
+      const newIndex = buildingAreas.indexOf(over.id as string);
+      setBuildingAreas(arrayMove(buildingAreas, oldIndex, newIndex));
       setHasChanges(true);
     }
   };
@@ -274,7 +274,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
     updateSettings.mutate(
       { 
         categories,
-        scopes,
+        building_areas: buildingAreas,
         sidebar_items: sidebarItems as any,
         disciplines: disciplines as any,
         project_name: projectInfo.project_name,
@@ -337,15 +337,15 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
           Project Info
         </button>
         <button 
-          onClick={() => setActiveTab('scopes')}
+          onClick={() => setActiveTab('building_areas')}
           className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'scopes' 
+            activeTab === 'building_areas' 
               ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
           }`}
         >
           <Map size={18} />
-          Project Scopes
+          Project Building Areas
         </button>
         <button 
           onClick={() => setActiveTab('categories')}
@@ -527,30 +527,30 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
         </div>
       )}
 
-      {activeTab === 'scopes' && (
+      {activeTab === 'building_areas' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Project Scopes / Filtering Tabs</h3>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Project Building Areas / Filtering Tabs</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Define the physical scopes or locations within your project (e.g., Corridor, Exterior, Units). These become the main filter tabs at the top of the VE Matrix and can be assigned to items in the grid.
+            Define the physical buildingAreas or locations within your project (e.g., Corridor, Exterior, Units). These become the main filter tabs at the top of the VE Matrix and can be assigned to items in the grid.
           </p>
 
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndScopes}>
-            <SortableContext items={scopes} strategy={verticalListSortingStrategy}>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndBuildingAreas}>
+            <SortableContext items={buildingAreas} strategy={verticalListSortingStrategy}>
               <div className="space-y-2 mb-6">
-                {scopes.map((scope) => (
+                {buildingAreas.map((buildingArea) => (
                   <SortableItem 
-                    key={scope} 
-                    id={scope} 
-                    content={scope} 
+                    key={buildingArea} 
+                    id={buildingArea} 
+                    content={buildingArea} 
                     onRemove={() => {
-                      setScopes(scopes.filter(s => s !== scope));
+                      setBuildingAreas(buildingAreas.filter(s => s !== buildingArea));
                       setHasChanges(true);
                     }} 
                   />
                 ))}
-                {scopes.length === 0 && (
+                {buildingAreas.length === 0 && (
                   <div className="p-4 text-center text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
-                    No scopes defined.
+                    No buildingAreas defined.
                   </div>
                 )}
               </div>
@@ -560,15 +560,15 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
           <div className="flex gap-3">
              <input 
                type="text" 
-               value={newScope}
-               onChange={e => setNewScope(e.target.value)}
-               onKeyDown={e => e.key === 'Enter' && addScope()}
-               placeholder="Add a new project scope..." 
+               value={newBuildingArea}
+               onChange={e => setNewBuildingArea(e.target.value)}
+               onKeyDown={e => e.key === 'Enter' && addBuildingArea()}
+               placeholder="Add a new project buildingArea..." 
                className="flex-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
              />
              <button 
-               onClick={addScope} 
-               disabled={!newScope.trim()}
+               onClick={addBuildingArea} 
+               disabled={!newBuildingArea.trim()}
                className="bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
              >
                <Plus size={18} /> Add

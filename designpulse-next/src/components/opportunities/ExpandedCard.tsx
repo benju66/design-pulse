@@ -26,7 +26,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const { data: settings } = useProjectSettings(projectId);
   const { data: members = [] } = useProjectMembers(projectId);
   const permissions = useCurrentUserPermissions(projectId);
-  const scopes = (settings?.scopes as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
+  const buildingAreas = (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
   const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
 
@@ -187,15 +187,15 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
             <div className="w-px h-5 bg-slate-300 dark:bg-slate-700" />
 
             <select
-              value={row.original.scope || ''}
+              value={row.original.building_area || ''}
               disabled={!permissions.can_edit_records}
               onChange={(e) => {
-                updateData.mutate({ id: row.original.id, updates: { scope: e.target.value } });
+                updateData.mutate({ id: row.original.id, updates: { building_area: e.target.value } });
               }}
               className="bg-transparent border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-md px-2 py-1 text-sm font-medium focus:ring-2 focus:ring-sky-500 outline-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              <option value="" disabled>Select Scope...</option>
-              {scopes.map(s => <option key={s} value={s}>{s}</option>)}
+              <option value="" disabled>Select Building Area...</option>
+              {buildingAreas.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             
             <button 

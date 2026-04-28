@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
-import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_SCOPES } from '@/lib/constants';
+import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_BUILDING_AREAS } from '@/lib/constants';
 import { calculateParentTotals } from '@/utils/financialMath';
 import { toast } from 'sonner';
 import { Opportunity, OpportunityOption, ProjectSettings, Project } from '@/types/models';
@@ -25,7 +25,7 @@ export function useProjectSettings(projectId: string | null) {
       
       const defaultSettings: Partial<ProjectSettings> = {
         categories: DEFAULT_CATEGORIES as unknown as any, 
-        scopes: DEFAULT_SCOPES as unknown as any,
+        building_areas: DEFAULT_BUILDING_AREAS as unknown as any,
         sidebar_items: DEFAULT_SIDEBAR_ITEMS as unknown as any,
         project_name: projectId,
         location: 'Not Set',
@@ -39,7 +39,7 @@ export function useProjectSettings(projectId: string | null) {
       return {
         ...data,
         categories: (data.categories as any[])?.length > 0 ? data.categories : defaultSettings.categories,
-        scopes: (data.scopes as any[])?.length > 0 ? data.scopes : defaultSettings.scopes,
+        building_areas: (data.building_areas as any[])?.length > 0 ? data.building_areas : defaultSettings.building_areas,
         sidebar_items: (data.sidebar_items as any[])?.length > 0 ? data.sidebar_items : defaultSettings.sidebar_items,
         project_name: data.project_name || defaultSettings.project_name,
         location: data.location || defaultSettings.location,
@@ -159,7 +159,7 @@ export function useCreateOpportunity(projectId: string) {
     mutationFn: async (newRow) => {
       const { data, error } = await supabase
         .from('opportunities')
-        .insert([{ project_id: projectId, status: 'Draft', cost_impact: 0, title: 'New Option', scope: 'General', ...newRow }])
+        .insert([{ project_id: projectId, status: 'Draft', cost_impact: 0, title: 'New Option', building_area: null, ...newRow }])
         .select()
         .single();
       if (error) throw new Error(error.message || JSON.stringify(error));

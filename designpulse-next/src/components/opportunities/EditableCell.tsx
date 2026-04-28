@@ -166,13 +166,13 @@ export const StatusCell = React.memo(({ getValue, row, column, table }: CellCont
   );
 }, (prev, next) => commonComparator(prev, next, false));
 
-export const ScopeCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
+export const BuildingAreaCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const params = useParams();
   const projectId = params?.projectId as string | null;
   const { data: settings } = useProjectSettings(projectId);
   const initialValue = getValue() as string | null | undefined;
   const updateMutation = table.options.meta?.updateData;
-  const scopes = (settings?.scopes as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
+  const buildingAreas = (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
   const activeCell = table.options.meta?.activeCell || { rowIndex: null, columnId: null };
   const setActiveCell = table.options.meta?.setActiveCell || (() => {});
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
@@ -193,14 +193,14 @@ export const ScopeCell = React.memo(({ getValue, row, column, table }: CellConte
       disabled={!permissions.can_edit_records}
       onChange={(e) => {
         if (updateMutation) {
-          updateMutation.mutate({ id: row.original.id, updates: { scope: e.target.value } });
+          updateMutation.mutate({ id: row.original.id, updates: { building_area: e.target.value } });
         }
       }}
       className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm font-medium cursor-pointer text-slate-900 dark:text-slate-100"
     >
-      <option value="" disabled>Select Scope...</option>
-      {scopes.map(s => (
-        <option key={s} value={s}>{s}</option>
+      <option value="" disabled className="text-slate-400">Select Building Area</option>
+      {buildingAreas.map((area) => (
+        <option key={area} value={area}>{area}</option>
       ))}
     </select>
   );

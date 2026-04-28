@@ -36,7 +36,7 @@ export default function OwnerDashboard({ projectId, opportunities }: Props) {
     return roiMetrics.map((m: any) => {
       const savings = Number(m.total_savings);
       return {
-        name: m.scope,
+        name: m.building_area,
         rawValue: savings, // Absolute positive savings from RPC
         value: savings
       };
@@ -70,7 +70,7 @@ export default function OwnerDashboard({ projectId, opportunities }: Props) {
 
       {/* Top Right: ROI Pie Chart */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm h-80 flex flex-col">
-        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">ROI Distribution (Savings by Scope)</h3>
+        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">ROI Distribution (Savings by Building Area)</h3>
         {isRoiLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-500"></div>

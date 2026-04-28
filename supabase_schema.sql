@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS project_members (
 CREATE TABLE IF NOT EXISTS project_settings (
   project_id uuid PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
   categories jsonb DEFAULT '["Existing Conditions", "Arch Plans/Specs", "Owner Standard", "Budgeted Item", "Other"]'::jsonb,
-  scopes jsonb DEFAULT '["Corridor / Common", "Unit Interiors", "Back of House"]'::jsonb,
+  building_areas jsonb DEFAULT '["Corridor / Common", "Unit Interiors", "Back of House"]'::jsonb,
   sidebar_items jsonb DEFAULT '[{"id": "dashboard", "label": "VE Matrix", "iconName": "LayoutDashboard", "visible": true}, {"id": "map", "label": "Map View", "iconName": "Map", "visible": true}, {"id": "analytics", "label": "Analytics", "iconName": "PieChart", "visible": true}, {"id": "coordination", "label": "Coordination Tracker", "iconName": "ListChecks", "visible": true}]'::jsonb,
   disciplines jsonb DEFAULT '[{"id": "d_arch", "label": "Arch"}, {"id": "d_civil", "label": "Civil"}, {"id": "d_struct", "label": "Struct"}, {"id": "d_mech", "label": "Mech"}, {"id": "d_elec", "label": "Elec"}, {"id": "d_plumb", "label": "Plumb"}, {"id": "d_fp", "label": "FP"}, {"id": "d_lv", "label": "LV"}]'::jsonb,
   project_name text,
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
   project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title text NOT NULL DEFAULT 'New Option',
   location text,
-  scope text DEFAULT 'General',
+  building_area text DEFAULT 'General',
   arch_plans_spec text,
   bok_standard text,
   existing_conditions text,
@@ -858,18 +858,18 @@ $$;
 
 -- 3. Owner ROI Metrics (Savings)
 CREATE OR REPLACE FUNCTION get_owner_roi_metrics(p_project_id UUID)
-RETURNS TABLE (scope text, total_savings numeric)
+RETURNS TABLE (building_area text, total_savings numeric)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
   IF NOT (public.is_platform_admin() OR public.get_user_project_role(p_project_id) IS NOT NULL) THEN RAISE EXCEPTION 'Unauthorized'; END IF;
   
   RETURN QUERY 
-  SELECT COALESCE(o.scope, 'General'), ABS(SUM(o.cost_impact)) 
+  SELECT COALESCE(o.building_area, 'General'), ABS(SUM(o.cost_impact)) 
   FROM opportunities o 
   WHERE o.project_id = p_project_id 
     AND o.cost_impact < 0 
     AND o.status IN ('Approved', 'Pending Plan Update', 'Implemented') 
-  GROUP BY COALESCE(o.scope, 'General');
+  GROUP BY COALESCE(o.building_area, 'General');
 END;
 $$;
 

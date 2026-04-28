@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, ScopeCell, ImpactCell, PriorityCell, CostCodeCell, DivisionCell, DisplayIdCell, AssigneeCell } from './EditableCell';
+import { TextCell, StatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, DivisionCell, DisplayIdCell, AssigneeCell } from './EditableCell';
 import { OptionsCell } from './OptionsCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
@@ -85,7 +85,7 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 120 },
       { accessorKey: 'status', header: 'Status', cell: StatusCell },
-      { accessorKey: 'scope', header: 'Scope', cell: ScopeCell },
+      { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
       { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
@@ -127,7 +127,7 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 120 },
       { accessorKey: 'status', header: 'Status', cell: StatusCell },
-      { accessorKey: 'scope', header: 'Scope', cell: ScopeCell },
+      { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
       { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },

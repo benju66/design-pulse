@@ -33,7 +33,7 @@ export interface Database {
         Row: {
           project_id: string
           categories: Json | null
-          scopes: Json | null
+          building_areas: Json | null
           sidebar_items: Json | null
           disciplines: Json | null
           project_name: string | null
@@ -46,7 +46,7 @@ export interface Database {
         Insert: {
           project_id: string
           categories?: Json | null
-          scopes?: Json | null
+          building_areas?: Json | null
           sidebar_items?: Json | null
           disciplines?: Json | null
           project_name?: string | null
@@ -59,7 +59,7 @@ export interface Database {
         Update: {
           project_id?: string
           categories?: Json | null
-          scopes?: Json | null
+          building_areas?: Json | null
           sidebar_items?: Json | null
           disciplines?: Json | null
           project_name?: string | null
@@ -90,7 +90,7 @@ export interface Database {
           project_id: string
           title: string
           location: string | null
-          scope: string | null
+          building_area: string | null
           arch_plans_spec: string | null
           bok_standard: string | null
           existing_conditions: string | null
@@ -119,7 +119,7 @@ export interface Database {
           project_id: string
           title?: string
           location?: string | null
-          scope?: string | null
+          building_area?: string | null
           arch_plans_spec?: string | null
           bok_standard?: string | null
           existing_conditions?: string | null
@@ -148,7 +148,7 @@ export interface Database {
           project_id?: string
           title?: string
           location?: string | null
-          scope?: string | null
+          building_area?: string | null
           arch_plans_spec?: string | null
           bok_standard?: string | null
           existing_conditions?: string | null

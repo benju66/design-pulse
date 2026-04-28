@@ -31,7 +31,7 @@ export const DEFAULT_CATEGORIES = [
   "Other"
 ] as const;
 
-export const DEFAULT_SCOPES = [
+export const DEFAULT_BUILDING_AREAS = [
   "Corridor / Common",
   "Unit Interiors",
   "Back of House"

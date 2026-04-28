@@ -10,5 +10,15 @@ declare module '@tanstack/react-table' {
     setActiveCell: (cell: { rowIndex: number | null; columnId: string | null }) => void;
     rawCostCodes?: CostCode[];
     projectMembers?: any[];
+    permissions?: {
+      can_edit_records: boolean;
+      can_lock_options: boolean;
+      can_unlock_options: boolean;
+      can_manage_team: boolean;
+      can_edit_project_settings: boolean;
+      can_manage_budget: boolean;
+      can_delete_records: boolean;
+      can_view_audit_logs: boolean;
+    };
   }
 }

@@ -86,7 +86,8 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
-  const disabled = column.id === 'title' && isLocked;
+  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const disabled = (column.id === 'title' && isLocked) || !permissions.can_edit_records;
 
   useEffect(() => {
     setValue(initialValue);
@@ -134,6 +135,7 @@ export const StatusCell = React.memo(({ getValue, row, column, table }: CellCont
   const updateMutation = table.options.meta?.updateData;
   const activeCell = table.options.meta?.activeCell || { rowIndex: null, columnId: null };
   const setActiveCell = table.options.meta?.setActiveCell || (() => {});
+  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
   const isActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const selectRef = useRef<HTMLSelectElement>(null);
 
@@ -148,6 +150,7 @@ export const StatusCell = React.memo(({ getValue, row, column, table }: CellCont
       ref={selectRef}
       onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
       value={initialValue}
+      disabled={!permissions.can_edit_records}
       onChange={(e) => {
         if (updateMutation) {
           updateMutation.mutate({ id: row.original.id, updates: { status: e.target.value } });
@@ -172,6 +175,7 @@ export const ScopeCell = React.memo(({ getValue, row, column, table }: CellConte
   const scopes = (settings?.scopes as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
   const activeCell = table.options.meta?.activeCell || { rowIndex: null, columnId: null };
   const setActiveCell = table.options.meta?.setActiveCell || (() => {});
+  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
   const isActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const selectRef = useRef<HTMLSelectElement>(null);
 
@@ -186,6 +190,7 @@ export const ScopeCell = React.memo(({ getValue, row, column, table }: CellConte
       ref={selectRef}
       onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
       value={initialValue || ''}
+      disabled={!permissions.can_edit_records}
       onChange={(e) => {
         if (updateMutation) {
           updateMutation.mutate({ id: row.original.id, updates: { scope: e.target.value } });
@@ -206,6 +211,7 @@ export const PriorityCell = React.memo(({ getValue, row, column, table }: CellCo
   const updateMutation = table.options.meta?.updateData;
   const activeCell = table.options.meta?.activeCell || { rowIndex: null, columnId: null };
   const setActiveCell = table.options.meta?.setActiveCell || (() => {});
+  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
   const isActive = activeCell.rowIndex === row.index && activeCell.columnId === column.id;
   const selectRef = useRef<HTMLSelectElement>(null);
 
@@ -229,6 +235,7 @@ export const PriorityCell = React.memo(({ getValue, row, column, table }: CellCo
       ref={selectRef}
       onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
       value={initialValue || 'Medium'}
+      disabled={!permissions.can_edit_records}
       onChange={(e) => {
         if (updateMutation) {
           updateMutation.mutate({ id: row.original.id, updates: { priority: e.target.value } });
@@ -251,7 +258,8 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   const inputRef = useRef<HTMLInputElement>(null);
   
   const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
-  const disabled = isLocked;
+  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const disabled = isLocked || !permissions.can_edit_records;
   
   useEffect(() => {
     setValue(initialValue ?? '');
@@ -329,6 +337,8 @@ export const DivisionCell = React.memo(({ getValue, row, column, table }: CellCo
   const [value, setValue] = useState(initialValue || '');
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef<HTMLInputElement>(null);
+  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const disabled = !permissions.can_edit_records;
 
   const rawCostCodes = (table.options.meta as any)?.rawCostCodes || [];
   const divisionOptions = rawCostCodes
@@ -356,6 +366,7 @@ export const DivisionCell = React.memo(({ getValue, row, column, table }: CellCo
   return (
     <>
       <CellWrapper
+        disabled={disabled}
         row={row}
         column={column}
         table={table}
@@ -388,6 +399,8 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
   const [value, setValue] = useState(initialValue || '');
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef<HTMLInputElement>(null);
+  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const disabled = !permissions.can_edit_records;
 
   useEffect(() => {
     setValue(initialValue || '');
@@ -439,6 +452,7 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
   return (
     <>
       <CellWrapper
+        disabled={disabled}
         row={row}
         column={column}
         table={table}
@@ -509,6 +523,8 @@ export const AssigneeCell = React.memo(({ getValue, row, column, table }: CellCo
   const initialValue = getValue() as string | null | undefined;
   const updateMutation = table.options.meta?.updateData;
   const projectMembers = (table.options.meta as any)?.projectMembers || [];
+  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const disabled = !permissions.can_edit_records;
   
   const activeCell = table.options.meta?.activeCell || { rowIndex: null, columnId: null };
   const setActiveCell = table.options.meta?.setActiveCell || (() => {});
@@ -554,6 +570,7 @@ export const AssigneeCell = React.memo(({ getValue, row, column, table }: CellCo
 
   return (
     <CellWrapper
+      disabled={disabled}
       row={row}
       column={column}
       table={table}

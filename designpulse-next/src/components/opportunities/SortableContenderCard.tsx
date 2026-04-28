@@ -7,7 +7,7 @@ import { GripVertical, X, Star, RotateCcw } from 'lucide-react';
 import { OpportunityOption, DisciplineConfig } from '@/types/models';
 import { UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { useProjectSettings } from '@/hooks/useProjectQueries';
+import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
 
 interface SortableContenderCardProps {
   opt: OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean };
@@ -42,6 +42,7 @@ export const SortableContenderCard = ({
   const params = useParams();
   const projectId = params?.projectId as string;
   const { data: settings } = useProjectSettings(projectId);
+  const permissions = useCurrentUserPermissions(projectId);
   
   const defaultDisciplines: DisciplineConfig[] = [
     { id: 'd_arch', label: 'Arch' },
@@ -122,7 +123,7 @@ export const SortableContenderCard = ({
             defaultValue={opt.title}
             placeholder="Option Title"
             title="Click to edit title"
-            disabled={opt.is_locked || isLocked}
+            disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
             onBlur={(e) => {
               if (e.target.value !== opt.title) queueUpdate({ title: e.target.value });
             }}
@@ -133,7 +134,7 @@ export const SortableContenderCard = ({
           <select
             className="text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full px-2.5 py-1 cursor-pointer outline-none hover:bg-slate-200 dark:hover:bg-slate-700 focus:ring-2 focus:ring-sky-500 transition-colors border-none w-36 disabled:opacity-70 disabled:cursor-not-allowed appearance-none"
             value={opt.category || 'Other'}
-            disabled={opt.is_locked || isLocked}
+            disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
             onChange={(e) => {
               queueUpdate({ category: e.target.value });
             }}
@@ -158,7 +159,7 @@ export const SortableContenderCard = ({
                 : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 hover:bg-amber-50 hover:text-amber-400 dark:hover:bg-slate-700'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
             title={opt.is_favorite ? "Remove Favorite" : "Mark as Favorite"}
-            disabled={opt.is_locked || isLocked}
+            disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
           >
             <Star size={14} fill={opt.is_favorite ? 'currentColor' : 'none'} strokeWidth={opt.is_favorite ? 2 : 2.5} />
           </button>
@@ -169,7 +170,7 @@ export const SortableContenderCard = ({
             }}
             className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-full transition-colors p-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Delete Option"
-            disabled={opt.is_locked || isLocked}
+            disabled={opt.is_locked || isLocked || !permissions.can_delete_records}
           >
             <X size={14} strokeWidth={2.5} />
           </button>
@@ -180,7 +181,7 @@ export const SortableContenderCard = ({
         className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-2 mb-3 outline-none focus:ring-2 focus:ring-sky-500 resize-none h-16 disabled:opacity-70 disabled:cursor-not-allowed"
         placeholder="Description & Pros/Cons..."
         defaultValue={opt.description || ''}
-        disabled={opt.is_locked || isLocked}
+        disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
         onBlur={(e) => {
           if (e.target.value !== opt.description) queueUpdate({ description: e.target.value });
         }}
@@ -195,7 +196,7 @@ export const SortableContenderCard = ({
               className="w-16 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.quantity || ''}
               placeholder="1"
-              disabled={opt.is_locked || isLocked}
+              disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
               onBlur={(e) => {
                 const qty = Number(e.target.value);
                 if (qty !== Number(opt.quantity)) {
@@ -211,7 +212,7 @@ export const SortableContenderCard = ({
             <select
               className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.uom || 'ls'}
-              disabled={opt.is_locked || isLocked}
+              disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
               onChange={(e) => queueUpdate({ uom: e.target.value })}
             >
               <option value="ls">ls</option>
@@ -231,7 +232,7 @@ export const SortableContenderCard = ({
               className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 px-1 disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.unit_cost || opt.cost_impact || ''}
               placeholder="0"
-              disabled={opt.is_locked || isLocked}
+              disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
               onBlur={(e) => {
                 const uc = Number(e.target.value);
                 if (uc !== Number(opt.unit_cost)) {
@@ -267,7 +268,7 @@ export const SortableContenderCard = ({
               className="w-14 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.days_impact || ''}
               placeholder="0"
-              disabled={opt.is_locked || isLocked}
+              disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
               onBlur={(e) => {
                 const val = Number(e.target.value);
                 if (val !== Number(opt.days_impact)) queueUpdate({ days_impact: val });
@@ -279,7 +280,7 @@ export const SortableContenderCard = ({
             <select
               className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.time_impact_uom || 'days'}
-              disabled={opt.is_locked || isLocked}
+              disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
               onChange={(e) => queueUpdate({ time_impact_uom: e.target.value })}
             >
               <option value="days">days</option>
@@ -293,18 +294,18 @@ export const SortableContenderCard = ({
       <div className="mt-auto flex flex-col gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/50">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Target for Forecast</span>
-          <button
+            <button
             onClick={() => {
               flushUpdates();
               const isIncluded = !opt.include_in_budget;
               toggleOptionBudget.mutate({ optionId: opt.id, isIncluded });
             }}
-            disabled={hasLockedOption || isLocked}
+            disabled={hasLockedOption || isLocked || !permissions.can_manage_budget}
             role="switch"
             aria-checked={opt.include_in_budget || false}
             className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
               opt.include_in_budget ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-600'
-            } ${(hasLockedOption || isLocked) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            } ${(hasLockedOption || isLocked || !permissions.can_manage_budget) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
             <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${opt.include_in_budget ? 'translate-x-4' : 'translate-x-0'}`} />
           </button>
@@ -319,12 +320,12 @@ export const SortableContenderCard = ({
               queueUpdate({ requires_coordination: !reqCoord });
               setTimeout(flushUpdates, 0); // Force flush for DB update
             }}
-            disabled={hasLockedOption || isLocked}
+            disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
             role="switch"
             aria-checked={opt.requires_coordination ?? true}
             className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
               (opt.requires_coordination ?? true) ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-600'
-            } ${(hasLockedOption || isLocked) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            } ${(hasLockedOption || isLocked || !permissions.can_edit_records) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
             <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${(opt.requires_coordination ?? true) ? 'translate-x-4' : 'translate-x-0'}`} />
           </button>
@@ -350,12 +351,12 @@ export const SortableContenderCard = ({
                       const newReqs = { ...reqs, [d.id]: !isSelected };
                       queueUpdate({ coordination_requirements: newReqs });
                     }}
-                    disabled={hasLockedOption || isLocked}
+                    disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
                     className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
                       isSelected 
                         ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400 border border-sky-200 dark:border-sky-800' 
                         : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-transparent hover:bg-slate-200 dark:hover:bg-slate-700'
-                    } ${(hasLockedOption || isLocked) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    } ${(hasLockedOption || isLocked || !permissions.can_edit_records) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     {d.label}
                   </button>
@@ -381,12 +382,12 @@ export const SortableContenderCard = ({
               flushUpdates();
               lockOption.mutate(opt.id);
             }}
-              disabled={opt.is_locked || isLocked}
+              disabled={opt.is_locked || isLocked || !permissions.can_lock_options}
               role="switch"
               aria-checked={opt.is_locked || false}
               className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
                 opt.is_locked ? 'bg-emerald-500 cursor-default' : 'bg-slate-300 dark:bg-slate-600 cursor-pointer hover:bg-slate-400 dark:hover:bg-slate-500'
-              }`}
+              } ${(!permissions.can_lock_options) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${opt.is_locked ? 'translate-x-4' : 'translate-x-0'}`} />
             </button>

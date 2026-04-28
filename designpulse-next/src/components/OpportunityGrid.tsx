@@ -14,7 +14,7 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
 
@@ -77,6 +77,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const columns = useOpportunityColumns(viewMode);
   const { data: settings } = useProjectSettings(projectId);
   const { data: projectMembers = [] } = useProjectMembers(projectId);
+  const permissions = useCurrentUserPermissions(projectId);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
 
   useEffect(() => {
@@ -111,6 +112,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
       setActiveCell,
       rawCostCodes,
       projectMembers,
+      permissions,
     },
   });
 
@@ -295,7 +297,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           )}
 
           {/* Ghost Row for Quick Add */}
-          {!hideGhostRow && (
+          {!hideGhostRow && permissions.can_edit_records && (
             <tbody>
               <GhostRow table={table as any} createMutation={createMutation as any} />
             </tbody>

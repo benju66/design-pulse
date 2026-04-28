@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
-import { useUpdateOpportunity, useProjectSettings, useDeleteOpportunity, useProjectMembers } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useProjectSettings, useDeleteOpportunity, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { List, Paperclip, MessageSquare, Settings, ChevronDown } from 'lucide-react';
@@ -25,6 +25,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const deleteData = useDeleteOpportunity(projectId);
   const { data: settings } = useProjectSettings(projectId);
   const { data: members = [] } = useProjectMembers(projectId);
+  const permissions = useCurrentUserPermissions(projectId);
   const scopes = (settings?.scopes as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
   const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
@@ -65,10 +66,11 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
       return (
         <select
           defaultValue={val || 'Draft'}
+          disabled={!permissions.can_edit_records}
           onChange={(e) => {
             updateData.mutate({ id: row.original.id, updates: { status: e.target.value } });
           }}
-          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none disabled:opacity-70 disabled:cursor-not-allowed"
         >
           <option value="Draft">Draft</option>
           <option value="Pending Review">Pending Review</option>
@@ -80,10 +82,11 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
       return (
         <select
           defaultValue={val || 'Medium'}
+          disabled={!permissions.can_edit_records}
           onChange={(e) => {
             updateData.mutate({ id: row.original.id, updates: { priority: e.target.value } });
           }}
-          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none disabled:opacity-70 disabled:cursor-not-allowed"
         >
           <option value="Critical" className="font-bold text-rose-600">Critical</option>
           <option value="High" className="font-semibold text-amber-600">High</option>
@@ -95,8 +98,8 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
       return (
         <input
           type="number"
-          disabled={isLocked}
-          className={`w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none ${isLocked ? 'opacity-70 cursor-not-allowed' : ''}`}
+          disabled={isLocked || !permissions.can_edit_records}
+          className={`w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none ${(isLocked || !permissions.can_edit_records) ? 'opacity-70 cursor-not-allowed' : ''}`}
           defaultValue={val || ''}
           onBlur={(e) => {
             const num = Number(e.target.value);
@@ -109,7 +112,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
       );
     } else if (field.id === 'assignee') {
       return (
-        <div className="relative w-full">
+        <div className={`relative w-full ${!permissions.can_edit_records ? 'pointer-events-none opacity-70' : ''}`}>
           <AssigneeSelect
             value={val || ''}
             members={members}
@@ -122,8 +125,8 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
     } else {
       return (
         <textarea
-          disabled={isLocked && field.id === 'title'}
-          className={`w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none resize-none ${isLocked && field.id === 'title' ? 'opacity-70 cursor-not-allowed' : ''}`}
+          disabled={(isLocked && field.id === 'title') || !permissions.can_edit_records}
+          className={`w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none resize-none ${((isLocked && field.id === 'title') || !permissions.can_edit_records) ? 'opacity-70 cursor-not-allowed' : ''}`}
           rows={2}
           defaultValue={val || ''}
           onBlur={(e) => {
@@ -169,10 +172,11 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
           <div className="relative flex items-center gap-3">
             <select
               value={row.original.status || 'Draft'}
+              disabled={!permissions.can_edit_records}
               onChange={(e) => {
                 updateData.mutate({ id: row.original.id, updates: { status: e.target.value } });
               }}
-              className="bg-transparent border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-md px-2 py-1 text-sm font-medium focus:ring-2 focus:ring-sky-500 outline-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="bg-transparent border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-md px-2 py-1 text-sm font-medium focus:ring-2 focus:ring-sky-500 outline-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
             >
               <option value="Draft">Draft</option>
               <option value="Pending Review">Pending Review</option>
@@ -184,10 +188,11 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
 
             <select
               value={row.original.scope || ''}
+              disabled={!permissions.can_edit_records}
               onChange={(e) => {
                 updateData.mutate({ id: row.original.id, updates: { scope: e.target.value } });
               }}
-              className="bg-transparent border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-md px-2 py-1 text-sm font-medium focus:ring-2 focus:ring-sky-500 outline-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="bg-transparent border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-md px-2 py-1 text-sm font-medium focus:ring-2 focus:ring-sky-500 outline-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
             >
               <option value="" disabled>Select Scope...</option>
               {scopes.map(s => <option key={s} value={s}>{s}</option>)}
@@ -201,17 +206,19 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               <span className="text-sm font-semibold">Configure Layout</span>
             </button>
             <div className="w-px h-5 bg-slate-300 dark:bg-slate-700" />
-            <button 
-              onClick={() => {
-                if (window.confirm('Are you sure you want to delete this item and all its options? This cannot be undone.')) {
-                  deleteData.mutate(row.original.id);
-                }
-              }}
-              className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-rose-100 dark:hover:bg-rose-900/30 text-rose-500 transition-colors"
-              title="Delete Item"
-            >
-              <span className="text-sm font-semibold">Delete</span>
-            </button>
+            {permissions.can_delete_records && (
+              <button 
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to delete this item and all its options? This cannot be undone.')) {
+                    deleteData.mutate(row.original.id);
+                  }
+                }}
+                className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-rose-100 dark:hover:bg-rose-900/30 text-rose-500 transition-colors"
+                title="Delete Item"
+              >
+                <span className="text-sm font-semibold">Delete</span>
+              </button>
+            )}
             {showSettings && (
               <div className="absolute right-0 top-10 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-20">
                 <h5 className="text-xs font-semibold text-slate-500 mb-2 px-2">Visible Fields</h5>

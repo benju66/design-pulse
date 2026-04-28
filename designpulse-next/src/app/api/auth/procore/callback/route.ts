@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
-  
+
   // NEW: Grab the state parameter (where they wanted to go)
   const state = searchParams.get('state');
   const redirectPath = state ? decodeURIComponent(state) : '/dashboard';
@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
     const email = procoreUser.login;
 
     // 3. THE SECURITY BOUNCER: RESTRICT TO COMPANY DOMAIN
-    // *** CHANGE THIS STRING TO YOUR ACTUAL COMPANY DOMAIN ***
-    const allowedDomain = '@fpcinc.com';
+    // Checks the Vercel environment variable first, falls back to a default if missing
+    const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN || '@fpcinc.com';
 
     if (!email.toLowerCase().endsWith(allowedDomain)) {
       console.error(`Blocked unauthorized login attempt from: ${email}`);
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     let { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
     if (listError) throw listError;
-    
+
     let sitepulseUser = users.find((u: any) => u.email === email);
 
     if (!sitepulseUser) {

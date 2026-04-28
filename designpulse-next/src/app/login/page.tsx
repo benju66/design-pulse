@@ -12,6 +12,22 @@ export default function LoginPage() {
   
   const router = useRouter();
 
+  const handleProcoreLogin = () => {
+    setLoading(true);
+    setError(null);
+    
+    const clientId = process.env.NEXT_PUBLIC_PROCORE_CLIENT_ID;
+    
+    if (!clientId) {
+      setError('Procore Client ID is missing. Please check your configuration.');
+      setLoading(false);
+      return;
+    }
+
+    const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/procore/callback`);
+    window.location.href = `https://login.procore.com/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}`;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -46,6 +62,26 @@ export default function LoginPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-slate-900 py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-slate-200 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={handleProcoreLogin}
+            disabled={loading}
+            className="w-full flex justify-center py-3 px-4 mb-6 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-[#F26522] hover:bg-[#d6571a] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#F26522] disabled:opacity-50 transition-colors"
+          >
+            {loading ? <Loader2 className="animate-spin" size={20} /> : 'Sign in with Procore'}
+          </button>
+
+          <div className="relative mb-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200 dark:border-slate-700" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400">
+                Or continue with email
+              </span>
+            </div>
+          </div>
+
           <form className="space-y-6" onSubmit={handleLogin}>
             {error && (
               <div className="bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 p-3 rounded-xl text-sm">

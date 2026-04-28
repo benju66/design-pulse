@@ -83,6 +83,7 @@ export function useOpportunities(projectId: string | null) {
         .from('opportunities')
         .select('*')
         .eq('project_id', projectId)
+        .eq('is_deleted', false)
         .order('created_at', { ascending: false });
       if (error) {
         console.warn("Supabase Error:", error);
@@ -177,20 +178,51 @@ export function useCreateOpportunity(projectId: string) {
 
 export function useDeleteOpportunity(projectId: string) {
   const queryClient = useQueryClient();
-  return useMutation<string, Error, string>({
+  return useMutation<
+    string, 
+    Error, 
+    string, 
+    { previousOpportunities: Opportunity[] | undefined; previousOptions: OpportunityOption[] | undefined }
+  >({
     mutationFn: async (id) => {
       const { error } = await supabase
         .from('opportunities')
-        .delete()
+        .update({ is_deleted: true })
         .eq('id', id);
       if (error) throw error;
       return id;
     },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
+
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.filter(opp => opp.id !== id);
+      });
+
+      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
+        if (!old) return old;
+        return old.filter(opt => opt.opportunity_id !== id);
+      });
+
+      return { previousOpportunities, previousOptions };
+    },
     onSuccess: () => {
       toast.success('Item deleted successfully.');
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
     },
-    onError: (err) => {
+    onError: (err, _id, context) => {
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
+      }
       console.error('Delete Opportunity Error:', err);
       toast.error(`Failed to delete: ${err.message || 'Unknown error'}`);
     }
@@ -297,6 +329,7 @@ export function useAllProjectOptions(projectId: string | null) {
         .from('opportunity_options')
         .select('*, opportunities!inner(project_id)')
         .eq('opportunities.project_id', projectId)
+        .eq('is_deleted', false)
         .order('created_at', { ascending: true });
       if (error) {
         console.warn("Supabase Error:", error);
@@ -443,7 +476,7 @@ export function useDeleteOption(opportunityId: string, projectId: string) {
     mutationFn: async (id) => {
       const { error } = await supabase
         .from('opportunity_options')
-        .delete()
+        .update({ is_deleted: true })
         .eq('id', id);
       if (error) throw error;
       return id;

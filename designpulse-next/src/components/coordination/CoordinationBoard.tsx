@@ -13,7 +13,7 @@ interface CoordinationBoardProps {
 }
 
 const COLUMNS = [
-  { id: 'Pending Plan Update', title: 'Pending Plan Update' },
+  { id: 'Draft', title: 'Draft' },
   { id: 'In Drafting', title: 'In Drafting' },
   { id: 'Ready for Review', title: 'Ready for Review' },
   { id: 'Implemented', title: 'Implemented' },
@@ -25,7 +25,7 @@ export default function CoordinationBoard({ projectId, opportunities }: Coordina
   // Filter opportunities to only those that should be on the board.
   // Assuming the board tracks execution after an item is locked and moved to 'Pending Plan Update'
   const boardOpportunities = opportunities.filter(opp => 
-    COLUMNS.some(col => col.id === opp.status)
+    COLUMNS.some(col => col.id === (opp.coordination_status || 'Draft'))
   );
 
   const sensors = useSensors(
@@ -43,7 +43,7 @@ export default function CoordinationBoard({ projectId, opportunities }: Coordina
     const opportunity = active.data.current?.opportunity as Opportunity;
     if (!opportunity) return;
     
-    const currentColumnId = opportunity.status;
+    const currentColumnId = opportunity.coordination_status || 'Draft';
     const targetColumnId = over.id as string;
 
     if (currentColumnId === targetColumnId) return;
@@ -63,7 +63,7 @@ export default function CoordinationBoard({ projectId, opportunities }: Coordina
     // Passed validation, execute mutation
     updateMutation.mutate({
       id: opportunity.id,
-      updates: { status: targetColumnId },
+      updates: { coordination_status: targetColumnId },
     });
   };
 
@@ -78,7 +78,7 @@ export default function CoordinationBoard({ projectId, opportunities }: Coordina
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <div className="flex gap-4 h-full pb-4">
             {COLUMNS.map((col) => {
-              const colOpps = boardOpportunities.filter(o => o.status === col.id);
+              const colOpps = boardOpportunities.filter(o => (o.coordination_status || 'Draft') === col.id);
               return (
                 <CoordinationColumn key={col.id} id={col.id} title={col.title} count={colOpps.length}>
                   {colOpps.map(opp => (

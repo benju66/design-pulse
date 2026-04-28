@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
   assignee text,
   due_date text,
   status text DEFAULT 'Draft',
+  coordination_status text DEFAULT 'Draft',
   cost_impact numeric DEFAULT 0,
   days_impact numeric DEFAULT 0,
   design_markups jsonb DEFAULT '[]'::jsonb,

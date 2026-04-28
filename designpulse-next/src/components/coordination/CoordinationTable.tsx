@@ -13,9 +13,10 @@ import {
   getExpandedRowModel
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronUp, ChevronDown, PanelRight } from 'lucide-react';
+import { ChevronUp, ChevronDown, PanelRight, AlertTriangle } from 'lucide-react';
 import { Opportunity, DisciplineConfig } from '@/types/models';
-import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity } from '@/hooks/useProjectQueries';
+import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
+import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { CoordinationGhostRow } from './CoordinationGhostRow';
 import { TextCell, PriorityCell } from '@/components/opportunities/EditableCell';
 import { useUIStore } from '@/stores/useUIStore';
@@ -185,6 +186,40 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
+  const deleteMutation = useDeleteOpportunity(projectId);
+  const permissions = useCurrentUserPermissions(projectId);
+
+  const compareQueue = useUIStore(state => state.compareQueue);
+  const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
+  const setCompareQueue = useUIStore(state => state.setCompareQueue);
+
+  // Auto-remove deleted items from the compare queue
+  useEffect(() => {
+    if (compareQueue.length > 0) {
+      const validQueue = compareQueue.filter(id => opportunities.some(opp => opp.id === id));
+      if (validQueue.length !== compareQueue.length) {
+        setCompareQueue(validQueue);
+      }
+    }
+  }, [opportunities, compareQueue, setCompareQueue]);
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleBulkDelete = async () => {
+    setIsDeleting(true);
+    try {
+      for (const id of compareQueue) {
+        await deleteMutation.mutateAsync(id);
+      }
+      clearCompareQueue();
+      setIsDeleteModalOpen(false);
+    } catch (error) {
+      console.error('Failed to bulk delete:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
@@ -269,7 +304,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
       cell: PriorityCell,
     },
     {
-      accessorKey: 'status',
+      accessorKey: 'coordination_status',
       header: 'Status',
       size: 140,
       cell: CoordinationStatusCell,
@@ -305,6 +340,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
     meta: {
       updateData: updateMutation,
       projectId,
+      permissions,
     } as any
   });
 
@@ -317,6 +353,9 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
     estimateSize: () => 44, // Base height
     overscan: 5,
   });
+
+  const { handleKeyDown, moveActiveCell } = useGridNavigation(table as any, virtualizer);
+  (table.options.meta as any).moveActiveCell = moveActiveCell;
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;
@@ -345,6 +384,10 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
         <div 
           ref={tableContainerRef} 
           className="flex-1 overflow-auto rounded-b-xl outline-none"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (handleKeyDown) handleKeyDown(e as any);
+          }}
         >
           <table 
             className="text-left text-sm whitespace-nowrap" 
@@ -438,10 +481,77 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
             )}
 
             <tbody>
-              <CoordinationGhostRow table={table as any} createMutation={createMutation} />
+              {permissions.can_edit_records && (
+                <CoordinationGhostRow table={table as any} createMutation={createMutation} />
+              )}
             </tbody>
           </table>
+
+          {compareQueue.length > 0 && (
+            <div className="sticky bottom-0 w-full bg-slate-900 text-white p-4 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.2)] z-50 rounded-b-xl border-t border-slate-800">
+              <div className="flex items-center gap-4">
+                <div className="bg-sky-500 text-white text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full">
+                  {compareQueue.length}
+                </div>
+                <span className="font-medium text-sm text-slate-200">Items Selected</span>
+              </div>
+              <div className="flex gap-3">
+                {permissions.can_delete_records && (
+                  <button 
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    className="px-4 py-2 text-sm font-semibold text-rose-400 hover:text-rose-300 transition-colors"
+                  >
+                    Delete ({compareQueue.length})
+                  </button>
+                )}
+                <button 
+                  onClick={clearCompareQueue}
+                  className="px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
         </div>
+
+        {isDeleteModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <div className="p-6">
+                <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center mb-4 text-rose-600 dark:text-rose-400">
+                  <AlertTriangle size={24} />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Delete {compareQueue.length} Tasks?</h2>
+                <p className="text-slate-600 dark:text-slate-400">
+                  Are you sure you want to delete these coordination tasks? This action will move them to the trash.
+                </p>
+              </div>
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Deleting...
+                    </>
+                  ) : 'Delete Tasks'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

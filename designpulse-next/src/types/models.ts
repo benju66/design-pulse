@@ -4,6 +4,7 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   division?: string | null;
   cost_code?: string | null;
   record_type?: string | null;
+  coordination_status?: string | null;
   coordination_details?: Record<string, DisciplineDetails> | null;
 };
 

@@ -103,6 +103,7 @@ export interface Database {
           assignee: string | null
           due_date: string | null
           status: string | null
+          coordination_status: string | null
           cost_impact: number | null
           days_impact: number | null
           design_markups: Json | null
@@ -132,6 +133,7 @@ export interface Database {
           assignee?: string | null
           due_date?: string | null
           status?: string | null
+          coordination_status?: string | null
           cost_impact?: number | null
           days_impact?: number | null
           design_markups?: Json | null
@@ -161,6 +163,7 @@ export interface Database {
           assignee?: string | null
           due_date?: string | null
           status?: string | null
+          coordination_status?: string | null
           cost_impact?: number | null
           days_impact?: number | null
           design_markups?: Json | null

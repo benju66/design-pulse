@@ -24,7 +24,7 @@ export const CoordinationSummary = ({ opportunities }: Props) => {
 
     opportunities.forEach(opp => {
       // 1. Pending Tasks
-      if (opp.status === 'In Drafting' || opp.status === 'Pending Plan Update') {
+      if ((opp.coordination_status || 'Draft') === 'In Drafting' || (opp.coordination_status || 'Draft') === 'Draft') {
         pendingTasks++;
         // 2. Critical Blockers
         if (opp.priority === 'Critical') {
@@ -32,7 +32,7 @@ export const CoordinationSummary = ({ opportunities }: Props) => {
         }
       }
 
-      if (opp.status === 'Ready for Review') {
+      if ((opp.coordination_status || 'Draft') === 'Ready for Review') {
         readyForReview++;
       }
 

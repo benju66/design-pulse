@@ -39,12 +39,12 @@ export const DEFAULT_BUILDING_AREAS = [
 
 export const DEFAULT_SIDEBAR_ITEMS = [
   { id: 'dashboard', label: 'VE Matrix', iconName: 'LayoutDashboard', visible: true },
-  { id: 'my-desk', label: 'My Desk', iconName: 'Inbox', visible: true },
-  { id: 'map', label: 'Map View', iconName: 'Map', visible: true },
-  { id: 'analytics', label: 'Analytics', iconName: 'PieChart', visible: true },
   { id: 'coordination', label: 'Coordination Tracker', iconName: 'ListChecks', visible: true },
+  { id: 'analytics', label: 'Analytics', iconName: 'PieChart', visible: true },
+  { id: 'map', label: 'Map View', iconName: 'Map', visible: false },
   { id: 'dashboard-v2', label: 'Grid V2 (Proto)', iconName: 'LayoutDashboard', visible: true },
-  { id: 'coordination-v2', label: 'Kanban (Proto)', iconName: 'Kanban', visible: true }
+  { id: 'my-desk', label: 'My Desk', iconName: 'Inbox', visible: true },
+  { id: 'coordination-v2', label: 'Kanban (Proto)', iconName: 'Kanban', visible: false }
 ] as const;
 
 export const DEFAULT_DISCIPLINES = [

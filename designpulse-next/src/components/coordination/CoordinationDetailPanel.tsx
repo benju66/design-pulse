@@ -75,12 +75,6 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
     document.body.style.cursor = 'col-resize';
   };
 
-  const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    updateMutation.mutate({
-      id: opportunity.id,
-      updates: { status: e.target.value }
-    });
-  };
 
   const handleDisciplineUpdate = (disciplineId: string, updates: Partial<DisciplineDetails>) => {
     // 1. Instant local visual update

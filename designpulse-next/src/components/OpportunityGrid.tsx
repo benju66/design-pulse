@@ -13,8 +13,8 @@ import {
   ColumnOrderState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useUpdateOpportunity, useCreateOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
+import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
@@ -37,9 +37,39 @@ interface OpportunityGridProps {
 export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
+  const deleteMutation = useDeleteOpportunity(projectId);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const compareQueue = useUIStore(state => state.compareQueue);
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
+  const setCompareQueue = useUIStore(state => state.setCompareQueue);
+
+  // Auto-remove deleted items from the compare queue
+  useEffect(() => {
+    if (compareQueue.length > 0) {
+      const validQueue = compareQueue.filter(id => data.some(opp => opp.id === id));
+      if (validQueue.length !== compareQueue.length) {
+        setCompareQueue(validQueue);
+      }
+    }
+  }, [data, compareQueue, setCompareQueue]);
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleBulkDelete = async () => {
+    setIsDeleting(true);
+    try {
+      for (const id of compareQueue) {
+        await deleteMutation.mutateAsync(id);
+      }
+      clearCompareQueue();
+      setIsDeleteModalOpen(false);
+    } catch (error) {
+      console.error('Failed to bulk delete:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const { data: rawCostCodes = [] } = useCostCodes();
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
@@ -226,7 +256,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
                   }`}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">
+                    <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -275,6 +305,14 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
             <span className="font-medium text-sm text-slate-200">Options Selected</span>
           </div>
           <div className="flex gap-3">
+            {permissions.can_delete_records && (
+              <button 
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="px-4 py-2 text-sm font-semibold text-rose-400 hover:text-rose-300 transition-colors"
+              >
+                Delete ({compareQueue.length})
+              </button>
+            )}
             <button 
               onClick={clearCompareQueue}
               className="px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
@@ -290,6 +328,44 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           </div>
         </div>
       )}
+
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center mb-4 text-rose-600 dark:text-rose-400">
+                <AlertTriangle size={24} />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Delete {compareQueue.length} Items?</h2>
+              <p className="text-slate-600 dark:text-slate-400">
+                Are you sure you want to delete these items? This action will move them to the trash.
+              </p>
+            </div>
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : 'Delete Items'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       </div>
     </div>
   );

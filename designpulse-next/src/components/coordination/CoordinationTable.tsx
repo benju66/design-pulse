@@ -407,7 +407,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
                     }`}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">
+                      <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
                     ))}

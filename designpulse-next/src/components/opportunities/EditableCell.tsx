@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useProjectSettings } from '@/hooks/useProjectQueries';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
-import { CellContext, Row, Column, Table } from '@tanstack/react-table';
+import { CellContext, Row, Column } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
 import { AssigneeSelect } from './AssigneeSelect';
 
@@ -17,13 +17,12 @@ interface CellWrapperProps {
   row: Row<Opportunity>;
   column: Column<Opportunity, unknown>;
   displayValue: React.ReactNode;
-  inputElement: (isActive: boolean, setGridMode: (mode: string) => void) => React.ReactNode;
+  inputElement: (isActive: boolean, setGridMode: (mode: 'navigate' | 'edit') => void) => React.ReactNode;
   className?: string;
-  table: Table<Opportunity>;
   disabled?: boolean;
 }
 
-export const CellWrapper = ({ row, column, displayValue, inputElement, className, table, disabled }: CellWrapperProps) => {
+export const CellWrapper = ({ row, column, displayValue, inputElement, className, disabled }: CellWrapperProps) => {
   const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
   const setActiveCell = useUIStore(state => state.setActiveCell);
   const gridMode = useUIStore(state => state.gridMode);
@@ -121,7 +120,6 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
       disabled={disabled}
       row={row}
       column={column}
-      table={table}
       displayValue={value || ''}
       inputElement={(_isActive, setGridMode) => (
         <input
@@ -203,13 +201,13 @@ export const BuildingAreaCell = React.memo(({ getValue, row, column, table }: Ce
       disabled={!permissions.can_edit_records}
       onChange={(e) => {
         if (updateMutation) {
-          updateMutation.mutate({ id: row.original.id, updates: { building_area: e.target.value } });
+          updateMutation.mutate({ id: row.original.id, updates: { building_area: e.target.value || null } });
         }
         setGridMode('navigate');
       }}
       className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm font-medium cursor-pointer text-slate-900 dark:text-slate-100 ${isCellActive ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20' : ''}`}
     >
-      <option value="" disabled className="text-slate-400">Select Building Area</option>
+      <option value="" className="text-slate-400">Select Building Area</option>
       {buildingAreas.map((area) => (
         <option key={area} value={area}>{area}</option>
       ))}
@@ -342,7 +340,6 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
       disabled={disabled}
       row={row}
       column={column}
-      table={table}
       className={colorClass}
       displayValue={displayValue}
       inputElement={(_isActive, setGridMode) => (
@@ -415,7 +412,6 @@ export const DivisionCell = React.memo(({ getValue, row, column, table }: CellCo
         disabled={disabled}
         row={row}
         column={column}
-        table={table}
         displayValue={value || ''}
         inputElement={(_isActive, setGridMode) => (
           <input
@@ -518,7 +514,6 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
         disabled={disabled}
         row={row}
         column={column}
-        table={table}
         displayValue={value || ''}
         inputElement={(_isActive, setGridMode) => (
           <input
@@ -543,7 +538,7 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
   );
 }, (prev, next) => commonComparator(prev, next, false));
 
-export const DisplayIdCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
+export const DisplayIdCell = React.memo(({ getValue, row, column }: CellContext<Opportunity, unknown>) => {
   const value = getValue() as string | null | undefined;
   const recordType = row.original.record_type;
   const displayValue = value || '';
@@ -554,7 +549,6 @@ export const DisplayIdCell = React.memo(({ getValue, row, column, table }: CellC
         disabled={true}
         row={row}
         column={column}
-        table={table}
         className="w-full h-full flex items-center cursor-default"
         displayValue={
           <span 
@@ -574,7 +568,6 @@ export const DisplayIdCell = React.memo(({ getValue, row, column, table }: CellC
       disabled={true}
       row={row}
       column={column}
-      table={table}
       className="text-slate-600 dark:text-slate-400 font-mono text-sm cursor-default"
       displayValue={displayValue}
       inputElement={() => null}
@@ -636,7 +629,6 @@ export const AssigneeCell = React.memo(({ getValue, row, column, table }: CellCo
       disabled={disabled}
       row={row}
       column={column}
-      table={table}
       displayValue={displayElement}
       inputElement={(_isActive, setGridMode) => (
         <div className="w-full h-full flex items-center px-1 bg-white dark:bg-slate-900" onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}>

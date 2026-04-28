@@ -12,6 +12,7 @@ export interface UIState {
   toggleCardVisibility: (cardId: string) => void;
   
   compareQueue: string[];
+  setCompareQueue: (queue: string[]) => void;
   toggleCompareItem: (id: string) => void;
   clearCompareQueue: () => void;
   
@@ -120,6 +121,7 @@ export const useUIStore = create<UIState>()(
           : [...state.compareQueue, id]
       })),
       
+      setCompareQueue: (queue) => set({ compareQueue: queue }),
       clearCompareQueue: () => set({ compareQueue: [] }),
     }),
     {

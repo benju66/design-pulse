@@ -7,6 +7,8 @@ declare module '@tanstack/react-table' {
     updateData: UseMutationResult<Opportunity, Error, { id: string; updates: Partial<Opportunity> }, { previousOpportunities: Opportunity[] | undefined }>;
     optionsMap: Record<string, OpportunityOption[]>;
     moveActiveCell?: (direction: 'down' | 'right' | 'left' | 'up') => void;
+    activeCell?: { rowIndex: number | null; columnId: string | null };
+    setActiveCell?: (cell: { rowIndex: number; columnId: string } | null) => void;
     rawCostCodes?: CostCode[];
     projectMembers?: any[];
     permissions?: {

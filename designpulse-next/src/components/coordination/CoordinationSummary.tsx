@@ -4,6 +4,28 @@ import { AlertCircle, FileText, CheckCircle2, ChevronDown, ChevronUp } from 'luc
 import { useUIStore } from '@/stores/useUIStore';
 import { Opportunity } from '@/types/models';
 
+interface TooltipPopoverProps {
+  title: string;
+  description: string;
+  align?: 'left' | 'center' | 'right';
+}
+
+const TooltipPopover = ({ title, description, align = 'center' }: TooltipPopoverProps) => {
+  const alignClass = 
+    align === 'left' ? 'left-0' :
+    align === 'right' ? 'right-0' :
+    'left-1/2 -translate-x-1/2';
+    
+  return (
+    <div className={`absolute top-full mt-3 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl z-[100] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform -translate-y-2 group-hover:translate-y-0 pointer-events-none ${alignClass}`}>
+      <div className="p-3 text-left">
+        <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">{title}</h4>
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{description}</p>
+      </div>
+    </div>
+  );
+};
+
 interface Props {
   opportunities: Opportunity[];
 }
@@ -85,106 +107,130 @@ export const CoordinationSummary = ({ opportunities }: Props) => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 relative z-10 shadow-sm">
-      <div 
-        onClick={toggleCollapse}
-        className="px-6 py-2 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors border-b border-slate-100 dark:border-slate-800/50"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Coordination Summary
-          </span>
-          {isCollapsed && (
-            <div className="flex items-center gap-3 ml-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-              <span className="flex items-center gap-1" title="Items flagged as Critical priority that have not yet reached Ready for Review">
-                <AlertCircle size={12} className={metrics.criticalItems > 0 ? 'text-rose-500' : 'text-slate-400'} />
-                {metrics.criticalItems} Critical
-              </span>
-              <span className="text-slate-300 dark:text-slate-600">|</span>
-              <span className="flex items-center gap-1" title="Items where all required disciplines are complete">
-                <CheckCircle2 size={12} className="text-purple-500" />
-                {metrics.readyForReview} Review
-              </span>
-              <span className="text-slate-300 dark:text-slate-600">|</span>
-              <span className="flex items-center gap-1" title="Items currently in drafting phase">
-                <FileText size={12} className="text-amber-500" />
-                {metrics.inProgress} In Progress
-              </span>
-              <span className="text-slate-300 dark:text-slate-600">|</span>
-              <span className="flex items-center gap-1" title="Total opportunities tracked">
-                <span className="text-slate-500">{metrics.totalCount} Total</span>
-              </span>
+    <AnimatePresence mode="wait">
+      {isCollapsed ? (
+        <motion.div
+          key="micro"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 mb-6 shadow-sm flex-wrap"
+        >
+          <div className="flex items-center flex-wrap gap-4 px-2">
+            <div className="relative group flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Tracked:</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white">{metrics.totalCount}</span>
+              <TooltipPopover align="left" title="Total Tracked" description="Total number of VE items currently in the coordination pipeline." />
             </div>
-          )}
-        </div>
-        <button className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-          {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-        </button>
-      </div>
-
-      <AnimatePresence initial={false}>
-        {!isCollapsed && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="overflow-hidden"
-          >
-            <div className="px-6 py-4 flex flex-wrap gap-6 items-center">
-              
-              <div className="flex items-center gap-6 pr-6 border-r border-slate-200 dark:border-slate-700/50">
-                <div className="flex flex-col" title="Items explicitly marked as Draft and not yet in progress">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Draft Items</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
-                      <FileText size={16} />
-                    </div>
-                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">{metrics.itemsInDraft}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col" title="Items currently in drafting phase">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">In Progress</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                      <FileText size={16} />
-                    </div>
-                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">{metrics.inProgress}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col" title="Items flagged as Critical priority that have not yet reached Ready for Review">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Critical Blockers</span>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${metrics.criticalItems > 0 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                      {metrics.criticalItems === 0 ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                    </div>
-                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">{metrics.criticalItems}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col" title="Items where all required disciplines are complete">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Ready for Review</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
-                      <CheckCircle2 size={16} />
-                    </div>
-                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">{metrics.readyForReview}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex-1 flex items-center gap-6 min-w-[300px]">
-                {renderDisciplineProgress('Architecture', 'd_arch')}
-                {renderDisciplineProgress('Mechanical', 'd_mech')}
-                {renderDisciplineProgress('Electrical', 'd_elec')}
-              </div>
-
+            
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+            
+            <div className="relative group flex items-center gap-2">
+              <span className="text-xs font-semibold text-amber-600 dark:text-amber-500">In Progress:</span>
+              <span className="text-sm font-bold text-amber-700 dark:text-amber-400">{metrics.inProgress}</span>
+              <TooltipPopover title="In Progress" description="Items currently in the active drafting phase." />
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+            
+            <div className="relative group flex items-center gap-2">
+              <span className="text-xs font-semibold text-purple-600 dark:text-purple-500">Review:</span>
+              <span className="text-sm font-bold text-purple-700 dark:text-purple-300">{metrics.readyForReview}</span>
+              <TooltipPopover title="Ready for Review" description="Items where all required discipline checklists are marked as complete." />
+            </div>
+
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+            
+            <div className="relative group flex items-center gap-2">
+              <span className="text-xs font-semibold text-rose-600 dark:text-rose-500">Critical:</span>
+              <span className="text-sm font-bold text-rose-700 dark:text-rose-400">{metrics.criticalItems}</span>
+              <TooltipPopover align="right" title="Critical Blockers" description="High priority items that have not yet reached the Ready for Review stage." />
+            </div>
+
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+            
+            <div className="relative group flex items-center gap-3 ml-2 bg-slate-50 dark:bg-slate-800/50 px-3 py-1 rounded-lg">
+               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completion:</span>
+               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Arch <span className="font-bold">{metrics.disciplines.d_arch.complete}/{metrics.disciplines.d_arch.required}</span></span>
+               <span className="text-slate-300 dark:text-slate-600">•</span>
+               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Mech <span className="font-bold">{metrics.disciplines.d_mech.complete}/{metrics.disciplines.d_mech.required}</span></span>
+               <span className="text-slate-300 dark:text-slate-600">•</span>
+               <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Elec <span className="font-bold">{metrics.disciplines.d_elec.complete}/{metrics.disciplines.d_elec.required}</span></span>
+            </div>
+          </div>
+          
+          <div className="ml-auto flex items-center pl-4 border-l border-slate-200 dark:border-slate-700">
+            <button 
+              onClick={toggleCollapse}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-300 transition-colors"
+              title="Expand Summary"
+            >
+              <ChevronDown size={18} strokeWidth={2.5} />
+            </button>
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div
+          key="macro"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="grid grid-cols-1 @5xl:grid-cols-2 gap-6 mb-6 relative"
+        >
+          <div className="absolute -top-3 -right-3 z-10">
+            <button 
+              onClick={toggleCollapse}
+              className="p-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 shadow-sm transition-all hover:scale-105"
+              title="Collapse Summary"
+            >
+              <ChevronUp size={16} strokeWidth={2.5} />
+            </button>
+          </div>
+
+          {/* Cluster 1: Pipeline Status */}
+          <div className="flex flex-col border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl p-4">
+             <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 px-1">Pipeline Status</h3>
+             <div className="grid grid-cols-1 @3xl:grid-cols-4 gap-4 h-full">
+                {/* Draft Items */}
+                <div className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col justify-center">
+                  <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Draft</span>
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white">{metrics.itemsInDraft}</span>
+                  <TooltipPopover align="left" title="Draft Items" description="Total number of VE items explicitly marked as Draft and not yet actively in progress." />
+                </div>
+                {/* In Progress */}
+                <div className="relative group bg-amber-50/50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-xl p-4 flex flex-col justify-center">
+                  <span className="text-sm text-amber-600 dark:text-amber-500 font-medium">In Progress</span>
+                  <span className="text-2xl font-bold text-amber-700 dark:text-amber-400">{metrics.inProgress}</span>
+                  <TooltipPopover title="In Progress" description="Items currently in the active drafting and coordination phase." />
+                </div>
+                {/* Ready for Review */}
+                <div className="relative group bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4 flex flex-col justify-center">
+                  <span className="text-sm text-purple-600 dark:text-purple-400 font-medium">Ready for Review</span>
+                  <span className="text-2xl font-bold text-purple-700 dark:text-purple-300">{metrics.readyForReview}</span>
+                  <TooltipPopover title="Ready for Review" description="Items where all required discipline checklists are marked as complete and are awaiting final approval." />
+                </div>
+                {/* Critical Blockers */}
+                <div className={`relative group ${metrics.criticalItems > 0 ? 'bg-rose-50/50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-900/30' : 'bg-slate-50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800'} border rounded-xl p-4 flex flex-col justify-center`}>
+                  <span className={`text-sm ${metrics.criticalItems > 0 ? 'text-rose-600 dark:text-rose-500' : 'text-slate-500 dark:text-slate-400'} font-medium`}>Critical Blockers</span>
+                  <span className={`text-2xl font-bold ${metrics.criticalItems > 0 ? 'text-rose-700 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>{metrics.criticalItems}</span>
+                  <TooltipPopover align="right" title="Critical Blockers" description="High priority items that have not yet reached the Ready for Review stage and require immediate attention." />
+                </div>
+             </div>
+          </div>
+
+          {/* Cluster 2: Discipline Coordination */}
+          <div className="flex flex-col border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/20 dark:bg-slate-900/5 rounded-2xl p-4">
+            <h3 className="text-sm font-bold text-slate-600/80 dark:text-slate-500/80 uppercase tracking-wider mb-4 px-1">Discipline Coordination</h3>
+            <div className="grid grid-cols-1 @3xl:grid-cols-3 gap-4 h-full content-center">
+              {renderDisciplineProgress('Architecture', 'd_arch')}
+              {renderDisciplineProgress('Mechanical', 'd_mech')}
+              {renderDisciplineProgress('Electrical', 'd_elec')}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

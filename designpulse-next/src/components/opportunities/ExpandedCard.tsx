@@ -28,7 +28,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const permissions = useCurrentUserPermissions(projectId);
   const buildingAreas = (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
-  const isLocked = ['Pending Review', 'Approved'].includes(row.original.status || '');
+  const isLocked = row.original.status === 'Approved';
 
   const cardOrder = useUIStore(state => state.cardOrder);
   const setCardOrder = useUIStore(state => state.setCardOrder);
@@ -65,7 +65,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
     if (field.id === 'status') {
       return (
         <select
-          defaultValue={val || 'Draft'}
+          value={val || 'Draft'}
           disabled={!permissions.can_edit_records}
           onChange={(e) => {
             updateData.mutate({ id: row.original.id, updates: { status: e.target.value } });
@@ -81,7 +81,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
     } else if (field.id === 'coordination_status') {
       return (
         <select
-          defaultValue={val || 'Not Required'}
+          value={val || 'Not Required'}
           disabled={!permissions.can_edit_records}
           onChange={(e) => {
             updateData.mutate({ id: row.original.id, updates: { coordination_status: e.target.value } });
@@ -97,7 +97,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
     } else if (field.id === 'priority') {
       return (
         <select
-          defaultValue={val || 'Medium'}
+          value={val || 'Medium'}
           disabled={!permissions.can_edit_records}
           onChange={(e) => {
             updateData.mutate({ id: row.original.id, updates: { priority: e.target.value } });
@@ -116,6 +116,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
           type="number"
           disabled={isLocked || !permissions.can_edit_records}
           className={`w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none ${(isLocked || !permissions.can_edit_records) ? 'opacity-70 cursor-not-allowed' : ''}`}
+          key={val as string}
           defaultValue={val || ''}
           onBlur={(e) => {
             const num = Number(e.target.value);
@@ -144,6 +145,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
           disabled={(isLocked && field.id === 'title') || !permissions.can_edit_records}
           className={`w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none resize-none ${((isLocked && field.id === 'title') || !permissions.can_edit_records) ? 'opacity-70 cursor-not-allowed' : ''}`}
           rows={2}
+          key={val as string}
           defaultValue={val || ''}
           onBlur={(e) => {
             if (e.target.value !== (val || '')) {

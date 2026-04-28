@@ -18,7 +18,7 @@ import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { CoordinationGhostRow } from './CoordinationGhostRow';
-import { TextCell, PriorityCell } from '@/components/opportunities/EditableCell';
+import { TextCell, PriorityCell, BuildingAreaCell } from '@/components/opportunities/EditableCell';
 import { useUIStore } from '@/stores/useUIStore';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
@@ -277,6 +277,12 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
       }
     },
     {
+      accessorKey: 'building_area',
+      header: 'Building Area',
+      size: 150,
+      cell: BuildingAreaCell,
+    },
+    {
       accessorKey: 'title',
       header: 'Task / Item',
       size: 400,
@@ -364,7 +370,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
     : 0;
 
   return (
-    <div className="w-full h-full flex flex-col p-6 overflow-hidden">
+    <div className="w-full h-full flex flex-col overflow-hidden">
       <div className="flex-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative overflow-hidden flex flex-col">
         
         <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
@@ -390,8 +396,8 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
           }}
         >
           <table 
-            className="text-left text-sm whitespace-nowrap" 
-            style={{ tableLayout: 'fixed', width: table.getTotalSize() }}
+            className="w-full text-left text-sm whitespace-nowrap" 
+            style={{ tableLayout: 'fixed', minWidth: table.getTotalSize() }}
           >
             <thead className="bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700 sticky top-0 z-10">
               {table.getHeaderGroups().map((headerGroup) => (

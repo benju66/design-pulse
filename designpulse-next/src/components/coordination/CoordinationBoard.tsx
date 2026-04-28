@@ -68,7 +68,7 @@ export default function CoordinationBoard({ projectId, opportunities }: Coordina
   };
 
   return (
-    <div className="p-6 w-full h-full flex flex-col overflow-hidden">
+    <div className="w-full h-full flex flex-col overflow-hidden">
       <div className="mb-6 shrink-0">
         <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Design Coordination Tracker V2</h3>
         <p className="text-sm text-slate-500 mt-1">Drag and drop approved design changes through the drafting and execution pipeline.</p>

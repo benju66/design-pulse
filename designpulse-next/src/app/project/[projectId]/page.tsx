@@ -34,7 +34,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const createMutation = useCreateOpportunity(projectId);
   
   const [currentView, setCurrentView] = useState('dashboard');
+  const [settingsTab, setSettingsTab] = useState('info');
   const [activeTab, setActiveTab] = useState('All');
+  const [activeCostCode, setActiveCostCode] = useState('All');
+  const [activeStatus, setActiveStatus] = useState('All');
+  const [coordActiveType, setCoordActiveType] = useState('All');
+  const [coordActiveStatus, setCoordActiveStatus] = useState('All');
   const [viewMode, setViewMode] = useState('split'); // 'split' | 'flat' | 'card'
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
@@ -127,10 +132,23 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       }
       return false;
     });
-    return activeTab === 'All' 
-      ? baseMatrixItems 
-      : baseMatrixItems.filter(opp => opp.building_area === activeTab);
-  }, [opportunities, activeTab]);
+    return baseMatrixItems.filter(opp => {
+      if (activeTab !== 'All' && opp.building_area !== activeTab) return false;
+      if (activeCostCode !== 'All' && opp.cost_code !== activeCostCode) return false;
+      if (activeStatus !== 'All' && opp.status !== activeStatus) return false;
+      return true;
+    });
+  }, [opportunities, activeTab, activeCostCode, activeStatus]);
+
+  const uniqueCostCodes = React.useMemo(() => {
+    const codes = opportunities.map(o => o.cost_code).filter(Boolean) as string[];
+    return Array.from(new Set(codes)).sort();
+  }, [opportunities]);
+
+  const uniqueStatuses = React.useMemo(() => {
+    const statuses = opportunities.map(o => o.status).filter(Boolean) as string[];
+    return Array.from(new Set(statuses)).sort();
+  }, [opportunities]);
 
   const coordinationOpportunities = React.useMemo(() => {
     return opportunities.filter(opp => {
@@ -139,6 +157,24 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       return false;
     });
   }, [opportunities]);
+
+  const uniqueCoordTypes = React.useMemo(() => {
+    const types = coordinationOpportunities.map(o => o.record_type || 'VE').filter(Boolean) as string[];
+    return Array.from(new Set(types)).sort();
+  }, [coordinationOpportunities]);
+
+  const uniqueCoordStatuses = React.useMemo(() => {
+    const statuses = coordinationOpportunities.map(o => o.coordination_status).filter(Boolean) as string[];
+    return Array.from(new Set(statuses)).sort();
+  }, [coordinationOpportunities]);
+
+  const filteredCoordinationOpportunities = React.useMemo(() => {
+    return coordinationOpportunities.filter(opp => {
+      if (coordActiveType !== 'All' && (opp.record_type || 'VE') !== coordActiveType) return false;
+      if (coordActiveStatus !== 'All' && opp.coordination_status !== coordActiveStatus) return false;
+      return true;
+    });
+  }, [coordinationOpportunities, coordActiveType, coordActiveStatus]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -263,27 +299,72 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 <div className="shrink-0">
                   <BudgetSummary projectId={projectId} opportunities={opportunities} />
                   
-                  {/* Scope Tabs */}
-                  <div className="flex gap-2 mb-4">
-                    {tabs.map(tab => (
-                      <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          activeTab === tab
-                            ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800'
-                        }`}
+                  {/* Filter Toolbar */}
+                  <div className="flex flex-wrap items-center gap-3 mb-4 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
+                    <div className="flex items-center gap-2 pl-2">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filters</span>
+                    </div>
+                    
+                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800" />
+                    
+                    {/* Status Filter */}
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">VE Status:</span>
+                      <select
+                        value={activeStatus}
+                        onChange={(e) => setActiveStatus(e.target.value)}
+                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
                       >
-                        {tab}
+                        <option value="All">All</option>
+                        {uniqueStatuses.map(status => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Building Area Filter */}
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Building Area:</span>
+                      <select
+                        value={activeTab}
+                        onChange={(e) => setActiveTab(e.target.value)}
+                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                      >
+                        {tabs.map(tab => (
+                          <option key={tab} value={tab}>{tab}</option>
+                        ))}
+                      </select>
+                      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-1" />
+                      <button
+                        onClick={() => {
+                          setSettingsTab('building_areas');
+                          setCurrentView('settings');
+                        }}
+                        className="text-slate-400 hover:text-sky-500 transition-colors"
+                        title="Manage Building Areas"
+                      >
+                        <Plus size={16} />
                       </button>
-                    ))}
-                    <button
-                      onClick={() => setCurrentView('settings')}
-                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800 flex items-center justify-center"
-                      title="Add New Scope Tab"
-                    >
-                      <Plus size={16} />
+                    </div>
+
+                    {/* Cost Code Filter */}
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Cost Code:</span>
+                      <select
+                        value={activeCostCode}
+                        onChange={(e) => setActiveCostCode(e.target.value)}
+                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                      >
+                        <option value="All">All</option>
+                        {uniqueCostCodes.map(code => (
+                          <option key={code} value={code}>{code}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex-1" />
+                    <button className="text-xs font-medium text-slate-400 hover:text-sky-500 pr-3 transition-colors flex items-center gap-1">
+                      <Plus size={14} /> Add Filter
                     </button>
                   </div>
                 </div>
@@ -320,27 +401,42 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 <div className="shrink-0">
                   <BudgetSummaryV2 projectId={projectId} opportunities={opportunities} />
                   
-                  {/* Scope Tabs */}
-                  <div className="flex gap-2 mb-4">
-                    {tabs.map(tab => (
-                      <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          activeTab === tab
-                            ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800'
-                        }`}
+                  {/* Filter Toolbar */}
+                  <div className="flex flex-wrap items-center gap-3 mb-4 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
+                    <div className="flex items-center gap-2 pl-2">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filters</span>
+                    </div>
+                    
+                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800" />
+                    
+                    {/* Building Area Filter */}
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Building Area:</span>
+                      <select
+                        value={activeTab}
+                        onChange={(e) => setActiveTab(e.target.value)}
+                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
                       >
-                        {tab}
+                        {tabs.map(tab => (
+                          <option key={tab} value={tab}>{tab}</option>
+                        ))}
+                      </select>
+                      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-1" />
+                      <button
+                        onClick={() => {
+                          setSettingsTab('building_areas');
+                          setCurrentView('settings');
+                        }}
+                        className="text-slate-400 hover:text-sky-500 transition-colors"
+                        title="Manage Building Areas"
+                      >
+                        <Plus size={16} />
                       </button>
-                    ))}
-                    <button
-                      onClick={() => setCurrentView('settings')}
-                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-800 flex items-center justify-center"
-                      title="Add New Scope Tab"
-                    >
-                      <Plus size={16} />
+                    </div>
+
+                    <div className="flex-1" />
+                    <button className="text-xs font-medium text-slate-400 hover:text-sky-500 pr-3 transition-colors flex items-center gap-1">
+                      <Plus size={14} /> Add Filter
                     </button>
                   </div>
                 </div>
@@ -382,7 +478,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           )}
 
           {currentView === 'settings' && (
-            <ProjectSettings projectId={projectId} />
+            <ProjectSettings projectId={projectId} initialTab={settingsTab} />
           )}
 
           {currentView === 'analytics' && (
@@ -394,23 +490,75 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           )}
 
           {currentView === 'coordination' && (
-            <div className="flex flex-col h-full w-full">
-              <CoordinationSummary opportunities={coordinationOpportunities} />
-              <div className="flex flex-1 overflow-hidden">
-                {coordinationViewMode.startsWith('table') ? (
-                  <>
-                    <div className={`flex flex-col flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
-                      <CoordinationTable projectId={projectId} opportunities={coordinationOpportunities} viewMode={coordinationViewMode.replace('table-', '')} />
+            <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-950">
+              <div className="flex flex-1 overflow-hidden px-6 pb-6 pt-6">
+                <div className={`flex flex-col flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800 pr-6' : ''}`}>
+                  
+                  <div className="shrink-0">
+                    <CoordinationSummary opportunities={filteredCoordinationOpportunities} />
+                  </div>
+                  
+                  <div className="shrink-0 mb-4 mt-2">
+                    <div className="flex flex-wrap items-center gap-3 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
+                      <div className="flex items-center gap-2 pl-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filters</span>
+                      </div>
+                      
+                      <div className="h-6 w-px bg-slate-200 dark:bg-slate-800" />
+                      
+                      {/* Type Filter */}
+                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Type:</span>
+                        <select
+                          value={coordActiveType}
+                          onChange={(e) => setCoordActiveType(e.target.value)}
+                          className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                        >
+                          <option value="All">All</option>
+                          {uniqueCoordTypes.map(type => (
+                            <option key={type} value={type}>{type}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Status Filter */}
+                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Status:</span>
+                        <select
+                          value={coordActiveStatus}
+                          onChange={(e) => setCoordActiveStatus(e.target.value)}
+                          className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
+                        >
+                          <option value="All">All</option>
+                          {uniqueCoordStatuses.map(status => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex-1" />
+                      <button className="text-xs font-medium text-slate-400 hover:text-sky-500 pr-3 transition-colors flex items-center gap-1">
+                        <Plus size={14} /> Add Filter
+                      </button>
                     </div>
-                    {coordinationViewMode === 'table-split' && selectedOpportunityId && opportunities.find(o => o.id === selectedOpportunityId) && (
-                      <CoordinationDetailPanel 
-                        projectId={projectId} 
-                        opportunity={opportunities.find(o => o.id === selectedOpportunityId)!} 
-                      />
+                  </div>
+
+                  <div className="flex-1 overflow-hidden">
+                    {coordinationViewMode.startsWith('table') ? (
+                      <CoordinationTable projectId={projectId} opportunities={filteredCoordinationOpportunities} viewMode={coordinationViewMode.replace('table-', '')} />
+                    ) : (
+                      <CoordinationBoard projectId={projectId} opportunities={filteredCoordinationOpportunities} />
                     )}
-                  </>
-                ) : (
-                  <CoordinationBoard projectId={projectId} opportunities={coordinationOpportunities} />
+                  </div>
+                </div>
+
+                {coordinationViewMode === 'table-split' && selectedOpportunityId && filteredCoordinationOpportunities.find(o => o.id === selectedOpportunityId) && (
+                  <div className="pl-6 h-full">
+                    <CoordinationDetailPanel 
+                      projectId={projectId} 
+                      opportunity={filteredCoordinationOpportunities.find(o => o.id === selectedOpportunityId)!} 
+                    />
+                  </div>
                 )}
               </div>
             </div>

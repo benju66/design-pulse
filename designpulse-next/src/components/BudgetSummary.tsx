@@ -8,16 +8,24 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 interface TooltipPopoverProps {
   title: string;
   description: string;
+  align?: 'left' | 'center' | 'right';
 }
 
-const TooltipPopover = ({ title, description }: TooltipPopoverProps) => (
-  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl z-[100] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform -translate-y-2 group-hover:translate-y-0 pointer-events-none">
-    <div className="p-3 text-left">
-      <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">{title}</h4>
-      <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{description}</p>
+const TooltipPopover = ({ title, description, align = 'center' }: TooltipPopoverProps) => {
+  const alignClass = 
+    align === 'left' ? 'left-0' :
+    align === 'right' ? 'right-0' :
+    'left-1/2 -translate-x-1/2';
+    
+  return (
+    <div className={`absolute top-full mt-3 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl z-[100] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform -translate-y-2 group-hover:translate-y-0 pointer-events-none ${alignClass}`}>
+      <div className="p-3 text-left">
+        <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">{title}</h4>
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{description}</p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 interface BudgetSummaryProps {
   projectId: string;
@@ -109,13 +117,13 @@ export default function BudgetSummary({ projectId, opportunities = [] }: BudgetS
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 mb-6 shadow-sm overflow-x-auto overflow-y-hidden hide-scrollbar"
+          className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 mb-6 shadow-sm flex-wrap"
         >
-          <div className="flex items-center gap-4 px-2 whitespace-nowrap">
+          <div className="flex items-center flex-wrap gap-4 px-2">
             <div className="relative group flex items-center gap-2">
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Original:</span>
               <span className="text-sm font-bold text-slate-900 dark:text-white">{formatCurrency(originalBudget)}</span>
-              <TooltipPopover title="Original Budget" description="The baseline financial target established at the start of the phase." />
+              <TooltipPopover align="left" title="Original Budget" description="The baseline financial target established at the start of the phase." />
             </div>
             
             <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
@@ -159,7 +167,7 @@ export default function BudgetSummary({ projectId, opportunities = [] }: BudgetS
             <div className="relative group flex items-center gap-2">
               <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Exposure:</span>
               <span className="text-sm font-bold text-amber-700 dark:text-amber-300">{formatCurrency(potentialExposure, true)}</span>
-              <TooltipPopover title="Potential Exposure" description="The worst-case cost scenario for all early-stage draft items not yet under formal review." />
+              <TooltipPopover align="right" title="Potential Exposure" description="The worst-case cost scenario for all early-stage draft items not yet under formal review." />
             </div>
           </div>
           
@@ -180,12 +188,12 @@ export default function BudgetSummary({ projectId, opportunities = [] }: BudgetS
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="grid grid-cols-1 @5xl:grid-cols-2 gap-6 mb-6 relative group/macro"
+          className="grid grid-cols-1 @5xl:grid-cols-2 gap-6 mb-6 relative"
         >
           <div className="absolute -top-3 -right-3 z-10">
             <button 
               onClick={toggleBudgetSummary}
-              className="p-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 shadow-sm transition-all hover:scale-105 opacity-0 group-hover/macro:opacity-100 focus:opacity-100"
+              className="p-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 shadow-sm transition-all hover:scale-105"
               title="Collapse Summary"
             >
               <ChevronUp size={16} strokeWidth={2.5} />
@@ -201,6 +209,7 @@ export default function BudgetSummary({ projectId, opportunities = [] }: BudgetS
                 <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Original Budget</span>
                 <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(originalBudget)}</span>
                 <TooltipPopover 
+                  align="left"
                   title="Original Budget" 
                   description="The baseline financial target established at the start of the phase." 
                 />
@@ -261,6 +270,7 @@ export default function BudgetSummary({ projectId, opportunities = [] }: BudgetS
                 <span className="text-sm text-amber-600 dark:text-amber-400 font-medium">Potential Exposure</span>
                 <span className="text-2xl font-bold text-amber-700 dark:text-amber-300">{formatCurrency(potentialExposure, true)}</span>
                 <TooltipPopover 
+                  align="right"
                   title="Potential Exposure" 
                   description="The worst-case cost scenario for all early-stage draft items not yet under formal review." 
                 />

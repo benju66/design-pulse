@@ -76,7 +76,7 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isLocked = ['Pending Review', 'Approved'].includes(row.original.status || '');
+  const isLocked = row.original.status === 'Approved';
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
   const disabled = (column.id === 'title' && isLocked) || !permissions.can_edit_records;
 
@@ -304,7 +304,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef<HTMLInputElement>(null);
   
-  const isLocked = ['Pending Review', 'Approved'].includes(row.original.status || '');
+  const isLocked = row.original.status === 'Approved';
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
   const disabled = isLocked || !permissions.can_edit_records;
   

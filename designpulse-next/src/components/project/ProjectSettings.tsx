@@ -68,7 +68,7 @@ const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps)
   );
 };
 
-export const ProjectSettings = ({ projectId }: { projectId: string }) => {
+export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId: string, initialTab?: string }) => {
   const { session } = useAuth();
   const { data: settings, isLoading: settingsLoading } = useProjectSettings(projectId);
   const updateSettings = useUpdateProjectSettings(projectId);
@@ -91,8 +91,7 @@ export const ProjectSettings = ({ projectId }: { projectId: string }) => {
   const [newMemberId, setNewMemberId] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('viewer');
 
-  
-  const [activeTab, setActiveTab] = useState('info'); // 'info' | 'categories' | 'buildingAreas' | 'sidebar'
+  const [activeTab, setActiveTab] = useState(initialTab); // 'info' | 'categories' | 'building_areas' | 'sidebar'
   
   const [categories, setCategories] = useState<string[]>([]);
   const [buildingAreas, setBuildingAreas] = useState<string[]>([]);

@@ -664,7 +664,7 @@ BEGIN
     RETURN NEW; 
   END IF;
 
-  IF OLD.status IN ('Pending Review', 'Approved') THEN
+  IF OLD.status = 'Approved' THEN
     IF OLD.status IS DISTINCT FROM NEW.status THEN
       RAISE EXCEPTION 'Financial immutability enforced: Cannot modify status of locked records without explicitly unlocking.';
     END IF;
@@ -695,7 +695,7 @@ BEGIN
     SELECT status INTO v_parent_status FROM opportunities WHERE id = NEW.opportunity_id;
   END IF;
 
-  IF v_parent_status IN ('Pending Review', 'Approved') THEN
+  IF v_parent_status = 'Approved' THEN
     RAISE EXCEPTION 'Financial immutability enforced: Cannot modify options of a locked opportunity';
   END IF;
 

@@ -25,23 +25,15 @@ const DEFAULT_VE_COLUMNS = [
   { id: 'options', label: 'Options / Contenders' },
   { id: 'cost_impact', label: 'Cost Impact ($)' },
   { id: 'days_impact', label: 'Days Impact' },
+  { id: 'status', label: 'VE Status' },
   { id: 'final_direction', label: 'Final Direction' },
+  { id: 'coordination_status', label: 'Coordination Status' },
+  { id: 'building_area', label: 'Building Area' },
   { id: 'division', label: 'CSI Division' },
   { id: 'cost_code', label: 'Cost Code' },
-  { id: 'status', label: 'Status' },
-  { id: 'buildingArea', label: 'Building Area' },
   { id: 'priority', label: 'Priority' },
   { id: 'assignee', label: 'Assignee' },
   { id: 'due_date', label: 'Due Date' },
-  // { id: 'location', label: 'Location' },
-  // { id: 'arch_plans_spec', label: 'Arch Plans/Spec' },
-  // { id: 'bok_standard', label: 'BOK Standard' },
-  // { id: 'existing_conditions', label: 'Existing Conditions' },
-  // { id: 'mep_impact', label: 'MEP Impact' },
-  // { id: 'owner_goals', label: 'Owner Goals' },
-  // { id: 'backing_required', label: 'Backing Req.' },
-  // { id: 'coordination_required', label: 'Coord Req.' },
-  // { id: 'design_lock_phase', label: 'Design Lock Phase' }
 ];
 
 const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps) => {

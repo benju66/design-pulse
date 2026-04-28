@@ -13,6 +13,7 @@ export const ALL_PRIMARY_FIELDS = [
   { id: 'backing_required', label: 'Backing Required' },
   { id: 'coordination_required', label: 'Coordination Required' },
   { id: 'design_lock_phase', label: 'Design Lock Phase' },
+  { id: 'coordination_status', label: 'Coordination Status' },
 ] as const;
 
 export const ADVANCED_FIELD_IDS = [

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, DivisionCell, DisplayIdCell, AssigneeCell } from './EditableCell';
+import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, DivisionCell, DisplayIdCell, AssigneeCell } from './EditableCell';
 import { OptionsCell } from './OptionsCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
@@ -81,23 +81,15 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
       { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
       { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell },
+      { accessorKey: 'status', header: 'VE Status', cell: StatusCell },
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
+      { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
+      { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
       { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 120 },
-      { accessorKey: 'status', header: 'Status', cell: StatusCell },
-      { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
       { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
-      // { accessorKey: 'location', header: 'Location', cell: TextCell },
-      // { accessorKey: 'arch_plans_spec', header: 'Arch Plans/Spec', cell: TextCell },
-      // { accessorKey: 'bok_standard', header: 'BOK Standard', cell: TextCell },
-      // { accessorKey: 'existing_conditions', header: 'Existing Conditions', cell: TextCell },
-      // { accessorKey: 'mep_impact', header: 'MEP Impact', cell: TextCell },
-      // { accessorKey: 'owner_goals', header: 'Owner Goals', cell: TextCell },
-      // { accessorKey: 'backing_required', header: 'Backing Req.', cell: TextCell },
-      // { accessorKey: 'coordination_required', header: 'Coord Req.', cell: TextCell },
-      // { accessorKey: 'design_lock_phase', header: 'Design Lock Phase', cell: TextCell },
     ],
     [viewMode, checkboxColumn, openPanelColumn]
   );
@@ -126,20 +118,12 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
       { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 120 },
-      { accessorKey: 'status', header: 'Status', cell: StatusCell },
+      { accessorKey: 'status', header: 'VE Status', cell: StatusCell },
+      { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
       { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
       { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
-      // { accessorKey: 'location', header: 'Location', cell: TextCell },
-      // { accessorKey: 'arch_plans_spec', header: 'Arch Plans/Spec', cell: TextCell },
-      // { accessorKey: 'bok_standard', header: 'BOK Standard', cell: TextCell },
-      // { accessorKey: 'existing_conditions', header: 'Existing Conditions', cell: TextCell },
-      // { accessorKey: 'mep_impact', header: 'MEP Impact', cell: TextCell },
-      // { accessorKey: 'owner_goals', header: 'Owner Goals', cell: TextCell },
-      // { accessorKey: 'backing_required', header: 'Backing Req.', cell: TextCell },
-      // { accessorKey: 'coordination_required', header: 'Coord Req.', cell: TextCell },
-      // { accessorKey: 'design_lock_phase', header: 'Design Lock Phase', cell: TextCell },
     ],
     [viewMode, checkboxColumn, openPanelColumn]
   );

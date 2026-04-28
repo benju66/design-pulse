@@ -16,8 +16,6 @@ export default function MyDeskDashboard({ projectId, opportunities }: MyDeskDash
   const email = user?.email || '';
   const displayName = user?.user_metadata?.display_name || '';
 
-  const activeStatuses = ['Draft', 'Pending Review', 'Pending Plan Update', 'In Drafting'];
-
   const myTasks = opportunities.filter(opp => {
     // Match assignee (comma-separated list)
     const assignees = (opp.assignee || '').split(',').map(s => s.trim());
@@ -25,7 +23,9 @@ export default function MyDeskDashboard({ projectId, opportunities }: MyDeskDash
     if (!isAssigned) return false;
     
     // Exclude archived/completed statuses
-    return activeStatuses.includes(opp.status || 'Draft');
+    const isActiveVE = ['Draft', 'Pending Review'].includes(opp.status || 'Draft');
+    const isActiveCoord = ['Pending Plan Update', 'Ready for Review'].includes(opp.coordination_status || 'Not Required');
+    return isActiveVE || isActiveCoord;
   });
 
   return (

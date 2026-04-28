@@ -13,9 +13,11 @@ export const CoordinationSummary = ({ opportunities }: Props) => {
   const toggleCollapse = useUIStore(state => state.toggleCoordSummary);
 
   const metrics = useMemo(() => {
-    let pendingTasks = 0;
-    let criticalBlockers = 0;
+    const totalCount = opportunities.length;
+    let itemsInDraft = 0;
+    let inProgress = 0;
     let readyForReview = 0;
+    let criticalItems = 0;
     const disciplines = {
       d_arch: { required: 0, complete: 0 },
       d_mech: { required: 0, complete: 0 },
@@ -23,26 +25,23 @@ export const CoordinationSummary = ({ opportunities }: Props) => {
     };
 
     opportunities.forEach(opp => {
-      // 1. Pending Tasks
-      if ((opp.coordination_status || 'Draft') === 'In Drafting' || (opp.coordination_status || 'Draft') === 'Draft') {
-        pendingTasks++;
-        // 2. Critical Blockers
-        if (opp.priority === 'Critical') {
-          criticalBlockers++;
-        }
-      }
-
-      if ((opp.coordination_status || 'Draft') === 'Ready for Review') {
-        readyForReview++;
+      const status = opp.coordination_status || 'Draft';
+      
+      if (status === 'Draft') itemsInDraft++;
+      if (status === 'In Drafting') inProgress++;
+      if (status === 'Ready for Review') readyForReview++;
+      
+      if (opp.priority === 'Critical' && status !== 'Ready for Review' && status !== 'Implemented') {
+        criticalItems++;
       }
 
       // 3. Discipline Progress
       const details = (opp.coordination_details || {}) as Record<string, any>;
       ['d_arch', 'd_mech', 'd_elec'].forEach(d => {
-        const status = details[d]?.status;
-        if (status && status !== 'Not Required') {
+        const dStatus = details[d]?.status;
+        if (dStatus && dStatus !== 'Not Required') {
           disciplines[d as keyof typeof disciplines].required++;
-          if (status === 'Complete') {
+          if (dStatus === 'Complete') {
             disciplines[d as keyof typeof disciplines].complete++;
           }
         }
@@ -50,9 +49,11 @@ export const CoordinationSummary = ({ opportunities }: Props) => {
     });
 
     return {
-      pendingTasks,
-      criticalBlockers,
+      totalCount,
+      itemsInDraft,
+      inProgress,
       readyForReview,
+      criticalItems,
       disciplines
     };
   }, [opportunities]);
@@ -95,19 +96,23 @@ export const CoordinationSummary = ({ opportunities }: Props) => {
           </span>
           {isCollapsed && (
             <div className="flex items-center gap-3 ml-2 text-xs font-medium text-slate-600 dark:text-slate-300">
-              <span className="flex items-center gap-1">
-                <AlertCircle size={12} className={metrics.criticalBlockers > 0 ? 'text-rose-500' : 'text-slate-400'} />
-                {metrics.criticalBlockers} Critical
+              <span className="flex items-center gap-1" title="Items flagged as Critical priority that have not yet reached Ready for Review">
+                <AlertCircle size={12} className={metrics.criticalItems > 0 ? 'text-rose-500' : 'text-slate-400'} />
+                {metrics.criticalItems} Critical
               </span>
               <span className="text-slate-300 dark:text-slate-600">|</span>
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1" title="Items where all required disciplines are complete">
                 <CheckCircle2 size={12} className="text-purple-500" />
                 {metrics.readyForReview} Review
               </span>
               <span className="text-slate-300 dark:text-slate-600">|</span>
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1" title="Items currently in drafting phase">
                 <FileText size={12} className="text-amber-500" />
-                {metrics.pendingTasks} Pending
+                {metrics.inProgress} In Progress
+              </span>
+              <span className="text-slate-300 dark:text-slate-600">|</span>
+              <span className="flex items-center gap-1" title="Total opportunities tracked">
+                <span className="text-slate-500">{metrics.totalCount} Total</span>
               </span>
             </div>
           )}
@@ -129,27 +134,37 @@ export const CoordinationSummary = ({ opportunities }: Props) => {
             <div className="px-6 py-4 flex flex-wrap gap-6 items-center">
               
               <div className="flex items-center gap-6 pr-6 border-r border-slate-200 dark:border-slate-700/50">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Pending Updates</span>
+                <div className="flex flex-col" title="Items explicitly marked as Draft and not yet in progress">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Draft Items</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
+                      <FileText size={16} />
+                    </div>
+                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">{metrics.itemsInDraft}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col" title="Items currently in drafting phase">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">In Progress</span>
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
                       <FileText size={16} />
                     </div>
-                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">{metrics.pendingTasks}</span>
+                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">{metrics.inProgress}</span>
                   </div>
                 </div>
 
-                <div className="flex flex-col">
+                <div className="flex flex-col" title="Items flagged as Critical priority that have not yet reached Ready for Review">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Critical Blockers</span>
                   <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${metrics.criticalBlockers > 0 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                      {metrics.criticalBlockers === 0 ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${metrics.criticalItems > 0 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                      {metrics.criticalItems === 0 ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
                     </div>
-                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">{metrics.criticalBlockers}</span>
+                    <span className="text-2xl font-bold text-slate-800 dark:text-slate-100">{metrics.criticalItems}</span>
                   </div>
                 </div>
 
-                <div className="flex flex-col">
+                <div className="flex flex-col" title="Items where all required disciplines are complete">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Ready for Review</span>
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">

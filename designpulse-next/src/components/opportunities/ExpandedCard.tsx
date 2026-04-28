@@ -28,7 +28,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const permissions = useCurrentUserPermissions(projectId);
   const buildingAreas = (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
-  const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
+  const isLocked = ['Pending Review', 'Approved'].includes(row.original.status || '');
 
   const cardOrder = useUIStore(state => state.cardOrder);
   const setCardOrder = useUIStore(state => state.setCardOrder);
@@ -76,6 +76,22 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
           <option value="Pending Review">Pending Review</option>
           <option value="Approved">Approved</option>
           <option value="Rejected">Rejected</option>
+        </select>
+      );
+    } else if (field.id === 'coordination_status') {
+      return (
+        <select
+          defaultValue={val || 'Not Required'}
+          disabled={!permissions.can_edit_records}
+          onChange={(e) => {
+            updateData.mutate({ id: row.original.id, updates: { coordination_status: e.target.value } });
+          }}
+          className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none disabled:opacity-70 disabled:cursor-not-allowed"
+        >
+          <option value="Not Required">Not Required</option>
+          <option value="Pending Plan Update">Pending Plan Update</option>
+          <option value="Ready for Review">Ready for Review</option>
+          <option value="Implemented">Implemented</option>
         </select>
       );
     } else if (field.id === 'priority') {

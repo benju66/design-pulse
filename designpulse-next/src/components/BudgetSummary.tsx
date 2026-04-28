@@ -56,7 +56,7 @@ export default function BudgetSummary({ projectId, opportunities = [] }: BudgetS
       if (opp.status === 'Approved' || lockedOption) {
         const impact = lockedOption ? (Number(lockedOption.cost_impact) || 0) : oppImpact;
         approved += impact;
-      } else if (opp.status === 'Pending Review' || opp.status === 'Pending' || opp.status === 'Pending Plan Update') {
+      } else if (opp.status === 'Pending Review') {
         if (!hasOptions) {
           pending += oppImpact;
         } else {

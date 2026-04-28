@@ -14,7 +14,7 @@ const COLOR_PALETTE = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#
 
 export default function DesignDashboard({ projectId, opportunities }: Props) {
   // We still calculate the local lists for the sidebar list UI
-  const lockedStatuses = ['Pending Plan Update', 'In Drafting', 'GC / Owner Review', 'Implemented', 'Approved'];
+  const lockedStatuses = ['Approved'];
   const lockedOpps = useMemo(() => opportunities.filter(o => {
     if (o.record_type === 'Coordination') return true;
     if (o.record_type === 'VE' && o.status && lockedStatuses.includes(o.status)) return true;
@@ -23,7 +23,7 @@ export default function DesignDashboard({ projectId, opportunities }: Props) {
   const totalLockedItems = lockedOpps.length;
 
   const pendingPlanUpdates = useMemo(() => {
-    return lockedOpps.filter(o => o.status === 'Pending Plan Update');
+    return lockedOpps.filter(o => o.coordination_status === 'Pending Plan Update');
   }, [lockedOpps]);
 
   // Hook into the new RPC Aggregations

@@ -76,7 +76,7 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
+  const isLocked = ['Pending Review', 'Approved'].includes(row.original.status || '');
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
   const disabled = (column.id === 'title' && isLocked) || !permissions.can_edit_records;
 
@@ -174,6 +174,43 @@ export const StatusCell = React.memo(({ getValue, row, column, table }: CellCont
   );
 }, (prev, next) => commonComparator(prev, next, false));
 
+export const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
+  const initialValue = getValue() as string | null | undefined;
+  const updateMutation = table.options.meta?.updateData;
+  const setGridMode = useUIStore(state => state.setGridMode);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
+  const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const selectRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (isCellActive && selectRef.current) {
+      selectRef.current.focus();
+    }
+  }, [isCellActive]);
+
+  return (
+    <select
+      ref={selectRef}
+      onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
+      value={initialValue || 'Not Required'}
+      disabled={!permissions.can_edit_records}
+      onChange={(e) => {
+        if (updateMutation) {
+          updateMutation.mutate({ id: row.original.id, updates: { coordination_status: e.target.value } });
+        }
+        setGridMode('navigate');
+      }}
+      className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm font-medium cursor-pointer text-slate-900 dark:text-slate-100 ${isCellActive ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20' : ''}`}
+    >
+      <option value="Not Required">Not Required</option>
+      <option value="Pending Plan Update">Pending Plan Update</option>
+      <option value="Ready for Review">Ready for Review</option>
+      <option value="Implemented">Implemented</option>
+    </select>
+  );
+}, (prev, next) => commonComparator(prev, next, false));
+
 export const BuildingAreaCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const params = useParams();
   const projectId = params?.projectId as string | null;
@@ -267,7 +304,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   const updateMutation = table.options.meta?.updateData;
   const inputRef = useRef<HTMLInputElement>(null);
   
-  const isLocked = ['Pending Plan Update', 'GC / Owner Review', 'Implemented'].includes(row.original.status || '');
+  const isLocked = ['Pending Review', 'Approved'].includes(row.original.status || '');
   const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
   const disabled = isLocked || !permissions.can_edit_records;
   

@@ -184,8 +184,13 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
           <div className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Overall Status</label>
              <select
-                value={opportunity.status || 'Draft'}
-                onChange={handleStatusChange}
+                value={opportunity.coordination_status || 'Draft'}
+                onChange={(e) => {
+                  updateMutation.mutate({
+                    id: opportunity.id,
+                    updates: { coordination_status: e.target.value }
+                  });
+                }}
                 className="w-full text-sm font-semibold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 focus:ring-2 focus:ring-sky-500 outline-none"
              >
                 <option value="Draft">Draft</option>

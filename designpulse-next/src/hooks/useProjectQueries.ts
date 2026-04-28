@@ -591,7 +591,8 @@ export function useLockOption(opportunityId: string, projectId: string) {
             opp.id === opportunityId 
               ? { 
                   ...opp, 
-                  status: 'Pending Plan Update',
+                  status: 'Approved',
+                  coordination_status: optionToLock.requires_coordination === false ? 'Not Required' : 'Pending Plan Update',
                   final_direction: `Locked: ${optionToLock.title}`,
                   cost_impact: optionToLock.cost_impact,
                   days_impact: optionToLock.days_impact

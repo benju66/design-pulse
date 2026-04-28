@@ -540,6 +540,43 @@ CREATE TRIGGER trg_audit_opportunities AFTER INSERT OR UPDATE OR DELETE ON oppor
 DROP TRIGGER IF EXISTS trg_audit_opportunity_options ON opportunity_options;
 CREATE TRIGGER trg_audit_opportunity_options AFTER INSERT OR UPDATE OR DELETE ON opportunity_options FOR EACH ROW EXECUTE FUNCTION process_audit_log();
 
+CREATE OR REPLACE FUNCTION trg_auto_update_coordination_status_fn()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_total_required int := 0;
+  v_total_complete int := 0;
+  k text;
+  v text;
+  v_status text;
+BEGIN
+  IF NEW.coordination_details IS DISTINCT FROM OLD.coordination_details THEN
+    FOR k, v IN SELECT key, value FROM jsonb_each_text(NEW.coordination_details) LOOP
+      v_status := (v::jsonb)->>'status';
+      IF v_status IS NOT NULL AND v_status != 'Not Required' THEN
+        v_total_required := v_total_required + 1;
+        IF v_status = 'Complete' THEN
+          v_total_complete := v_total_complete + 1;
+        END IF;
+      END IF;
+    END LOOP;
+
+    IF v_total_required > 0 AND v_total_required = v_total_complete THEN
+      IF NEW.coordination_status IN ('Pending Plan Update') THEN
+        NEW.coordination_status := 'Ready for Review';
+      END IF;
+    ELSIF v_total_complete < v_total_required THEN
+      IF OLD.coordination_status IN ('Ready for Review', 'Implemented') THEN
+        NEW.coordination_status := 'Pending Plan Update';
+      END IF;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_auto_update_coordination_status ON opportunities;
+CREATE TRIGGER trg_auto_update_coordination_status BEFORE UPDATE ON opportunities FOR EACH ROW EXECUTE FUNCTION trg_auto_update_coordination_status_fn();
+
 CREATE OR REPLACE FUNCTION cascade_soft_delete()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -627,7 +664,7 @@ BEGIN
     RETURN NEW; 
   END IF;
 
-  IF OLD.status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented', 'Approved') THEN
+  IF OLD.status IN ('Pending Review', 'Approved') THEN
     IF OLD.status IS DISTINCT FROM NEW.status THEN
       RAISE EXCEPTION 'Financial immutability enforced: Cannot modify status of locked records without explicitly unlocking.';
     END IF;
@@ -658,7 +695,7 @@ BEGIN
     SELECT status INTO v_parent_status FROM opportunities WHERE id = NEW.opportunity_id;
   END IF;
 
-  IF v_parent_status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented', 'Approved') THEN
+  IF v_parent_status IN ('Pending Review', 'Approved') THEN
     RAISE EXCEPTION 'Financial immutability enforced: Cannot modify options of a locked opportunity';
   END IF;
 
@@ -682,7 +719,12 @@ BEGIN
   -- 3. Perform Unlock 
   -- Order matters: Sync totals trigger will recalculate based on the now unlocked options
   UPDATE opportunity_options SET is_locked = false WHERE opportunity_id = p_opp_id;
-  UPDATE opportunities SET status = 'Draft', final_direction = NULL WHERE id = p_opp_id;
+  UPDATE opportunities SET 
+    status = 'Draft', 
+    final_direction = NULL,
+    coordination_status = 'Not Required',
+    coordination_details = '{}'::jsonb
+  WHERE id = p_opp_id;
 END;
 $$;
 
@@ -720,9 +762,10 @@ BEGIN
   IF v_requires_coord THEN
     UPDATE opportunities SET 
       final_direction = 'Locked: ' || v_option_title, 
-      status = 'Pending Plan Update', 
+      status = 'Approved', 
       cost_impact = v_option_cost, 
       days_impact = v_option_days,
+      coordination_status = 'Pending Plan Update',
       coordination_details = v_new_coord_details
     WHERE id = p_opp_id;
   ELSE
@@ -731,6 +774,7 @@ BEGIN
       status = 'Approved', 
       cost_impact = v_option_cost, 
       days_impact = v_option_days,
+      coordination_status = 'Not Required',
       coordination_details = '{}'::jsonb
     WHERE id = p_opp_id;
   END IF;

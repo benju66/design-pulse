@@ -112,11 +112,16 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
 
   useEffect(() => {
     if (!isolateState && settings?.ve_column_order && settings.ve_column_order.length > 0) {
-      // Find the pinned columns that are not configurable and put them first
       const allColIds = columns.map(c => (c as any).accessorKey || c.id).filter(Boolean);
       const configuredIds = settings.ve_column_order;
-      const pinnedIds = allColIds.filter(id => !configuredIds.includes(id as string));
-      setColumnOrder([...pinnedIds, ...configuredIds] as string[]);
+      
+      // Explicitly pin UI columns to the front
+      const pinnedFront = ['select', 'open_panel'].filter(id => allColIds.includes(id));
+      
+      // Any new columns that aren't in the user's saved config should go to the back
+      const unconfiguredIds = allColIds.filter(id => !configuredIds.includes(id as string) && !pinnedFront.includes(id as string));
+      
+      setColumnOrder([...pinnedFront, ...configuredIds, ...unconfiguredIds] as string[]);
     }
   }, [settings?.ve_column_order, columns, isolateState]);
 

@@ -3,7 +3,9 @@ import React, { useState } from 'react';
 import { useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
-import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck } from 'lucide-react';
+import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { useProjects, useUpdateProjectCore, useDeleteProjectCore } from '@/hooks/useProjectQueries';
+import { Project } from '@/types/models';
 
 interface Props {
   isOpen: boolean;
@@ -11,7 +13,7 @@ interface Props {
 }
 
 export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
-  const [activeTab, setActiveTab] = useState<'cost_codes' | 'users' | 'permissions'>('cost_codes');
+  const [activeTab, setActiveTab] = useState<'cost_codes' | 'users' | 'permissions' | 'projects'>('projects');
   const [error, setError] = useState<string | null>(null);
   const uploadMutation = useUploadCostCodesCSV();
   const { data: isPlatformAdmin } = useIsPlatformAdmin();
@@ -21,6 +23,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   
   const { data: rolePermissions, isLoading: permissionsLoading } = useRolePermissions();
   const updatePermission = useUpdateRolePermission();
+  const { data: projects, isLoading: projectsLoading } = useProjects();
 
   if (!isOpen) return null;
 
@@ -141,6 +144,17 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
           >
             <ShieldCheck size={18} />
             Role Permissions
+          </button>
+          <button
+            onClick={() => setActiveTab('projects')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'projects'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Building2 size={18} />
+            Projects
           </button>
         </div>
 
@@ -327,8 +341,108 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
               )}
             </div>
           )}
+
+          {activeTab === 'projects' && !isPlatformAdmin && (
+             <div className="flex flex-col items-center justify-center h-full text-center max-w-sm mx-auto">
+                <AlertCircle size={32} className="text-rose-500 mb-4 mt-12" />
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Access Denied</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  You must be a Platform Admin to manage all projects.
+                </p>
+             </div>
+          )}
+
+          {activeTab === 'projects' && isPlatformAdmin && (
+            <div className="max-w-3xl mx-auto flex flex-col h-full">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Global Project Management</h3>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
+                Hide projects from the main dashboard (soft delete) or permanently remove them from the database (hard delete).
+              </p>
+              
+              {projectsLoading ? (
+                <div className="flex items-center justify-center h-40">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
+                </div>
+              ) : (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex-1 flex flex-col">
+                  <div className="overflow-y-auto max-h-[400px]">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-slate-50 dark:bg-slate-950/50 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">Project Name</th>
+                          <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 text-center w-28">Visibility</th>
+                          <th className="px-4 py-3 font-semibold text-rose-600 dark:text-rose-500 text-center w-28">Hard Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                        {projects?.map(project => (
+                          <ProjectAdminRow key={project.id} project={project} />
+                        ))}
+                        {projects?.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-8 text-center text-slate-500">No projects found.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+function ProjectAdminRow({ project }: { project: Project }) {
+  const updateProject = useUpdateProjectCore(project.id);
+  const deleteProject = useDeleteProjectCore();
+
+  const isHidden = project.is_archived;
+
+  return (
+    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+      <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-medium">
+        <div className="flex flex-col">
+          <span>{project.name}</span>
+          {project.project_number && (
+            <span className="text-xs text-slate-500 font-mono mt-0.5">{project.project_number}</span>
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-center">
+        <button
+          onClick={() => updateProject.mutate({ is_archived: !isHidden })}
+          disabled={updateProject.isPending}
+          className={`flex items-center justify-center w-full gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 ${
+            isHidden 
+              ? 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700' 
+              : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 hover:bg-sky-200 dark:hover:bg-sky-900/50'
+          }`}
+          title={isHidden ? "Show on dashboard" : "Hide from dashboard"}
+        >
+          {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+          {isHidden ? 'Hidden' : 'Visible'}
+        </button>
+      </td>
+      <td className="px-4 py-3 text-center">
+        <button
+          onClick={() => {
+            if (window.confirm(`Are you absolutely sure you want to hard delete "${project.name}"? This permanently erases all related data.`)) {
+              deleteProject.mutate(project.id);
+            }
+          }}
+          disabled={deleteProject.isPending}
+          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-md transition-colors disabled:opacity-50 mx-auto block"
+          title="Hard Delete Project"
+        >
+          <Trash2 size={18} />
+        </button>
+      </td>
+    </tr>
   );
 }

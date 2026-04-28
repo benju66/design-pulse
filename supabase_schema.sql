@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS projects (
   name text NOT NULL,
   description text,
   project_number text UNIQUE,
+  is_archived boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -39,7 +40,7 @@ CREATE TABLE IF NOT EXISTS project_settings (
   disciplines jsonb DEFAULT '[{"id": "d_arch", "label": "Arch"}, {"id": "d_civil", "label": "Civil"}, {"id": "d_struct", "label": "Struct"}, {"id": "d_mech", "label": "Mech"}, {"id": "d_elec", "label": "Elec"}, {"id": "d_plumb", "label": "Plumb"}]'::jsonb,
   project_name text,
   location text,
-  original_budget numeric DEFAULT 5000000,
+  original_budget numeric DEFAULT 0,
   enable_audit_logging boolean DEFAULT false,
   ve_column_order jsonb DEFAULT '[]'::jsonb,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -723,6 +724,10 @@ $$;
 DROP POLICY IF EXISTS "Admins can update projects" ON projects;
 CREATE POLICY "Admins can update projects" 
   ON projects FOR UPDATE USING (public.has_project_permission(id, 'can_edit_project_settings'));
+
+DROP POLICY IF EXISTS "Admins can delete projects" ON projects;
+CREATE POLICY "Admins can delete projects" 
+  ON projects FOR DELETE USING (public.is_platform_admin() OR public.get_user_project_role(id) = 'owner');
 
 -- Project Members
 DROP POLICY IF EXISTS "Admins can insert project members" ON project_members;

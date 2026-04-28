@@ -16,7 +16,7 @@ export default function BudgetSummaryV2({ projectId, opportunities }: BudgetSumm
     return opportunities.reduce((sum, opp) => sum + (Number(opp.cost_impact) || 0), 0);
   }, [opportunities]);
 
-  const totalOriginal = Number(settings?.original_budget) || 5000000;
+  const totalOriginal = Number(settings?.original_budget) || 0;
   const revisedBudget = totalOriginal + netVariance;
 
   return (

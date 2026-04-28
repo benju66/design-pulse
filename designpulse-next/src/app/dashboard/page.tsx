@@ -2,25 +2,17 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Building2, Plus, ArrowRight, Settings } from 'lucide-react';
-import { useProjects, useCreateProject } from '@/hooks/useProjectQueries';
+import { useProjects } from '@/hooks/useProjectQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import GlobalSettingsModal from '@/components/dashboard/GlobalSettingsModal';
+import CreateProjectModal from '@/components/dashboard/CreateProjectModal';
 
 export default function DashboardPage() {
   const { data: projects = [], isLoading } = useProjects();
   const { data: isSuperAdmin, isLoading: isAuthLoading } = useIsPlatformAdmin();
-  const createProject = useCreateProject();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  // Helper to instantly generate new test projects
-  const handleCreateTestProject = () => {
-    const randomNum = Math.floor(Math.random() * 1000);
-    createProject.mutate({
-      name: `Sandbox Project ${randomNum}`,
-      description: 'Local development testing environment.'
-    });
-  };
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   return (
     <div className="p-8 max-w-7xl mx-auto h-full flex flex-col">
@@ -47,16 +39,15 @@ export default function DashboardPage() {
                 title="Global Settings & Master Data"
               >
                 <Settings size={20} />
-                <span className="hidden sm:inline">Master Data</span>
+                <span className="hidden sm:inline">Global Settings</span>
               </button>
               <button
-                onClick={handleCreateTestProject}
-                disabled={createProject.isPending}
-                className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 h-10 rounded-xl font-bold transition-colors shadow-sm disabled:opacity-50"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 h-10 rounded-xl font-bold transition-colors shadow-sm"
               >
                 <Plus size={20} />
-                <span className="hidden sm:inline">{createProject.isPending ? 'Creating...' : 'New Test Project'}</span>
-                <span className="sm:hidden">{createProject.isPending ? '...' : 'New'}</span>
+                <span className="hidden sm:inline">New Project</span>
+                <span className="sm:hidden">New</span>
               </button>
             </>
           ) : null}
@@ -64,6 +55,7 @@ export default function DashboardPage() {
       </div>
       
       <GlobalSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <CreateProjectModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
 
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center text-slate-500">
@@ -71,7 +63,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
-          {projects.map(project => (
+          {projects.filter(p => !p.is_archived).map(project => (
             <Link key={project.id} href={`/project/${project.id}`}>
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 hover:shadow-lg hover:border-sky-300 dark:hover:border-sky-700 transition-all group cursor-pointer h-full flex flex-col">
                 <div className="flex items-start justify-between mb-6">
@@ -80,6 +72,11 @@ export default function DashboardPage() {
                   </div>
                   <ArrowRight className="text-slate-300 dark:text-slate-600 group-hover:text-sky-500 group-hover:translate-x-1 transition-all" size={22} />
                 </div>
+                {project.project_number && (
+                  <div className="font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-1 rounded-md w-fit mb-2">
+                    {project.project_number}
+                  </div>
+                )}
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 line-clamp-1">
                   {project.name}
                 </h3>
@@ -91,13 +88,13 @@ export default function DashboardPage() {
           ))}
           
           {/* Empty State Fallback */}
-          {projects.length === 0 && (
+          {projects.filter(p => !p.is_archived).length === 0 && (
             <div className="col-span-full py-16 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
               <Building2 size={48} className="text-slate-300 dark:text-slate-600 mb-4" />
               <p className="text-slate-500 dark:text-slate-400 mb-4 text-lg">No projects found.</p>
               {isSuperAdmin && (
                 <button 
-                  onClick={handleCreateTestProject} 
+                  onClick={() => setIsCreateModalOpen(true)} 
                   className="text-sky-500 font-bold hover:underline"
                 >
                   Spin up your first sandbox project

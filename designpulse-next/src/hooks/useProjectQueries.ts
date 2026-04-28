@@ -246,7 +246,8 @@ export function useCreateProject() {
       const { data, error } = await supabase
         .rpc('create_new_project', { 
           p_name: newProject.name, 
-          p_description: newProject.description 
+          p_description: newProject.description,
+          p_project_number: newProject.project_number || null
         })
         .single();
         
@@ -259,6 +260,28 @@ export function useCreateProject() {
     onError: (err) => {
       console.error('Create Project Error:', err);
       toast.error(`Failed to create project: ${err.message}`);
+    }
+  });
+}
+
+export function useDeleteProjectCore() {
+  const queryClient = useQueryClient();
+  return useMutation<string, Error, string>({
+    mutationFn: async (projectId) => {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+      if (error) throw error;
+      return projectId;
+    },
+    onSuccess: () => {
+      toast.success('Project deleted successfully.');
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+    onError: (err) => {
+      console.error('Delete Project Error:', err);
+      toast.error(`Failed to delete project: ${err.message || 'Unknown error'}`);
     }
   });
 }

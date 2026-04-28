@@ -22,6 +22,7 @@ export type ProjectSettings = Database['public']['Tables']['project_settings']['
 };
 export type Project = Database['public']['Tables']['projects']['Row'] & {
   project_number?: string | null;
+  is_archived?: boolean;
 };
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
 

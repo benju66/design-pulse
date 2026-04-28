@@ -13,19 +13,17 @@ export default function LoginPage() {
   const router = useRouter();
 
   const handleProcoreLogin = () => {
-    setLoading(true);
     setError(null);
     
     const clientId = process.env.NEXT_PUBLIC_PROCORE_CLIENT_ID;
     
     if (!clientId) {
       setError('Procore Client ID is missing. Please check your configuration.');
-      setLoading(false);
       return;
     }
 
     const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/procore/callback`);
-    window.location.href = `https://login.procore.com/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}`;
+    window.open(`https://login.procore.com/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleLogin = async (e: React.FormEvent) => {

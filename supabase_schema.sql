@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS project_settings (
 -- 2.5 Project Sequences Table (For VE-001 IDs)
 CREATE TABLE IF NOT EXISTS project_sequences (
   project_id uuid REFERENCES projects(id) ON DELETE CASCADE,
-  current_value integer DEFAULT 0
+  ve_current_value integer DEFAULT 0,
+  cd_current_value integer DEFAULT 0
 );
 
 -- Safely ensure the primary key exists in case the table was created previously without one
@@ -357,14 +358,24 @@ CREATE OR REPLACE FUNCTION generate_opportunity_display_id()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
   next_val integer;
+  v_record_type text;
 BEGIN
-  INSERT INTO project_sequences (project_id, current_value)
-  VALUES (NEW.project_id, 1)
-  ON CONFLICT (project_id) 
-  DO UPDATE SET current_value = project_sequences.current_value + 1
-  RETURNING current_value INTO next_val;
+  v_record_type := COALESCE(NEW.record_type, 'VE');
 
-  IF NEW.record_type = 'Coordination' THEN
+  INSERT INTO project_sequences (project_id, ve_current_value, cd_current_value)
+  VALUES (
+    NEW.project_id, 
+    CASE WHEN v_record_type = 'Coordination' THEN 0 ELSE 1 END,
+    CASE WHEN v_record_type = 'Coordination' THEN 1 ELSE 0 END
+  )
+  ON CONFLICT (project_id) 
+  DO UPDATE SET 
+    ve_current_value = project_sequences.ve_current_value + CASE WHEN v_record_type = 'Coordination' THEN 0 ELSE 1 END,
+    cd_current_value = project_sequences.cd_current_value + CASE WHEN v_record_type = 'Coordination' THEN 1 ELSE 0 END
+  RETURNING 
+    CASE WHEN v_record_type = 'Coordination' THEN cd_current_value ELSE ve_current_value END INTO next_val;
+
+  IF v_record_type = 'Coordination' THEN
     NEW.display_id := 'CD-' || LPAD(next_val::text, 3, '0');
   ELSE
     NEW.display_id := 'VE-' || LPAD(next_val::text, 3, '0');
@@ -548,25 +559,30 @@ DECLARE
   k text;
   v text;
   v_status text;
+  v_safe_details jsonb;
 BEGIN
   IF NEW.coordination_details IS DISTINCT FROM OLD.coordination_details THEN
-    FOR k, v IN SELECT key, value FROM jsonb_each_text(NEW.coordination_details) LOOP
-      v_status := (v::jsonb)->>'status';
-      IF v_status IS NOT NULL AND v_status != 'Not Required' THEN
-        v_total_required := v_total_required + 1;
-        IF v_status = 'Complete' THEN
-          v_total_complete := v_total_complete + 1;
+    v_safe_details := COALESCE(NEW.coordination_details, '{}'::jsonb);
+    
+    IF jsonb_typeof(v_safe_details) = 'object' THEN
+      FOR k, v IN SELECT key, value FROM jsonb_each_text(v_safe_details) LOOP
+        v_status := (v::jsonb)->>'status';
+        IF v_status IS NOT NULL AND v_status != 'Not Required' THEN
+          v_total_required := v_total_required + 1;
+          IF v_status = 'Complete' THEN
+            v_total_complete := v_total_complete + 1;
+          END IF;
         END IF;
-      END IF;
-    END LOOP;
+      END LOOP;
 
-    IF v_total_required > 0 AND v_total_required = v_total_complete THEN
-      IF NEW.coordination_status IN ('Pending Plan Update') THEN
-        NEW.coordination_status := 'Ready for Review';
-      END IF;
-    ELSIF v_total_complete < v_total_required THEN
-      IF OLD.coordination_status IN ('Ready for Review', 'Implemented') THEN
-        NEW.coordination_status := 'Pending Plan Update';
+      IF v_total_required > 0 AND v_total_required = v_total_complete THEN
+        IF NEW.coordination_status IN ('Pending Plan Update') THEN
+          NEW.coordination_status := 'Ready for Review';
+        END IF;
+      ELSIF v_total_complete < v_total_required THEN
+        IF OLD.coordination_status IN ('Ready for Review', 'Implemented') THEN
+          NEW.coordination_status := 'Pending Plan Update';
+        END IF;
       END IF;
     END IF;
   END IF;

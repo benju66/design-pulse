@@ -12,7 +12,10 @@ export const OptionsCell = React.memo(({ row, table }: OptionsCellProps) => {
   const optionsMap = table.options.meta?.optionsMap || {};
   const options = optionsMap[row.original.id] || [];
   
-  if (!options || options.length === 0) {
+  const viewMode = table.options.meta?.viewMode;
+  const isFlatView = viewMode === 'flat';
+
+  if (!isFlatView && (!options || options.length === 0)) {
     return <div className="flex items-center justify-center p-2 h-full"><span className="text-xs text-slate-300 dark:text-slate-600 italic">-</span></div>;
   }
 
@@ -21,8 +24,16 @@ export const OptionsCell = React.memo(({ row, table }: OptionsCellProps) => {
 
   return (
     <div className="relative flex items-center justify-center p-2 group h-full cursor-default z-10">
-      <div className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-xs font-semibold border border-slate-200 dark:border-slate-700 group-hover:border-sky-300 group-hover:bg-sky-50 dark:group-hover:bg-sky-900/30 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors shadow-sm">
-        [ {options.length} {options.length === 1 ? 'Option' : 'Options'} ]
+      <div 
+        onClick={(e) => {
+          if (isFlatView) {
+            e.stopPropagation();
+            row.toggleExpanded();
+          }
+        }}
+        className={`bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-xs font-semibold border border-slate-200 dark:border-slate-700 group-hover:border-sky-300 group-hover:bg-sky-50 dark:group-hover:bg-sky-900/30 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors shadow-sm ${isFlatView ? 'cursor-pointer select-none' : ''}`}
+      >
+        [ {options.length} {options.length === 1 ? 'Option' : 'Options'} ] {isFlatView && (row.getIsExpanded() ? ' ▲' : ' ▼')}
       </div>
       
       {/* Popover */}

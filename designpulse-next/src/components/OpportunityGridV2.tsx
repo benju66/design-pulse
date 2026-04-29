@@ -15,8 +15,8 @@ import {
   GroupingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
-import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
+import { AlertTriangle, ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions, useCreateOptionGlobal } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
@@ -109,14 +109,34 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
           
           if (isSubRow) {
             let content = null;
-            if (cell.column.id === 'title') {
-              content = <div className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 pl-8 truncate">↳ {row.original.title}</div>;
-            } else if (cell.column.id === 'cost_impact') {
-              content = <div className="px-3 py-2 text-sm text-right text-slate-600 dark:text-slate-400 truncate">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(row.original.cost_impact) || 0)}</div>;
-            } else if (cell.column.id === 'days_impact') {
-              content = <div className="px-3 py-2 text-sm text-center text-slate-600 dark:text-slate-400 truncate">{row.original.days_impact || 0}</div>;
-            } else if (cell.column.id === 'options') {
-              content = <div className="px-3 py-2 text-xs font-bold text-sky-500 truncate">{row.original.is_locked ? 'LOCKED' : ''}</div>;
+            if (row.original.is_ghost_option) {
+              if (cell.column.id === 'title') {
+                content = (
+                  <div className="px-4 py-1.5 pl-8 flex items-center">
+                    <button 
+                      onClick={() => {
+                        const createFn = row.getAllCells()[0].getContext().table.options.meta?.createOptionGlobal;
+                        if (createFn) {
+                          createFn.mutate({ opportunityId: row.original.opportunity_id });
+                        }
+                      }}
+                      className="text-xs font-bold text-sky-500 hover:text-sky-600 flex items-center gap-1 hover:bg-sky-50 dark:hover:bg-sky-900/30 px-2 py-1 rounded transition-colors"
+                    >
+                      <Plus size={14} /> Add Option
+                    </button>
+                  </div>
+                );
+              }
+            } else {
+              if (cell.column.id === 'title') {
+                content = <div className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 pl-8 truncate">↳ {row.original.title}</div>;
+              } else if (cell.column.id === 'cost_impact') {
+                content = <div className="px-3 py-2 text-sm text-right text-slate-600 dark:text-slate-400 truncate">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(row.original.cost_impact) || 0)}</div>;
+              } else if (cell.column.id === 'days_impact') {
+                content = <div className="px-3 py-2 text-sm text-center text-slate-600 dark:text-slate-400 truncate">{row.original.days_impact || 0}</div>;
+              } else if (cell.column.id === 'options') {
+                content = <div className="px-3 py-2 text-xs font-bold text-sky-500 truncate">{row.original.is_locked ? 'LOCKED' : ''}</div>;
+              }
             }
 
             return (
@@ -233,6 +253,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const { data: projectMembers = [] } = useProjectMembers(projectId);
   const permissions = useCurrentUserPermissions(projectId);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
+  const createOptionGlobal = useCreateOptionGlobal(projectId);
 
   const moveActiveCellRef = useRef<any>(null);
 
@@ -256,12 +277,14 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
     columns: columns,
     state: { expanded, columnVisibility, columnOrder, sorting, globalFilter, grouping },
     getSubRows: (row) => {
-      // Only return subrows for parent rows (Opportunities)
-      if ('project_id' in row) {
-        return (optionsMap[row.id] as unknown as Opportunity[]) || [];
+      // Only return subrows for parent rows (Opportunities) in flat view
+      if (viewMode === 'flat' && 'project_id' in row) {
+        const opts = (optionsMap[row.id] as unknown as Opportunity[]) || [];
+        return [...opts, { id: `ghost-opt-${row.id}`, opportunity_id: row.id, title: '', is_ghost_option: true } as any];
       }
       return [];
     },
+    getRowCanExpand: () => true,
     onExpandedChange: setExpanded,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnOrderChange: setColumnOrder,
@@ -282,6 +305,8 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
       projectMembers,
       permissions,
       moveActiveCellRef,
+      viewMode,
+      createOptionGlobal,
     } as any,
   });
 

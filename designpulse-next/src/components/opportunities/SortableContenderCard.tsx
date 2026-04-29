@@ -61,6 +61,7 @@ export const SortableContenderCard = ({
 
   // Accumulating Debounce Strategy
   const pendingUpdates = useRef<Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }>>({});
+  const pendingReqUpdates = useRef<Record<string, { required?: boolean; notes?: string }>>({});
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePopover, setActivePopover] = useState<string | null>(null);
 
@@ -75,23 +76,50 @@ export const SortableContenderCard = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activePopover]);
 
-  const flushUpdates = useCallback(() => {
+  const flushUpdatesAsync = async () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
-    if (Object.keys(pendingUpdates.current).length === 0) return;
-
-    updateOption.mutate({ 
-      id: opt.id, 
-      updates: pendingUpdates.current 
-    });
-
+    
+    const updates = pendingUpdates.current;
+    const reqUpdates = pendingReqUpdates.current;
+    
     pendingUpdates.current = {};
-  }, [opt.id, updateOption]);
+    pendingReqUpdates.current = {};
+
+    const promises = [];
+    if (Object.keys(updates).length > 0) {
+      promises.push(updateOption.mutateAsync({ id: opt.id, updates }));
+    }
+    if (Object.keys(reqUpdates).length > 0) {
+      promises.push(updateOptionReqs.mutateAsync({ id: opt.id, updates: reqUpdates }));
+    }
+    
+    if (promises.length > 0) {
+      await Promise.all(promises);
+    }
+  };
+
+  const flushUpdates = useCallback(() => {
+    flushUpdatesAsync().catch(console.error);
+  }, [opt.id, updateOption, updateOptionReqs]);
 
   const queueUpdate = useCallback((newUpdates: Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }>) => {
     pendingUpdates.current = { ...pendingUpdates.current, ...newUpdates };
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      flushUpdates();
+    }, 500);
+  }, [flushUpdates]);
+
+  const queueReqUpdate = useCallback((reqId: string, reqData: { required?: boolean; notes?: string }) => {
+    pendingReqUpdates.current = {
+      ...pendingReqUpdates.current,
+      [reqId]: { ...(pendingReqUpdates.current[reqId] || {}), ...reqData }
+    };
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
@@ -369,7 +397,7 @@ export const SortableContenderCard = ({
                         e.stopPropagation();
                         e.preventDefault();
                         if (!isSelected) {
-                          updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: true } } });
+                          queueReqUpdate(d.id, { required: true });
                           setActivePopover(d.id);
                         } else if (isPopoverOpen) {
                           setActivePopover(null);
@@ -398,7 +426,7 @@ export const SortableContenderCard = ({
                           <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{d.label} Coordination</span>
                           <button 
                             onClick={() => {
-                              updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: false, notes: '' } } });
+                              queueReqUpdate(d.id, { required: false, notes: '' });
                               setActivePopover(null);
                             }}
                             className="text-xs text-rose-500 hover:text-rose-600 font-semibold"
@@ -413,7 +441,7 @@ export const SortableContenderCard = ({
                           defaultValue={disciplineReq.notes || ''}
                           onBlur={(e) => {
                             if (e.target.value !== disciplineReq.notes) {
-                              updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: true, notes: e.target.value } } });
+                              queueReqUpdate(d.id, { required: true, notes: e.target.value });
                             }
                           }}
                           onKeyDown={(e) => {
@@ -442,10 +470,10 @@ export const SortableContenderCard = ({
             </button>
           ) : (
             <button
-              onClick={() => {
-              flushUpdates();
-              lockOption.mutate(opt.id);
-            }}
+              onClick={async () => {
+                await flushUpdatesAsync();
+                lockOption.mutate(opt.id);
+              }}
               disabled={opt.is_locked || isLocked || !permissions.can_lock_options}
               role="switch"
               aria-checked={opt.is_locked || false}

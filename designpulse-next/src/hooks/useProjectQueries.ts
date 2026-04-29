@@ -578,6 +578,78 @@ export function useUpdateOption(opportunityId: string, projectId: string) {
   });
 }
 
+export function useCreateOptionGlobal(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    OpportunityOption, 
+    Error, 
+    { opportunityId: string; newOption?: Partial<OpportunityOption> }, 
+    { previousOptions: OpportunityOption[] | undefined; previousOpportunities: Opportunity[] | undefined }
+  >({
+    mutationFn: async ({ opportunityId, newOption = {} }) => {
+      const realUUID = (newOption as any).id || crypto.randomUUID();
+      const { data, error } = await supabase
+        .from('opportunity_options')
+        .insert([{ opportunity_id: opportunityId, title: 'New Contender', ...newOption, id: realUUID }])
+        .select()
+        .single();
+      if (error) throw error;
+      return data as OpportunityOption;
+    },
+    onMutate: async ({ opportunityId, newOption = {} }) => {
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+      
+      const realUUID = newOption.id || crypto.randomUUID();
+      (newOption as any).id = realUUID;
+
+      const optimisticOption: OpportunityOption = {
+        id: realUUID,
+        opportunity_id: opportunityId,
+        title: newOption.title || 'New Contender',
+        cost_impact: 0,
+        days_impact: 0,
+        is_locked: false,
+        include_in_budget: false,
+        description: null,
+        category: null,
+        order_index: (previousOptions?.filter(o => o.opportunity_id === opportunityId).length || 0) * 1024,
+        ...newOption,
+        created_at: newOption.created_at ?? new Date().toISOString(),
+        updated_at: newOption.updated_at ?? new Date().toISOString()
+      };
+
+      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
+        return [...(old || []), optimisticOption];
+      });
+
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        const oppOptions = [...(previousOptions || []), optimisticOption].filter(o => o.opportunity_id === opportunityId && !(o as any).is_deleted);
+        const { cost_impact, days_impact } = calculateParentTotals(opportunityId, oppOptions, {}, realUUID);
+        return old.map(opp => opp.id === opportunityId ? { ...opp, cost_impact, days_impact } : opp);
+      });
+
+      return { previousOptions, previousOpportunities };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
+      }
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+      toast.error(`Failed to create option: ${err.message || 'Unknown error'}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+    }
+  });
+}
+
 export function useDeleteOption(opportunityId: string, projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<

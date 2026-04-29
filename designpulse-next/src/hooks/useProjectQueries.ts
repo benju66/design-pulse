@@ -1001,3 +1001,35 @@ export const useDesignCompletionMetrics = (projectId: string) => {
     staleTime: 60 * 1000,
   });
 };
+
+export function useBulkImportCoordinationTasks(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (tasks: any[]) => {
+      // Chunk tasks into groups of 100 to avoid payload size limits
+      const chunkSize = 100;
+      const chunks = [];
+      for (let i = 0; i < tasks.length; i += chunkSize) {
+        chunks.push(tasks.slice(i, i + chunkSize));
+      }
+
+      for (const chunk of chunks) {
+        const { error } = await supabase.rpc('bulk_import_coordination_tasks', {
+          p_project_id: projectId,
+          p_payload: chunk,
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      toast.success('Tasks imported successfully.');
+    },
+    onError: (err: any) => {
+      console.error('Bulk Import Error:', err);
+      toast.error(`Import failed: ${err.message || 'Unknown error'}`);
+    },
+  });
+}
+

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, use } from 'react';
-import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid } from 'lucide-react';
+import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid, UploadCloud } from 'lucide-react';
 import MarkupCanvas from '@/components/MarkupCanvas';
 import OpportunityGrid from '@/components/OpportunityGrid';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
@@ -11,6 +11,7 @@ import CoordinationBoard from '@/components/coordination/CoordinationBoard';
 import CoordinationTable from '@/components/coordination/CoordinationTable';
 import { CoordinationDetailPanel } from '@/components/coordination/CoordinationDetailPanel';
 import { CoordinationSummary } from '@/components/coordination/CoordinationSummary';
+import { BulkImportModal } from '@/components/coordination/BulkImportModal';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import MyDeskDashboard from '@/components/mydesk/MyDeskDashboard';
 import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
@@ -45,6 +46,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [coordActiveStatus, setCoordActiveStatus] = useState('All');
   const [viewMode, setViewMode] = useState('split'); // 'split' | 'flat' | 'card'
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
@@ -264,31 +266,40 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             )}
             
             {currentView === 'coordination' && (
-              <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2">
-                <button
-                  onClick={() => setCoordinationViewMode('table-split')}
-                  className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
-                    coordinationViewMode === 'table-split' 
-                      ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                  }`}
-                  title="Split View"
+              <>
+                <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2">
+                  <button
+                    onClick={() => setCoordinationViewMode('table-split')}
+                    className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                      coordinationViewMode === 'table-split' 
+                        ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                    title="Split View"
+                  >
+                    <PanelRight size={18} />
+                  </button>
+                  <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
+                  <button
+                    onClick={() => setCoordinationViewMode('board')}
+                    className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                      coordinationViewMode === 'board' 
+                        ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                    title="Board View"
+                  >
+                    <LayoutGrid size={18} />
+                  </button>
+                </div>
+                <button 
+                  onClick={() => setIsBulkImportOpen(true)}
+                  className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-sm transition-colors"
                 >
-                  <PanelRight size={18} />
+                  <UploadCloud size={16} className="mr-2" />
+                  Bulk Import
                 </button>
-                <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
-                <button
-                  onClick={() => setCoordinationViewMode('board')}
-                  className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
-                    coordinationViewMode === 'board' 
-                      ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                  }`}
-                  title="Board View"
-                >
-                  <LayoutGrid size={18} />
-                </button>
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -595,6 +606,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         onClose={() => setIsCompareModalOpen(false)}
         projectId={projectId}
         opportunities={opportunities}
+      />
+
+      <BulkImportModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        projectId={projectId}
+        projectSettings={settings || null}
       />
     </div>
   );

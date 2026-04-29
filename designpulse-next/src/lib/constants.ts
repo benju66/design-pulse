@@ -54,7 +54,10 @@ export const DEFAULT_DISCIPLINES = [
   { id: 'd_struct', label: 'Struct' },
   { id: 'd_mech', label: 'Mech' },
   { id: 'd_elec', label: 'Elec' },
-  { id: 'd_plumb', label: 'Plumb' },
+  { id: 'd_plumb', label: 'Plumbg' },
   { id: 'd_fp', label: 'FP' },
-  { id: 'd_lv', label: 'LV' }
+  { id: 'd_lv', label: 'LV' },
+  { id: 'd_proc', label: 'Proc' },
+  { id: 'd_owner', label: 'Owner' },
+  { id: 'd_gc', label: 'GC' }
 ];

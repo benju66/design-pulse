@@ -47,6 +47,7 @@ interface BulkImportModalProps {
   onClose: () => void;
   projectId: string;
   projectSettings: ProjectSettings | null;
+  costCodes: string[];
 }
 
 // Editable Cell Component for Title
@@ -115,7 +116,7 @@ const MemoizedRow = React.memo(
 );
 MemoizedRow.displayName = 'MemoizedRow';
 
-export function BulkImportModal({ isOpen, onClose, projectId, projectSettings }: BulkImportModalProps) {
+export function BulkImportModal({ isOpen, onClose, projectId, projectSettings, costCodes }: BulkImportModalProps) {
   const { tasks, setTasks, removeTask, clearTasks } = useBulkImportStore();
   const [isParsing, setIsParsing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -208,7 +209,7 @@ export function BulkImportModal({ isOpen, onClose, projectId, projectSettings }:
       setIsDownloading(true);
       const blob = await generateCoordinationTemplate(
         (projectSettings.building_areas as string[]) || [],
-        [], // Empty initially if global cost codes aren't passed, but typically we pass them. For now, empty array defaults to N/A.
+        costCodes,
         projectSettings.disciplines || []
       );
       const url = URL.createObjectURL(blob);

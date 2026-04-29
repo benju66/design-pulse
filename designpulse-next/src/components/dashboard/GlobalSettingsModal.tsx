@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission } from '@/hooks/useGlobalQueries';
+import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
 import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2 } from 'lucide-react';
@@ -16,6 +16,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<'cost_codes' | 'users' | 'permissions' | 'projects'>('projects');
   const [error, setError] = useState<string | null>(null);
   const uploadMutation = useUploadCostCodesCSV();
+  const { data: costCodes = [] } = useCostCodes();
   const { data: isPlatformAdmin } = useIsPlatformAdmin();
   const { data: users, isLoading: usersLoading } = useSystemUsers();
   const toggleAdmin = useTogglePlatformAdmin();
@@ -26,6 +27,52 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   const { data: projects, isLoading: projectsLoading } = useProjects();
 
   if (!isOpen) return null;
+
+  const handleExportCSV = () => {
+    if (!costCodes || costCodes.length === 0) {
+      setError("No cost codes available to export.");
+      return;
+    }
+
+    const rows: string[] = ['Division (Col A),Cost Code (Col B),L,M,S,O'];
+    
+    // Group cost codes by division
+    const divisions = costCodes.filter(c => c.is_division);
+    const regularCodes = costCodes.filter(c => !c.is_division);
+
+    divisions.forEach(div => {
+      const divString = `"${div.code} - ${div.description}"`;
+      
+      // Find children
+      const children = regularCodes.filter(c => c.parent_division === div.code);
+      if (children.length === 0) {
+        // Output division alone
+        rows.push(`${divString},"","","","",""`);
+      } else {
+        // Output division with each child
+        children.forEach(child => {
+          const childString = `"${child.code} - ${child.description}"`;
+          rows.push(`${divString},${childString},"","","",""`);
+        });
+      }
+    });
+
+    // Handle orphaned cost codes
+    const orphans = regularCodes.filter(c => !c.parent_division);
+    orphans.forEach(child => {
+      const childString = `"${child.code} - ${child.description}"`;
+      rows.push(`"",${childString},"","","",""`);
+    });
+
+    const csvContent = rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'DesignPulse_Master_CostCodes.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -181,6 +228,16 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
                   disabled={uploadMutation.isPending}
                 />
               </label>
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <FileSpreadsheet size={16} />
+                  Download Current Master CSV
+                </button>
+              </div>
 
               {error && (
                 <div className="mt-6 p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl text-sm flex items-start gap-3 border border-rose-100 dark:border-rose-900/50">

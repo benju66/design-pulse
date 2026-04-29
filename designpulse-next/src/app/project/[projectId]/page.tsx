@@ -15,6 +15,7 @@ import { BulkImportModal } from '@/components/coordination/BulkImportModal';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import MyDeskDashboard from '@/components/mydesk/MyDeskDashboard';
 import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
+import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import DetailPanel from '@/components/DetailPanel';
@@ -33,6 +34,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const projectId = resolvedParams.projectId;
   const { data: opportunities = [], isLoading } = useOpportunities(projectId);
   const { data: settings } = useProjectSettings(projectId);
+  const { data: globalCostCodes = [] } = useCostCodes();
   const createMutation = useCreateOpportunity(projectId);
   
   const [currentView, setCurrentView] = useState('dashboard');
@@ -149,6 +151,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     const codes = opportunities.map(o => o.cost_code).filter(Boolean) as string[];
     return Array.from(new Set(codes)).sort();
   }, [opportunities]);
+
+  const globalCostCodeStrings = React.useMemo(() => {
+    return globalCostCodes
+      .filter(c => !c.is_division)
+      .map(c => c.description ? `${c.code} - ${c.description}` : c.code);
+  }, [globalCostCodes]);
 
   const uniqueStatuses = React.useMemo(() => {
     const statuses = opportunities.map(o => o.status).filter(Boolean) as string[];
@@ -613,6 +621,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         onClose={() => setIsBulkImportOpen(false)}
         projectId={projectId}
         projectSettings={settings || null}
+        costCodes={globalCostCodeStrings}
       />
     </div>
   );

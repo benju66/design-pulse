@@ -297,7 +297,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
               }`}>
                 <div className="shrink-0">
-                  <BudgetSummary projectId={projectId} opportunities={opportunities} />
+                  <BudgetSummary 
+                    projectId={projectId} 
+                    opportunities={opportunities} 
+                    forceCollapse={viewMode === 'split' && !!selectedOpportunityId} 
+                  />
                   
                   {/* Filter Toolbar */}
                   <div className="flex flex-wrap items-center gap-3 mb-4 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
@@ -491,11 +495,14 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
           {currentView === 'coordination' && (
             <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-950">
-              <div className="flex flex-1 overflow-hidden px-6 pb-6 pt-6">
-                <div className={`flex flex-col flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800 pr-6' : ''}`}>
+              <div className="flex flex-1 overflow-hidden">
+                <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
                   
                   <div className="shrink-0">
-                    <CoordinationSummary opportunities={filteredCoordinationOpportunities} />
+                    <CoordinationSummary 
+                      opportunities={filteredCoordinationOpportunities} 
+                      forceCollapse={coordinationViewMode === 'table-split' && !!selectedOpportunityId} 
+                    />
                   </div>
                   
                   <div className="shrink-0 mb-4 mt-2">
@@ -553,12 +560,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 </div>
 
                 {coordinationViewMode === 'table-split' && selectedOpportunityId && filteredCoordinationOpportunities.find(o => o.id === selectedOpportunityId) && (
-                  <div className="pl-6 h-full">
-                    <CoordinationDetailPanel 
-                      projectId={projectId} 
-                      opportunity={filteredCoordinationOpportunities.find(o => o.id === selectedOpportunityId)!} 
-                    />
-                  </div>
+                  <CoordinationDetailPanel 
+                    projectId={projectId} 
+                    opportunity={filteredCoordinationOpportunities.find(o => o.id === selectedOpportunityId)!} 
+                  />
                 )}
               </div>
             </div>

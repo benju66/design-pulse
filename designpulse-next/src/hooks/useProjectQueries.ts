@@ -210,7 +210,7 @@ export function useUpdateOptionRequirements(projectId: string, opportunityId: st
   return useMutation<
     OpportunityOption, 
     Error, 
-    { id: string; updates: Record<string, boolean> }, 
+    { id: string; updates: Record<string, { required?: boolean; notes?: string }> }, 
     { previousOptions: OpportunityOption[] | undefined; previousOpportunities: Opportunity[] | undefined }
   >({
     mutationFn: async ({ id, updates }) => {
@@ -232,8 +232,12 @@ export function useUpdateOptionRequirements(projectId: string, opportunityId: st
         if (!old) return old;
         return old.map(opt => {
           if (opt.id === id) {
-            const currentReqs = (opt.coordination_requirements as Record<string, boolean>) || {};
-            return { ...opt, coordination_requirements: { ...currentReqs, ...updates } };
+            const currentReqs = (opt.coordination_requirements as Record<string, { required: boolean; notes?: string }>) || {};
+            let newReqs = { ...currentReqs };
+            for (const [key, value] of Object.entries(updates)) {
+              newReqs[key] = { ...(newReqs[key] || {}), ...(value as Record<string, any>) } as { required: boolean; notes?: string };
+            }
+            return { ...opt, coordination_requirements: newReqs };
           }
           return opt;
         });

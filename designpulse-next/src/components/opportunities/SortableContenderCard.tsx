@@ -343,14 +343,15 @@ export const SortableContenderCard = ({
             </summary>
             <div className="px-2 pb-2 pt-1 flex flex-wrap gap-1 border-t border-slate-100 dark:border-slate-800">
               {disciplines.map(d => {
-                const reqs = opt.coordination_requirements || {};
-                const isSelected = !!reqs[d.id];
+                const reqs = (opt.coordination_requirements as Record<string, { required: boolean; notes?: string }>) || {};
+                const disciplineReq = reqs[d.id] || { required: false, notes: '' };
+                const isSelected = !!disciplineReq.required;
                 return (
                   <button
                     key={d.id}
                     onClick={() => {
-                      const isSelected = !!reqs[d.id];
-                      updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: !isSelected } });
+                      const isSelected = !!(reqs[d.id]?.required);
+                      updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: !isSelected } } });
                     }}
                     disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
                     className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${

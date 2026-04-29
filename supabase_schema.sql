@@ -769,11 +769,18 @@ BEGIN
   RETURNING title, cost_impact, days_impact, COALESCE(requires_coordination, true), COALESCE(coordination_requirements, '{}'::jsonb) 
   INTO v_option_title, v_option_cost, v_option_days, v_requires_coord, v_coord_reqs;
   
-  FOR k, v IN SELECT key, value FROM jsonb_each_text(v_coord_reqs) LOOP
-    IF v = 'true' THEN
-      v_new_coord_details := jsonb_set(v_new_coord_details, ARRAY[k], '{"status": "Pending", "notes": ""}'::jsonb, true);
-    END IF;
-  END LOOP;
+  IF jsonb_typeof(v_coord_reqs) = 'object' THEN
+    FOR k, v IN SELECT key, value FROM jsonb_each_text(v_coord_reqs) LOOP
+      IF (v::jsonb)->>'required' = 'true' THEN
+        v_new_coord_details := jsonb_set(
+          v_new_coord_details, 
+          ARRAY[k], 
+          jsonb_build_object('status', 'Pending', 'notes', COALESCE((v::jsonb)->>'notes', '')), 
+          true
+        );
+      END IF;
+    END LOOP;
+  END IF;
 
   IF v_requires_coord THEN
     UPDATE opportunities SET 
@@ -1043,6 +1050,9 @@ CREATE OR REPLACE FUNCTION update_option_requirements_delta(
   p_updates JSONB
 ) RETURNS opportunity_options LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
+  v_current JSONB;
+  v_key TEXT;
+  v_val JSONB;
   v_result opportunity_options;
 BEGIN
   -- 1. Check permissions
@@ -1053,9 +1063,26 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to edit coordination requirements';
   END IF;
   
-  -- 2. Update with COALESCE and flat merge (since requirements are just boolean flags)
+  -- 2. Lock row and fetch current state
+  SELECT COALESCE(coordination_requirements, '{}'::jsonb) INTO v_current 
+  FROM opportunity_options WHERE id = p_option_id FOR UPDATE;
+
+  -- 3. Merge deltas safely
+  IF jsonb_typeof(v_current) = 'object' THEN
+    FOR v_key, v_val IN SELECT key, value FROM jsonb_each(p_updates) LOOP
+      v_current := jsonb_set(
+        v_current, 
+        ARRAY[v_key], 
+        COALESCE(v_current->v_key, '{}'::jsonb) || v_val
+      );
+    END LOOP;
+  ELSE
+    v_current := p_updates;
+  END IF;
+
+  -- 4. Update and return
   UPDATE opportunity_options 
-  SET coordination_requirements = COALESCE(coordination_requirements, '{}'::jsonb) || p_updates
+  SET coordination_requirements = v_current
   WHERE id = p_option_id
   RETURNING * INTO v_result;
 

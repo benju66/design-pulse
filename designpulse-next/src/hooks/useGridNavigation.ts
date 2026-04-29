@@ -54,10 +54,29 @@ export function useGridNavigation<TData>(
         return;
     }
 
-    if (nextRowIndex !== rowIndex || nextColIndex !== currentColIndex) {
+    const nextRow = rows[nextRowIndex];
+    let finalColIndex = nextColIndex;
+
+    if (nextRow && nextRow.depth === 1) {
+      const validSubRowCols = ['title', 'cost_impact', 'days_impact'];
+      const targetColId = navigableColumns[nextColIndex]?.id;
+      if (targetColId && !validSubRowCols.includes(targetColId)) {
+        const validIndices = navigableColumns
+          .map((col, idx) => validSubRowCols.includes(col.id) ? idx : -1)
+          .filter(idx => idx !== -1);
+        
+        if (validIndices.length > 0) {
+          finalColIndex = validIndices.reduce((prev, curr) => 
+            Math.abs(curr - nextColIndex) < Math.abs(prev - nextColIndex) ? curr : prev
+          );
+        }
+      }
+    }
+
+    if (nextRowIndex !== rowIndex || finalColIndex !== currentColIndex) {
       setActiveCell({
         rowIndex: nextRowIndex,
-        columnId: navigableColumns[nextColIndex].id
+        columnId: navigableColumns[finalColIndex].id
       });
       
       if (nextRowIndex !== rowIndex && virtualizer) {
@@ -97,9 +116,28 @@ export function useGridNavigation<TData>(
       }
     }
 
+    const nextRow = rows[nextRowIndex];
+    let finalColIndex = nextColIndex;
+
+    if (nextRow && nextRow.depth === 1) {
+      const validSubRowCols = ['title', 'cost_impact', 'days_impact'];
+      const targetColId = navigableColumns[nextColIndex]?.id;
+      if (targetColId && !validSubRowCols.includes(targetColId)) {
+        const validIndices = navigableColumns
+          .map((col, idx) => validSubRowCols.includes(col.id) ? idx : -1)
+          .filter(idx => idx !== -1);
+        
+        if (validIndices.length > 0) {
+          finalColIndex = validIndices.reduce((prev, curr) => 
+            Math.abs(curr - nextColIndex) < Math.abs(prev - nextColIndex) ? curr : prev
+          );
+        }
+      }
+    }
+
     setActiveCell({
       rowIndex: nextRowIndex,
-      columnId: navigableColumns[nextColIndex].id
+      columnId: navigableColumns[finalColIndex].id
     });
 
     if (nextRowIndex !== rowIndex && virtualizer) {

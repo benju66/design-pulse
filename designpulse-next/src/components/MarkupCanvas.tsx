@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, forwardRef } from 'react';
 import { Stage, Layer, Image as KonvaImage, Line } from 'react-konva';
+import Konva from 'konva';
 import useImage from 'use-image';
 import { Check, ZoomIn, ZoomOut, Maximize, MousePointer2, PenTool } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
@@ -87,6 +88,59 @@ const MarkupCanvas = forwardRef<unknown, MarkupCanvasProps>(({
     const offsetY = (stageH - drawH) / 2;
     return { offsetX, offsetY, drawW, drawH, stageW, stageH };
   }, [image, dimensions]);
+
+  useEffect(() => {
+    let tween: Konva.Tween | null = null;
+
+    if (selectedOpportunityId && stageRef.current) {
+      const targetMarkup = markups.find(m => m.opportunity_id === selectedOpportunityId);
+      if (targetMarkup && targetMarkup.points.length > 0) {
+        let minPctX = 1, maxPctX = 0, minPctY = 1, maxPctY = 0;
+        targetMarkup.points.forEach(p => {
+          if (p.pctX < minPctX) minPctX = p.pctX;
+          if (p.pctX > maxPctX) maxPctX = p.pctX;
+          if (p.pctY < minPctY) minPctY = p.pctY;
+          if (p.pctY > maxPctY) maxPctY = p.pctY;
+        });
+
+        const centerPctX = (minPctX + maxPctX) / 2;
+        const centerPctY = (minPctY + maxPctY) / 2;
+
+        const { offsetX, offsetY, drawW, drawH } = layout;
+        
+        const centerX = offsetX + centerPctX * drawW;
+        const centerY = offsetY + centerPctY * drawH;
+
+        const targetScale = 2.5;
+        
+        const targetX = dimensions.width / 2 - centerX * targetScale;
+        const targetY = dimensions.height / 2 - centerY * targetScale;
+
+        tween = new Konva.Tween({
+          node: stageRef.current,
+          duration: 0.35,
+          scaleX: targetScale,
+          scaleY: targetScale,
+          x: targetX,
+          y: targetY,
+          easing: Konva.Easings.EaseOut,
+          onFinish: () => {
+            setStageScale(targetScale);
+            setStagePosition({ x: targetX, y: targetY });
+            tween?.destroy();
+          }
+        });
+        
+        tween.play();
+      }
+    }
+
+    return () => {
+      if (tween) {
+        tween.destroy();
+      }
+    };
+  }, [selectedOpportunityId, markups, layout, dimensions]);
 
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();

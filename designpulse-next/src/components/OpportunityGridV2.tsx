@@ -84,23 +84,48 @@ const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement }: any)
 });
 
 const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement }: any) => {
+  const isSubRow = row.original && !('project_id' in row.original) && 'opportunity_id' in row.original;
+
   return (
     <tbody 
       ref={measureElement}
       data-index={virtualRow.index}
-      className="border-b border-slate-100 dark:border-slate-800/50"
+      className={`border-b border-slate-100 dark:border-slate-800/50 ${isSubRow ? 'bg-sky-50/10 dark:bg-sky-900/5' : ''}`}
     >
       <tr 
         id={`row-${row.original.id}`}
         className={`transition-colors ${
           isSelected 
-            ? 'bg-sky-50/50 dark:bg-sky-900/10 border-l-2 border-sky-500' 
-            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+            ? (isSubRow 
+                ? 'bg-sky-50/30 dark:bg-sky-900/20 border-l border-sky-400' 
+                : 'bg-sky-50/50 dark:bg-sky-900/10 border-l-2 border-sky-500')
+            : (isSubRow 
+                ? 'border-l border-sky-200 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-900/20' 
+                : 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
         }`}
       >
         {row.getVisibleCells().map((cell: any) => {
-          if (cell.getIsGrouped()) return <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800" />;
-          if (cell.getIsPlaceholder()) return <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800" />;
+          if (cell.getIsGrouped() || cell.getIsPlaceholder()) return <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800" />;
+          
+          if (isSubRow) {
+            let content = null;
+            if (cell.column.id === 'title') {
+              content = <div className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 pl-8 truncate">↳ {row.original.title}</div>;
+            } else if (cell.column.id === 'cost_impact') {
+              content = <div className="px-3 py-2 text-sm text-right text-slate-600 dark:text-slate-400 truncate">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(row.original.cost_impact) || 0)}</div>;
+            } else if (cell.column.id === 'days_impact') {
+              content = <div className="px-3 py-2 text-sm text-center text-slate-600 dark:text-slate-400 truncate">{row.original.days_impact || 0}</div>;
+            } else if (cell.column.id === 'options') {
+              content = <div className="px-3 py-2 text-xs font-bold text-sky-500 truncate">{row.original.is_locked ? 'LOCKED' : ''}</div>;
+            }
+
+            return (
+              <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-middle">
+                {content}
+              </td>
+            );
+          }
+
           return (
             <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
               {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -108,7 +133,7 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
           );
         })}
       </tr>
-      {viewMode === 'card' && row.getIsExpanded() && (
+      {viewMode === 'card' && row.getIsExpanded() && !isSubRow && (
         <tr>
           <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
             <ExpandedCard row={row as any} />
@@ -181,7 +206,11 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
     if (selectedOpportunityId) {
       const element = document.getElementById(`row-${selectedOpportunityId}`);
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('bg-sky-100/50', 'dark:bg-sky-900/50', 'transition-colors', 'duration-500');
+        setTimeout(() => {
+          element.classList.remove('bg-sky-100/50', 'dark:bg-sky-900/50');
+        }, 1000);
       }
     }
   }, [selectedOpportunityId]);
@@ -224,8 +253,15 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
 
   const table = useReactTable<Opportunity>({
     data,
-    columns,
+    columns: columns,
     state: { expanded, columnVisibility, columnOrder, sorting, globalFilter, grouping },
+    getSubRows: (row) => {
+      // Only return subrows for parent rows (Opportunities)
+      if ('project_id' in row) {
+        return (optionsMap[row.id] as unknown as Opportunity[]) || [];
+      }
+      return [];
+    },
     onExpandedChange: setExpanded,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnOrderChange: setColumnOrder,

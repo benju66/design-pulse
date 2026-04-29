@@ -291,3 +291,4 @@ export default function BudgetSummary({ projectId, opportunities = [], forceColl
     </motion.div>
   );
 }
+

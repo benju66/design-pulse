@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, X, Star, RotateCcw } from 'lucide-react';
@@ -62,6 +62,18 @@ export const SortableContenderCard = ({
   // Accumulating Debounce Strategy
   const pendingUpdates = useRef<Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }>>({});
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activePopover, setActivePopover] = useState<string | null>(null);
+
+  // Close popover when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (activePopover) {
+        setActivePopover(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activePopover]);
 
   const flushUpdates = useCallback(() => {
     if (timeoutRef.current) {
@@ -346,22 +358,72 @@ export const SortableContenderCard = ({
                 const reqs = (opt.coordination_requirements as Record<string, { required: boolean; notes?: string }>) || {};
                 const disciplineReq = reqs[d.id] || { required: false, notes: '' };
                 const isSelected = !!disciplineReq.required;
+                const isPopoverOpen = activePopover === d.id;
+
                 return (
-                  <button
-                    key={d.id}
-                    onClick={() => {
-                      const isSelected = !!(reqs[d.id]?.required);
-                      updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: !isSelected } } });
-                    }}
-                    disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
-                    className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
-                      isSelected 
-                        ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400 border border-sky-200 dark:border-sky-800' 
-                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-transparent hover:bg-slate-200 dark:hover:bg-slate-700'
-                    } ${(hasLockedOption || isLocked || !permissions.can_edit_records) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                  >
-                    {d.label}
-                  </button>
+                  <div key={d.id} className="relative">
+                    <button
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (!isSelected) {
+                          updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: true } } });
+                          setActivePopover(d.id);
+                        } else if (isPopoverOpen) {
+                          setActivePopover(null);
+                        } else {
+                          setActivePopover(d.id);
+                        }
+                      }}
+                      disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
+                      className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                        isSelected 
+                          ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400 border border-sky-200 dark:border-sky-800' 
+                          : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-transparent hover:bg-slate-200 dark:hover:bg-slate-700'
+                      } ${(hasLockedOption || isLocked || !permissions.can_edit_records) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      {d.label}
+                    </button>
+                    
+                    {isPopoverOpen && (
+                      <div 
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded-lg p-3 animate-in fade-in zoom-in-95 duration-150"
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{d.label} Coordination</span>
+                          <button 
+                            onClick={() => {
+                              updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: false, notes: '' } } });
+                              setActivePopover(null);
+                            }}
+                            className="text-xs text-rose-500 hover:text-rose-600 font-semibold"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <textarea
+                          autoFocus
+                          className="w-full h-20 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-1.5 outline-none focus:ring-2 focus:ring-sky-500 resize-none"
+                          placeholder="Add coordination notes..."
+                          defaultValue={disciplineReq.notes || ''}
+                          onBlur={(e) => {
+                            if (e.target.value !== disciplineReq.notes) {
+                              updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: true, notes: e.target.value } } });
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') setActivePopover(null);
+                          }}
+                        />
+                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white dark:bg-slate-800 border-b border-r border-slate-200 dark:border-slate-700 rotate-45"></div>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

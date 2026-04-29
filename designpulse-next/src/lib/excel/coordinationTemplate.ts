@@ -19,14 +19,21 @@ export async function generateCoordinationTemplate(
   const sheet = workbook.addWorksheet('Coordination Import');
 
   // Define columns
-  sheet.columns = [
+  const baseColumns = [
     { header: 'Title', key: 'title', width: 30 },
     { header: 'Description', key: 'description', width: 50 },
     { header: 'Priority', key: 'priority', width: 15 },
     { header: 'Building Area', key: 'building_area', width: 30 },
     { header: 'Cost Code', key: 'cost_code', width: 40 },
-    { header: 'Disciplines', key: 'disciplines', width: 40 },
   ];
+
+  const disciplineColumns = disciplines.map(d => ({
+    header: `[Disc] ${d.label}`,
+    key: `disc_${d.id}`,
+    width: 20
+  }));
+
+  sheet.columns = [...baseColumns, ...disciplineColumns];
 
   // Style header row
   const headerRow = sheet.getRow(1);
@@ -37,21 +44,6 @@ export async function generateCoordinationTemplate(
     fgColor: { argb: 'FF4F46E5' }, // Indigo 600
   };
   headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
-
-  // Add instructive comment to the Disciplines column
-  const disciplinesCell = sheet.getCell('F1');
-  const validDisciplineLabels = disciplines.map(d => d.label).join(', ');
-  disciplinesCell.note = {
-    texts: [
-      { font: { bold: true }, text: 'Disciplines Format:\n' },
-      { text: 'Enter a comma-separated list of exact discipline labels.\n' },
-      { text: `Valid options: ${validDisciplineLabels}` }
-    ],
-    margins: {
-      insetmode: 'custom',
-      inset: [0.25, 0.25, 0.25, 0.25]
-    },
-  };
 
   // Lock header row (protect sheet but allow inserting rows and formatting cells)
   await sheet.protect('designpulse', {
@@ -70,7 +62,8 @@ export async function generateCoordinationTemplate(
   });
   
   // Unlock all cells below the header so users can type
-  for (let col = 1; col <= 6; col++) {
+  const totalColumns = baseColumns.length + disciplineColumns.length;
+  for (let col = 1; col <= totalColumns; col++) {
     for (let row = 2; row <= 1000; row++) {
       sheet.getCell(row, col).protection = { locked: false };
     }
@@ -120,6 +113,21 @@ export async function generateCoordinationTemplate(
       errorTitle: 'Invalid Cost Code',
       error: 'Please select a valid cost code from the dropdown.'
     };
+
+    // Discipline Validations (Yes/No)
+    for (let j = 0; j < disciplineColumns.length; j++) {
+      // Columns are 1-indexed
+      const colIndex = baseColumns.length + 1 + j;
+      const colLetter = sheet.getColumn(colIndex).letter;
+      sheet.getCell(`${colLetter}${i}`).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: ['"Yes,No"'],
+        showErrorMessage: true,
+        errorTitle: 'Invalid Input',
+        error: 'Please select Yes or No.'
+      };
+    }
   }
 
   // Generate ArrayBuffer and return as Blob

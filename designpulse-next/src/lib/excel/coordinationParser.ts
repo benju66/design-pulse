@@ -1,4 +1,5 @@
 import { DisciplineConfig, DisciplineDetails } from '@/types/models';
+import type { Cell, Row } from 'exceljs';
 
 export interface DraftCoordinationTask {
   id: string; // Minted on client
@@ -35,8 +36,26 @@ export async function parseCoordinationExcel(
     disciplineMap.set(d.label.toLowerCase().trim(), d.id);
   });
 
+  // Map of column index -> discipline id
+  const columnToDisciplineId = new Map<number, string>();
+  
+  // Read headers to map dynamic discipline columns
+  const headerRow = sheet.getRow(1);
+  if (headerRow) {
+    headerRow.eachCell((cell: Cell, colNumber: number) => {
+      const headerText = cell.value?.toString().trim() || '';
+      if (headerText.startsWith('[Disc] ')) {
+        const disciplineLabel = headerText.replace('[Disc] ', '').trim().toLowerCase();
+        const disciplineId = disciplineMap.get(disciplineLabel);
+        if (disciplineId) {
+          columnToDisciplineId.set(colNumber, disciplineId);
+        }
+      }
+    });
+  }
+
   // Start reading from row 2 (skipping header)
-  sheet.eachRow((row, rowNumber) => {
+  sheet.eachRow((row: Row, rowNumber: number) => {
     if (rowNumber === 1) return;
 
     // Extract raw values, falling back to empty string if empty
@@ -53,10 +72,9 @@ export async function parseCoordinationExcel(
     const priority = safeString(row.getCell(3).value);
     const building_area = safeString(row.getCell(4).value);
     const cost_code = safeString(row.getCell(5).value);
-    const rawDisciplines = safeString(row.getCell(6).value);
 
-    // Skip completely blank rows (all columns empty)
-    if (!title && !description && !priority && !building_area && !cost_code && !rawDisciplines) {
+    // Skip completely blank rows (all base columns empty)
+    if (!title && !description && !priority && !building_area && !cost_code) {
       return;
     }
 
@@ -67,25 +85,16 @@ export async function parseCoordinationExcel(
 
     const coordination_details: Record<string, DisciplineDetails> = {};
 
-    // Parse disciplines using standard split (AGENTS.md guardrail: NO negative lookbehinds)
-    if (rawDisciplines) {
-      const parts = rawDisciplines.split(',');
-      for (const part of parts) {
-        const cleanedPart = part.trim().toLowerCase();
-        if (!cleanedPart) continue;
-
-        const disciplineId = disciplineMap.get(cleanedPart);
-        if (disciplineId) {
-          coordination_details[disciplineId] = {
-            status: 'Pending',
-            notes: ''
-          };
-        } else {
-          // If we can't fuzzy match it, flag an error
-          errors.push(`Unrecognized discipline: "${part.trim()}".`);
-        }
+    // Parse Boolean Matrix for Disciplines
+    columnToDisciplineId.forEach((disciplineId, colNumber) => {
+      const cellValue = safeString(row.getCell(colNumber).value).toLowerCase();
+      if (cellValue === 'yes' || cellValue === 'true' || cellValue === 'y') {
+        coordination_details[disciplineId] = {
+          status: 'Pending',
+          notes: ''
+        };
       }
-    }
+    });
 
     // Mint client-side UUID (AGENTS.md guardrail)
     const id = crypto.randomUUID();

@@ -550,15 +550,17 @@ DECLARE
   v_status text;
 BEGIN
   IF NEW.coordination_details IS DISTINCT FROM OLD.coordination_details THEN
-    FOR k, v IN SELECT key, value FROM jsonb_each_text(NEW.coordination_details) LOOP
-      v_status := (v::jsonb)->>'status';
-      IF v_status IS NOT NULL AND v_status != 'Not Required' THEN
-        v_total_required := v_total_required + 1;
-        IF v_status = 'Complete' THEN
-          v_total_complete := v_total_complete + 1;
+    IF jsonb_typeof(NEW.coordination_details) = 'object' THEN
+      FOR k, v IN SELECT key, value FROM jsonb_each_text(NEW.coordination_details) LOOP
+        v_status := (v::jsonb)->>'status';
+        IF v_status IS NOT NULL AND v_status != 'Not Required' THEN
+          v_total_required := v_total_required + 1;
+          IF v_status = 'Complete' THEN
+            v_total_complete := v_total_complete + 1;
+          END IF;
         END IF;
-      END IF;
-    END LOOP;
+      END LOOP;
+    END IF;
 
     IF v_total_required > 0 AND v_total_required = v_total_complete THEN
       IF NEW.coordination_status IN ('Pending Plan Update') THEN
@@ -753,11 +755,13 @@ BEGIN
   RETURNING title, cost_impact, days_impact, COALESCE(requires_coordination, true), COALESCE(coordination_requirements, '{}'::jsonb) 
   INTO v_option_title, v_option_cost, v_option_days, v_requires_coord, v_coord_reqs;
   
-  FOR k, v IN SELECT key, value FROM jsonb_each_text(v_coord_reqs) LOOP
-    IF v = 'true' THEN
-      v_new_coord_details := jsonb_set(v_new_coord_details, ARRAY[k], '{"status": "Pending", "notes": ""}'::jsonb, true);
-    END IF;
-  END LOOP;
+  IF jsonb_typeof(v_coord_reqs) = 'object' THEN
+    FOR k, v IN SELECT key, value FROM jsonb_each_text(v_coord_reqs) LOOP
+      IF v = 'true' THEN
+        v_new_coord_details := jsonb_set(v_new_coord_details, ARRAY[k], '{"status": "Pending", "notes": ""}'::jsonb, true);
+      END IF;
+    END LOOP;
+  END IF;
 
   IF v_requires_coord THEN
     UPDATE opportunities SET 
@@ -955,7 +959,7 @@ BEGIN
   
   RETURN QUERY 
   SELECT key AS discipline_id, value->>'status' AS status, COUNT(*) 
-  FROM opportunities o, jsonb_each(o.coordination_details)
+  FROM opportunities o, jsonb_each(CASE WHEN jsonb_typeof(o.coordination_details) = 'object' THEN o.coordination_details ELSE '{}'::jsonb END)
   WHERE o.project_id = p_project_id 
     AND o.is_deleted = false
     AND (

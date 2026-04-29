@@ -180,7 +180,7 @@ BEGIN
   
   RETURN QUERY 
   SELECT key AS discipline_id, value->>'status' AS status, COUNT(*) 
-  FROM opportunities o, jsonb_each(o.coordination_details)
+  FROM opportunities o, jsonb_each(CASE WHEN jsonb_typeof(o.coordination_details) = 'object' THEN o.coordination_details ELSE '{}'::jsonb END)
   WHERE o.project_id = p_project_id 
     AND o.is_deleted = false
     AND (

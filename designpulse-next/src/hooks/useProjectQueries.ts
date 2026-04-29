@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
-import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_BUILDING_AREAS } from '@/lib/constants';
 import { calculateParentTotals } from '@/utils/financialMath';
 import { toast } from 'sonner';
 import { Opportunity, OpportunityOption, ProjectSettings, Project } from '@/types/models';
+import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_BUILDING_AREAS, DEFAULT_DISCIPLINES } from '@/lib/constants';
 import { useAuth } from '@/providers/AuthProvider';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useRolePermissions } from '@/hooks/useGlobalQueries';
@@ -27,6 +27,7 @@ export function useProjectSettings(projectId: string | null) {
         categories: DEFAULT_CATEGORIES as unknown as any, 
         building_areas: DEFAULT_BUILDING_AREAS as unknown as any,
         sidebar_items: DEFAULT_SIDEBAR_ITEMS as unknown as any,
+        disciplines: DEFAULT_DISCIPLINES as unknown as any,
         project_name: projectId,
         location: 'Not Set',
         original_budget: 0,
@@ -41,6 +42,7 @@ export function useProjectSettings(projectId: string | null) {
         categories: (data.categories as any[])?.length > 0 ? data.categories : defaultSettings.categories,
         building_areas: (data.building_areas as any[])?.length > 0 ? data.building_areas : defaultSettings.building_areas,
         sidebar_items: (data.sidebar_items as any[])?.length > 0 ? data.sidebar_items : defaultSettings.sidebar_items,
+        disciplines: (data.disciplines as any[])?.length > 0 ? data.disciplines : defaultSettings.disciplines,
         project_name: data.project_name || defaultSettings.project_name,
         location: data.location || defaultSettings.location,
         original_budget: data.original_budget ?? defaultSettings.original_budget,
@@ -578,78 +580,6 @@ export function useUpdateOption(opportunityId: string, projectId: string) {
   });
 }
 
-export function useCreateOptionGlobal(projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation<
-    OpportunityOption, 
-    Error, 
-    { opportunityId: string; newOption?: Partial<OpportunityOption> }, 
-    { previousOptions: OpportunityOption[] | undefined; previousOpportunities: Opportunity[] | undefined }
-  >({
-    mutationFn: async ({ opportunityId, newOption = {} }) => {
-      const realUUID = (newOption as any).id || crypto.randomUUID();
-      const { data, error } = await supabase
-        .from('opportunity_options')
-        .insert([{ opportunity_id: opportunityId, title: 'New Contender', ...newOption, id: realUUID }])
-        .select()
-        .single();
-      if (error) throw error;
-      return data as OpportunityOption;
-    },
-    onMutate: async ({ opportunityId, newOption = {} }) => {
-      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
-      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
-      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
-      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
-      
-      const realUUID = newOption.id || crypto.randomUUID();
-      (newOption as any).id = realUUID;
-
-      const optimisticOption: OpportunityOption = {
-        id: realUUID,
-        opportunity_id: opportunityId,
-        title: newOption.title || 'New Contender',
-        cost_impact: 0,
-        days_impact: 0,
-        is_locked: false,
-        include_in_budget: false,
-        description: null,
-        category: null,
-        order_index: (previousOptions?.filter(o => o.opportunity_id === opportunityId).length || 0) * 1024,
-        ...newOption,
-        created_at: newOption.created_at ?? new Date().toISOString(),
-        updated_at: newOption.updated_at ?? new Date().toISOString()
-      };
-
-      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
-        return [...(old || []), optimisticOption];
-      });
-
-      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
-        if (!old) return old;
-        const oppOptions = [...(previousOptions || []), optimisticOption].filter(o => o.opportunity_id === opportunityId && !(o as any).is_deleted);
-        const { cost_impact, days_impact } = calculateParentTotals(opportunityId, oppOptions, {}, realUUID);
-        return old.map(opp => opp.id === opportunityId ? { ...opp, cost_impact, days_impact } : opp);
-      });
-
-      return { previousOptions, previousOpportunities };
-    },
-    onError: (err, _variables, context) => {
-      if (context?.previousOptions) {
-        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
-      }
-      if (context?.previousOpportunities) {
-        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
-      }
-      toast.error(`Failed to create option: ${err.message || 'Unknown error'}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
-    }
-  });
-}
-
 export function useDeleteOption(opportunityId: string, projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<
@@ -772,18 +702,31 @@ export function useLockOption(opportunityId: string, projectId: string) {
       if (optionToLock) {
         queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
           if (!old) return old;
-          return old.map(opp => 
-            opp.id === opportunityId 
-              ? { 
-                  ...opp, 
-                  status: 'Approved',
-                  coordination_status: optionToLock.requires_coordination === false ? 'Not Required' : 'Pending Plan Update',
-                  final_direction: `Locked: ${optionToLock.title}`,
-                  cost_impact: optionToLock.cost_impact,
-                  days_impact: optionToLock.days_impact
+          return old.map(opp => {
+            if (opp.id === opportunityId) {
+              const reqs = (optionToLock.coordination_requirements as Record<string, { required: boolean; notes?: string }>) || {};
+              const newCoordDetails: Record<string, any> = {};
+              
+              if (optionToLock.requires_coordination !== false) {
+                for (const [k, v] of Object.entries(reqs)) {
+                  if (v.required) {
+                    newCoordDetails[k] = { status: 'Pending', notes: v.notes || '' };
+                  }
                 }
-              : opp
-          );
+              }
+
+              return { 
+                ...opp, 
+                status: 'Approved',
+                coordination_status: optionToLock.requires_coordination === false ? 'Not Required' : 'Pending Plan Update',
+                final_direction: `Locked: ${optionToLock.title}`,
+                cost_impact: optionToLock.cost_impact,
+                days_impact: optionToLock.days_impact,
+                coordination_details: newCoordDetails
+              };
+            }
+            return opp;
+          });
         });
       }
 

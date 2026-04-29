@@ -21,6 +21,5 @@ declare module '@tanstack/react-table' {
       can_delete_records: boolean;
       can_view_audit_logs: boolean;
     };
-    viewMode?: string;
   }
 }

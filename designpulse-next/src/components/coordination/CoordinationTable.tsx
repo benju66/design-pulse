@@ -22,6 +22,7 @@ import { TextCell, PriorityCell, BuildingAreaCell } from '@/components/opportuni
 import { useUIStore } from '@/stores/useUIStore';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
+import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface Props {
   projectId: string;
@@ -33,18 +34,10 @@ interface Props {
 const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity, unknown>) => {
   const projectId = (table.options.meta as any)?.projectId;
   const { data: settings } = useProjectSettings(projectId);
-  const defaultDisciplines: DisciplineConfig[] = [
-    { id: 'd_arch', label: 'Arch' },
-    { id: 'd_civil', label: 'Civil' },
-    { id: 'd_struct', label: 'Struct' },
-    { id: 'd_mech', label: 'Mech' },
-    { id: 'd_elec', label: 'Elec' },
-    { id: 'd_plumb', label: 'Plumb' }
-  ];
   const rawDisciplines = settings?.disciplines;
   const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
     ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
-    : defaultDisciplines;
+    : DEFAULT_DISCIPLINES;
   const coordDetails = row.original.coordination_details || {};
 
   return (

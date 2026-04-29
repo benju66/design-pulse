@@ -8,6 +8,7 @@ import { OpportunityOption, DisciplineConfig } from '@/types/models';
 import { UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useProjectSettings, useCurrentUserPermissions, useUpdateOptionRequirements } from '@/hooks/useProjectQueries';
+import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface SortableContenderCardProps {
   opt: OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean };
@@ -46,22 +47,13 @@ export const SortableContenderCard = ({
   const permissions = useCurrentUserPermissions(projectId);
   const updateOptionReqs = useUpdateOptionRequirements(projectId, opportunityId);
   
-  const defaultDisciplines: DisciplineConfig[] = [
-    { id: 'd_arch', label: 'Arch' },
-    { id: 'd_civil', label: 'Civil' },
-    { id: 'd_struct', label: 'Struct' },
-    { id: 'd_mech', label: 'Mech' },
-    { id: 'd_elec', label: 'Elec' },
-    { id: 'd_plumb', label: 'Plumb' }
-  ];
   const rawDisciplines = settings?.disciplines;
   const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
     ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
-    : defaultDisciplines;
+    : DEFAULT_DISCIPLINES;
 
   // Accumulating Debounce Strategy
   const pendingUpdates = useRef<Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }>>({});
-  const pendingReqUpdates = useRef<Record<string, { required?: boolean; notes?: string }>>({});
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activePopover, setActivePopover] = useState<string | null>(null);
 
@@ -72,54 +64,27 @@ export const SortableContenderCard = ({
         setActivePopover(null);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerup', handleClickOutside);
+    return () => document.removeEventListener('pointerup', handleClickOutside);
   }, [activePopover]);
 
-  const flushUpdatesAsync = async () => {
+  const flushUpdates = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
-    
-    const updates = pendingUpdates.current;
-    const reqUpdates = pendingReqUpdates.current;
-    
+    if (Object.keys(pendingUpdates.current).length === 0) return;
+
+    updateOption.mutate({ 
+      id: opt.id, 
+      updates: pendingUpdates.current 
+    });
+
     pendingUpdates.current = {};
-    pendingReqUpdates.current = {};
-
-    const promises = [];
-    if (Object.keys(updates).length > 0) {
-      promises.push(updateOption.mutateAsync({ id: opt.id, updates }));
-    }
-    if (Object.keys(reqUpdates).length > 0) {
-      promises.push(updateOptionReqs.mutateAsync({ id: opt.id, updates: reqUpdates }));
-    }
-    
-    if (promises.length > 0) {
-      await Promise.all(promises);
-    }
-  };
-
-  const flushUpdates = useCallback(() => {
-    flushUpdatesAsync().catch(console.error);
-  }, [opt.id, updateOption, updateOptionReqs]);
+  }, [opt.id, updateOption]);
 
   const queueUpdate = useCallback((newUpdates: Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }>) => {
     pendingUpdates.current = { ...pendingUpdates.current, ...newUpdates };
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    timeoutRef.current = setTimeout(() => {
-      flushUpdates();
-    }, 500);
-  }, [flushUpdates]);
-
-  const queueReqUpdate = useCallback((reqId: string, reqData: { required?: boolean; notes?: string }) => {
-    pendingReqUpdates.current = {
-      ...pendingReqUpdates.current,
-      [reqId]: { ...(pendingReqUpdates.current[reqId] || {}), ...reqData }
-    };
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
@@ -374,7 +339,7 @@ export const SortableContenderCard = ({
         </div>
 
         {(opt.requires_coordination ?? true) && (
-          <details className="group border border-slate-200 dark:border-slate-800 rounded-md mt-2 mb-1">
+          <details className="group border border-slate-200 dark:border-slate-800 rounded-md mt-2 mb-1 relative">
             <summary className="flex items-center justify-between px-2 py-1.5 cursor-pointer list-none text-xs font-bold text-slate-500 dark:text-slate-400 select-none outline-none">
               <span>Required Disciplines</span>
               <span className="transition group-open:rotate-180">
@@ -389,44 +354,66 @@ export const SortableContenderCard = ({
                 const isPopoverOpen = activePopover === d.id;
 
                 return (
-                  <div key={d.id} className="relative">
-                    <button
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        if (!isSelected) {
-                          queueReqUpdate(d.id, { required: true });
-                          setActivePopover(d.id);
-                        } else if (isPopoverOpen) {
-                          setActivePopover(null);
-                        } else {
-                          setActivePopover(d.id);
-                        }
-                      }}
-                      disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
-                      className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
+                  <div key={d.id} className="static">
+                    <div
+                      className={`flex items-center rounded text-[10px] font-bold transition-colors border ${
                         isSelected 
-                          ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400 border border-sky-200 dark:border-sky-800' 
-                          : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-transparent hover:bg-slate-200 dark:hover:bg-slate-700'
-                      } ${(hasLockedOption || isLocked || !permissions.can_edit_records) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400 border-sky-200 dark:border-sky-800' 
+                          : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-transparent hover:bg-slate-200 dark:hover:bg-slate-700'
+                      } ${(hasLockedOption || isLocked || !permissions.can_edit_records) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      {d.label}
-                    </button>
+                      <button
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          if (!isSelected) {
+                            updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: true } } });
+                            setActivePopover(d.id);
+                          } else if (isPopoverOpen) {
+                            setActivePopover(null);
+                          } else {
+                            setActivePopover(d.id);
+                          }
+                        }}
+                        disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
+                        className={`px-2 py-1 ${!isSelected ? 'cursor-pointer' : 'cursor-pointer hover:bg-sky-200/50 dark:hover:bg-sky-800/50'} rounded-l`}
+                      >
+                        {d.label}
+                      </button>
+                      
+                      {isSelected && (
+                        <button
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: false, notes: '' } } });
+                            if (isPopoverOpen) setActivePopover(null);
+                          }}
+                          disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
+                          className="px-1.5 py-1 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-900/50 dark:hover:text-rose-400 transition-colors border-l border-sky-200/50 dark:border-sky-800/50 cursor-pointer rounded-r"
+                          title="Remove discipline"
+                        >
+                          <X size={10} strokeWidth={3} />
+                        </button>
+                      )}
+                    </div>
                     
                     {isPopoverOpen && (
                       <div 
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded-lg p-3 animate-in fade-in zoom-in-95 duration-150"
+                        className="absolute z-50 bottom-full left-0 mb-2 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg rounded-lg p-3 animate-in fade-in zoom-in-95 duration-150"
                       >
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{d.label} Coordination</span>
                           <button 
                             onClick={() => {
-                              queueReqUpdate(d.id, { required: false, notes: '' });
+                              updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: false, notes: '' } } });
                               setActivePopover(null);
                             }}
                             className="text-xs text-rose-500 hover:text-rose-600 font-semibold"
@@ -441,7 +428,7 @@ export const SortableContenderCard = ({
                           defaultValue={disciplineReq.notes || ''}
                           onBlur={(e) => {
                             if (e.target.value !== disciplineReq.notes) {
-                              queueReqUpdate(d.id, { required: true, notes: e.target.value });
+                              updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: true, notes: e.target.value } } });
                             }
                           }}
                           onKeyDown={(e) => {
@@ -470,11 +457,14 @@ export const SortableContenderCard = ({
             </button>
           ) : (
             <button
-              onClick={async () => {
-                await flushUpdatesAsync();
+              onClick={() => {
+              flushUpdates();
+              // Short delay to ensure any pending onBlur mutations (like notes) reach the database first
+              setTimeout(() => {
                 lockOption.mutate(opt.id);
-              }}
-              disabled={opt.is_locked || isLocked || !permissions.can_lock_options}
+              }, 250);
+            }}
+              disabled={opt.is_locked || isLocked || !permissions.can_lock_options || updateOptionReqs.isPending}
               role="switch"
               aria-checked={opt.is_locked || false}
               className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${

@@ -57,7 +57,8 @@ export function useGridNavigation<TData>(
     const nextRow = rows[nextRowIndex];
     let finalColIndex = nextColIndex;
 
-    if (nextRow && nextRow.depth === 1) {
+    const isSubRow = nextRow && nextRow.original && !('project_id' in (nextRow.original as any)) && 'opportunity_id' in (nextRow.original as any);
+    if (isSubRow) {
       const validSubRowCols = ['title', 'cost_impact', 'days_impact'];
       const targetColId = navigableColumns[nextColIndex]?.id;
       if (targetColId && !validSubRowCols.includes(targetColId)) {
@@ -119,7 +120,8 @@ export function useGridNavigation<TData>(
     const nextRow = rows[nextRowIndex];
     let finalColIndex = nextColIndex;
 
-    if (nextRow && nextRow.depth === 1) {
+    const isSubRowMove = nextRow && nextRow.original && !('project_id' in (nextRow.original as any)) && 'opportunity_id' in (nextRow.original as any);
+    if (isSubRowMove) {
       const validSubRowCols = ['title', 'cost_impact', 'days_impact'];
       const targetColId = navigableColumns[nextColIndex]?.id;
       if (targetColId && !validSubRowCols.includes(targetColId)) {

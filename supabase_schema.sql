@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
   cost_code text,
   record_type text DEFAULT 'VE' CHECK (record_type IN ('VE', 'Coordination')),
   coordination_details jsonb DEFAULT '{}'::jsonb,
+  description text,
   is_deleted boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL

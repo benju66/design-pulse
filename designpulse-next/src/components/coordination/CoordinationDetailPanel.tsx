@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { Opportunity, DisciplineConfig, DisciplineDetails } from '@/types/models';
-import { useUpdateOpportunity, useUpdateCoordinationDetails, useProjectSettings } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useUpdateCoordinationDetails, useProjectSettings, useAllProjectOptions } from '@/hooks/useProjectQueries';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface CoordinationDetailPanelProps {
@@ -20,6 +20,8 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
   const updateMutation = useUpdateOpportunity(projectId);
   const updateCoordDetails = useUpdateCoordinationDetails(projectId);
   const { data: settings } = useProjectSettings(projectId);
+  const { data: allOptions } = useAllProjectOptions(projectId);
+  const lockedOption = allOptions?.find(o => o.opportunity_id === opportunity.id && o.is_locked);
   
   const rawDisciplines = settings?.disciplines;
   const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
@@ -192,6 +194,70 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
              </div>
           </div>
         </div>
+
+        {/* VE Selection Details (Only for VE items pushed to Coordination) */}
+        {opportunity.record_type !== 'Coordination' && lockedOption && (
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm flex flex-col gap-4">
+             <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 pb-2">VE Selection Details</h4>
+             
+             <div>
+               <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Contender Title</label>
+               <div className="text-sm font-bold text-slate-800 dark:text-slate-200">{lockedOption.title}</div>
+             </div>
+
+             <div className="flex gap-4">
+               <div className="flex-1 min-w-0">
+                 <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Cost Code & Division</label>
+                 <div className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate" title={lockedOption.cost_code || opportunity.cost_code ? `${lockedOption.cost_code || opportunity.cost_code}${lockedOption.division || opportunity.division ? ` - ${lockedOption.division || opportunity.division}` : ''}` : 'None'}>
+                   {lockedOption.cost_code || opportunity.cost_code ? `${lockedOption.cost_code || opportunity.cost_code}${lockedOption.division || opportunity.division ? ` - ${lockedOption.division || opportunity.division}` : ''}` : 'None'}
+                 </div>
+               </div>
+               <div className="flex-1 min-w-0">
+                 <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Building Location</label>
+                 <div className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate" title={opportunity.location || opportunity.building_area || 'Not Set'}>
+                   {opportunity.location || opportunity.building_area || 'Not Set'}
+                 </div>
+               </div>
+             </div>
+
+             {lockedOption.description && (
+               <details className="group border border-slate-200 dark:border-slate-700 rounded-md mt-2">
+                 <summary className="flex items-center justify-between px-3 py-2 cursor-pointer list-none text-xs font-bold text-slate-500 dark:text-slate-400 select-none outline-none bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-t-md group-open:rounded-b-none group-[&:not([open])]:rounded-md group-open:border-b group-open:border-slate-200 dark:group-open:border-slate-700">
+                   <span>Description & Pros/Cons</span>
+                   <ChevronDown size={14} className="text-slate-400 group-open:rotate-180 transition-transform" />
+                 </summary>
+                 <div className="p-3 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap bg-white dark:bg-slate-800 rounded-b-md">
+                   {lockedOption.description}
+                 </div>
+               </details>
+             )}
+          </div>
+        )}
+
+        {/* Coordination Description (Only for Direct Coordination items) */}
+        {opportunity.record_type === 'Coordination' && (
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-1">Description</label>
+            <textarea
+              className="w-full text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 h-24 resize-y focus:ring-2 focus:ring-sky-500 outline-none text-slate-800 dark:text-slate-200 shadow-sm"
+              placeholder="Add description or scope details..."
+              defaultValue={opportunity.description || ''}
+              onBlur={(e) => {
+                if (e.target.value !== (opportunity.description || '')) {
+                  updateMutation.mutate({
+                    id: opportunity.id,
+                    updates: { description: e.target.value }
+                  });
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+          </div>
+        )}
 
         {/* Manual Escalation */}
         <div className="flex flex-col gap-4">

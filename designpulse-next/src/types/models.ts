@@ -6,6 +6,7 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   record_type?: string | null;
   coordination_status?: string | null;
   coordination_details?: Record<string, DisciplineDetails> | null;
+  description?: string | null;
 };
 
 export interface DisciplineDetails {

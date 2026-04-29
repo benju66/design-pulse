@@ -746,7 +746,7 @@ $$;
 
 
 -- 5. Refactor Existing RPCs
-CREATE OR REPLACE FUNCTION lock_opportunity_option(p_option_id UUID, p_opp_id UUID)
+CREATE OR REPLACE FUNCTION public.lock_opportunity_option(p_option_id UUID, p_opp_id UUID)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_option_title text;
@@ -771,14 +771,25 @@ BEGIN
   
   IF jsonb_typeof(v_coord_reqs) = 'object' THEN
     FOR k, v IN SELECT key, value FROM jsonb_each_text(v_coord_reqs) LOOP
-      IF (v::jsonb)->>'required' = 'true' THEN
-        v_new_coord_details := jsonb_set(
-          v_new_coord_details, 
-          ARRAY[k], 
-          jsonb_build_object('status', 'Pending', 'notes', COALESCE((v::jsonb)->>'notes', '')), 
-          true
-        );
-      END IF;
+      BEGIN
+        IF jsonb_typeof(v::jsonb) = 'object' AND (v::jsonb)->>'required' = 'true' THEN
+          v_new_coord_details := jsonb_set(
+            v_new_coord_details, 
+            ARRAY[k], 
+            jsonb_build_object('status', 'Pending', 'notes', COALESCE((v::jsonb)->>'notes', '')), 
+            true
+          );
+        ELSIF jsonb_typeof(v::jsonb) = 'boolean' AND v = 'true' THEN
+          v_new_coord_details := jsonb_set(
+            v_new_coord_details, 
+            ARRAY[k], 
+            jsonb_build_object('status', 'Pending', 'notes', ''), 
+            true
+          );
+        END IF;
+      EXCEPTION WHEN OTHERS THEN
+        -- Safely ignore malformed JSON text to prevent transaction aborts
+      END;
     END LOOP;
   END IF;
 

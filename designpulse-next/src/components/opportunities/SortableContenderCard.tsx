@@ -68,19 +68,25 @@ export const SortableContenderCard = ({
     return () => document.removeEventListener('pointerup', handleClickOutside);
   }, [activePopover]);
 
-  const flushUpdates = useCallback(() => {
+  const flushUpdates = useCallback(async () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
     if (Object.keys(pendingUpdates.current).length === 0) return;
 
-    updateOption.mutate({ 
-      id: opt.id, 
-      updates: pendingUpdates.current 
-    });
-
+    const updates = pendingUpdates.current;
     pendingUpdates.current = {};
+
+    try {
+      await updateOption.mutateAsync({ 
+        id: opt.id, 
+        updates 
+      });
+    } catch (e) {
+      pendingUpdates.current = { ...updates, ...pendingUpdates.current };
+      throw e;
+    }
   }, [opt.id, updateOption]);
 
   const queueUpdate = useCallback((newUpdates: Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }>) => {
@@ -457,13 +463,17 @@ export const SortableContenderCard = ({
             </button>
           ) : (
             <button
-              onClick={() => {
-              flushUpdates();
-              // Short delay to ensure any pending onBlur mutations (like notes) reach the database first
-              setTimeout(() => {
-                lockOption.mutate(opt.id);
-              }, 250);
-            }}
+              onClick={async () => {
+                try {
+                  await flushUpdates();
+                  // Give a slightly longer delay to ensure pending onBlur mutations (like notes) reach the DB
+                  setTimeout(() => {
+                    lockOption.mutate(opt.id);
+                  }, 500);
+                } catch (e) {
+                  console.error('Failed to flush updates before locking:', e);
+                }
+              }}
               disabled={opt.is_locked || isLocked || !permissions.can_lock_options || updateOptionReqs.isPending}
               role="switch"
               aria-checked={opt.is_locked || false}

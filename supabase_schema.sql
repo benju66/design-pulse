@@ -965,3 +965,14 @@ BEGIN
   GROUP BY key, value->>'status';
 END;
 $$;
+
+-- 5. User Email Lookup (Auth OAuth Callback)
+CREATE OR REPLACE FUNCTION get_user_id_by_email(p_email text)
+RETURNS uuid
+LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT id FROM auth.users WHERE lower(email) = lower(p_email) LIMIT 1;
+$$;
+
+-- CRITICAL GUARDRAIL: Prevent User Enumeration from the frontend
+REVOKE EXECUTE ON FUNCTION get_user_id_by_email(text) FROM PUBLIC, authenticated, anon;
+GRANT EXECUTE ON FUNCTION get_user_id_by_email(text) TO service_role;

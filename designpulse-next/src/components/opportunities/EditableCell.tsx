@@ -97,7 +97,7 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: 'navigate' | 'edit') => void) => {
-    const moveActiveCell = (table.options.meta as any)?.moveActiveCell;
+    const moveActiveCell = (table.options.meta as any)?.moveActiveCellRef?.current;
     if (e.key === 'Enter') {
       e.preventDefault();
       onBlur();
@@ -329,7 +329,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: 'navigate' | 'edit') => void) => {
-    const moveActiveCell = (table.options.meta as any)?.moveActiveCell;
+    const moveActiveCell = (table.options.meta as any)?.moveActiveCellRef?.current;
     if (e.key === 'Enter') {
       e.preventDefault();
       onBlur();
@@ -425,7 +425,7 @@ export const DivisionCell = React.memo(({ getValue, row, column, table }: CellCo
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: 'navigate' | 'edit') => void) => {
-    const moveActiveCell = (table.options.meta as any)?.moveActiveCell;
+    const moveActiveCell = (table.options.meta as any)?.moveActiveCellRef?.current;
     if (e.key === 'Enter') {
       e.preventDefault();
       onBlur();
@@ -517,7 +517,7 @@ export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellCo
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: 'navigate' | 'edit') => void) => {
-    const moveActiveCell = (table.options.meta as any)?.moveActiveCell;
+    const moveActiveCell = (table.options.meta as any)?.moveActiveCellRef?.current;
     if (e.key === 'Enter') {
       e.preventDefault();
       onBlur();

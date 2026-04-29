@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -35,6 +35,98 @@ interface OpportunityGridProps {
   isolateState?: boolean;
   hideGhostRow?: boolean;
 }
+
+const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement }: any) => {
+  return (
+    <tbody 
+      ref={measureElement}
+      data-index={virtualRow.index}
+      className="border-b-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800"
+    >
+      <tr>
+        <td 
+          colSpan={row.getVisibleCells().length} 
+          className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
+          onClick={row.getToggleExpandedHandler()}
+        >
+          <div className="flex justify-between items-center w-full">
+            <span className="flex items-center">
+              <span className="mr-2">{row.getIsExpanded() ? '▼' : '▶'}</span>
+              {row.getValue('division') ? `${row.getValue('division')}` : 'Uncategorized / No Division'}
+              <span className="ml-2 text-sm text-slate-500 font-normal">({row.subRows.length} items)</span>
+            </span>
+            
+            <div className="flex items-center gap-6">
+              <div className="flex flex-col items-end">
+                <span className="text-xs text-slate-500 font-normal uppercase">Cost Impact</span>
+                <span className={`text-sm ${Number(row.getValue('cost_impact')) > 0 ? 'text-rose-600' : Number(row.getValue('cost_impact')) < 0 ? 'text-emerald-600' : ''}`}>
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(row.getValue('cost_impact')) || 0)}
+                </span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-xs text-slate-500 font-normal uppercase">Days Impact</span>
+                <span className="text-sm">{row.getValue('days_impact') || 0}</span>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  );
+}, (prev: any, next: any) => {
+  return (
+    prev.row.getIsExpanded() === next.row.getIsExpanded() &&
+    prev.row.getValue('cost_impact') === next.row.getValue('cost_impact') &&
+    prev.row.getValue('days_impact') === next.row.getValue('days_impact') &&
+    prev.visibleColumnIds === next.visibleColumnIds &&
+    prev.virtualRow.index === next.virtualRow.index
+  );
+});
+
+const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement }: any) => {
+  return (
+    <tbody 
+      ref={measureElement}
+      data-index={virtualRow.index}
+      className="border-b border-slate-100 dark:border-slate-800/50"
+    >
+      <tr 
+        id={`row-${row.original.id}`}
+        className={`transition-colors ${
+          isSelected 
+            ? 'bg-sky-50/50 dark:bg-sky-900/10 border-l-2 border-sky-500' 
+            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+        }`}
+      >
+        {row.getVisibleCells().map((cell: any) => {
+          if (cell.getIsGrouped()) return <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800" />;
+          if (cell.getIsPlaceholder()) return <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800" />;
+          return (
+            <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </td>
+          );
+        })}
+      </tr>
+      {viewMode === 'card' && row.getIsExpanded() && (
+        <tr>
+          <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
+            <ExpandedCard row={row as any} />
+          </td>
+        </tr>
+      )}
+    </tbody>
+  );
+}, (prev: any, next: any) => {
+  return (
+    prev.row.original === next.row.original &&
+    prev.isSelected === next.isSelected &&
+    prev.viewMode === next.viewMode &&
+    prev.row.getIsExpanded() === next.row.getIsExpanded() &&
+    prev.virtualRow.index === next.virtualRow.index &&
+    prev.visibleColumnIds === next.visibleColumnIds
+  );
+});
 
 export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
@@ -113,6 +205,8 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const permissions = useCurrentUserPermissions(projectId);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
 
+  const moveActiveCellRef = useRef<any>(null);
+
   useEffect(() => {
     if (!isolateState && settings?.ve_column_order && settings.ve_column_order.length > 0) {
       const allColIds = columns.map(c => (c as any).accessorKey || c.id).filter(Boolean);
@@ -151,6 +245,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
       rawCostCodes,
       projectMembers,
       permissions,
+      moveActiveCellRef,
     } as any,
   });
 
@@ -165,7 +260,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   });
 
   const { handleKeyDown, moveActiveCell } = useGridNavigation(table as any, virtualizer);
-  (table.options.meta as any).moveActiveCell = moveActiveCell;
+  moveActiveCellRef.current = moveActiveCell;
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;
@@ -246,80 +341,30 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
           {virtualItems.map((virtualRow) => {
             const row = rows[virtualRow.index];
             const isSelected = selectedOpportunityId === row.original.id;
+            const visibleColumnIds = row.getVisibleCells().map((c: any) => c.column.id).join(',');
             
             if (row.getIsGrouped()) {
               return (
-                <tbody 
+                <MemoizedGroupedRow 
                   key={row.id}
-                  ref={virtualizer.measureElement}
-                  data-index={virtualRow.index}
-                  className="border-b-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800"
-                >
-                  <tr>
-                    <td 
-                      colSpan={row.getVisibleCells().length} 
-                      className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
-                      onClick={row.getToggleExpandedHandler()}
-                    >
-                      <div className="flex justify-between items-center w-full">
-                        <span className="flex items-center">
-                          <span className="mr-2">{row.getIsExpanded() ? '▼' : '▶'}</span>
-                          {row.getValue('division') ? `${row.getValue('division')}` : 'Uncategorized / No Division'}
-                          <span className="ml-2 text-sm text-slate-500 font-normal">({row.subRows.length} items)</span>
-                        </span>
-                        
-                        <div className="flex items-center gap-6">
-                          <div className="flex flex-col items-end">
-                            <span className="text-xs text-slate-500 font-normal uppercase">Cost Impact</span>
-                            <span className={`text-sm ${Number(row.getValue('cost_impact')) > 0 ? 'text-rose-600' : Number(row.getValue('cost_impact')) < 0 ? 'text-emerald-600' : ''}`}>
-                              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(row.getValue('cost_impact')) || 0)}
-                            </span>
-                          </div>
-                          <div className="flex flex-col items-end">
-                            <span className="text-xs text-slate-500 font-normal uppercase">Days Impact</span>
-                            <span className="text-sm">{row.getValue('days_impact') || 0}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
+                  row={row}
+                  virtualRow={virtualRow}
+                  measureElement={virtualizer.measureElement}
+                  visibleColumnIds={visibleColumnIds}
+                />
               );
             }
 
             return (
-              <tbody 
+              <MemoizedGridRowV2 
                 key={row.id}
-                ref={virtualizer.measureElement}
-                data-index={virtualRow.index}
-                className="border-b border-slate-100 dark:border-slate-800/50"
-              >
-                <tr 
-                  id={`row-${row.original.id}`}
-                  className={`transition-colors ${
-                    isSelected 
-                      ? 'bg-sky-50/50 dark:bg-sky-900/10 border-l-2 border-sky-500' 
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                  }`}
-                >
-                  {row.getVisibleCells().map((cell) => {
-                    if (cell.getIsGrouped()) return <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800" />;
-                    if (cell.getIsPlaceholder()) return <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800" />;
-                    return (
-                      <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    );
-                  })}
-                </tr>
-                {viewMode === 'card' && row.getIsExpanded() && (
-                  <tr>
-                    <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
-                      <ExpandedCard row={row as any} />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
+                row={row}
+                virtualRow={virtualRow}
+                isSelected={isSelected}
+                viewMode={viewMode}
+                measureElement={virtualizer.measureElement}
+                visibleColumnIds={visibleColumnIds}
+              />
             );
           })}
           {paddingBottom > 0 && (

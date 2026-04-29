@@ -56,13 +56,12 @@ export async function GET(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY as string
     );
 
-    let { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-    if (listError) throw listError;
+    // Look up the user securely via the new RPC to avoid the 50-user pagination limit
+    const { data: existingUserId, error: rpcError } = await supabaseAdmin.rpc('get_user_id_by_email', { p_email: email });
+    if (rpcError) throw rpcError;
 
-    let sitepulseUser = users.find((u: any) => u.email === email);
-
-    if (!sitepulseUser) {
-      const { data: newUser, error } = await supabaseAdmin.auth.admin.createUser({
+    if (!existingUserId) {
+      const { error } = await supabaseAdmin.auth.admin.createUser({
         email: email,
         email_confirm: true,
         user_metadata: {
@@ -71,7 +70,15 @@ export async function GET(request: NextRequest) {
         }
       });
       if (error) throw error;
-      sitepulseUser = newUser.user;
+    } else {
+      // Sync their Procore metadata in case it changed or they were manually invited
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(existingUserId, {
+        user_metadata: {
+          display_name: procoreUser.name,
+          procore_id: procoreUser.id
+        }
+      });
+      if (error) throw error;
     }
 
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({

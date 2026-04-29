@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -33,6 +33,47 @@ interface OpportunityGridProps {
   isolateState?: boolean;
   hideGhostRow?: boolean;
 }
+
+const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement }: any) => {
+  return (
+    <tbody 
+      ref={measureElement}
+      data-index={virtualRow.index}
+      className="border-b border-slate-100 dark:border-slate-800/50"
+    >
+      <tr 
+        id={`row-${row.original.id}`}
+        className={`transition-colors ${
+          isSelected 
+            ? 'bg-sky-50/50 dark:bg-sky-900/10 border-l-2 border-sky-500' 
+            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+        }`}
+      >
+        {row.getVisibleCells().map((cell: any) => (
+          <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        ))}
+      </tr>
+      {viewMode === 'card' && row.getIsExpanded() && (
+        <tr>
+          <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
+            <ExpandedCard row={row as any} />
+          </td>
+        </tr>
+      )}
+    </tbody>
+  );
+}, (prev: any, next: any) => {
+  return (
+    prev.row.original === next.row.original &&
+    prev.isSelected === next.isSelected &&
+    prev.viewMode === next.viewMode &&
+    prev.row.getIsExpanded() === next.row.getIsExpanded() &&
+    prev.virtualRow.index === next.virtualRow.index &&
+    prev.visibleColumnIds === next.visibleColumnIds
+  );
+});
 
 export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
@@ -110,6 +151,8 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const permissions = useCurrentUserPermissions(projectId);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
 
+  const moveActiveCellRef = useRef<any>(null);
+
   useEffect(() => {
     if (!isolateState && settings?.ve_column_order && settings.ve_column_order.length > 0) {
       const allColIds = columns.map(c => (c as any).accessorKey || c.id).filter(Boolean);
@@ -146,7 +189,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
       rawCostCodes,
       projectMembers,
       permissions,
-      // moveActiveCell will be injected later or we can just pass it directly if we define it before table
+      moveActiveCellRef,
     } as any,
   });
 
@@ -161,9 +204,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   });
 
   const { handleKeyDown, moveActiveCell } = useGridNavigation(table as any, virtualizer);
-  
-  // Inject moveActiveCell into meta since we need virtualizer first
-  (table.options.meta as any).moveActiveCell = moveActiveCell;
+  moveActiveCellRef.current = moveActiveCell;
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;
@@ -245,35 +286,17 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
           {virtualItems.map((virtualRow) => {
             const row = rows[virtualRow.index];
             const isSelected = selectedOpportunityId === row.original.id;
+            const visibleColumnIds = row.getVisibleCells().map((c: any) => c.column.id).join(',');
             return (
-              <tbody 
+              <MemoizedGridRow 
                 key={row.id}
-                ref={virtualizer.measureElement}
-                data-index={virtualRow.index}
-                className="border-b border-slate-100 dark:border-slate-800/50"
-              >
-                <tr 
-                  id={`row-${row.original.id}`}
-                  className={`transition-colors ${
-                    isSelected 
-                      ? 'bg-sky-50/50 dark:bg-sky-900/10 border-l-2 border-sky-500' 
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                  }`}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-                {viewMode === 'card' && row.getIsExpanded() && (
-                  <tr>
-                    <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
-                      <ExpandedCard row={row as any} />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
+                row={row}
+                virtualRow={virtualRow}
+                isSelected={isSelected}
+                viewMode={viewMode}
+                measureElement={virtualizer.measureElement}
+                visibleColumnIds={visibleColumnIds}
+              />
             );
           })}
           {paddingBottom > 0 && (

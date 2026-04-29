@@ -15,6 +15,8 @@ export interface DisciplineDetails {
 export type OpportunityOption = Database['public']['Tables']['opportunity_options']['Row'] & {
   requires_coordination?: boolean | null;
   coordination_requirements?: Record<string, { required: boolean; notes?: string }> | null;
+  cost_code?: string | null;
+  division?: string | null;
 };
 export type CostCode = Database['public']['Tables']['cost_codes']['Row'];
 export type ProjectSettings = Database['public']['Tables']['project_settings']['Row'] & {

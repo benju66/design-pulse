@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS opportunity_options (
   requires_coordination boolean DEFAULT true,
   coordination_requirements jsonb DEFAULT '{}'::jsonb,
   is_deleted boolean DEFAULT false,
+  cost_code text,
+  division text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -752,6 +754,8 @@ DECLARE
   v_option_title text;
   v_option_cost numeric;
   v_option_days numeric;
+  v_option_cost_code text;
+  v_option_division text;
   v_requires_coord boolean;
   v_coord_reqs jsonb;
   v_new_coord_details jsonb := '{}'::jsonb;
@@ -766,8 +770,8 @@ BEGIN
   UPDATE opportunity_options SET is_locked = false WHERE opportunity_id = p_opp_id;
   
   UPDATE opportunity_options SET is_locked = true WHERE id = p_option_id 
-  RETURNING title, cost_impact, days_impact, COALESCE(requires_coordination, true), COALESCE(coordination_requirements, '{}'::jsonb) 
-  INTO v_option_title, v_option_cost, v_option_days, v_requires_coord, v_coord_reqs;
+  RETURNING title, cost_impact, days_impact, cost_code, division, COALESCE(requires_coordination, true), COALESCE(coordination_requirements, '{}'::jsonb) 
+  INTO v_option_title, v_option_cost, v_option_days, v_option_cost_code, v_option_division, v_requires_coord, v_coord_reqs;
   
   IF jsonb_typeof(v_coord_reqs) = 'object' THEN
     FOR k, v IN SELECT key, value FROM jsonb_each_text(v_coord_reqs) LOOP
@@ -799,6 +803,8 @@ BEGIN
       status = 'Approved', 
       cost_impact = v_option_cost, 
       days_impact = v_option_days,
+      cost_code = COALESCE(v_option_cost_code, cost_code),
+      division = COALESCE(v_option_division, division),
       coordination_status = 'Pending Plan Update',
       coordination_details = v_new_coord_details
     WHERE id = p_opp_id;
@@ -808,6 +814,8 @@ BEGIN
       status = 'Approved', 
       cost_impact = v_option_cost, 
       days_impact = v_option_days,
+      cost_code = COALESCE(v_option_cost_code, cost_code),
+      division = COALESCE(v_option_division, division),
       coordination_status = 'Not Required',
       coordination_details = '{}'::jsonb
     WHERE id = p_opp_id;

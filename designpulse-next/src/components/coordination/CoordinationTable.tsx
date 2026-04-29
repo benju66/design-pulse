@@ -18,7 +18,8 @@ import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { CoordinationGhostRow } from './CoordinationGhostRow';
-import { TextCell, PriorityCell, BuildingAreaCell } from '@/components/opportunities/EditableCell';
+import { TextCell, PriorityCell, BuildingAreaCell, CostCodeCell, DivisionCell } from '@/components/opportunities/EditableCell';
+import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
@@ -181,6 +182,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
   const permissions = useCurrentUserPermissions(projectId);
+  const { data: rawCostCodes = [] } = useCostCodes();
 
   const compareQueue = useUIStore(state => state.compareQueue);
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
@@ -303,6 +305,18 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
       cell: PriorityCell,
     },
     {
+      accessorKey: 'division',
+      header: 'Division',
+      size: 200,
+      cell: DivisionCell,
+    },
+    {
+      accessorKey: 'cost_code',
+      header: 'Cost Code',
+      size: 200,
+      cell: CostCodeCell,
+    },
+    {
       accessorKey: 'coordination_status',
       header: 'Status',
       size: 140,
@@ -340,6 +354,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
       updateData: updateMutation,
       projectId,
       permissions,
+      rawCostCodes,
     } as any
   });
 

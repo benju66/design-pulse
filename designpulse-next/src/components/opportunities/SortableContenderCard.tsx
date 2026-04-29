@@ -8,6 +8,7 @@ import { OpportunityOption, DisciplineConfig } from '@/types/models';
 import { UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useProjectSettings, useCurrentUserPermissions, useUpdateOptionRequirements } from '@/hooks/useProjectQueries';
+import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface SortableContenderCardProps {
@@ -46,6 +47,7 @@ export const SortableContenderCard = ({
   const { data: settings } = useProjectSettings(projectId);
   const permissions = useCurrentUserPermissions(projectId);
   const updateOptionReqs = useUpdateOptionRequirements(projectId, opportunityId);
+  const { data: rawCostCodes = [] } = useCostCodes();
   
   const rawDisciplines = settings?.disciplines;
   const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
@@ -307,6 +309,49 @@ export const SortableContenderCard = ({
             </select>
           </div>
         </div>
+      </div>
+
+      <div className="flex flex-col mb-4">
+        <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Cost Code</label>
+        <div className="flex bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded focus-within:ring-2 focus-within:ring-sky-500">
+          <input
+            list={`cost-codes-list-${opt.id}`}
+            defaultValue={opt.cost_code || ''}
+            disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
+            placeholder="Search Cost Codes..."
+            className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
+            onBlur={(e) => {
+              const val = e.target.value;
+              if (val !== opt.cost_code) {
+                let updates: any = { cost_code: val || null };
+                if (val) {
+                  const parsedCode = val.split(' - ')[0]?.trim();
+                  const matchedCode = rawCostCodes.find((c: any) => c.code === parsedCode && !c.is_division);
+                  if (matchedCode && matchedCode.parent_division) {
+                    const parentDivObj = rawCostCodes.find((c: any) => c.code === matchedCode.parent_division && c.is_division);
+                    if (parentDivObj) {
+                      updates.division = `${parentDivObj.code} - ${parentDivObj.description}`;
+                    }
+                  }
+                } else {
+                  updates.division = null;
+                }
+                queueUpdate(updates);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur();
+            }}
+          />
+        </div>
+        {opt.division && (
+           <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mt-1 truncate">Div: {opt.division}</span>
+        )}
+        <datalist id={`cost-codes-list-${opt.id}`}>
+          {rawCostCodes.filter((c: any) => !c.is_division).map((c: any) => (
+            <option key={c.code} value={`${c.code} - ${c.description}`} />
+          ))}
+        </datalist>
       </div>
 
       <div className="mt-auto flex flex-col gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/50">

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { Opportunity, DisciplineConfig, DisciplineDetails } from '@/types/models';
-import { useUpdateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useUpdateCoordinationDetails, useProjectSettings } from '@/hooks/useProjectQueries';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface CoordinationDetailPanelProps {
@@ -18,6 +18,7 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
   const panelRef = useRef<HTMLDivElement>(null);
 
   const updateMutation = useUpdateOpportunity(projectId);
+  const updateCoordDetails = useUpdateCoordinationDetails(projectId);
   const { data: settings } = useProjectSettings(projectId);
   
   const rawDisciplines = settings?.disciplines;
@@ -37,21 +38,16 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         if (Object.keys(pendingDetailsRef.current).length > 0) {
-          updateMutation.mutate({
+          updateCoordDetails.mutate({
             id: opportunity.id,
-            updates: {
-              coordination_details: { 
-                ...(opportunity.coordination_details as object || {}), 
-                ...pendingDetailsRef.current 
-              }
-            }
+            updates: pendingDetailsRef.current
           });
           pendingDetailsRef.current = {};
         }
         timeoutRef.current = null;
       }
     };
-  }, [opportunity.id, opportunity.coordination_details, updateMutation]);
+  }, [opportunity.id, updateCoordDetails]);
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -86,11 +82,11 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
       }
     }));
 
-    // 2. Accumulate in ref
+    // 2. Accumulate delta in ref
     pendingDetailsRef.current = {
       ...pendingDetailsRef.current,
       [disciplineId]: {
-        ...(localDetails[disciplineId] || {}),
+        ...(pendingDetailsRef.current[disciplineId] || {}),
         ...updates
       }
     };
@@ -98,14 +94,9 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
     // 3. Debounce network mutation
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      updateMutation.mutate({ 
+      updateCoordDetails.mutate({ 
         id: opportunity.id, 
-        updates: { 
-          coordination_details: { 
-            ...(opportunity.coordination_details as object || {}), 
-            ...pendingDetailsRef.current 
-          } 
-        } 
+        updates: pendingDetailsRef.current
       });
       pendingDetailsRef.current = {}; // reset after flush
     }, 500);
@@ -218,14 +209,9 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
                   
                   if (timeoutRef.current) clearTimeout(timeoutRef.current);
                   timeoutRef.current = setTimeout(() => {
-                    updateMutation.mutate({
+                    updateCoordDetails.mutate({
                       id: opportunity.id,
-                      updates: { 
-                        coordination_details: { 
-                          ...(opportunity.coordination_details as object || {}), 
-                          ...pendingDetailsRef.current 
-                        }
-                      }
+                      updates: pendingDetailsRef.current
                     });
                     pendingDetailsRef.current = {};
                   }, 500);

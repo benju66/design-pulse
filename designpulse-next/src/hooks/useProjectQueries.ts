@@ -154,6 +154,115 @@ export function useUpdateOpportunity(projectId: string) {
   });
 }
 
+export function useUpdateCoordinationDetails(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    Opportunity, 
+    Error, 
+    { id: string; updates: Record<string, any> },
+    { previousOpportunities: Opportunity[] | undefined }
+  >({
+    mutationFn: async ({ id, updates }) => {
+      const { data, error } = await supabase.rpc('update_coordination_details_delta', {
+        p_opp_id: id,
+        p_updates: updates
+      }).single();
+      if (error) throw new Error(error.message || JSON.stringify(error));
+      return data as Opportunity;
+    },
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+      
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp => {
+          if (opp.id === id) {
+             const currentDetails = (opp.coordination_details as Record<string, any>) || {};
+             let newDetails = { ...currentDetails };
+             for (const [key, value] of Object.entries(updates)) {
+               if (key.startsWith('d_')) {
+                 newDetails[key] = { ...(newDetails[key] || {}), ...(value as Record<string,any>) };
+               } else {
+                 newDetails[key] = value;
+               }
+             }
+             return { ...opp, coordination_details: newDetails };
+          }
+          return opp;
+        });
+      });
+
+      return { previousOpportunities };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+      console.error('Update Coordination Details Error:', err);
+      toast.error(`Failed to update coordination details: ${err.message || 'Unknown error'}`);
+    }
+  });
+}
+
+export function useUpdateOptionRequirements(projectId: string, opportunityId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    OpportunityOption, 
+    Error, 
+    { id: string; updates: Record<string, boolean> }, 
+    { previousOptions: OpportunityOption[] | undefined; previousOpportunities: Opportunity[] | undefined }
+  >({
+    mutationFn: async ({ id, updates }) => {
+      const { data, error } = await supabase.rpc('update_option_requirements_delta', {
+        p_option_id: id,
+        p_updates: updates
+      }).single();
+      if (error) throw new Error(error.message || JSON.stringify(error));
+      return data as OpportunityOption;
+    },
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      
+      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+      
+      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
+        if (!old) return old;
+        return old.map(opt => {
+          if (opt.id === id) {
+            const currentReqs = (opt.coordination_requirements as Record<string, boolean>) || {};
+            return { ...opt, coordination_requirements: { ...currentReqs, ...updates } };
+          }
+          return opt;
+        });
+      });
+
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp => opp.id === opportunityId ? { ...opp } : opp);
+      });
+
+      return { previousOptions, previousOpportunities };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
+      }
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+      console.error('Update Option Requirements Error:', err);
+      toast.error(`Failed to update requirements: ${err.message || 'Unknown error'}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+    }
+  });
+}
+
 export function useCreateOpportunity(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<Opportunity, Error, Partial<Opportunity>>({

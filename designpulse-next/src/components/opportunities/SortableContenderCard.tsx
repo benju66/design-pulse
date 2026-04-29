@@ -7,7 +7,7 @@ import { GripVertical, X, Star, RotateCcw } from 'lucide-react';
 import { OpportunityOption, DisciplineConfig } from '@/types/models';
 import { UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
+import { useProjectSettings, useCurrentUserPermissions, useUpdateOptionRequirements } from '@/hooks/useProjectQueries';
 
 interface SortableContenderCardProps {
   opt: OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean };
@@ -33,7 +33,8 @@ export const SortableContenderCard = ({
   hasLockedOption,
   isLocked,
   canUnlock,
-  onUnlockClick
+  onUnlockClick,
+  opportunityId
 }: SortableContenderCardProps) => {
 
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: opt.id });
@@ -43,6 +44,7 @@ export const SortableContenderCard = ({
   const projectId = params?.projectId as string;
   const { data: settings } = useProjectSettings(projectId);
   const permissions = useCurrentUserPermissions(projectId);
+  const updateOptionReqs = useUpdateOptionRequirements(projectId, opportunityId);
   
   const defaultDisciplines: DisciplineConfig[] = [
     { id: 'd_arch', label: 'Arch' },
@@ -347,9 +349,8 @@ export const SortableContenderCard = ({
                   <button
                     key={d.id}
                     onClick={() => {
-                      flushUpdates();
-                      const newReqs = { ...reqs, [d.id]: !isSelected };
-                      queueUpdate({ coordination_requirements: newReqs });
+                      const isSelected = !!reqs[d.id];
+                      updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: !isSelected } });
                     }}
                     disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
                     className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${

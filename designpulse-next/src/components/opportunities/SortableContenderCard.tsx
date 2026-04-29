@@ -59,9 +59,14 @@ export const SortableContenderCard = ({
 
   // Close popover when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (e: PointerEvent) => {
       if (activePopover) {
-        setActivePopover(null);
+        const target = e.target as HTMLElement;
+        const popoverContainer = target.closest(`[data-popover-id="${activePopover}"]`);
+        
+        if (!popoverContainer) {
+          setActivePopover(null);
+        }
       }
     };
     document.addEventListener('pointerup', handleClickOutside);
@@ -368,26 +373,35 @@ export const SortableContenderCard = ({
                           : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-transparent hover:bg-slate-200 dark:hover:bg-slate-700'
                       } ${(hasLockedOption || isLocked || !permissions.can_edit_records) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                      <button
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          if (!isSelected) {
-                            updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: true } } });
-                            setActivePopover(d.id);
-                          } else if (isPopoverOpen) {
-                            setActivePopover(null);
-                          } else {
-                            setActivePopover(d.id);
-                          }
-                        }}
-                        disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
-                        className={`px-2 py-1 ${!isSelected ? 'cursor-pointer' : 'cursor-pointer hover:bg-sky-200/50 dark:hover:bg-sky-800/50'} rounded-l`}
-                      >
-                        {d.label}
-                      </button>
+                      <div className="relative group/tooltip flex items-center">
+                        <button
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            if (!isSelected) {
+                              updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: true } } });
+                              setActivePopover(d.id);
+                            } else if (isPopoverOpen) {
+                              setActivePopover(null);
+                            } else {
+                              setActivePopover(d.id);
+                            }
+                          }}
+                          disabled={hasLockedOption || isLocked || !permissions.can_edit_records}
+                          className={`px-2 py-1 ${!isSelected ? 'cursor-pointer' : 'cursor-pointer hover:bg-sky-200/50 dark:hover:bg-sky-800/50'} rounded-l`}
+                        >
+                          {d.label}
+                        </button>
+
+                        {isSelected && disciplineReq?.notes && (
+                          <div className="absolute bottom-full left-0 mb-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl z-[100] opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 pointer-events-none p-3 text-left">
+                            <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Notes</h4>
+                            <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug break-words whitespace-pre-wrap">{disciplineReq.notes}</p>
+                          </div>
+                        )}
+                      </div>
                       
                       {isSelected && (
                         <button
@@ -410,6 +424,7 @@ export const SortableContenderCard = ({
                     
                     {isPopoverOpen && (
                       <div 
+                        data-popover-id={d.id}
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => e.stopPropagation()}
@@ -438,7 +453,12 @@ export const SortableContenderCard = ({
                             }
                           }}
                           onKeyDown={(e) => {
-                            if (e.key === 'Escape') setActivePopover(null);
+                            if (e.key === 'Escape') {
+                              if (e.currentTarget.value !== disciplineReq.notes) {
+                                updateOptionReqs.mutate({ id: opt.id, updates: { [d.id]: { required: true, notes: e.currentTarget.value } } });
+                              }
+                              setActivePopover(null);
+                            }
                           }}
                         />
                         <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white dark:bg-slate-800 border-b border-r border-slate-200 dark:border-slate-700 rotate-45"></div>

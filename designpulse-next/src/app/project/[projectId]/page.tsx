@@ -18,6 +18,7 @@ import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import DetailPanel from '@/components/DetailPanel';
 import { useUIStore } from '@/stores/useUIStore';
+import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
 
 import { ProjectSidebar } from '@/components/layout/ProjectSidebar';
 import { ProjectSettings } from '@/components/project/ProjectSettings';
@@ -35,9 +36,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   
   const [currentView, setCurrentView] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('info');
-  const [activeTab, setActiveTab] = useState('All');
-  const [activeCostCode, setActiveCostCode] = useState('All');
+  const [activeBuildingAreas, setActiveBuildingAreas] = useState<string[]>([]);
+  const [activeCostCodes, setActiveCostCodes] = useState<string[]>([]);
   const [activeStatus, setActiveStatus] = useState('All');
+  const [coordActiveBuildingAreas, setCoordActiveBuildingAreas] = useState<string[]>([]);
+  const [coordActiveCostCodes, setCoordActiveCostCodes] = useState<string[]>([]);
   const [coordActiveType, setCoordActiveType] = useState('All');
   const [coordActiveStatus, setCoordActiveStatus] = useState('All');
   const [viewMode, setViewMode] = useState('split'); // 'split' | 'flat' | 'card'
@@ -120,7 +123,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const dynamicBuildingAreas = (settings?.building_areas && Array.isArray(settings.building_areas) && settings.building_areas.length > 0) 
     ? (settings.building_areas as string[]) 
     : ['Corridor / Common', 'Unit Interiors', 'Back of House'];
-  const tabs = ['All', ...dynamicBuildingAreas];
+
   const filteredOpportunities = React.useMemo(() => {
     const baseMatrixItems = opportunities.filter(opp => {
       if (opp.record_type === 'VE') return true;
@@ -133,12 +136,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       return false;
     });
     return baseMatrixItems.filter(opp => {
-      if (activeTab !== 'All' && opp.building_area !== activeTab) return false;
-      if (activeCostCode !== 'All' && opp.cost_code !== activeCostCode) return false;
+      if (activeBuildingAreas.length > 0 && !activeBuildingAreas.includes(opp.building_area || '')) return false;
+      if (activeCostCodes.length > 0 && !activeCostCodes.includes(opp.cost_code || '')) return false;
       if (activeStatus !== 'All' && opp.status !== activeStatus) return false;
       return true;
     });
-  }, [opportunities, activeTab, activeCostCode, activeStatus]);
+  }, [opportunities, activeBuildingAreas, activeCostCodes, activeStatus]);
 
   const uniqueCostCodes = React.useMemo(() => {
     const codes = opportunities.map(o => o.cost_code).filter(Boolean) as string[];
@@ -172,9 +175,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     return coordinationOpportunities.filter(opp => {
       if (coordActiveType !== 'All' && (opp.record_type || 'VE') !== coordActiveType) return false;
       if (coordActiveStatus !== 'All' && opp.coordination_status !== coordActiveStatus) return false;
+      if (coordActiveBuildingAreas.length > 0 && !coordActiveBuildingAreas.includes(opp.building_area || '')) return false;
+      if (coordActiveCostCodes.length > 0 && !coordActiveCostCodes.includes(opp.cost_code || '')) return false;
       return true;
     });
-  }, [coordinationOpportunities, coordActiveType, coordActiveStatus]);
+  }, [coordinationOpportunities, coordActiveType, coordActiveStatus, coordActiveBuildingAreas, coordActiveCostCodes]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -249,7 +254,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   Export PDF
                 </button>
                 <button 
-                  onClick={() => createMutation.mutate({ building_area: activeTab !== 'All' ? activeTab : (dynamicBuildingAreas[0] || 'Corridor / Common') })}
+                  onClick={() => createMutation.mutate({ building_area: activeBuildingAreas.length > 0 ? activeBuildingAreas[0] : (dynamicBuildingAreas[0] || 'Corridor / Common') })}
                   disabled={createMutation.isPending}
                   className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold rounded-xl shadow-sm transition-colors disabled:opacity-50"
                 >
@@ -327,24 +332,20 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     </div>
 
                     {/* Building Area Filter */}
-                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Building Area:</span>
-                      <select
-                        value={activeTab}
-                        onChange={(e) => setActiveTab(e.target.value)}
-                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
-                      >
-                        {tabs.map(tab => (
-                          <option key={tab} value={tab}>{tab}</option>
-                        ))}
-                      </select>
-                      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-1" />
+                    <div className="flex items-center gap-2">
+                      <MultiSelectFilter
+                        label="Building Area"
+                        options={dynamicBuildingAreas}
+                        selected={activeBuildingAreas}
+                        onChange={setActiveBuildingAreas}
+                        placeholder="Search areas..."
+                      />
                       <button
                         onClick={() => {
                           setSettingsTab('building_areas');
                           setCurrentView('settings');
                         }}
-                        className="text-slate-400 hover:text-sky-500 transition-colors"
+                        className="text-slate-400 hover:text-sky-500 transition-colors bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
                         title="Manage Building Areas"
                       >
                         <Plus size={16} />
@@ -352,19 +353,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     </div>
 
                     {/* Cost Code Filter */}
-                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Cost Code:</span>
-                      <select
-                        value={activeCostCode}
-                        onChange={(e) => setActiveCostCode(e.target.value)}
-                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
-                      >
-                        <option value="All">All</option>
-                        {uniqueCostCodes.map(code => (
-                          <option key={code} value={code}>{code}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <MultiSelectFilter
+                      label="Cost Code"
+                      options={uniqueCostCodes}
+                      selected={activeCostCodes}
+                      onChange={setActiveCostCodes}
+                      placeholder="Search codes..."
+                    />
 
                     <div className="flex-1" />
                     <button className="text-xs font-medium text-slate-400 hover:text-sky-500 pr-3 transition-colors flex items-center gap-1">
@@ -414,29 +409,34 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <div className="h-6 w-px bg-slate-200 dark:bg-slate-800" />
                     
                     {/* Building Area Filter */}
-                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Building Area:</span>
-                      <select
-                        value={activeTab}
-                        onChange={(e) => setActiveTab(e.target.value)}
-                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
-                      >
-                        {tabs.map(tab => (
-                          <option key={tab} value={tab}>{tab}</option>
-                        ))}
-                      </select>
-                      <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-1" />
+                    <div className="flex items-center gap-2">
+                      <MultiSelectFilter
+                        label="Building Area"
+                        options={dynamicBuildingAreas}
+                        selected={activeBuildingAreas}
+                        onChange={setActiveBuildingAreas}
+                        placeholder="Search areas..."
+                      />
                       <button
                         onClick={() => {
                           setSettingsTab('building_areas');
                           setCurrentView('settings');
                         }}
-                        className="text-slate-400 hover:text-sky-500 transition-colors"
+                        className="text-slate-400 hover:text-sky-500 transition-colors bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
                         title="Manage Building Areas"
                       >
                         <Plus size={16} />
                       </button>
                     </div>
+
+                    {/* Cost Code Filter */}
+                    <MultiSelectFilter
+                      label="Cost Code"
+                      options={uniqueCostCodes}
+                      selected={activeCostCodes}
+                      onChange={setActiveCostCodes}
+                      placeholder="Search codes..."
+                    />
 
                     <div className="flex-1" />
                     <button className="text-xs font-medium text-slate-400 hover:text-sky-500 pr-3 transition-colors flex items-center gap-1">
@@ -542,6 +542,24 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                           ))}
                         </select>
                       </div>
+
+                      {/* Building Area Filter */}
+                      <MultiSelectFilter
+                        label="Building Area"
+                        options={dynamicBuildingAreas}
+                        selected={coordActiveBuildingAreas}
+                        onChange={setCoordActiveBuildingAreas}
+                        placeholder="Search areas..."
+                      />
+
+                      {/* Cost Code Filter */}
+                      <MultiSelectFilter
+                        label="Cost Code"
+                        options={uniqueCostCodes}
+                        selected={coordActiveCostCodes}
+                        onChange={setCoordActiveCostCodes}
+                        placeholder="Search codes..."
+                      />
 
                       <div className="flex-1" />
                       <button className="text-xs font-medium text-slate-400 hover:text-sky-500 pr-3 transition-colors flex items-center gap-1">

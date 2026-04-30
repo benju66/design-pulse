@@ -102,6 +102,11 @@ class ExportRequest(BaseModel):
     sheet_name: str
     legend_data: Optional[Dict] = None
 
+# Rosetta Stone: CSI TOC Extractor response model
+class CsiSpecItem(BaseModel):
+    csi_number: str   # Normalized: "09 65 16"
+    description: str  # e.g. "Resilient Sheet Flooring"
+
 def hex_to_rgb(color_str: str):
     import re
     rgba_match = re.search(r'rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)', color_str)
@@ -206,6 +211,90 @@ async def attach_original_pdf(
         raise
     except Exception as e:
         print(f"Error attaching pdf: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/extract-csi-toc", response_model=List[CsiSpecItem])
+async def extract_csi_toc(
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),  # Auth required on every endpoint
+):
+    """Rosetta Stone: Extract CSI MasterFormat codes from a PDF Table of Contents.
+    
+    Uses page.get_text() on body text (NOT doc.get_toc() which only reads PDF bookmarks).
+    Scans the first 15 pages where TOCs typically reside.
+    Returns a normalized list of CsiSpecItem for the frontend to build project_csi_specs.
+    """
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+
+    try:
+        pdf_bytes = await file.read()
+
+        def process_extraction() -> List[dict]:
+            import re
+
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+            # Scan first 15 pages where TOC typically appears
+            pages_to_scan = min(15, len(doc))
+
+            # Robust CSI pattern: captures xx xx xx, xx.xx.xx, xx-xx-xx, or xxxxxx
+            # Approved pattern: r"(?:\d{2}[\s.-]?){2}\d{2}" — handles all architect variants
+            csi_pattern = re.compile(r'(?:\d{2}[\s.-]?){2}\d{2}')
+
+            results: List[dict] = []
+            seen: set = set()
+
+            for page_num in range(pages_to_scan):
+                page = doc.load_page(page_num)
+                text = page.get_text()  # Body text, not bookmarks
+
+                for line in text.splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    match = csi_pattern.search(line)
+                    if not match:
+                        continue
+
+                    raw_number = match.group(0)
+
+                    # Strip formatting chars (spaces, dots, dashes) to get 6 clean digits
+                    clean_digits = re.sub(r'[\s.-]', '', raw_number)
+                    if len(clean_digits) != 6:
+                        continue
+
+                    # Reformat as standard "XX XX XX" for consistent storage
+                    formatted = f"{clean_digits[0:2]} {clean_digits[2:4]} {clean_digits[4:6]}"
+
+                    if formatted in seen:
+                        continue
+                    seen.add(formatted)
+
+                    # Description: text after the CSI code on the same line
+                    description = line[match.end():].strip().lstrip('.-\u2014 \t')
+                    if not description:
+                        # Fallback: text before the code (some formats list code last)
+                        description = line[:match.start()].strip().rstrip('.-\u2014 \t')
+
+                    if description:
+                        results.append({"csi_number": formatted, "description": description})
+
+            doc.close()
+            return results
+
+        import asyncio
+        results = await asyncio.to_thread(process_extraction)
+        return results
+
+    except fitz.FileDataError:
+        raise HTTPException(status_code=400, detail="Invalid or corrupted PDF file.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error extracting CSI TOC: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -14,7 +14,7 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
-import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions, useProjectCsiSpecs } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
@@ -113,6 +113,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   };
 
   const { data: rawCostCodes = [] } = useCostCodes();
+  const { data: csiSpecs = [] } = useProjectCsiSpecs(projectId);
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   const optionsMap = useMemo(() => {
     return allOptions.reduce((acc: Record<string, OpportunityOption[]>, option) => {
@@ -187,6 +188,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
       updateData: updateMutation,
       optionsMap,
       rawCostCodes,
+      csiSpecs,
       projectMembers,
       permissions,
       moveActiveCellRef,

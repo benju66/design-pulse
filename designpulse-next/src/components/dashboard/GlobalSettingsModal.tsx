@@ -1,11 +1,16 @@
-"use client";
-import React, { useState } from 'react';
-import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission } from '@/hooks/useGlobalQueries';
+﻿"use client";
+import React, { useState, useMemo } from 'react';
+import {
+  useReactTable, getCoreRowModel, getFilteredRowModel,
+  getPaginationRowModel, getSortedRowModel, flexRender,
+  ColumnDef, FilterFn,
+} from '@tanstack/react-table';
+import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission, useGlobalCsiTrainingData, useToggleGlobalCsiVerified, useRemapGlobalCsiEntry } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
-import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
 import { useProjects, useUpdateProjectCore, useDeleteProjectCore } from '@/hooks/useProjectQueries';
-import { Project } from '@/types/models';
+import { Project, GlobalCsiTrainingData, RemapCsiEntryParams, CostCode } from '@/types/models';
 
 interface Props {
   isOpen: boolean;
@@ -13,7 +18,7 @@ interface Props {
 }
 
 export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
-  const [activeTab, setActiveTab] = useState<'cost_codes' | 'users' | 'permissions' | 'projects'>('projects');
+  const [activeTab, setActiveTab] = useState<'cost_codes' | 'users' | 'permissions' | 'projects' | 'csi_mapping'>('projects');
   const [error, setError] = useState<string | null>(null);
   const uploadMutation = useUploadCostCodesCSV();
   const { data: costCodes = [] } = useCostCodes();
@@ -149,7 +154,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl w-full max-w-2xl h-[600px] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl w-full max-w-4xl h-[720px] overflow-hidden flex flex-col">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
           <h2 className="text-lg font-bold text-slate-800 dark:text-white">Platform Administration</h2>
           <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors">
@@ -202,6 +207,17 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
           >
             <Building2 size={18} />
             Projects
+          </button>
+          <button
+            onClick={() => setActiveTab('csi_mapping')}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'csi_mapping'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <GitMerge size={18} />
+            CSI Mapping
           </button>
         </div>
 
@@ -449,6 +465,20 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
               )}
             </div>
           )}
+
+          {activeTab === 'csi_mapping' && !isPlatformAdmin && (
+             <div className="flex flex-col items-center justify-center h-full text-center max-w-sm mx-auto">
+                <AlertCircle size={32} className="text-rose-500 mb-4 mt-12" />
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Access Denied</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  You must be a Platform Admin to review the CSI Mapping Flywheel.
+                </p>
+             </div>
+          )}
+
+          {activeTab === 'csi_mapping' && isPlatformAdmin && (
+            <CsiMappingTab costCodes={costCodes} />
+          )}
         </div>
       </div>
     </div>
@@ -501,5 +531,246 @@ function ProjectAdminRow({ project }: { project: Project }) {
         </button>
       </td>
     </tr>
+  );
+}
+
+// ── CSI Mapping Review Tab ────────────────────────────────────────────────────
+// Self-contained TanStack table with client-side pagination and search.
+// C22: sorted by composite PK for MVCC safety
+// C23: onChange fires mutation immediately (no onBlur)
+// C1:  ColumnDef<GlobalCsiTrainingData, unknown> — no any
+function CsiMappingTab({ costCodes }: { costCodes: CostCode[] }) {
+  const { data: rows = [], isLoading } = useGlobalCsiTrainingData();
+  const toggleVerifiedMutation = useToggleGlobalCsiVerified();
+  const remapMutation = useRemapGlobalCsiEntry();
+  const [globalFilter, setGlobalFilter] = useState('');
+
+  const isMutating = toggleVerifiedMutation.isPending || remapMutation.isPending;
+
+  const toggleVerified = useMemo(() => (
+    (normalizedCsiNumber: string, costCodeId: string, value: boolean) =>
+      toggleVerifiedMutation.mutate({ normalizedCsiNumber, costCodeId, value })
+  ), [toggleVerifiedMutation]);
+
+  const remapEntry = useMemo(() => (
+    (params: RemapCsiEntryParams) => remapMutation.mutate(params)
+  ), [remapMutation]);
+
+  const baseCodes = useMemo(() => costCodes.filter(c => !c.is_division), [costCodes]);
+
+  const columns = useMemo<ColumnDef<GlobalCsiTrainingData, unknown>[]>(() => [
+    {
+      accessorKey: 'latest_raw_csi_number',
+      header: 'CSI Number',
+      size: 160,
+      cell: ({ getValue }) => (
+        <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400 font-semibold">
+          {(getValue() as string | null) ?? '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'latest_description',
+      header: 'Description',
+      cell: ({ getValue }) => (
+        <span className="text-xs text-slate-700 dark:text-slate-300 truncate block max-w-[260px]">
+          {(getValue() as string | null) ?? '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'global_cost_code_id',
+      header: 'Mapped Cost Code',
+      size: 200,
+      cell: ({ getValue, row }) => {
+        const currentCode = getValue() as string;
+        return (
+          <select
+            defaultValue={currentCode}
+            disabled={isMutating}
+            onChange={(e) => {
+              const newCode = e.target.value;
+              if (newCode && newCode !== currentCode) {
+                remapEntry({
+                  normalizedCsiNumber : row.original.normalized_csi_number,
+                  oldCostCode         : currentCode,
+                  newCostCode         : newCode,
+                  description         : row.original.latest_description,
+                  rawCsiNumber        : row.original.latest_raw_csi_number,
+                });
+              }
+            }}
+            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100 disabled:opacity-50"
+          >
+            {baseCodes.map(c => (
+              <option key={c.code} value={c.code}>{c.code} – {c.description}</option>
+            ))}
+          </select>
+        );
+      },
+    },
+    {
+      accessorKey: 'match_count',
+      header: 'Seen',
+      size: 64,
+      cell: ({ getValue }) => (
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+          {getValue() as number}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'last_seen_at',
+      header: 'Last Seen',
+      size: 110,
+      cell: ({ getValue }) => (
+        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+          {new Date(getValue() as string).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'is_admin_verified',
+      header: 'Verified',
+      size: 72,
+      cell: ({ getValue, row }) => {
+        const verified = getValue() as boolean;
+        return (
+          <button
+            onClick={() => toggleVerified(row.original.normalized_csi_number, row.original.global_cost_code_id, !verified)}
+            disabled={isMutating}
+            title={verified ? 'Mark unverified' : 'Mark verified'}
+            className="flex items-center justify-center w-full disabled:opacity-50 transition-colors"
+          >
+            {verified
+              ? <CheckCircle2 size={18} className="text-emerald-500" />
+              : <Circle       size={18} className="text-slate-300 dark:text-slate-600 hover:text-sky-400" />}
+          </button>
+        );
+      },
+    },
+  ], [baseCodes, isMutating, toggleVerified, remapEntry]);
+
+  const table = useReactTable<GlobalCsiTrainingData>({
+    data: rows,
+    columns,
+    state: { globalFilter },
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: (row, _colId, filterValue: string) => {
+      if (!filterValue) return true;
+      const q = filterValue.toLowerCase();
+      return (
+        (row.original.latest_raw_csi_number ?? '').toLowerCase().includes(q) ||
+        (row.original.latest_description   ?? '').toLowerCase().includes(q) ||
+        row.original.global_cost_code_id.toLowerCase().includes(q)
+      );
+    },
+    getCoreRowModel:       getCoreRowModel(),
+    getFilteredRowModel:   getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel:     getSortedRowModel(),
+    initialState: { pagination: { pageSize: 20 } },
+    getRowId: row => `${row.normalized_csi_number}::${row.global_cost_code_id}`,
+    meta: {
+      globalCsiActions: { toggleVerified, remapEntry, isMutating },
+      rawCostCodes: costCodes,
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full gap-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">CSI Mapping Flywheel</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {rows.length.toLocaleString()} entries across all projects
+          </p>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+          <input
+            value={globalFilter}
+            onChange={e => setGlobalFilter(e.target.value)}
+            placeholder="Search CSI, description, code..."
+            className="pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100 w-64"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col min-h-0">
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-left text-sm" style={{ tableLayout: 'fixed', minWidth: 860 }}>
+            <thead className="bg-slate-50 dark:bg-slate-900/80 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+              {table.getHeaderGroups().map(hg => (
+                <tr key={hg.id}>
+                  {hg.headers.map(h => (
+                    <th
+                      key={h.id}
+                      onClick={h.column.getToggleSortingHandler()}
+                      style={{ width: h.getSize() }}
+                      className="px-3 py-2.5 font-semibold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-900 dark:hover:text-white transition-colors whitespace-nowrap"
+                    >
+                      {flexRender(h.column.columnDef.header, h.getContext())}
+                      {{ asc: ' ↑', desc: ' ↓' }[h.column.getIsSorted() as string] ?? ''}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+              {table.getRowModel().rows.map(row => (
+                <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  {row.getVisibleCells().map(cell => (
+                    <td key={cell.id} className="px-3 py-2 align-middle" style={{ width: cell.column.getSize() }}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {table.getRowModel().rows.length === 0 && (
+                <tr>
+                  <td colSpan={columns.length} className="px-4 py-10 text-center text-sm text-slate-400 italic">
+                    {globalFilter
+                      ? 'No entries match your search.'
+                      : 'No CSI training data yet. Entries appear automatically when project CSI specs are mapped.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 shrink-0">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            Page {table.getState().pagination.pageIndex + 1} of {Math.max(table.getPageCount(), 1)}
+            {' · '}{table.getFilteredRowModel().rows.length.toLocaleString()} results
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

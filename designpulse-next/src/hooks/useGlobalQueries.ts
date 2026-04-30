@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
-import { CostCode } from '@/types/models';
+import { CostCode, GlobalCsiTrainingData, RemapCsiEntryParams } from '@/types/models';
 
 export function useCostCodes() {
   return useQuery({
@@ -135,6 +135,84 @@ export function useUpdateRolePermission() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['role_permissions'] });
+    },
+  });
+}
+
+// ── Phase 4: ML Flywheel ─────────────────────────────────────────────────────
+
+// Fetch the global CSI training data for the admin review grid.
+// Sorted by normalized_csi_number + global_cost_code_id for MVCC tie-breaking
+// (Rule C22 — prevents row jumping when the flywheel trigger fires during viewing).
+export function useGlobalCsiTrainingData() {
+  return useQuery<GlobalCsiTrainingData[], Error>({
+    queryKey: ['global_csi_training_data'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('global_csi_training_data')
+        .select('*')
+        .order('normalized_csi_number', { ascending: true })
+        .order('global_cost_code_id', { ascending: true });
+      if (error) throw error;
+      return data as GlobalCsiTrainingData[];
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+// Toggle is_admin_verified on a single row.
+// Direct .update() is valid: RLS "FOR ALL USING (is_platform_admin())" covers this.
+export function useToggleGlobalCsiVerified() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { normalizedCsiNumber: string; costCodeId: string; value: boolean }>({
+    mutationFn: async ({ normalizedCsiNumber, costCodeId, value }) => {
+      const { error } = await supabase
+        .from('global_csi_training_data')
+        .update({ is_admin_verified: value })
+        .eq('normalized_csi_number', normalizedCsiNumber)
+        .eq('global_cost_code_id', costCodeId);
+      if (error) throw error;
+    },
+    onMutate: async ({ normalizedCsiNumber, costCodeId, value }) => {
+      await queryClient.cancelQueries({ queryKey: ['global_csi_training_data'] });
+      const previous = queryClient.getQueryData<GlobalCsiTrainingData[]>(['global_csi_training_data']);
+      queryClient.setQueryData<GlobalCsiTrainingData[]>(
+        ['global_csi_training_data'],
+        old => old?.map(r =>
+          r.normalized_csi_number === normalizedCsiNumber && r.global_cost_code_id === costCodeId
+            ? { ...r, is_admin_verified: value }
+            : r
+        )
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      const c = ctx as { previous?: GlobalCsiTrainingData[] } | undefined;
+      if (c?.previous) queryClient.setQueryData(['global_csi_training_data'], c.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['global_csi_training_data'] });
+    },
+  });
+}
+
+// Remap a CSI entry to a different base cost code via the SECURITY DEFINER RPC.
+// Cannot use .update() because global_cost_code_id is part of the composite PK.
+export function useRemapGlobalCsiEntry() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, RemapCsiEntryParams>({
+    mutationFn: async ({ normalizedCsiNumber, oldCostCode, newCostCode, description, rawCsiNumber }) => {
+      const { error } = await supabase.rpc('remap_global_csi_entry', {
+        p_normalized_csi_number : normalizedCsiNumber,
+        p_old_cost_code         : oldCostCode,
+        p_new_cost_code         : newCostCode,
+        p_description           : description  ?? null,
+        p_raw_csi_number        : rawCsiNumber ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['global_csi_training_data'] });
     },
   });
 }

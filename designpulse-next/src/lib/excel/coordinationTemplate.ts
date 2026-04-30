@@ -25,6 +25,7 @@ export async function generateCoordinationTemplate(
     { header: 'Priority', key: 'priority', width: 15 },
     { header: 'Building Area', key: 'building_area', width: 30 },
     { header: 'Cost Code', key: 'cost_code', width: 40 },
+    { header: 'Cost Type', key: 'cost_type', width: 20 },
   ];
 
   const disciplineColumns = disciplines.map(d => ({
@@ -76,11 +77,13 @@ export async function generateCoordinationTemplate(
   const safeBuildingAreas = buildingAreas.length > 0 ? buildingAreas : ['N/A'];
   const safeCostCodes = costCodes.length > 0 ? costCodes : ['N/A'];
   const priorities = ['Critical', 'High', 'Medium', 'Low'];
+  const costTypes = ['Labor', 'Material', 'Subcontract', 'Equipment', 'Other'];
 
-  // Write the data to columns A, B, C
+  // Write dropdown data to columns A, B, C, D
   metaSheet.getColumn('A').values = ['Priority', ...priorities];
   metaSheet.getColumn('B').values = ['Building Area', ...safeBuildingAreas];
   metaSheet.getColumn('C').values = ['Cost Code', ...safeCostCodes];
+  metaSheet.getColumn('D').values = ['Cost Type', ...costTypes];
 
   // Apply Data Validations to the main sheet
   for (let i = 2; i <= 1000; i++) {
@@ -112,6 +115,16 @@ export async function generateCoordinationTemplate(
       showErrorMessage: true,
       errorTitle: 'Invalid Cost Code',
       error: 'Please select a valid cost code from the dropdown.'
+    };
+
+    // Cost Type Validation (Column F) — Rosetta Stone
+    sheet.getCell(`F${i}`).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: [`=Metadata!$D$2:$D$${costTypes.length + 1}`],
+      showErrorMessage: true,
+      errorTitle: 'Invalid Cost Type',
+      error: 'Please select a valid cost type (Labor, Material, Subcontract, Equipment, or Other).'
     };
 
     // Discipline Validations (Yes/No)

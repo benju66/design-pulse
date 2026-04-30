@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { calculateParentTotals } from '@/utils/financialMath';
 import { toast } from 'sonner';
-import { Opportunity, OpportunityOption, ProjectSettings, Project } from '@/types/models';
+import { Opportunity, OpportunityOption, ProjectSettings, Project, ProjectCsiSpec } from '@/types/models';
 import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_BUILDING_AREAS, DEFAULT_DISCIPLINES } from '@/lib/constants';
 import { useAuth } from '@/providers/AuthProvider';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
@@ -1005,6 +1005,29 @@ export const useDesignCompletionMetrics = (projectId: string) => {
     staleTime: 60 * 1000,
   });
 };
+
+// Rosetta Stone: Project-level CSI Specs
+// Called once in the parent grid, passed via meta.csiSpecs — never called per-row
+export function useProjectCsiSpecs(projectId: string | null) {
+  return useQuery<ProjectCsiSpec[], Error>({
+    queryKey: ['project_csi_specs', projectId],
+    queryFn: async () => {
+      if (!projectId) return [];
+      const { data, error } = await supabase
+        .from('project_csi_specs')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('csi_number', { ascending: true });
+      if (error) {
+        console.warn('project_csi_specs error:', error);
+        return [];
+      }
+      return data as ProjectCsiSpec[];
+    },
+    enabled: !!projectId,
+    staleTime: 5 * 60 * 1000, // 5 min — CSI specs are populated infrequently
+  });
+}
 
 export function useBulkImportCoordinationTasks(projectId: string) {
   const queryClient = useQueryClient();

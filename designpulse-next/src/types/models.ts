@@ -1,5 +1,8 @@
 import { Database } from './database.types';
 
+// Rosetta Stone: The canonical Cost Type dimension
+export type CostType = 'Labor' | 'Material' | 'Subcontract' | 'Equipment' | 'Other';
+
 export type Opportunity = Database['public']['Tables']['opportunities']['Row'] & {
   division?: string | null;
   cost_code?: string | null;
@@ -7,6 +10,8 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   coordination_status?: string | null;
   coordination_details?: Record<string, DisciplineDetails> | null;
   description?: string | null;
+  cost_type?: CostType | null;
+  spec_number_id?: string | null;
 };
 
 export interface DisciplineDetails {
@@ -18,6 +23,8 @@ export type OpportunityOption = Database['public']['Tables']['opportunity_option
   coordination_requirements?: Record<string, { required: boolean; notes?: string }> | null;
   cost_code?: string | null;
   division?: string | null;
+  cost_type?: CostType | null;
+  spec_number_id?: string | null;
 };
 export type CostCode = Database['public']['Tables']['cost_codes']['Row'];
 export type Permit = Database['public']['Tables']['permits']['Row'];
@@ -72,4 +79,37 @@ export interface SidebarItem {
   label: string;
   iconName: string;
   visible: boolean;
+}
+
+// Rosetta Stone: Project-level CSI Spec mapping
+export interface ProjectCsiSpec {
+  id: string;
+  project_id: string;
+  csi_number: string;
+  normalized_csi_number: string;
+  description: string | null;
+  cost_code: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Rosetta Stone Phase 4: ML Flywheel — Global cross-project CSI training data
+// Composite PK: (normalized_csi_number, global_cost_code_id)
+export interface GlobalCsiTrainingData {
+  normalized_csi_number: string;   // PK part 1 — e.g. '096516'
+  global_cost_code_id: string;     // PK part 2 — FK to cost_codes.code
+  latest_description: string | null;
+  latest_raw_csi_number: string | null; // e.g. '09 65 16.13'
+  match_count: number;
+  is_admin_verified: boolean;
+  last_seen_at: string;
+}
+
+// Params for the remap_global_csi_entry SECURITY DEFINER RPC
+export interface RemapCsiEntryParams {
+  normalizedCsiNumber: string;
+  oldCostCode: string;
+  newCostCode: string;
+  description: string | null;
+  rawCsiNumber: string | null;
 }

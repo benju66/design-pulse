@@ -8,6 +8,7 @@ import {
   flexRender,
   ColumnDef,
   createColumnHelper,
+  type CellContext,
 } from '@tanstack/react-table';
 import { X, UploadCloud, AlertCircle, Check, Download, Trash2 } from 'lucide-react';
 import { DraftCoordinationTask, parseCoordinationExcel } from '@/lib/excel/coordinationParser';
@@ -50,8 +51,8 @@ interface BulkImportModalProps {
   costCodes: string[];
 }
 
-// Editable Cell Component for Title
-const EditableTitleCell = ({ getValue, row }: any) => {
+// Editable Cell Component for Title — strictly typed via CellContext (no any)
+const EditableTitleCell = ({ getValue, row }: CellContext<DraftCoordinationTask, string>) => {
   const initialValue = getValue();
   const [value, setValue] = useState(initialValue);
   const { updateTaskTitle } = useBulkImportStore();
@@ -61,14 +62,13 @@ const EditableTitleCell = ({ getValue, row }: any) => {
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // AGENTS.md Guardrail: Escape-Key State Preservation
+    // AGENTS.md Guardrail: Escape-Key State Preservation (Rule C18)
     if (e.key === 'Enter') {
       e.currentTarget.blur();
     } else if (e.key === 'Escape') {
-      const currentVal = e.currentTarget.value;
-      updateTaskTitle(row.original.id, currentVal);
-      // Let the modal know escape was pressed, but handled here
-      e.stopPropagation();
+      // Grid inline cell: Escape CANCELS the edit, reverts to initial value
+      setValue(initialValue);
+      e.currentTarget.blur();
     }
   };
 
@@ -127,7 +127,7 @@ export function BulkImportModal({ isOpen, onClose, projectId, projectSettings, c
 
   const columnHelper = createColumnHelper<DraftCoordinationTask>();
 
-  const columns = useMemo<ColumnDef<DraftCoordinationTask, any>[]>(() => [
+  const columns = useMemo<ColumnDef<DraftCoordinationTask, unknown>[]>(() => [
     columnHelper.accessor('title', {
       header: 'Title',
       cell: EditableTitleCell,
@@ -144,9 +144,22 @@ export function BulkImportModal({ isOpen, onClose, projectId, projectSettings, c
       size: 150,
     }),
     columnHelper.accessor('cost_code', {
-      header: 'Cost Code',
-      cell: info => <span className="text-xs">{info.getValue()}</span>,
-      size: 150,
+      header: 'Cost Code · Type',
+      // Show the parsed base code + cost_type badge for staging transparency
+      cell: info => {
+        const task = info.row.original;
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-mono">{task.cost_code || '—'}</span>
+            {task.cost_type && (
+              <span className="px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-medium text-[10px] whitespace-nowrap">
+                {task.cost_type}
+              </span>
+            )}
+          </div>
+        );
+      },
+      size: 180,
     }),
     columnHelper.accessor('errors', {
       header: 'Status',

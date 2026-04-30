@@ -17,23 +17,30 @@ export function useCostCodes() {
   });
 }
 
+// Upload (UPSERT) cost codes from a parsed CSV payload.
+// Rule C20: Chunks into batches of 50 to prevent Kong API gateway timeouts.
+// Rule C1:  Strict type — CostCode['Insert'][], no any casting.
+// UPSERT strategy (onConflict: 'code') lets admins safely re-upload the master CSV
+// to update descriptions or toggle boolean flags without breaking FK chains on
+// opportunities, opportunity_options, project_csi_specs, and global_csi_training_data.
 export function useUploadCostCodesCSV() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (parsedData: CostCode[]) => {
-      // 1. Delete all existing cost codes (using a dummy filter to trick the safeguard)
-      const { error: deleteError } = await supabase
-        .from('cost_codes')
-        .delete()
-        .neq('code', 'RESERVED_NEVER_DELETE');
-      if (deleteError) throw deleteError;
-
-      // 2. Insert the new ones
-      const { error: insertError } = await supabase
-        .from('cost_codes')
-        .insert(parsedData);
-      if (insertError) throw insertError;
+    mutationFn: async (payload: CostCode['Insert'][]) => {
+      const CHUNK_SIZE = 50;
+      const chunks: CostCode['Insert'][][] = [];
+      for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+        chunks.push(payload.slice(i, i + CHUNK_SIZE));
+      }
+      await Promise.all(
+        chunks.map(async (chunk) => {
+          const { error } = await supabase
+            .from('cost_codes')
+            .upsert(chunk, { onConflict: 'code' });
+          if (error) throw error;
+        })
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cost_codes'] });

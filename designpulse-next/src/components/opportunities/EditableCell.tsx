@@ -397,83 +397,64 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   );
 }, (prev, next) => commonComparator(prev, next, true));
 
-export const DivisionCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
-  const initialValue = getValue() as string | null | undefined;
-  const [value, setValue] = useState(initialValue || '');
-  const updateMutation = table.options.meta?.updateData;
-  const inputRef = useRef<HTMLInputElement>(null);
-  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
-  const disabled = !permissions.can_edit_records;
+// DivisionCell — Option A: Pure derived read-only display (no mutation, no onBlur).
+//
+// Division is deterministically derived from the row's cost_code at render time:
+//   cost_code → rawCostCodes.find() → parent_division → rawCostCodes.find(is_division)
+//
+// Falls back gracefully to the stored `row.original.division` string for legacy rows
+// or codes that have no parent_division mapping (e.g., unmapped custom codes).
+//
+// Rules satisfied:
+//   C1  — no any casts; rawCostCodes from typed global TableMeta
+//   C10 — memo comparator only compares row.original fields, never meta
+//   C23 — no onBlur pattern; this cell never fires a mutation
+export const DivisionCell = React.memo(
+  ({ row, table }: CellContext<Opportunity, unknown>) => {
+    // Typed access via global TableMeta — Rule C1
+    const rawCostCodes = table.options.meta?.rawCostCodes ?? [];
+    const costCode = row.original.cost_code;
 
-  const rawCostCodes = (table.options.meta as any)?.rawCostCodes || [];
-  const divisionOptions = rawCostCodes
-    .filter((c: any) => c.is_division)
-    .map((c: any) => `${c.code} - ${c.description}`);
+    // Compute division purely from cost_code → parent_division lookup.
+    // iOS-safe: no negative lookbehind, no regex — simple array finds.
+    const derivedDivision = (() => {
+      if (!costCode || rawCostCodes.length === 0) return null;
+      const matched = rawCostCodes.find(c => c.code === costCode && !c.is_division);
+      if (!matched?.parent_division) return null;
+      const parentDiv = rawCostCodes.find(
+        c => c.code === matched.parent_division && c.is_division
+      );
+      return parentDiv ? `${parentDiv.code} \u2013 ${parentDiv.description}` : null;
+    })();
 
-  const isSubmitting = useRef(false);
+    // Fallback: show stored division string for legacy rows / unmapped codes.
+    const storedDivision = row.original.division ?? null;
+    const displayValue = derivedDivision ?? storedDivision;
 
-  useEffect(() => {
-    setValue(initialValue || '');
-  }, [initialValue]);
-
-  const onBlur = () => {
-    if (isSubmitting.current) return;
-    if (value !== initialValue && updateMutation) {
-      isSubmitting.current = true;
-      updateMutation.mutate({ id: row.original.id, updates: { [column.id]: value } }, {
-        onSettled: () => { isSubmitting.current = false; }
-      });
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: 'navigate' | 'edit') => void) => {
-    const moveActiveCell = (table.options.meta as any)?.moveActiveCellRef?.current;
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      onBlur();
-      setGridMode('navigate');
-      if (moveActiveCell) moveActiveCell('down');
-    } else if (e.key === 'Tab') {
-      e.preventDefault();
-      onBlur();
-      setGridMode('navigate');
-      if (moveActiveCell) moveActiveCell(e.shiftKey ? 'left' : 'right');
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setValue(initialValue || '');
-      setGridMode('navigate');
-    }
-  };
-
-  return (
-    <>
-      <CellWrapper
-        disabled={disabled}
-        row={row}
-        column={column}
-        displayValue={value || ''}
-        inputElement={(_isActive, setGridMode) => (
-          <input
-            ref={inputRef}
-            autoFocus
-            list="divisions-list"
-            value={value || ''}
-            onChange={(e) => setValue(e.target.value)}
-            onBlur={onBlur}
-            onKeyDown={(e) => handleKeyDown(e, setGridMode)}
-            className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100"
-            type="text"
-          />
+    return (
+      <div className="w-full h-full px-2 py-1 flex items-center min-h-[28px]">
+        {displayValue ? (
+          <span
+            title={displayValue}
+            className={`text-xs truncate block w-full ${
+              derivedDivision
+                ? 'font-medium text-slate-700 dark:text-slate-200'
+                : 'italic text-slate-400 dark:text-slate-500'
+            }`}
+          >
+            {displayValue}
+          </span>
+        ) : (
+          <span className="text-xs text-slate-300 dark:text-slate-600 select-none">—</span>
         )}
-      />
-      <datalist id="divisions-list">
-        {divisionOptions.map((opt: string) => (
-          <option key={opt} value={opt} />
-        ))}
-      </datalist>
-    </>
-  );
-}, (prev, next) => commonComparator(prev, next, false));
+      </div>
+    );
+  },
+  // Rule C10: memo comparator never inspects meta — only stable row.original fields
+  (prev, next) =>
+    prev.row.original.cost_code === next.row.original.cost_code &&
+    prev.row.original.division  === next.row.original.division
+);
 
 export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const initialValue = getValue() as string | null | undefined;

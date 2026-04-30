@@ -186,6 +186,7 @@ export interface Database {
           category_m: boolean | null
           category_s: boolean | null
           category_o: boolean | null
+          category_e: boolean | null
         }
         Insert: {
           code: string
@@ -196,6 +197,7 @@ export interface Database {
           category_m?: boolean | null
           category_s?: boolean | null
           category_o?: boolean | null
+          category_e?: boolean | null
         }
         Update: {
           code?: string
@@ -206,6 +208,7 @@ export interface Database {
           category_m?: boolean | null
           category_s?: boolean | null
           category_o?: boolean | null
+          category_e?: boolean | null
         }
       }
       permits: {

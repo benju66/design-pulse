@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React, { useState, useMemo } from 'react';
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel,
@@ -33,44 +33,49 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
 
   if (!isOpen) return null;
 
+  // ── Export ──────────────────────────────────────────────────────────────────────
+  // Emits the new flat 8-column format so admins can round-trip: Download → Edit → Re-upload.
+  // H-4 fix: old "Col A / Col B" format replaced with explicit flat CSV headers.
   const handleExportCSV = () => {
     if (!costCodes || costCodes.length === 0) {
-      setError("No cost codes available to export.");
+      setError('No cost codes available to export.');
       return;
     }
 
-    const rows: string[] = ['Division (Col A),Cost Code (Col B),L,M,S,O'];
-    
-    // Group cost codes by division
-    const divisions = costCodes.filter(c => c.is_division);
-    const regularCodes = costCodes.filter(c => !c.is_division);
+    const header = 'code,description,parent_division,category_l,category_m,category_s,category_e,category_o';
+    const csvRows: string[] = [header];
 
-    divisions.forEach(div => {
-      const divString = `"${div.code} - ${div.description}"`;
-      
-      // Find children
-      const children = regularCodes.filter(c => c.parent_division === div.code);
-      if (children.length === 0) {
-        // Output division alone
-        rows.push(`${divString},"","","","",""`);
-      } else {
-        // Output division with each child
-        children.forEach(child => {
-          const childString = `"${child.code} - ${child.description}"`;
-          rows.push(`${divString},${childString},"","","",""`);
-        });
-      }
+    const toBoolStr = (v: boolean | null | undefined) => (v === true ? 'TRUE' : 'FALSE');
+    // Minimal CSV quoting — only wrap fields that contain commas or double-quotes.
+    const q = (s: string | null | undefined): string => {
+      const safe = (s ?? '').replace(/"/g, '""');
+      return safe.includes(',') || safe.includes('"') ? `"${safe}"` : safe;
+    };
+
+    // Sort: divisions appear immediately before their children for human readability.
+    const sorted = [...costCodes].sort((a, b) => {
+      const aGroup = a.is_division ? a.code : (a.parent_division ?? '');
+      const bGroup = b.is_division ? b.code : (b.parent_division ?? '');
+      if (aGroup !== bGroup) return aGroup.localeCompare(bGroup);
+      if (a.is_division && !b.is_division) return -1;
+      if (!a.is_division && b.is_division) return 1;
+      return a.code.localeCompare(b.code);
     });
 
-    // Handle orphaned cost codes
-    const orphans = regularCodes.filter(c => !c.parent_division);
-    orphans.forEach(child => {
-      const childString = `"${child.code} - ${child.description}"`;
-      rows.push(`"",${childString},"","","",""`);
+    sorted.forEach(c => {
+      csvRows.push([
+        q(c.code),
+        q(c.description),
+        q(c.parent_division),
+        toBoolStr(c.category_l),
+        toBoolStr(c.category_m),
+        toBoolStr(c.category_s),
+        toBoolStr(c.category_e),
+        toBoolStr(c.category_o),
+      ].join(','));
     });
 
-    const csvContent = rows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -79,76 +84,125 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
     window.URL.revokeObjectURL(url);
   };
 
+  // ── Import ──────────────────────────────────────────────────────────────────────
+  // Parses the new flat 8-column format. Strictly typed — no any casting (H-3 fix).
+  // Guardrails applied:
+  //   C1  — CostCode['Insert'][] throughout, catch uses unknown
+  //   C20 — chunking lives in the mutation layer (useUploadCostCodesCSV)
+  //   L-3 — is_division derived from parent_division column
+  //   A   — iOS-safe CSV splitter: stateful loop instead of regex lookbehind
+  type CostCodeInsert = CostCode['Insert'];
+
+  // Stateful CSV field splitter — handles quoted fields with embedded commas.
+  // Rule A: does NOT use a negative lookbehind regex. Uses an explicit loop.
+  const splitCsvRow = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let insideQuotes = false;
+    for (let ci = 0; ci < line.length; ci++) {
+      const ch = line[ci];
+      if (ch === '"') {
+        // Two consecutive quotes inside a quoted field = escaped literal quote
+        if (insideQuotes && line[ci + 1] === '"') { current += '"'; ci++; }
+        else { insideQuotes = !insideQuotes; }
+      } else if (ch === ',' && !insideQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const parseCsvBool = (val: string): boolean => val.trim().toUpperCase() === 'TRUE';
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Reset so the same file can be re-selected after a validation fix
+    e.target.value = '';
 
     try {
       setError(null);
       const text = await file.text();
-      
-      // 1. Strip \r and split by newline
-      const lines = text.replace(/\r/g, '').split('\n').filter(line => line.trim() !== '');
-      
-      // 2. Parse skipping header
-      const uniqueCodes = new Map<string, any>();
+      const allLines = text.replace(/\r/g, '').split('\n').filter(l => l.trim() !== '');
 
-      lines.slice(1).forEach(line => {
-        // Robust regex to split commas outside of quotes
-        const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
-        const tokens = line.split(regex).map(t => t.replace(/^"|"$/g, '').trim());
-        
-        const colA = tokens[0] || ''; // e.g. "DIV. 1 - General Conditions"
-        const colB = tokens[1] || ''; // e.g. "10000.M - General Conditions"
-        if (!colA && !colB) return;
+      if (allLines.length < 2) {
+        throw new Error('CSV must contain a header row and at least one data row.');
+      }
 
-        // Parse Division (Col A)
-        let divCode = '';
-        if (colA) {
-          const divMatch = colA.match(/^([A-Z0-9.\s]+?)\s*-\s*(.+)$/i) || [null, colA, colA];
-          divCode = divMatch[1]?.trim() || colA;
-          const divDesc = divMatch[2]?.trim() || '';
+      // 1. Build a column-index lookup from the header (case-insensitive)
+      const headerTokens = splitCsvRow(allLines[0]);
+      const col: Record<string, number> = {};
+      headerTokens.forEach((h, idx) => { col[h.toLowerCase().trim()] = idx; });
 
-          if (!uniqueCodes.has(divCode)) {
-            uniqueCodes.set(divCode, {
-              code: divCode,
-              description: divDesc,
-              is_division: true,
-              parent_division: null,
-            });
+      // Validate required headers
+      for (const req of ['code', 'description']) {
+        if (col[req] === undefined) {
+          throw new Error(
+            `CSV is missing required column: "${req}". ` +
+            'Expected headers: code, description, parent_division, category_l, category_m, category_s, category_e, category_o'
+          );
+        }
+      }
+
+      // 2. Parse data rows — strictly typed, no any
+      const payload: CostCodeInsert[] = [];
+      const BOOL_COLS = ['category_l', 'category_m', 'category_s', 'category_e', 'category_o'] as const;
+
+      allLines.slice(1).forEach((line, lineIdx) => {
+        const tokens = splitCsvRow(line);
+        const get = (key: string): string => (tokens[col[key]] ?? '').trim();
+
+        const code = get('code');
+        const description = get('description');
+        if (!code || !description) return; // skip blank/incomplete rows
+
+        // L-3 fix: is_division derived from parent_division column
+        const rawParent = get('parent_division');
+        const parent_division = rawParent !== '' ? rawParent : null;
+        const is_division = parent_division === null;
+
+        // Validate boolean columns before parsing
+        for (const bc of BOOL_COLS) {
+          const raw = get(bc).toUpperCase();
+          if (col[bc] !== undefined && raw !== '' && raw !== 'TRUE' && raw !== 'FALSE') {
+            throw new Error(
+              `Row ${lineIdx + 2}: column "${bc}" must be TRUE, FALSE, or empty — got "${get(bc)}".`
+            );
           }
         }
 
-        // Parse Cost Code (Col B)
-        if (colB) {
-          const ccMatch = colB.match(/^([A-Z0-9.\s]+?)\s*-\s*(.+)$/i) || [null, colB, colB];
-          const ccCode = ccMatch[1]?.trim() || colB;
-          const ccDesc = ccMatch[2]?.trim() || '';
+        const row: CostCodeInsert = {
+          code,
+          description,
+          is_division,
+          parent_division,
+          category_l: col['category_l'] !== undefined ? parseCsvBool(get('category_l')) : false,
+          category_m: col['category_m'] !== undefined ? parseCsvBool(get('category_m')) : false,
+          category_s: col['category_s'] !== undefined ? parseCsvBool(get('category_s')) : false,
+          category_e: col['category_e'] !== undefined ? parseCsvBool(get('category_e')) : false,
+          category_o: col['category_o'] !== undefined ? parseCsvBool(get('category_o')) : false,
+        };
 
-          uniqueCodes.set(ccCode, {
-            code: ccCode,
-            description: ccDesc,
-            is_division: false,
-            parent_division: divCode || null,
-          });
-        }
+        payload.push(row);
       });
 
-      const parsedData = Array.from(uniqueCodes.values());
-
-      if (parsedData.length === 0) {
-        throw new Error('No valid cost codes found in CSV.');
+      if (payload.length === 0) {
+        throw new Error(
+          'No valid cost code rows found. Ensure the CSV has a header row and ' +
+          'at least one data row with both a code and description.'
+        );
       }
 
-      // 3. Upload
-      await uploadMutation.mutateAsync(parsedData as any);
+      // 3. Chunk-UPSERT via mutation (chunking handled inside useUploadCostCodesCSV — Rule C20)
+      await uploadMutation.mutateAsync(payload);
       onClose();
-    } catch (err: any) {
-      // eslint-disable-next-line no-console
-      console.error('CSV Parsing Error:', JSON.stringify(err, null, 2));
-      
-      const errMsg = err?.message || err?.details || 'Failed to parse CSV format or Database insertion failed.';
-      setError(errMsg);
+    } catch (err: unknown) {
+      console.error('CSV Import Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to parse CSV or upload to database.');
     }
   };
 

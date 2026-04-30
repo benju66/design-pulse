@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { CostCode, GlobalCsiTrainingData, RemapCsiEntryParams } from '@/types/models';
+import { Database } from '@/types/database.types';
 
 export function useCostCodes() {
   return useQuery({
@@ -27,9 +28,9 @@ export function useUploadCostCodesCSV() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: CostCode['Insert'][]) => {
+    mutationFn: async (payload: Database['public']['Tables']['cost_codes']['Insert'][]) => {
       const CHUNK_SIZE = 50;
-      const chunks: CostCode['Insert'][][] = [];
+      const chunks: Database['public']['Tables']['cost_codes']['Insert'][][] = [];
       for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
         chunks.push(payload.slice(i, i + CHUNK_SIZE));
       }

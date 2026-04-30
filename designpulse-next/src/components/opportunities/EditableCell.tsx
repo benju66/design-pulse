@@ -214,10 +214,13 @@ export const CoordinationStatusCell = React.memo(({ getValue, row, column, table
 export const BuildingAreaCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const params = useParams();
   const projectId = params?.projectId as string | null;
-  const { data: settings } = useProjectSettings(projectId);
+  // [C-6 FIX] If the parent table passed buildingAreas via meta (e.g. CoordinationTable),
+  // skip useProjectSettings entirely. Passing null disables the TanStack Query fetch.
+  const metaBuildingAreas = (table.options.meta as any)?.buildingAreas as string[] | undefined;
+  const { data: settings } = useProjectSettings(metaBuildingAreas ? null : projectId);
   const initialValue = getValue() as string | null | undefined;
   const updateMutation = table.options.meta?.updateData;
-  const buildingAreas = (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
+  const buildingAreas = metaBuildingAreas || (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
   const setGridMode = useUIStore(state => state.setGridMode);
   const setActiveCell = useUIStore(state => state.setActiveCell);
   const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);

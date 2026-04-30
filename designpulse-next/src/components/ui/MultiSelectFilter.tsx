@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Search, Check } from 'lucide-react';
 
 interface MultiSelectFilterProps {
@@ -46,8 +46,7 @@ export function MultiSelectFilter({ label, options, selected, onChange, placehol
     return options.filter(opt => opt.toLowerCase().includes(lowerSearch));
   }, [options, search]);
 
-  const toggleOption = (option: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleOption = (option: string) => {
     if (selected.includes(option)) {
       onChange(selected.filter(item => item !== option));
     } else {
@@ -55,8 +54,7 @@ export function MultiSelectFilter({ label, options, selected, onChange, placehol
     }
   };
 
-  const handleSelectAll = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleSelectAll = () => {
     // If search is active, only add the filtered options
     if (search.trim()) {
       const newSelected = new Set([...selected, ...filteredOptions]);
@@ -66,8 +64,7 @@ export function MultiSelectFilter({ label, options, selected, onChange, placehol
     }
   };
 
-  const handleClearAll = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleClearAll = () => {
     onChange([]);
   };
 
@@ -142,7 +139,7 @@ export function MultiSelectFilter({ label, options, selected, onChange, placehol
                 return (
                   <div 
                     key={opt}
-                    onClick={(e) => toggleOption(opt, e)}
+                    onClick={() => toggleOption(opt)}
                     className="flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors group"
                   >
                     <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${

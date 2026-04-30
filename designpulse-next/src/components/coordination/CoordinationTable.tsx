@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -34,12 +34,9 @@ interface Props {
 
 // Custom Discipline Status Cell
 const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity, unknown>) => {
-  const projectId = (table.options.meta as any)?.projectId;
-  const { data: settings } = useProjectSettings(projectId);
-  const rawDisciplines = settings?.disciplines;
-  const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
-    ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
-    : DEFAULT_DISCIPLINES;
+  // [C-6 FIX] Read from meta (derived once in parent) instead of calling
+  // useProjectSettings inside every virtualized row — prevents N subscriber registrations.
+  const disciplines: DisciplineConfig[] = (table.options.meta as any)?.disciplines || DEFAULT_DISCIPLINES;
   const coordDetails = row.original.coordination_details || {};
 
   return (
@@ -223,7 +220,21 @@ const MemoizedCoordinationRow = React.memo(({
 
 export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat' }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
-  
+
+  // [C-6 FIX] Derive shared cell data once at the parent level.
+  // Virtualized cells read from meta instead of each registering their own subscriber.
+  const { data: settings } = useProjectSettings(projectId);
+  const disciplines: DisciplineConfig[] = useMemo(() => {
+    const raw = settings?.disciplines;
+    return Array.isArray(raw)
+      ? raw.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
+      : DEFAULT_DISCIPLINES;
+  }, [settings?.disciplines]);
+  const buildingAreas = useMemo(
+    () => (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'],
+    [settings?.building_areas]
+  );
+
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -383,6 +394,8 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
     }
   ];
 
+  const moveActiveCellRef = useRef<any>(null);
+
   const table = useReactTable({
     data: opportunities,
     columns,
@@ -403,6 +416,9 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
       permissions,
       rawCostCodes,
       csiSpecs,
+      moveActiveCellRef,
+      disciplines,
+      buildingAreas,
     } as any
   });
 
@@ -417,7 +433,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   });
 
   const { handleKeyDown, moveActiveCell } = useGridNavigation(table as any, virtualizer);
-  (table.options.meta as any).moveActiveCell = moveActiveCell;
+  moveActiveCellRef.current = moveActiveCell; // [C-5 FIX] ref assignment, never mutate meta inline
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;

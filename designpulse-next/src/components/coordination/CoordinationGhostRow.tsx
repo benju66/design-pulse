@@ -30,7 +30,7 @@ export const CoordinationGhostRow = ({ table, createMutation }: CoordinationGhos
         days_impact: 0,
         status: 'Draft',
         coordination_status: 'Draft',
-        priority: 'Medium',
+        priority: 'Set Priority',
       });
       setTitle(''); // Reset instantly for quick entry
     }

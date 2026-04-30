@@ -17,9 +17,9 @@ export function useProjectSettings(projectId: string | null) {
         .from('project_settings')
         .select('*')
         .eq('project_id', projectId)
-        .single();
+        .limit(1);
         
-      if (error && error.code !== 'PGRST116') { // PGRST116 is not found, which is fine for new projects
+      if (error) {
         console.warn("Supabase Error:", error);
       }
       
@@ -35,19 +35,21 @@ export function useProjectSettings(projectId: string | null) {
         ve_column_order: []
       };
 
-      if (!data) return defaultSettings as ProjectSettings;
+      const settings = data?.[0];
+      
+      if (!settings) return defaultSettings as ProjectSettings;
 
       return {
-        ...data,
-        categories: (data.categories as any[])?.length > 0 ? data.categories : defaultSettings.categories,
-        building_areas: (data.building_areas as any[])?.length > 0 ? data.building_areas : defaultSettings.building_areas,
-        sidebar_items: (data.sidebar_items as any[])?.length > 0 ? data.sidebar_items : defaultSettings.sidebar_items,
-        disciplines: (data.disciplines as any[])?.length > 0 ? data.disciplines : defaultSettings.disciplines,
-        project_name: data.project_name || defaultSettings.project_name,
-        location: data.location || defaultSettings.location,
-        original_budget: data.original_budget ?? defaultSettings.original_budget,
-        enable_audit_logging: data.enable_audit_logging ?? defaultSettings.enable_audit_logging,
-        ve_column_order: data.ve_column_order ?? defaultSettings.ve_column_order
+        ...settings,
+        categories: (settings.categories as any[])?.length > 0 ? settings.categories : defaultSettings.categories,
+        building_areas: (settings.building_areas as any[])?.length > 0 ? settings.building_areas : defaultSettings.building_areas,
+        sidebar_items: (settings.sidebar_items as any[])?.length > 0 ? settings.sidebar_items : defaultSettings.sidebar_items,
+        disciplines: (settings.disciplines as any[])?.length > 0 ? settings.disciplines : defaultSettings.disciplines,
+        project_name: settings.project_name || defaultSettings.project_name,
+        location: settings.location || defaultSettings.location,
+        original_budget: settings.original_budget ?? defaultSettings.original_budget,
+        enable_audit_logging: settings.enable_audit_logging ?? defaultSettings.enable_audit_logging,
+        ve_column_order: settings.ve_column_order ?? defaultSettings.ve_column_order
       } as ProjectSettings;
     },
     enabled: !!projectId
@@ -86,7 +88,9 @@ export function useOpportunities(projectId: string | null) {
         .select('*')
         .eq('project_id', projectId)
         .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('display_id', { ascending: false })
+        .order('id', { ascending: true });
       if (error) {
         console.warn("Supabase Error:", error);
         return [];
@@ -1027,8 +1031,9 @@ export function useBulkImportCoordinationTasks(projectId: string) {
       toast.success('Tasks imported successfully.');
     },
     onError: (err: any) => {
-      console.error('Bulk Import Error:', err);
-      toast.error(`Import failed: ${err.message || 'Unknown error'}`);
+      console.error('Bulk Import Error JSON:', JSON.stringify(err, null, 2));
+      console.error('Bulk Import Error Raw:', err);
+      toast.error(`Import failed: ${err.message || JSON.stringify(err)}`);
     },
   });
 }

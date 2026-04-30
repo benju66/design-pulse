@@ -46,6 +46,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [coordActiveCostCodes, setCoordActiveCostCodes] = useState<string[]>([]);
   const [coordActiveType, setCoordActiveType] = useState('All');
   const [coordActiveStatus, setCoordActiveStatus] = useState('All');
+  const [coordActiveDisciplines, setCoordActiveDisciplines] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState('split'); // 'split' | 'flat' | 'card'
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
@@ -181,15 +182,38 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     return Array.from(new Set(statuses)).sort();
   }, [coordinationOpportunities]);
 
+  const uniqueCoordCostCodes = React.useMemo(() => {
+    const codes = coordinationOpportunities.map(o => o.cost_code).filter(Boolean) as string[];
+    return Array.from(new Set(codes)).sort();
+  }, [coordinationOpportunities]);
+
+  const projectDisciplines = (settings?.disciplines as {id: string, label: string}[]) || [];
+  const disciplineLabels = projectDisciplines.map(d => d.label);
+
   const filteredCoordinationOpportunities = React.useMemo(() => {
     return coordinationOpportunities.filter(opp => {
       if (coordActiveType !== 'All' && (opp.record_type || 'VE') !== coordActiveType) return false;
       if (coordActiveStatus !== 'All' && opp.coordination_status !== coordActiveStatus) return false;
       if (coordActiveBuildingAreas.length > 0 && !coordActiveBuildingAreas.includes(opp.building_area || '')) return false;
       if (coordActiveCostCodes.length > 0 && !coordActiveCostCodes.includes(opp.cost_code || '')) return false;
+      
+      if (coordActiveDisciplines.length > 0) {
+        const details = (opp.coordination_details as Record<string, any>) || {};
+        const matchingDisciplineIds = projectDisciplines
+          .filter(d => coordActiveDisciplines.includes(d.label))
+          .map(d => d.id);
+          
+        const hasMatchingDiscipline = matchingDisciplineIds.some(id => {
+          const disc = details[id];
+          return disc && disc.status && disc.status !== 'Not Required';
+        });
+        
+        if (!hasMatchingDiscipline) return false;
+      }
+
       return true;
     });
-  }, [coordinationOpportunities, coordActiveType, coordActiveStatus, coordActiveBuildingAreas, coordActiveCostCodes]);
+  }, [coordinationOpportunities, coordActiveType, coordActiveStatus, coordActiveBuildingAreas, coordActiveCostCodes, coordActiveDisciplines, projectDisciplines]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -571,10 +595,19 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         placeholder="Search areas..."
                       />
 
+                      {/* Discipline Filter */}
+                      <MultiSelectFilter
+                        label="Discipline"
+                        options={disciplineLabels}
+                        selected={coordActiveDisciplines}
+                        onChange={setCoordActiveDisciplines}
+                        placeholder="Search disciplines..."
+                      />
+
                       {/* Cost Code Filter */}
                       <MultiSelectFilter
                         label="Cost Code"
-                        options={uniqueCostCodes}
+                        options={uniqueCoordCostCodes}
                         selected={coordActiveCostCodes}
                         onChange={setCoordActiveCostCodes}
                         placeholder="Search codes..."

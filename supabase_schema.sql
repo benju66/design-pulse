@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
   days_impact numeric DEFAULT 0,
   design_markups jsonb DEFAULT '[]'::jsonb,
   display_id text,
-  priority text DEFAULT 'Medium' CHECK (priority IN ('Critical', 'High', 'Medium', 'Low')),
+  priority text DEFAULT 'Set Priority' CHECK (priority IN ('Critical', 'High', 'Medium', 'Low', 'Set Priority')),
   division text,
   cost_code text,
   record_type text DEFAULT 'VE' CHECK (record_type IN ('VE', 'Coordination')),
@@ -629,8 +629,10 @@ CREATE TABLE IF NOT EXISTS role_permissions (
 ALTER TABLE role_permissions ENABLE ROW LEVEL SECURITY;
 
 -- Global read access for all authenticated users
+DROP POLICY IF EXISTS "Anyone can view role_permissions" ON role_permissions;
 CREATE POLICY "Anyone can view role_permissions" ON role_permissions FOR SELECT USING (true);
 -- Only platform admins can modify the global matrix
+DROP POLICY IF EXISTS "Only admins can modify role_permissions" ON role_permissions;
 CREATE POLICY "Only admins can modify role_permissions" ON role_permissions FOR ALL USING (is_platform_admin());
 
 -- Seed default matrix to exactly match current hardcoded system behavior
@@ -935,7 +937,14 @@ CREATE POLICY "Project Admins can view project audit logs"
 -- ==========================================
 
 -- Enable Realtime for the target tables to broadcast changes over WebSockets
-ALTER PUBLICATION supabase_realtime ADD TABLE opportunities, opportunity_options;
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE opportunities, opportunity_options;
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+  END;
+END $$;
 
 -- ==========================================
 -- ANALYTICS RPCs (Phase 4)
@@ -1141,7 +1150,7 @@ BEGIN
       p_project_id,
       val->>'title',
       val->>'description',
-      val->>'priority',
+      COALESCE(NULLIF(val->>'priority', ''), 'Set Priority'),
       val->>'building_area',
       val->>'cost_code',
       COALESCE(val->'coordination_details', '{}'::jsonb),

@@ -73,31 +73,24 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
 
 const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const initialValue = getValue() as string;
-  const [value, setValue] = useState(initialValue);
   const updateData = (table.options.meta as any)?.updateData;
   const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
   const setActiveCell = useUIStore(state => state.setActiveCell);
-
-  useEffect(() => {
-    setValue(initialValue);
-  }, [initialValue]);
-
-  const onBlur = () => {
-    if (value !== initialValue && updateData) {
-      updateData.mutate({ id: row.original.id, updates: { [column.id]: value } });
-    }
-    if (isCellActive) {
-      setActiveCell(null);
-    }
-  };
 
   if (isCellActive) {
     return (
       <div className="w-full h-full p-0 flex">
         <select
-          value={value || 'Draft'}
-          onChange={e => setValue(e.target.value)}
-          onBlur={onBlur}
+          value={initialValue || 'Draft'}
+          onChange={e => {
+            if (updateData && e.target.value !== initialValue) {
+              updateData.mutate({ id: row.original.id, updates: { [column.id]: e.target.value } });
+            }
+            setActiveCell(null);
+          }}
+          onBlur={() => {
+            if (isCellActive) setActiveCell(null);
+          }}
           autoFocus
           className="w-full h-full px-2 py-1.5 text-xs bg-white dark:bg-slate-800 border border-sky-500 rounded outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100"
         >
@@ -111,9 +104,9 @@ const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: Cel
   }
 
   let colorClass = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
-  if (value === 'In Drafting') colorClass = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
-  else if (value === 'Ready for Review') colorClass = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
-  else if (value === 'Implemented') colorClass = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+  if (initialValue === 'In Drafting') colorClass = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+  else if (initialValue === 'Ready for Review') colorClass = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+  else if (initialValue === 'Implemented') colorClass = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
 
   return (
     <div 
@@ -121,7 +114,7 @@ const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: Cel
       onClick={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
     >
       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorClass} group-hover:ring-1 group-hover:ring-slate-300 dark:group-hover:ring-slate-600`}>
-        {value || 'Draft'}
+        {initialValue || 'Draft'}
       </span>
     </div>
   );
@@ -174,6 +167,58 @@ const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
     </div>
   );
 };
+
+const MemoizedCoordinationRow = React.memo(({ 
+  row, 
+  virtualRow, 
+  selectedOpportunityId, 
+  viewMode,
+  measureElement
+}: { 
+  row: Row<Opportunity>; 
+  virtualRow: any; 
+  selectedOpportunityId: string | null; 
+  viewMode: string;
+  measureElement: (element: Element | null) => void;
+  visibleColumnIds: string;
+}) => {
+  return (
+    <tbody 
+      ref={measureElement}
+      data-index={virtualRow.index}
+      className="border-b border-slate-100 dark:border-slate-800/50"
+    >
+      <tr 
+        id={`row-${row.original.id}`}
+        className={`transition-colors ${
+          row.original.id === selectedOpportunityId 
+            ? 'bg-sky-50 dark:bg-sky-900/20 border-l-2 border-sky-500' 
+            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+        }`}
+      >
+        {row.getVisibleCells().map((cell) => (
+          <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        ))}
+      </tr>
+      {viewMode === 'card' && row.getIsExpanded() && (
+        <tr>
+          <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
+            <ExpandedCard row={row as any} />
+          </td>
+        </tr>
+      )}
+    </tbody>
+  );
+}, (prevProps, nextProps) => {
+  if (prevProps.row.original !== nextProps.row.original) return false;
+  if (prevProps.selectedOpportunityId !== nextProps.selectedOpportunityId) return false;
+  if (prevProps.viewMode !== nextProps.viewMode) return false;
+  if (prevProps.visibleColumnIds !== nextProps.visibleColumnIds) return false;
+  if (prevProps.row.getIsExpanded() !== nextProps.row.getIsExpanded()) return false;
+  return true;
+});
 
 export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat' }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
@@ -448,35 +493,17 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
             
             {virtualItems.map((virtualRow) => {
               const row = rows[virtualRow.index];
+              const visibleColumnIds = row.getVisibleCells().map(c => c.column.id).join(',');
               return (
-                <tbody 
+                <MemoizedCoordinationRow
                   key={row.id}
-                  ref={virtualizer.measureElement}
-                  data-index={virtualRow.index}
-                  className="border-b border-slate-100 dark:border-slate-800/50"
-                >
-                  <tr 
-                    id={`row-${row.original.id}`}
-                    className={`transition-colors ${
-                      row.original.id === selectedOpportunityId 
-                        ? 'bg-sky-50 dark:bg-sky-900/20 border-l-2 border-sky-500' 
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                    }`}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                  {viewMode === 'card' && row.getIsExpanded() && (
-                    <tr>
-                      <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
-                        <ExpandedCard row={row as any} />
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
+                  row={row}
+                  virtualRow={virtualRow}
+                  selectedOpportunityId={selectedOpportunityId}
+                  viewMode={viewMode}
+                  measureElement={virtualizer.measureElement}
+                  visibleColumnIds={visibleColumnIds}
+                />
               );
             })}
             

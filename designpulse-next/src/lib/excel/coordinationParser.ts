@@ -69,7 +69,7 @@ export async function parseCoordinationExcel(
 
     const title = safeString(row.getCell(1).value);
     const description = safeString(row.getCell(2).value);
-    const priority = safeString(row.getCell(3).value);
+    const priority = safeString(row.getCell(3).value) || 'Set Priority';
     const building_area = safeString(row.getCell(4).value);
     const cost_code = safeString(row.getCell(5).value);
 

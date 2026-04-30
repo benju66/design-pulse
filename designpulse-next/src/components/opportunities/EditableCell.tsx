@@ -271,16 +271,17 @@ export const PriorityCell = React.memo(({ getValue, row, column, table }: CellCo
     'Critical': 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 font-bold',
     'High': 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 font-semibold',
     'Medium': 'text-sky-600 dark:text-sky-400 font-medium',
-    'Low': 'text-slate-500 dark:text-slate-400'
+    'Low': 'text-slate-500 dark:text-slate-400',
+    'Set Priority': 'text-slate-400 dark:text-slate-500 italic'
   };
 
-  const currentClass = priorityColors[initialValue || ''] || priorityColors['Medium'];
+  const currentClass = priorityColors[initialValue || ''] || priorityColors['Set Priority'];
 
   return (
     <select
       ref={selectRef}
       onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
-      value={initialValue || 'Medium'}
+      value={initialValue || 'Set Priority'}
       disabled={!permissions.can_edit_records}
       onChange={(e) => {
         if (updateMutation) {
@@ -290,6 +291,7 @@ export const PriorityCell = React.memo(({ getValue, row, column, table }: CellCo
       }}
       className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm cursor-pointer ${currentClass} ${isCellActive ? 'ring-2 ring-sky-400' : ''}`}
     >
+      <option value="Set Priority" className="text-slate-400 italic">Set Priority</option>
       <option value="Critical" className="font-bold text-rose-600">Critical</option>
       <option value="High" className="font-semibold text-amber-600">High</option>
       <option value="Medium" className="font-medium text-sky-600">Medium</option>

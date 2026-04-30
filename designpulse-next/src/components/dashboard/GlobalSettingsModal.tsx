@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel,
   getPaginationRowModel, getSortedRowModel, flexRender,
-  ColumnDef, FilterFn,
+  ColumnDef,
 } from '@tanstack/react-table';
 import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission, useGlobalCsiTrainingData, useToggleGlobalCsiVerified, useRemapGlobalCsiEntry } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
@@ -11,6 +11,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
 import { useProjects, useUpdateProjectCore, useDeleteProjectCore } from '@/hooks/useProjectQueries';
 import { Project, GlobalCsiTrainingData, RemapCsiEntryParams, CostCode } from '@/types/models';
+import { Database } from '@/types/database.types';
 
 interface Props {
   isOpen: boolean;
@@ -91,7 +92,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   //   C20 — chunking lives in the mutation layer (useUploadCostCodesCSV)
   //   L-3 — is_division derived from parent_division column
   //   A   — iOS-safe CSV splitter: stateful loop instead of regex lookbehind
-  type CostCodeInsert = CostCode['Insert'];
+  type CostCodeInsert = Database['public']['Tables']['cost_codes']['Insert'];
 
   // Stateful CSV field splitter — handles quoted fields with embedded commas.
   // Rule A: does NOT use a negative lookbehind regex. Uses an explicit loop.

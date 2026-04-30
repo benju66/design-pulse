@@ -419,12 +419,20 @@ LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_project projects%ROWTYPE;
 BEGIN
+  -- 1. Create the project record
   INSERT INTO projects (name, description, project_number, procore_project_id, procore_company_id) 
   VALUES (p_name, p_description, p_project_number, p_procore_project_id, p_procore_company_id) 
   RETURNING * INTO v_project;
   
+  -- 2. Assign the creator as owner
   INSERT INTO project_members (project_id, user_id, role) 
   VALUES (v_project.id, auth.uid(), 'owner');
+
+  -- 3. Guarantee a settings row exists atomically (Audit fix C-2 / AGENTS.md Rule 25)
+  -- ON CONFLICT DO NOTHING makes this idempotent and safe to retry.
+  INSERT INTO project_settings (project_id)
+  VALUES (v_project.id)
+  ON CONFLICT (project_id) DO NOTHING;
   
   RETURN NEXT v_project;
   RETURN;
@@ -529,36 +537,10 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION enforce_financial_immutability()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-  IF OLD.status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented', 'Approved') THEN
-    IF OLD.cost_impact IS DISTINCT FROM NEW.cost_impact OR OLD.days_impact IS DISTINCT FROM NEW.days_impact OR OLD.title IS DISTINCT FROM NEW.title THEN
-      RAISE EXCEPTION 'Financial immutability enforced: Cannot modify core fields of locked records';
-    END IF;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION enforce_options_immutability()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE
-  v_parent_status text;
-BEGIN
-  IF TG_OP = 'DELETE' THEN
-    SELECT status INTO v_parent_status FROM opportunities WHERE id = OLD.opportunity_id;
-  ELSE
-    SELECT status INTO v_parent_status FROM opportunities WHERE id = NEW.opportunity_id;
-  END IF;
-
-  IF v_parent_status IN ('Pending Plan Update', 'GC / Owner Review', 'Implemented', 'Approved') THEN
-    RAISE EXCEPTION 'Financial immutability enforced: Cannot modify options of a locked opportunity';
-  END IF;
-
-  IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
-END;
-$$;
+-- NOTE: enforce_financial_immutability and enforce_options_immutability are defined
+-- below (Section: Implement Immutability Escape Hatches) with the correct escape hatch
+-- logic. The definitions that existed here were stale duplicates without escape hatches
+-- and have been removed. (Audit fix C-1, 2026-04-30)
 
 CREATE OR REPLACE FUNCTION sync_parent_opportunity_totals()
 RETURNS TRIGGER AS $$
@@ -875,6 +857,11 @@ BEGIN
   IF NOT public.has_project_permission((SELECT project_id FROM opportunities WHERE id = p_opp_id), 'can_lock_options') THEN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to lock options';
   END IF;
+
+  -- Open the immutability escape hatch AFTER RBAC check, BEFORE any UPDATE statement.
+  -- Required so that intermediate state resets (SET status = 'Draft') do not trigger
+  -- enforce_financial_immutability on already-Approved records. (Audit fix W-5 / AGENTS.md Rule B)
+  PERFORM set_config('designpulse.bypass_immutability', 'true', true);
 
   UPDATE opportunities SET status = 'Draft' WHERE id = p_opp_id;
   UPDATE opportunity_options SET is_locked = false WHERE opportunity_id = p_opp_id;

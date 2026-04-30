@@ -54,12 +54,19 @@ CREATE TABLE IF NOT EXISTS project_settings (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+ALTER TABLE project_settings 
+ADD COLUMN IF NOT EXISTS permit_types jsonb DEFAULT '[{"id": "93f2f811-0a6f-4d9b-a320-1a7638d17a3a", "label": "Building (Core & Shell)"}, {"id": "e3b6a9c1-7f9e-4b45-97c4-a4b51381e7d2", "label": "Electrical"}, {"id": "0b14c356-9e12-4c2f-b4e8-8a562e153f91", "label": "Plumbing"}]'::jsonb,
+ADD COLUMN IF NOT EXISTS permit_ahjs jsonb DEFAULT '[{"id": "550e8400-e29b-41d4-a716-446655440000", "label": "City"}, {"id": "713f0a00-1c3f-4e00-84f9-25f0535c0001", "label": "State"}]'::jsonb;
+
 -- 2.5 Project Sequences Table (For VE-001 IDs)
 CREATE TABLE IF NOT EXISTS project_sequences (
   project_id uuid REFERENCES projects(id) ON DELETE CASCADE,
   ve_current_value integer DEFAULT 0,
-  cd_current_value integer DEFAULT 0
+  cd_current_value integer DEFAULT 0,
+  per_current_value integer DEFAULT 0
 );
+
+ALTER TABLE project_sequences ADD COLUMN IF NOT EXISTS per_current_value integer DEFAULT 0;
 
 -- Safely ensure the primary key exists in case the table was created previously without one
 DO $$ 
@@ -131,6 +138,54 @@ CREATE TABLE IF NOT EXISTS opportunity_options (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 4.4 Permit Helpers
+CREATE OR REPLACE FUNCTION generate_permit_display_id()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  next_val integer;
+BEGIN
+  INSERT INTO project_sequences (project_id, ve_current_value, cd_current_value, per_current_value)
+  VALUES (NEW.project_id, 0, 0, 1)
+  ON CONFLICT (project_id) 
+  DO UPDATE SET per_current_value = COALESCE(project_sequences.per_current_value, 0) + 1
+  RETURNING per_current_value INTO next_val;
+
+  NEW.display_id := 'PER-' || LPAD(next_val::text, 3, '0');
+  RETURN NEW;
+END;
+$$;
+
+-- 4.5 Permits Table
+CREATE TABLE IF NOT EXISTS permits (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  display_id text,
+  title text NOT NULL,
+  permit_type text,
+  ahj text,
+  status text DEFAULT 'Preparing' CHECK (status IN ('Preparing', 'Submitted', 'Under Review', 'Comments Received', 'Approved')),
+  assignee text,
+  date_submitted timestamp with time zone,
+  target_approval_date timestamp with time zone,
+  revision_number integer DEFAULT 0,
+  revision_history jsonb DEFAULT '[]'::jsonb,
+  is_deleted boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+DROP TRIGGER IF EXISTS set_permit_display_id ON permits;
+CREATE TRIGGER set_permit_display_id
+BEFORE INSERT ON permits
+FOR EACH ROW EXECUTE FUNCTION generate_permit_display_id();
+
+-- 4.6 Permit Task Links (Junction Table)
+CREATE TABLE IF NOT EXISTS permit_task_links (
+  permit_id uuid NOT NULL REFERENCES permits(id) ON DELETE CASCADE,
+  coordination_task_id uuid NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+  PRIMARY KEY (permit_id, coordination_task_id)
+);
+
 -- 5. Global Cost Codes Table
 CREATE TABLE IF NOT EXISTS cost_codes (
   code text PRIMARY KEY,
@@ -178,6 +233,8 @@ ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform_admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cost_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE permits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE permit_task_links ENABLE ROW LEVEL SECURITY;
 
 -- 8. Security Policies
 
@@ -282,6 +339,56 @@ CREATE POLICY "Admins can delete opportunity_options"
   ON opportunity_options FOR DELETE USING (
     is_platform_admin() OR EXISTS (
       SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_id AND public.get_user_project_role(opportunities.project_id) IN ('owner', 'gc_admin')
+    )
+  );
+
+-- Permits
+DROP POLICY IF EXISTS "Members can view permits" ON permits;
+CREATE POLICY "Members can view permits" 
+  ON permits FOR SELECT USING (
+    is_platform_admin() OR (is_deleted = false AND public.get_user_project_role(project_id) IS NOT NULL)
+  );
+
+DROP POLICY IF EXISTS "Members can insert permits" ON permits;
+CREATE POLICY "Members can insert permits" 
+  ON permits FOR INSERT WITH CHECK (
+    public.has_project_permission(project_id, 'can_edit_records')
+  );
+
+DROP POLICY IF EXISTS "Members can update permits" ON permits;
+CREATE POLICY "Members can update permits" 
+  ON permits FOR UPDATE USING (
+    public.has_project_permission(project_id, 'can_edit_records')
+  );
+
+DROP POLICY IF EXISTS "Admins can delete permits" ON permits;
+CREATE POLICY "Admins can delete permits" 
+  ON permits FOR DELETE USING (
+    public.has_project_permission(project_id, 'can_delete_records')
+  );
+
+-- Permit Task Links
+DROP POLICY IF EXISTS "Members can view permit_task_links" ON permit_task_links;
+CREATE POLICY "Members can view permit_task_links" 
+  ON permit_task_links FOR SELECT USING (
+    is_platform_admin() OR EXISTS (
+      SELECT 1 FROM permits WHERE permits.id = permit_id AND permits.is_deleted = false AND public.get_user_project_role(permits.project_id) IS NOT NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "Members can insert permit_task_links" ON permit_task_links;
+CREATE POLICY "Members can insert permit_task_links" 
+  ON permit_task_links FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM permits WHERE permits.id = permit_id AND public.has_project_permission(permits.project_id, 'can_edit_records')
+    )
+  );
+
+DROP POLICY IF EXISTS "Members can delete permit_task_links" ON permit_task_links;
+CREATE POLICY "Members can delete permit_task_links" 
+  ON permit_task_links FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM permits WHERE permits.id = permit_id AND public.has_project_permission(permits.project_id, 'can_edit_records')
     )
   );
 
@@ -1163,3 +1270,48 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- 7. Soft Delete Cascades
+CREATE OR REPLACE FUNCTION cascade_soft_delete_opportunities()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NEW.is_deleted = true AND OLD.is_deleted = false THEN
+    DELETE FROM permit_task_links WHERE coordination_task_id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_cascade_soft_delete_opportunities ON opportunities;
+CREATE TRIGGER trg_cascade_soft_delete_opportunities
+AFTER UPDATE OF is_deleted ON opportunities
+FOR EACH ROW EXECUTE FUNCTION cascade_soft_delete_opportunities();
+
+-- 8. Atomic Permit Revision Logging
+CREATE OR REPLACE FUNCTION log_permit_revision(
+  p_permit_id UUID,
+  p_new_revision JSONB
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_project_id UUID;
+  v_current_history JSONB;
+BEGIN
+  SELECT project_id, COALESCE(revision_history, '[]'::jsonb) INTO v_project_id, v_current_history
+  FROM permits WHERE id = p_permit_id FOR UPDATE;
+
+  IF NOT public.has_project_permission(v_project_id, 'can_edit_records') THEN
+    RAISE EXCEPTION 'Unauthorized: Insufficient privileges to log revisions';
+  END IF;
+
+  IF jsonb_typeof(COALESCE(v_current_history, '[]'::jsonb)) != 'array' THEN
+    v_current_history := '[]'::jsonb;
+  END IF;
+
+  UPDATE permits
+  SET revision_history = v_current_history || p_new_revision,
+      revision_number = revision_number + 1,
+      status = COALESCE(p_new_revision->>'status', status)
+  WHERE id = p_permit_id;
+END;
+$$;
+

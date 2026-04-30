@@ -4,8 +4,8 @@ import { Opportunity, OpportunityOption, CostCode } from './models';
 
 declare module '@tanstack/react-table' {
   interface TableMeta<TData extends RowData> {
-    updateData: UseMutationResult<Opportunity, Error, { id: string; updates: Partial<Opportunity> }, { previousOpportunities: Opportunity[] | undefined }>;
-    optionsMap: Record<string, OpportunityOption[]>;
+    updateData?: any; // Made optional and generic to support Permits and Opportunities
+    optionsMap?: Record<string, OpportunityOption[]>;
     moveActiveCell?: (direction: 'down' | 'right' | 'left' | 'up') => void;
     activeCell?: { rowIndex: number | null; columnId: string | null };
     setActiveCell?: (cell: { rowIndex: number; columnId: string } | null) => void;

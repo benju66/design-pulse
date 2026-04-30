@@ -42,6 +42,20 @@ export interface UIState {
   
   isCoordSummaryCollapsed: boolean;
   toggleCoordSummary: () => void;
+  
+  isPermitSummaryCollapsed: boolean;
+  togglePermitSummary: () => void;
+  
+  permitViewMode: 'board' | 'table-split';
+  setPermitViewMode: (mode: 'board' | 'table-split') => void;
+  
+  permitFilters: {
+    status?: string[];
+    type?: string[];
+    assignee?: string[];
+    ahj?: string[];
+  };
+  setPermitFilters: (filters: { status?: string[]; type?: string[]; assignee?: string[]; ahj?: string[] }) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -106,6 +120,15 @@ export const useUIStore = create<UIState>()(
       isCoordSummaryCollapsed: false,
       toggleCoordSummary: () => set((state) => ({ isCoordSummaryCollapsed: !state.isCoordSummaryCollapsed })),
       
+      isPermitSummaryCollapsed: false,
+      togglePermitSummary: () => set((state) => ({ isPermitSummaryCollapsed: !state.isPermitSummaryCollapsed })),
+      
+      permitViewMode: 'table-split',
+      setPermitViewMode: (mode) => set({ permitViewMode: mode }),
+      
+      permitFilters: {},
+      setPermitFilters: (filters) => set({ permitFilters: filters }),
+      
       setCardOrder: (newOrder) => set({ cardOrder: newOrder }),
       
       toggleCardVisibility: (cardId) => set((state) => ({
@@ -136,6 +159,9 @@ export const useUIStore = create<UIState>()(
         coordinationViewMode: state.coordinationViewMode,
         isBudgetSummaryCollapsed: state.isBudgetSummaryCollapsed ?? false,
         isCoordSummaryCollapsed: state.isCoordSummaryCollapsed ?? false,
+        isPermitSummaryCollapsed: state.isPermitSummaryCollapsed ?? false,
+        permitViewMode: state.permitViewMode ?? 'table-split',
+        permitFilters: state.permitFilters ?? {},
       }),
     }
   )

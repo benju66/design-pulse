@@ -208,6 +208,73 @@ export interface Database {
           category_o?: boolean | null
         }
       }
+      permits: {
+        Row: {
+          id: string
+          project_id: string
+          display_id: string | null
+          title: string
+          permit_type: string | null
+          ahj: string | null
+          status: string | null
+          assignee: string | null
+          date_submitted: string | null
+          target_approval_date: string | null
+          revision_number: number | null
+          revision_history: Json | null
+          is_deleted: boolean | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          display_id?: string | null
+          title: string
+          permit_type?: string | null
+          ahj?: string | null
+          status?: string | null
+          assignee?: string | null
+          date_submitted?: string | null
+          target_approval_date?: string | null
+          revision_number?: number | null
+          revision_history?: Json | null
+          is_deleted?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          display_id?: string | null
+          title?: string
+          permit_type?: string | null
+          ahj?: string | null
+          status?: string | null
+          assignee?: string | null
+          date_submitted?: string | null
+          target_approval_date?: string | null
+          revision_number?: number | null
+          revision_history?: Json | null
+          is_deleted?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      permit_task_links: {
+        Row: {
+          permit_id: string
+          coordination_task_id: string
+        }
+        Insert: {
+          permit_id: string
+          coordination_task_id: string
+        }
+        Update: {
+          permit_id?: string
+          coordination_task_id?: string
+        }
+      }
       opportunity_options: {
         Row: {
           id: string

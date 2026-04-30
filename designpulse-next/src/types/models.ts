@@ -20,9 +20,21 @@ export type OpportunityOption = Database['public']['Tables']['opportunity_option
   division?: string | null;
 };
 export type CostCode = Database['public']['Tables']['cost_codes']['Row'];
+export type Permit = Database['public']['Tables']['permits']['Row'];
+export type PermitTaskLink = Database['public']['Tables']['permit_task_links']['Row'];
+
+export interface PermitRevision {
+  status: string;
+  date: string;
+  note: string;
+  author?: string;
+}
+
 export type ProjectSettings = Database['public']['Tables']['project_settings']['Row'] & {
   disciplines?: DisciplineConfig[];
   ve_column_order?: string[];
+  permit_types?: PermitTypeConfig[];
+  permit_ahjs?: PermitAHJConfig[];
 };
 export type Project = Database['public']['Tables']['projects']['Row'] & {
   project_number?: string | null;
@@ -34,6 +46,14 @@ export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
 
 // Strictly typing the JSONB columns
 export interface DisciplineConfig {
+  id: string;
+  label: string;
+}
+export interface PermitTypeConfig {
+  id: string;
+  label: string;
+}
+export interface PermitAHJConfig {
   id: string;
   label: string;
 }

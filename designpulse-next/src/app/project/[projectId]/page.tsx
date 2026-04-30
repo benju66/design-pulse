@@ -14,7 +14,9 @@ import { CoordinationSummary } from '@/components/coordination/CoordinationSumma
 import { BulkImportModal } from '@/components/coordination/BulkImportModal';
 import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import MyDeskDashboard from '@/components/mydesk/MyDeskDashboard';
+import PermitBoard from '@/components/permits/PermitBoard';
 import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
+import { usePermits, useCreatePermit } from '@/hooks/usePermitQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
@@ -36,6 +38,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const { data: settings } = useProjectSettings(projectId);
   const { data: globalCostCodes = [] } = useCostCodes();
   const createMutation = useCreateOpportunity(projectId);
+  const createPermitMutation = useCreatePermit(projectId);
   
   const [currentView, setCurrentView] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState('info');
@@ -53,6 +56,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
+  const permitViewMode = useUIStore(state => state.permitViewMode);
+  const setPermitViewMode = useUIStore(state => state.setPermitViewMode);
 
   const handleExport = async () => {
     try {
@@ -234,6 +239,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             {currentView === 'map' && 'Map View'}
             {currentView === 'analytics' && 'Project Analytics'}
             {currentView === 'coordination' && 'Design Coordination Tracker'}
+            {currentView === 'permits' && 'Permits Tracker'}
             {currentView === 'my-desk' && 'My Desk'}
             {currentView === 'settings' && 'Project Settings'}
           </h2>
@@ -330,6 +336,43 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 >
                   <UploadCloud size={16} className="mr-2" />
                   Bulk Import
+                </button>
+              </>
+            )}
+
+            {currentView === 'permits' && (
+              <>
+                <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2">
+                  <button
+                    onClick={() => setPermitViewMode('table-split')}
+                    className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                      permitViewMode === 'table-split' 
+                        ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                    title="Table View"
+                  >
+                    <List size={18} />
+                  </button>
+                  <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
+                  <button
+                    onClick={() => setPermitViewMode('board')}
+                    className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                      permitViewMode === 'board' 
+                        ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                    title="Board View"
+                  >
+                    <LayoutGrid size={18} />
+                  </button>
+                </div>
+                <button 
+                  onClick={() => createPermitMutation.mutate({})}
+                  disabled={createPermitMutation.isPending}
+                  className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold rounded-xl shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {createPermitMutation.isPending ? 'Adding...' : <><Plus size={16} strokeWidth={3} /> New Permit</>}
                 </button>
               </>
             )}
@@ -637,6 +680,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 )}
               </div>
             </div>
+          )}
+
+          {currentView === 'permits' && (
+            <PermitBoard projectId={projectId} />
           )}
 
         </div>

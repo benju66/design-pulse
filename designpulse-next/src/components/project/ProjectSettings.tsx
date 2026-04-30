@@ -9,7 +9,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as LucideIcons from 'lucide-react';
-import { SidebarItem, DisciplineConfig } from '@/types/models';
+import { SidebarItem, DisciplineConfig, PermitTypeConfig, PermitAHJConfig } from '@/types/models';
 import { DEFAULT_SIDEBAR_ITEMS, DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface SortableItemProps {
@@ -98,6 +98,8 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [disciplines, setDisciplines] = useState<DisciplineConfig[]>([]);
   const [veColumns, setVeColumns] = useState<{id: string, label: string}[]>([]);
+  const [permitTypes, setPermitTypes] = useState<PermitTypeConfig[]>([]);
+  const [permitAHJs, setPermitAHJs] = useState<PermitAHJConfig[]>([]);
   
   const [projectInfo, setProjectInfo] = useState({
     project_name: '',
@@ -113,6 +115,8 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   const [newCat, setNewCat] = useState('');
   const [newBuildingArea, setNewBuildingArea] = useState('');
   const [newDiscipline, setNewDiscipline] = useState('');
+  const [newPermitType, setNewPermitType] = useState('');
+  const [newPermitAHJ, setNewPermitAHJ] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
@@ -134,6 +138,9 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
           ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
           : [...DEFAULT_DISCIPLINES]
       );
+      
+      setPermitTypes((settings.permit_types as PermitTypeConfig[]) || []);
+      setPermitAHJs((settings.permit_ahjs as PermitAHJConfig[]) || []);
       
       const savedOrder = settings.ve_column_order || [];
       if (savedOrder.length > 0) {
@@ -194,6 +201,22 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
     }
   };
 
+  const addPermitType = () => {
+    if (newPermitType.trim()) {
+      setPermitTypes([...permitTypes, { id: crypto.randomUUID(), label: newPermitType.trim() }]);
+      setNewPermitType('');
+      setHasChanges(true);
+    }
+  };
+
+  const addPermitAHJ = () => {
+    if (newPermitAHJ.trim()) {
+      setPermitAHJs([...permitAHJs, { id: crypto.randomUUID(), label: newPermitAHJ.trim() }]);
+      setNewPermitAHJ('');
+      setHasChanges(true);
+    }
+  };
+
   const handleDragEndCategories = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -220,6 +243,26 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
       const oldIndex = disciplines.findIndex(d => d.id === active.id);
       const newIndex = disciplines.findIndex(d => d.id === over.id);
       setDisciplines(arrayMove(disciplines, oldIndex, newIndex));
+      setHasChanges(true);
+    }
+  };
+
+  const handleDragEndPermitTypes = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = permitTypes.findIndex(d => d.id === active.id);
+      const newIndex = permitTypes.findIndex(d => d.id === over.id);
+      setPermitTypes(arrayMove(permitTypes, oldIndex, newIndex));
+      setHasChanges(true);
+    }
+  };
+
+  const handleDragEndPermitAHJs = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = permitAHJs.findIndex(d => d.id === active.id);
+      const newIndex = permitAHJs.findIndex(d => d.id === over.id);
+      setPermitAHJs(arrayMove(permitAHJs, oldIndex, newIndex));
       setHasChanges(true);
     }
   };
@@ -272,7 +315,9 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         location: projectInfo.location,
         original_budget: Number(projectInfo.original_budget),
         enable_audit_logging: Boolean(projectInfo.enable_audit_logging),
-        ve_column_order: veColumns.map(c => c.id)
+        ve_column_order: veColumns.map(c => c.id),
+        permit_types: permitTypes as any,
+        permit_ahjs: permitAHJs as any
       },
       { onSuccess: () => setHasChanges(false) }
     );
@@ -381,6 +426,17 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         >
           <TableProperties size={18} />
           VE Matrix
+        </button>
+        <button 
+          onClick={() => setActiveTab('permits')}
+          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
+            activeTab === 'permits' 
+              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <LucideIcons.FileCheck2 size={18} />
+          Permits
         </button>
         {canManageTeam && (
           <button 
@@ -853,6 +909,102 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'permits' && (
+        <div className="space-y-6 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Permit Types</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+              Define the categories of permits (e.g. Building, Electrical).
+            </p>
+            <div className="flex gap-2 mb-4">
+              <input 
+                type="text" 
+                value={newPermitType} 
+                onChange={(e) => setNewPermitType(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addPermitType()}
+                placeholder="e.g. Electrical" 
+                className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-white"
+              />
+              <button 
+                onClick={addPermitType} 
+                disabled={!newPermitType.trim()}
+                className="bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
+              >
+                <Plus size={16} /> Add Type
+              </button>
+            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPermitTypes}>
+              <SortableContext items={permitTypes.map(d => d.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                  {permitTypes.map(type => (
+                    <SortableItem 
+                      key={type.id} 
+                      id={type.id} 
+                      content={type.label}
+                      onRemove={() => {
+                        setPermitTypes(permitTypes.filter(d => d.id !== type.id));
+                        setHasChanges(true);
+                      }}
+                    />
+                  ))}
+                  {permitTypes.length === 0 && (
+                    <div className="text-center p-6 text-sm text-slate-500 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                      No Permit Types defined. Add one above.
+                    </div>
+                  )}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Authorities Having Jurisdiction (AHJ)</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+              Define the governing bodies that issue permits.
+            </p>
+            <div className="flex gap-2 mb-4">
+              <input 
+                type="text" 
+                value={newPermitAHJ} 
+                onChange={(e) => setNewPermitAHJ(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addPermitAHJ()}
+                placeholder="e.g. City Building Department" 
+                className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-white"
+              />
+              <button 
+                onClick={addPermitAHJ} 
+                disabled={!newPermitAHJ.trim()}
+                className="bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
+              >
+                <Plus size={16} /> Add AHJ
+              </button>
+            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPermitAHJs}>
+              <SortableContext items={permitAHJs.map(d => d.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                  {permitAHJs.map(ahj => (
+                    <SortableItem 
+                      key={ahj.id} 
+                      id={ahj.id} 
+                      content={ahj.label}
+                      onRemove={() => {
+                        setPermitAHJs(permitAHJs.filter(d => d.id !== ahj.id));
+                        setHasChanges(true);
+                      }}
+                    />
+                  ))}
+                  {permitAHJs.length === 0 && (
+                    <div className="text-center p-6 text-sm text-slate-500 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                      No AHJs defined. Add one above.
+                    </div>
+                  )}
+                </div>
+              </SortableContext>
+            </DndContext>
           </div>
         </div>
       )}

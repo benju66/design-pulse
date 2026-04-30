@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { PermitRevision } from '@/types/models';
 import { useLogPermitRevision, usePermits, usePermitTaskLinks, useLinkPermitTask, useUnlinkPermitTask } from '@/hooks/usePermitQueries';
 import { useOpportunities } from '@/hooks/useProjectQueries';

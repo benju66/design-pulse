@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { usePermits } from '@/hooks/usePermitQueries';
 import { useUIStore } from '@/stores/useUIStore';
-import { Search, FilterX, Plus } from 'lucide-react';
+import { Search, FilterX } from 'lucide-react';
 import PermitTable from './PermitTable';
 import PermitKanban from './PermitKanban';
 import PermitDetailPanel from './PermitDetailPanel';

@@ -16,7 +16,7 @@ import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
 import MyDeskDashboard from '@/components/mydesk/MyDeskDashboard';
 import PermitBoard from '@/components/permits/PermitBoard';
 import { useOpportunities, useCreateOpportunity, useProjectSettings } from '@/hooks/useProjectQueries';
-import { usePermits, useCreatePermit } from '@/hooks/usePermitQueries';
+import { useCreatePermit } from '@/hooks/usePermitQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';

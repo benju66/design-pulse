@@ -1061,3 +1061,63 @@ export function useBulkImportCoordinationTasks(projectId: string) {
   });
 }
 
+export interface CsiSpecItem {
+  csi_number: string;
+  description: string;
+  id?: string;
+  cost_code?: string;
+}
+
+export function useUploadCsiTOC(projectId: string) {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Authentication expired. Please log in again.');
+
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/extract-csi-toc`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}` },
+        body: formData
+      });
+      if (!res.ok) throw new Error('Extraction failed');
+      
+      const extracted = await res.json() as CsiSpecItem[];
+      return extracted.map(item => ({ ...item, id: crypto.randomUUID() }));
+    }
+  });
+}
+
+export function useBulkUpsertProjectCsiSpecs(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ProjectCsiSpec['Insert'][]) => {
+      if (!payload.length) return;
+
+      const CHUNK_SIZE = 50;
+      const chunks = [];
+      for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+        chunks.push(payload.slice(i, i + CHUNK_SIZE));
+      }
+      
+      await Promise.all(
+        chunks.map(chunk => 
+          supabase.rpc('bulk_upsert_project_csi_specs', {
+            p_project_id: projectId,
+            p_payload: chunk
+          })
+        )
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_csi_specs', projectId] });
+      toast.success('CSI specs saved successfully.');
+    },
+    onError: (err: any) => {
+      console.error('Bulk Upsert Error:', err);
+      toast.error(`Failed to save specs: ${err.message || JSON.stringify(err)}`);
+    }
+  });
+}

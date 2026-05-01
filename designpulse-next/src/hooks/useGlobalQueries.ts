@@ -224,3 +224,23 @@ export function useRemapGlobalCsiEntry() {
     },
   });
 }
+
+// ── Phase 5: ML Flywheel Auto-Suggest ────────────────────────────────────────
+
+// Fetch suggestions using the optimized DISTINCT ON RPC to avoid 414 URI Too Long limits.
+export function useCsiTrainingSuggestions(normalizedCodes: string[]) {
+  return useQuery<GlobalCsiTrainingData[], Error>({
+    queryKey: ['csi_training_suggestions', normalizedCodes],
+    queryFn: async () => {
+      if (!normalizedCodes.length) return [];
+      
+      const { data, error } = await supabase.rpc('get_csi_training_suggestions', {
+        p_normalized_codes: normalizedCodes
+      });
+      if (error) throw error;
+      return data as GlobalCsiTrainingData[];
+    },
+    enabled: normalizedCodes.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+}

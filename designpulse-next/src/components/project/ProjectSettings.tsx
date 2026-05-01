@@ -11,6 +11,7 @@ import { CSS } from '@dnd-kit/utilities';
 import * as LucideIcons from 'lucide-react';
 import { SidebarItem, DisciplineConfig, PermitTypeConfig, PermitAHJConfig } from '@/types/models';
 import { DEFAULT_SIDEBAR_ITEMS, DEFAULT_DISCIPLINES } from '@/lib/constants';
+import { CsiMappingTab } from '@/components/project/CsiMappingTab';
 
 interface SortableItemProps {
   id: string;
@@ -438,6 +439,17 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
           <LucideIcons.FileCheck2 size={18} />
           Permits
         </button>
+        <button 
+          onClick={() => setActiveTab('csi_specs')}
+          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
+            activeTab === 'csi_specs' 
+              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <LucideIcons.BookOpen size={18} />
+          CSI & Specs
+        </button>
         {canManageTeam && (
           <button 
             onClick={() => setActiveTab('team')}
@@ -797,6 +809,10 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
             </SortableContext>
           </DndContext>
         </div>
+      )}
+
+      {activeTab === 'csi_specs' && (
+        <CsiMappingTab projectId={projectId} />
       )}
 
       {activeTab === 'team' && (

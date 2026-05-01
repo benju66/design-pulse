@@ -12,6 +12,7 @@ import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Build
 import { useProjects, useUpdateProjectCore, useDeleteProjectCore } from '@/hooks/useProjectQueries';
 import { Project, GlobalCsiTrainingData, RemapCsiEntryParams, CostCode } from '@/types/models';
 import { Database } from '@/types/database.types';
+import { formatCostCode } from '@/lib/formatCostCode';
 
 interface Props {
   isOpen: boolean;
@@ -658,7 +659,7 @@ function CsiMappingTab({ costCodes }: { costCodes: CostCode[] }) {
             className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100 disabled:opacity-50"
           >
             {baseCodes.map(c => (
-              <option key={c.code} value={c.code}>{c.code} – {c.description}</option>
+              <option key={c.code} value={c.code}>{formatCostCode(c.code)} – {c.description}</option>
             ))}
           </select>
         );

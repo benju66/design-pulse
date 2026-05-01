@@ -1068,7 +1068,7 @@ export interface CsiSpecItem {
   cost_code?: string;
 }
 
-export function useUploadCsiTOC(projectId: string) {
+export function useUploadCsiTOC() {
   return useMutation({
     mutationFn: async (file: File) => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1093,7 +1093,7 @@ export function useUploadCsiTOC(projectId: string) {
 export function useBulkUpsertProjectCsiSpecs(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: ProjectCsiSpec['Insert'][]) => {
+    mutationFn: async (payload: Partial<ProjectCsiSpec>[]) => {
       if (!payload.length) return;
 
       const CHUNK_SIZE = 50;

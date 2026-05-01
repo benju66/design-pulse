@@ -4,7 +4,7 @@ import { useProjectSettings } from '@/hooks/useProjectQueries';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
 import { CellContext, Row, Column } from '@tanstack/react-table';
-import { Opportunity } from '@/types/models';
+import { Opportunity, CostType, CostCode, ProjectCsiSpec } from '@/types/models';
 import { AssigneeSelect } from './AssigneeSelect';
 
 const commonComparator = (prevProps: CellContext<Opportunity, unknown>, nextProps: CellContext<Opportunity, unknown>, _checkOptions = false) => {

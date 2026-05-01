@@ -12,7 +12,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
   const [isDragging, setIsDragging] = useState(false);
   const [stagingData, setStagingData] = useState<CsiSpecItem[]>([]);
   
-  const uploadMutation = useUploadCsiTOC(projectId);
+  const uploadMutation = useUploadCsiTOC();
   const upsertMutation = useBulkUpsertProjectCsiSpecs(projectId);
   const { data: costCodes = [] } = useCostCodes();
 

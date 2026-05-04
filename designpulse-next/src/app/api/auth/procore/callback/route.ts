@@ -5,9 +5,21 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
 
-  // NEW: Grab the state parameter (where they wanted to go)
+  // 1. Parse the JSON state payload
   const state = searchParams.get('state');
-  const redirectPath = state ? decodeURIComponent(state) : '/dashboard';
+  let redirectPath = '/dashboard';
+  let isPopup = false;
+
+  if (state) {
+    try {
+      const parsedState = JSON.parse(decodeURIComponent(state));
+      redirectPath = parsedState.returnTo || '/dashboard';
+      isPopup = parsedState.isPopup === true;
+    } catch (e) {
+      // Fallback in case of an older plain-text state string
+      redirectPath = decodeURIComponent(state);
+    }
+  }
 
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
   const proto = request.headers.get('x-forwarded-proto') || 'http';
@@ -81,11 +93,67 @@ export async function GET(request: NextRequest) {
       if (error) throw error;
     }
 
+    // ==========================================
+    // 4. AUTOMATIC PROJECT SYNC LOGIC
+    // ==========================================
+    
+    // Check if the redirect path contains project IDs passed from launch/route.ts
+    const urlParams = new URLSearchParams(redirectPath.split('?')[1] || '');
+    const syncProjectId = urlParams.get('link_procore_project');
+    const syncCompanyId = urlParams.get('link_procore_company');
+
+    let finalRedirectPath = redirectPath;
+
+    if (syncProjectId && syncCompanyId) {
+      // Fetch the specific project details using the v1.1 endpoint 
+      const projectRes = await fetch(`https://api.procore.com/rest/v1.1/projects/${syncProjectId}?company_id=${syncCompanyId}`, {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+
+      if (projectRes.ok) {
+        const procoreProject = await projectRes.json();
+
+        // Map the Procore JSON payload to your database schema
+        const mappedProjectData = {
+          procore_project_id: procoreProject.id.toString(), // The connected Procore ID
+          name: procoreProject.name, // Project Name
+          project_number: procoreProject.project_number, // Human Readable Number
+          stage: procoreProject.project_stage?.name || 'Pre-Construction', // Stage of construction
+          description: procoreProject.description || '',
+          location: [procoreProject.address, procoreProject.city, procoreProject.state_code]
+            .filter(Boolean)
+            .join(', '), // Compiled location
+          start_date: procoreProject.estimated_start_date || null, // Dates
+          completion_date: procoreProject.estimated_completion_date || null,
+          // Client info is often tied to the 'program' or 'office' objects depending on how your Procore instance is structured
+          client_name: procoreProject.program?.name || 'TBD' 
+        };
+
+        // Upsert the project into the database
+        const { data: newProject, error: projectError } = await supabaseAdmin
+          .from('projects')
+          .upsert(mappedProjectData, { onConflict: 'procore_project_id' })
+          .select('id')
+          .single();
+
+        if (!projectError && newProject) {
+          // Override the redirect to drop the user directly into the newly created project board
+          finalRedirectPath = `/project/${newProject.id}`;
+        } else {
+          console.error("Failed to auto-create project:", projectError);
+        }
+      }
+    }
+    // ==========================================
+
+    // 5. Generate Magic Link and Redirect
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: email,
       options: {
-        redirectTo: `${baseUrl}${redirectPath}` // <-- Now dynamically redirects to the correct project or linking page!
+        redirectTo: isPopup 
+          ? `${baseUrl}/auth/success?returnTo=${encodeURIComponent(finalRedirectPath)}` 
+          : `${baseUrl}${finalRedirectPath}`
       }
     });
 

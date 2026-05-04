@@ -1,5 +1,5 @@
 "use client";
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/supabaseClient';
 import { Loader2, Building2 } from 'lucide-react';
@@ -13,9 +13,25 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // 1. Listen for the popup's success message
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      // Security: Ensure the message comes from our own domain
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data?.type === 'PROCORE_AUTH_SUCCESS') {
+        const returnTo = event.data.returnTo || '/dashboard';
+        router.push(returnTo);
+        router.refresh();
+      }
+    };
+
+    window.addEventListener('message', handleAuthMessage);
+    return () => window.removeEventListener('message', handleAuthMessage);
+  }, [router]);
+
   const handleProcoreLogin = () => {
     setError(null);
-    
     const clientId = process.env.NEXT_PUBLIC_PROCORE_CLIENT_ID;
     
     if (!clientId) {
@@ -25,9 +41,19 @@ function LoginContent() {
 
     const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/procore/callback`);
     const returnTo = searchParams.get('returnTo') || '/dashboard';
-    const stateParam = encodeURIComponent(returnTo);
+    
+    // 2. Pass a JSON payload in state to track the destination AND flag that this is a popup
+    const stateParam = encodeURIComponent(JSON.stringify({ returnTo, isPopup: true }));
 
-    window.location.href = `https://login.procore.com/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${stateParam}`;
+    const authUrl = `https://login.procore.com/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${stateParam}`;
+
+    // 3. Open a centered popup window instead of redirecting the iframe
+    const width = 600;
+    const height = 700;
+    const left = (window.innerWidth / 2) - (width / 2);
+    const top = (window.innerHeight / 2) - (height / 2);
+    
+    window.open(authUrl, 'ProcoreAuth', `width=${width},height=${height},left=${left},top=${top}`);
   };
 
   const handleLogin = async (e: React.FormEvent) => {

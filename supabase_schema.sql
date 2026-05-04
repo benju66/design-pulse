@@ -1506,3 +1506,44 @@ DROP TRIGGER IF EXISTS trg_ui_system_activity_opt ON opportunity_options;
 CREATE TRIGGER trg_ui_system_activity_opt
 AFTER INSERT OR UPDATE ON opportunity_options
 FOR EACH ROW EXECUTE FUNCTION log_ui_system_activity();
+
+-- ==========================================
+-- GLOBAL USER MANAGEMENT (Phase 6)
+-- ==========================================
+
+CREATE OR REPLACE FUNCTION bulk_update_user_projects(p_user_id uuid, p_assignments jsonb)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  -- 1. Security Check
+  IF NOT public.is_platform_admin() THEN
+    RAISE EXCEPTION 'Unauthorized: Only platform admins can bulk update project memberships.';
+  END IF;
+
+  -- 2. Guardrail 21: JSONB Array Null Safety
+  IF jsonb_typeof(COALESCE(p_assignments, '[]'::jsonb)) != 'array' THEN
+    RAISE EXCEPTION 'p_assignments must be a JSONB array';
+  END IF;
+
+  -- 3. Set-based UPSERT
+  INSERT INTO project_members (project_id, user_id, role)
+  SELECT 
+    (value->>'project_id')::uuid, 
+    p_user_id, 
+    (value->>'role')::project_role
+  FROM jsonb_array_elements(p_assignments)
+  WHERE (value->>'action') = 'UPSERT'
+  ON CONFLICT (project_id, user_id) DO UPDATE SET role = EXCLUDED.role;
+
+  -- 4. Set-based DELETE
+  DELETE FROM project_members
+  WHERE user_id = p_user_id
+  AND project_id IN (
+    SELECT (value->>'project_id')::uuid
+    FROM jsonb_array_elements(p_assignments)
+    WHERE (value->>'action') = 'DELETE'
+  );
+
+END;
+$$;
+

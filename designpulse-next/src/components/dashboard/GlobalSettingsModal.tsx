@@ -1,14 +1,14 @@
 "use client";
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel,
   getPaginationRowModel, getSortedRowModel, flexRender,
   ColumnDef,
 } from '@tanstack/react-table';
-import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission, useGlobalCsiTrainingData, useToggleGlobalCsiVerified, useRemapGlobalCsiEntry } from '@/hooks/useGlobalQueries';
+import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission, useGlobalCsiTrainingData, useToggleGlobalCsiVerified, useRemapGlobalCsiEntry, useUserProjectMembers, useBulkUpdateUserProjects, SystemUser } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
-import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, CheckCircle2, Circle } from 'lucide-react';
+import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, CheckCircle2, Circle, Save, Undo } from 'lucide-react';
 import { useProjects, useUpdateProjectCore, useDeleteProjectCore } from '@/hooks/useProjectQueries';
 import { Project, GlobalCsiTrainingData, RemapCsiEntryParams, CostCode } from '@/types/models';
 import { Database } from '@/types/database.types';
@@ -21,6 +21,7 @@ interface Props {
 
 export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<'cost_codes' | 'users' | 'permissions' | 'projects' | 'csi_mapping'>('projects');
+  const [isDirty, setIsDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const uploadMutation = useUploadCostCodesCSV();
   const { data: costCodes = [] } = useCostCodes();
@@ -29,9 +30,29 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   const toggleAdmin = useTogglePlatformAdmin();
   const { session } = useAuth();
   
+  const { data: myMemberships = [] } = useUserProjectMembers(session?.user?.id || null);
+  const isGcAdminAnywhere = myMemberships.some(m => m.role == 'gc_admin');
+  const canAccessUsers = isPlatformAdmin || isGcAdminAnywhere;
+
   const { data: rolePermissions, isLoading: permissionsLoading } = useRolePermissions();
   const updatePermission = useUpdateRolePermission();
   const { data: projects, isLoading: projectsLoading } = useProjects();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isDirty) {
+          if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
+            onClose();
+          }
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDirty, onClose]);
 
   if (!isOpen) return null;
 
@@ -213,7 +234,13 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl w-full max-w-4xl h-[720px] overflow-hidden flex flex-col">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
           <h2 className="text-lg font-bold text-slate-800 dark:text-white">Platform Administration</h2>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors">
+          <button 
+            onClick={() => {
+              if (isDirty && !window.confirm('You have unsaved changes. Are you sure you want to close?')) return;
+              onClose();
+            }} 
+            className="p-2 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors"
+          >
             <X size={18} />
           </button>
         </div>
@@ -221,7 +248,10 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
         {/* Tabs Bar */}
         <div className="flex border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-50 dark:bg-slate-900">
           <button
-            onClick={() => setActiveTab('cost_codes')}
+            onClick={() => {
+              if (isDirty && !window.confirm('You have unsaved changes. Are you sure you want to switch tabs?')) return;
+              setActiveTab('cost_codes');
+            }}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
               activeTab === 'cost_codes'
                 ? 'border-sky-500 text-sky-600 dark:text-sky-400'
@@ -232,7 +262,10 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
             Global Cost Codes
           </button>
           <button
-            onClick={() => setActiveTab('users')}
+            onClick={() => {
+              if (isDirty && !window.confirm('You have unsaved changes. Are you sure you want to switch tabs?')) return;
+              setActiveTab('users');
+            }}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
               activeTab === 'users'
                 ? 'border-sky-500 text-sky-600 dark:text-sky-400'
@@ -243,7 +276,10 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
             User Directory
           </button>
           <button
-            onClick={() => setActiveTab('permissions')}
+            onClick={() => {
+              if (isDirty && !window.confirm('You have unsaved changes. Are you sure you want to switch tabs?')) return;
+              setActiveTab('permissions');
+            }}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
               activeTab === 'permissions'
                 ? 'border-sky-500 text-sky-600 dark:text-sky-400'
@@ -254,7 +290,10 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
             Role Permissions
           </button>
           <button
-            onClick={() => setActiveTab('projects')}
+            onClick={() => {
+              if (isDirty && !window.confirm('You have unsaved changes. Are you sure you want to switch tabs?')) return;
+              setActiveTab('projects');
+            }}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
               activeTab === 'projects'
                 ? 'border-sky-500 text-sky-600 dark:text-sky-400'
@@ -265,7 +304,10 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
             Projects
           </button>
           <button
-            onClick={() => setActiveTab('csi_mapping')}
+            onClick={() => {
+              if (isDirty && !window.confirm('You have unsaved changes. Are you sure you want to switch tabs?')) return;
+              setActiveTab('csi_mapping');
+            }}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
               activeTab === 'csi_mapping'
                 ? 'border-sky-500 text-sky-600 dark:text-sky-400'
@@ -320,74 +362,24 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
             </div>
           )}
 
-          {activeTab === 'users' && isPlatformAdmin && (
-            <div className="max-w-3xl mx-auto flex flex-col h-full">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4">User Directory</h3>
-              {usersLoading ? (
-                <div className="flex items-center justify-center h-40">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
-                </div>
-              ) : (
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex-1 flex flex-col">
-                  <div className="overflow-y-auto max-h-[400px]">
-                    <table className="w-full text-left text-sm whitespace-nowrap">
-                      <thead className="bg-slate-50 dark:bg-slate-950/50 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
-                        <tr>
-                          <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">User</th>
-                          <th className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300 text-center w-32">Platform Admin</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                        {users?.map(user => {
-                          const isSelf = user.id === session?.user?.id;
-                          return (
-                          <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                            <td className="px-4 py-3">
-                              {user.name ? (
-                                <div className="flex flex-col">
-                                  <div className="text-slate-700 dark:text-slate-300 font-medium">
-                                    {user.name} {isSelf && <span className="ml-2 text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full">You</span>}
-                                  </div>
-                                  <div className="text-xs text-slate-500">{user.email}</div>
-                                </div>
-                              ) : (
-                                <div className="text-slate-700 dark:text-slate-300">
-                                  {user.email} {isSelf && <span className="ml-2 text-xs bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-2 py-0.5 rounded-full">You</span>}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button 
-                                type="button"
-                                onClick={() => toggleAdmin.mutate({ userId: user.id, isAdmin: !user.is_platform_admin })}
-                                disabled={toggleAdmin.isPending || isSelf}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 ${
-                                  user.is_platform_admin ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
-                                }`}
-                              >
-                                <span 
-                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
-                                    user.is_platform_admin ? 'translate-x-6' : 'translate-x-1'
-                                  }`} 
-                                />
-                              </button>
-                            </td>
-                          </tr>
-                        )})}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
+          {activeTab === 'users' && canAccessUsers && (
+            <GlobalUserManagementTab 
+              users={users || []} 
+              usersLoading={usersLoading} 
+              projects={projects || []}
+              sessionUserId={session?.user?.id || ''}
+              setIsDirty={setIsDirty}
+              isDirty={isDirty}
+              isPlatformAdmin={!!isPlatformAdmin}
+            />
           )}
 
-          {activeTab === 'users' && !isPlatformAdmin && (
+          {activeTab === 'users' && !canAccessUsers && (
              <div className="flex flex-col items-center justify-center h-full text-center max-w-sm mx-auto">
                 <AlertCircle size={32} className="text-rose-500 mb-4 mt-12" />
                 <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Access Denied</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  You must be a Platform Admin to view the Global User Directory.
+                  You must be a Platform Admin or GC Admin to view the Global User Directory.
                 </p>
              </div>
           )}
@@ -825,6 +817,341 @@ function CsiMappingTab({ costCodes }: { costCodes: CostCode[] }) {
               <ChevronRight size={16} />
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Global User Management Tab (Phase 6) ───────────────────────────────────────
+
+function GlobalUserManagementTab({ 
+  users, 
+  usersLoading, 
+  projects, 
+  sessionUserId,
+  setIsDirty,
+  isDirty,
+  isPlatformAdmin
+}: { 
+  users: SystemUser[], 
+  usersLoading: boolean, 
+  projects: Project[], 
+  sessionUserId: string,
+  setIsDirty: (val: boolean) => void,
+  isDirty: boolean,
+  isPlatformAdmin: boolean
+}) {
+  const visibleProjects = React.useMemo(() => {
+    return isPlatformAdmin ? projects : projects.filter(p => !p.is_archived);
+  }, [projects, isPlatformAdmin]);
+  const [activeUserId, setActiveUserId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const { data: dbMembers = [], isLoading: membersLoading } = useUserProjectMembers(activeUserId);
+  const bulkUpdateMutation = useBulkUpdateUserProjects();
+  const toggleAdmin = useTogglePlatformAdmin();
+
+  // Local delta tracker for batch saves
+  const [localDelta, setLocalDelta] = useState<Record<string, { role: string; action: 'UPSERT' | 'DELETE' }>>({});
+
+  const activeUser = users.find(u => u.id === activeUserId);
+  const isSelf = activeUser?.id === sessionUserId;
+
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery) return users;
+    const q = searchQuery.toLowerCase();
+    return users.filter(u => 
+      u.email.toLowerCase().includes(q) || 
+      (u.name && u.name.toLowerCase().includes(q))
+    );
+  }, [users, searchQuery]);
+
+  const handleSelectUser = (userId: string) => {
+    if (isDirty) {
+      if (!window.confirm('You have unsaved changes. Discard them?')) return;
+    }
+    setActiveUserId(userId);
+    setLocalDelta({});
+    setIsDirty(false);
+  };
+
+  const handleSave = () => {
+    if (!activeUserId) return;
+    
+    const payload = Object.entries(localDelta).map(([project_id, data]) => ({
+      project_id,
+      role: data.role,
+      action: data.action
+    }));
+
+    bulkUpdateMutation.mutate({ userId: activeUserId, payload }, {
+      onSuccess: () => {
+        setLocalDelta({});
+        setIsDirty(false);
+      }
+    });
+  };
+
+  const handleDiscard = () => {
+    setLocalDelta({});
+    setIsDirty(false);
+  };
+
+  const updateDelta = (projectId: string, isAssigned: boolean, role: string) => {
+    // If we're modifying our own profile, prevent it
+    if (isSelf) return;
+
+    setLocalDelta(prev => {
+      const next = { ...prev };
+      
+      const dbMatch = dbMembers.find(m => m.project_id === projectId);
+      
+      if (!isAssigned) {
+        if (dbMatch) {
+          next[projectId] = { role, action: 'DELETE' };
+        } else {
+          delete next[projectId];
+        }
+      } else {
+        if (dbMatch && dbMatch.role === role) {
+          delete next[projectId]; // Reverted back to DB state
+        } else {
+          next[projectId] = { role, action: 'UPSERT' };
+        }
+      }
+
+      setIsDirty(Object.keys(next).length > 0);
+      return next;
+    });
+  };
+
+  const getInitials = (name?: string | null, email?: string) => {
+    if (name) {
+      return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    }
+    return email?.substring(0, 2).toUpperCase() || 'U';
+  };
+
+  return (
+    <div className="@container flex flex-col h-full bg-slate-50 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
+      <div className="flex h-full min-h-0">
+        
+        {/* Left Pane: Team Directory */}
+        <div className="w-1/3 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-slate-950">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3">Team Directory</h3>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100 transition-shadow"
+              />
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto">
+            {usersLoading ? (
+              <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-sky-500"></div></div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="p-4 text-center text-sm text-slate-500">No users found.</div>
+            ) : (
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                {filteredUsers.map(user => {
+                  const isSelected = activeUserId === user.id;
+                  const selfBadge = user.id === sessionUserId;
+                  return (
+                    <li key={user.id}>
+                      <button
+                        onClick={() => handleSelectUser(user.id)}
+                        className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
+                          isSelected 
+                            ? 'bg-sky-50 dark:bg-sky-900/20 border-l-2 border-sky-500' 
+                            : 'border-l-2 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          user.is_platform_admin 
+                            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' 
+                            : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                        }`}>
+                          {getInitials(user.name, user.email)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
+                              {user.name || user.email.split('@')[0]}
+                            </span>
+                            {selfBadge && <span className="text-[10px] uppercase font-bold bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-1.5 py-0.5 rounded-full shrink-0">You</span>}
+                          </div>
+                          <span className="text-xs text-slate-500 truncate block">{user.email}</span>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* Right Pane: Configuration */}
+        <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900">
+          {!activeUser ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+              <Users className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-4" />
+              <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 mb-2">Select a User</h3>
+              <p className="text-sm text-slate-500 max-w-sm">
+                Choose a user from the directory to manage their platform-wide project access and administrative privileges.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Profile Header */}
+              <div className="p-6 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      {activeUser.name || 'Unnamed User'}
+                    </h2>
+                    <p className="text-sm text-slate-500 mt-1">{activeUser.email}</p>
+                  </div>
+                  
+                  {/* Global Platform Admin Toggle */}
+                  <div className="flex flex-col items-end">
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">
+                      Platform Admin Status
+                    </label>
+                    <button 
+                      type="button"
+                      onClick={() => toggleAdmin.mutate({ userId: activeUser.id, isAdmin: !activeUser.is_platform_admin })}
+                      disabled={toggleAdmin.isPending || isSelf}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 ${
+                        activeUser.is_platform_admin ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
+                        activeUser.is_platform_admin ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </button>
+                  </div>
+                </div>
+
+                {isSelf && (
+                  <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400 rounded-lg text-sm flex items-start gap-2 border border-amber-200 dark:border-amber-900/50">
+                    <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                    <p><strong>Self-Modification Locked:</strong> You cannot modify your own project assignments to prevent accidental lockouts.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Assignments Matrix */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4 uppercase tracking-wider">Project Assignments</h3>
+                
+                {membersLoading ? (
+                  <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div></div>
+                ) : visibleProjects.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-slate-500">No projects found.</div>
+                ) : (
+                  <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/50">
+                    {visibleProjects.map(project => {
+                      const dbMatch = dbMembers.find(m => m.project_id === project.id);
+                      const deltaMatch = localDelta[project.id];
+                      
+                      const isAssigned = deltaMatch ? deltaMatch.action === 'UPSERT' : !!dbMatch;
+                      const currentRole = deltaMatch?.role || dbMatch?.role || 'viewer';
+
+                      return (
+                        <div key={project.id} className={`flex items-center justify-between p-4 transition-colors ${isAssigned ? 'bg-sky-50/30 dark:bg-sky-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-900/50'}`}>
+                          <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
+                            <button
+                              type="button"
+                              onClick={() => updateDelta(project.id, !isAssigned, currentRole)}
+                              disabled={isSelf || bulkUpdateMutation.isPending}
+                              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 ${
+                                isAssigned ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
+                              }`}
+                            >
+                              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
+                                isAssigned ? 'translate-x-5' : 'translate-x-1'
+                              }`} />
+                            </button>
+                            <div className="flex flex-col min-w-0">
+                              <span className={`text-sm font-semibold truncate transition-colors ${isAssigned ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400'}`}>
+                                {project.name}
+                              </span>
+                              {project.project_number && (
+                                <span className="text-xs text-slate-500 truncate">{project.project_number}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="w-40 shrink-0">
+                            {isAssigned && (
+                              <select
+                                value={currentRole}
+                                disabled={isSelf || bulkUpdateMutation.isPending}
+                                onChange={(e) => updateDelta(project.id, true, e.target.value)}
+                                className={`w-full text-xs border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors disabled:opacity-50 appearance-none ${
+                                  currentRole === 'owner' ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/20 dark:border-rose-900 dark:text-rose-400' :
+                                  currentRole === 'gc_admin' ? 'bg-sky-50 border-sky-200 text-sky-700 dark:bg-sky-900/20 dark:border-sky-900 dark:text-sky-400' :
+                                  currentRole === 'design_team' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-900 dark:text-indigo-400' :
+                                  'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-900 dark:text-emerald-400'
+                                }`}
+                              >
+                                <option value="owner">Owner (Admin)</option>
+                                <option value="gc_admin">GC Admin</option>
+                                <option value="design_team">Design Team</option>
+                                <option value="viewer">Viewer</option>
+                              </select>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Action Footer */}
+              <div className="p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 shrink-0 flex items-center justify-between">
+                <div className="text-sm font-medium text-slate-500">
+                  {isDirty ? (
+                    <span className="text-amber-600 dark:text-amber-500 flex items-center gap-1.5">
+                      <Circle size={14} className="fill-current" /> Unsaved changes
+                    </span>
+                  ) : 'All assignments saved'}
+                </div>
+                <div className="flex items-center gap-3">
+                  {isDirty && (
+                    <button
+                      onClick={handleDiscard}
+                      disabled={bulkUpdateMutation.isPending}
+                      className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
+                    >
+                      Discard
+                    </button>
+                  )}
+                  <button
+                    onClick={handleSave}
+                    disabled={!isDirty || bulkUpdateMutation.isPending}
+                    className="flex items-center gap-2 px-6 py-2 bg-sky-500 text-white text-sm font-bold rounded-lg hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    {bulkUpdateMutation.isPending ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                    ) : (
+                      <Save size={16} />
+                    )}
+                    Save Assignments
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

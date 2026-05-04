@@ -245,3 +245,51 @@ export function useCsiTrainingSuggestions(normalizedCodes: string[]) {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+// ── Phase 6: Global User Management ──────────────────────────────────────────
+
+export function useUserProjectMembers(userId: string | null) {
+  return useQuery<{ project_id: string; role: string }[], Error>({
+    queryKey: ['project_members', 'user', userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } = await supabase
+        .from('project_members')
+        .select('project_id, role')
+        .eq('user_id', userId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userId,
+  });
+}
+
+export function useBulkUpdateUserProjects() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    { userId: string; payload: { project_id: string; role: string; action: 'UPSERT' | 'DELETE' }[] }
+  >({
+    mutationFn: async ({ userId, payload }) => {
+      // Guardrail 20 & 11: Chunking & Null Safety
+      const CHUNK_SIZE = 100;
+      const chunks = [];
+      for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+        chunks.push(payload.slice(i, i + CHUNK_SIZE));
+      }
+      await Promise.all(
+        chunks.map((chunk) =>
+          supabase.rpc('bulk_update_user_projects', {
+            p_user_id: userId || null,
+            p_assignments: chunk || null,
+          })
+        )
+      );
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['project_members', 'user', variables.userId] });
+      queryClient.invalidateQueries({ queryKey: ['project_members'] }); // Also invalidate any specific project member queries
+    },
+  });
+}

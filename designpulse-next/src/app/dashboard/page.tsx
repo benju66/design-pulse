@@ -1,9 +1,11 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Building2, Plus, ArrowRight, Settings, X } from 'lucide-react';
 import { useProjects } from '@/hooks/useProjectQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
+import { useUserProjectMembers } from '@/hooks/useGlobalQueries';
+import { useAuth } from '@/providers/AuthProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import GlobalSettingsModal from '@/components/dashboard/GlobalSettingsModal';
 import CreateProjectModal from '@/components/dashboard/CreateProjectModal';
@@ -12,9 +14,22 @@ import UserAccountDropdown from '@/components/layout/UserAccountDropdown';
 export default function DashboardPage() {
   const { data: projects = [], isLoading } = useProjects();
   const { data: isSuperAdmin, isLoading: isAuthLoading } = useIsPlatformAdmin();
+  const { session } = useAuth();
+  const { data: myMemberships = [], isLoading: isMembershipsLoading } = useUserProjectMembers(session?.user?.id || null);
+  
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [procoreLinkData, setProcoreLinkData] = useState<{ projectId: string, companyId: string } | null>(null);
+
+  const isGcAdminAnywhere = myMemberships.some(m => m.role === 'gc_admin');
+  const canAccessSettings = isSuperAdmin || isGcAdminAnywhere;
+  const isGlobalAuthLoading = isAuthLoading || isMembershipsLoading;
+
+  const visibleProjects = useMemo(() => {
+    if (isSuperAdmin) return projects.filter(p => !p.is_archived);
+    const assignedProjectIds = new Set(myMemberships.map(m => m.project_id));
+    return projects.filter(p => !p.is_archived && assignedProjectIds.has(p.id));
+  }, [projects, isSuperAdmin, myMemberships]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -45,31 +60,35 @@ export default function DashboardPage() {
             <UserAccountDropdown isCollapsed={false} />
           </div>
 
-          {isAuthLoading ? (
+          {isGlobalAuthLoading ? (
             <>
               <div className="w-[150px] h-10 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse"></div>
               <div className="w-[180px] h-10 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse"></div>
             </>
-          ) : isSuperAdmin ? (
+          ) : (
             <>
-              <button
-                onClick={() => setIsSettingsOpen(true)}
-                className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 h-10 rounded-xl font-bold transition-colors shadow-sm"
-                title="Global Settings & Master Data"
-              >
-                <Settings size={20} />
-                <span className="hidden sm:inline">Global Settings</span>
-              </button>
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 h-10 rounded-xl font-bold transition-colors shadow-sm"
-              >
-                <Plus size={20} />
-                <span className="hidden sm:inline">New Project</span>
-                <span className="sm:hidden">New</span>
-              </button>
+              {canAccessSettings && (
+                <button
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 h-10 rounded-xl font-bold transition-colors shadow-sm"
+                  title="Global Settings & Master Data"
+                >
+                  <Settings size={20} />
+                  <span className="hidden sm:inline">Global Settings</span>
+                </button>
+              )}
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 h-10 rounded-xl font-bold transition-colors shadow-sm"
+                >
+                  <Plus size={20} />
+                  <span className="hidden sm:inline">New Project</span>
+                  <span className="sm:hidden">New</span>
+                </button>
+              )}
             </>
-          ) : null}
+          )}
         </div>
       </div>
       
@@ -104,7 +123,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
-          {projects.filter(p => !p.is_archived).map(project => (
+          {visibleProjects.map(project => (
             <Link key={project.id} href={`/project/${project.id}`}>
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 hover:shadow-lg hover:border-sky-300 dark:hover:border-sky-700 transition-all group cursor-pointer h-full flex flex-col">
                 <div className="flex items-start justify-between mb-6">
@@ -129,7 +148,7 @@ export default function DashboardPage() {
           ))}
           
           {/* Empty State Fallback */}
-          {projects.filter(p => !p.is_archived).length === 0 && (
+          {visibleProjects.length === 0 && (
             <div className="col-span-full py-16 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
               <Building2 size={48} className="text-slate-300 dark:text-slate-600 mb-4" />
               <p className="text-slate-500 dark:text-slate-400 mb-4 text-lg">No projects found.</p>

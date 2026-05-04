@@ -31,7 +31,7 @@ export function useActivityFeed(opportunityId: string | null) {
 
     return () => {
       // Clean up to prevent memory leaks (AGENTS.md Rule 24/11)
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, [opportunityId, queryClient]);
 

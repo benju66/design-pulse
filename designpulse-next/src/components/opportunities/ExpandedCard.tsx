@@ -9,6 +9,7 @@ import { List, Paperclip, MessageSquare, Settings, ChevronDown } from 'lucide-re
 import { ALL_PRIMARY_FIELDS, ADVANCED_FIELD_IDS } from '@/lib/constants';
 
 import { ContendersMatrix } from './ContendersMatrix';
+import { ActivityFeed } from './ActivityFeed';
 import { SortableFieldCard } from './SortableFieldCard';
 import { AssigneeSelect } from './AssigneeSelect';
 import { Row } from '@tanstack/react-table';
@@ -318,23 +319,8 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
         )}
 
         {activeTab === 'Activity' && (
-          <div className="flex flex-col space-y-4">
-            <div className="space-y-4 pl-4 border-l-2 border-slate-200 dark:border-slate-700 pb-4 mt-2">
-              <div className="relative pl-6">
-                <div className="absolute -left-[23px] top-1 h-3 w-3 rounded-full bg-slate-300 dark:bg-slate-600 ring-4 ring-slate-50 dark:ring-slate-900/50" />
-                <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-semibold text-slate-800 dark:text-white">System</span> created this option.</p>
-                <span className="text-xs text-slate-400">Just now</span>
-              </div>
-              <div className="relative pl-6">
-                <div className="absolute -left-[23px] top-1 h-3 w-3 rounded-full bg-sky-400 ring-4 ring-slate-50 dark:ring-slate-900/50" />
-                <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-semibold text-slate-800 dark:text-white">You</span> updated <span className="font-mono text-xs bg-slate-200 dark:bg-slate-700 px-1 rounded">status</span> from Draft to Pending Review.</p>
-                <span className="text-xs text-slate-400">2 mins ago</span>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <input type="text" placeholder="Write a comment..." className="flex-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none" />
-              <button className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold rounded-lg transition-colors">Send</button>
-            </div>
+          <div className="h-[400px]">
+            <ActivityFeed opportunityId={row.original.id} projectId={projectId} />
           </div>
         )}
       </div>

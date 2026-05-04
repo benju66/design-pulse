@@ -1,6 +1,7 @@
 "use client";
-import { useState, useEffect } from 'react';
-import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags, Users, TableProperties } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags, Users, TableProperties, AlertTriangle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useProjects, useUpdateProjectCore, useProjectSettings, useUpdateProjectSettings, useProjectMembers, useAddProjectMember, useUpdateProjectMemberRole, useRemoveProjectMember } from '@/hooks/useProjectQueries';
 import { useSystemUsers } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
@@ -35,6 +36,17 @@ const DEFAULT_VE_COLUMNS = [
   { id: 'priority', label: 'Priority' },
   { id: 'assignee', label: 'Assignee' },
   { id: 'due_date', label: 'Due Date' },
+];
+
+const DEFAULT_COORD_COLUMNS = [
+  { id: 'display_id', label: 'ID' },
+  { id: 'record_type', label: 'Record Type' },
+  { id: 'title', label: 'Title' },
+  { id: 'final_direction', label: 'Direction' },
+  { id: 'priority', label: 'Priority' },
+  { id: 'status', label: 'Status' },
+  { id: 'due_date', label: 'Due Date' },
+  { id: 'discipline_status', label: 'Disciplines' }
 ];
 
 const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps) => {
@@ -98,7 +110,8 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   const [buildingAreas, setBuildingAreas] = useState<string[]>([]);
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [disciplines, setDisciplines] = useState<DisciplineConfig[]>([]);
-  const [veColumns, setVeColumns] = useState<{id: string, label: string}[]>([]);
+  const [veColumns, setVeColumns] = useState<{id: string, label: string, visible?: boolean}[]>([]);
+  const [coordColumns, setCoordColumns] = useState<{id: string, label: string, visible?: boolean}[]>([]);
   const [permitTypes, setPermitTypes] = useState<PermitTypeConfig[]>([]);
   const [permitAHJs, setPermitAHJs] = useState<PermitAHJConfig[]>([]);
   
@@ -120,7 +133,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   const [newPermitAHJ, setNewPermitAHJ] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
-  useEffect(() => {
+  const resetSettings = useCallback(() => {
     if (settings) {
       setCategories((settings.categories as string[]) || []);
       setBuildingAreas((settings.building_areas as string[]) || []);
@@ -145,17 +158,46 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
       
       const savedOrder = settings.ve_column_order || [];
       if (savedOrder.length > 0) {
+        const isLegacy = typeof savedOrder[0] === 'string';
+        const orderIds = isLegacy ? savedOrder : savedOrder.map((c: any) => c.id);
+        const visibilityMap = isLegacy ? {} : savedOrder.reduce((acc: any, c: any) => ({ ...acc, [c.id]: c.visible !== false }), {});
+        
         const sorted = [...DEFAULT_VE_COLUMNS].sort((a, b) => {
-          const indexA = savedOrder.indexOf(a.id);
-          const indexB = savedOrder.indexOf(b.id);
+          const indexA = orderIds.indexOf(a.id);
+          const indexB = orderIds.indexOf(b.id);
           if (indexA === -1 && indexB === -1) return 0;
           if (indexA === -1) return 1;
           if (indexB === -1) return -1;
           return indexA - indexB;
-        });
+        }).map(c => ({
+          ...c,
+          visible: visibilityMap[c.id] ?? true
+        }));
         setVeColumns(sorted);
       } else {
-        setVeColumns(DEFAULT_VE_COLUMNS);
+        setVeColumns(DEFAULT_VE_COLUMNS.map(c => ({ ...c, visible: true })));
+      }
+      
+      const savedCoordOrder = settings.coord_column_order || [];
+      if (savedCoordOrder.length > 0) {
+        const isLegacy = typeof savedCoordOrder[0] === 'string';
+        const orderIds = isLegacy ? savedCoordOrder : savedCoordOrder.map((c: any) => c.id);
+        const visibilityMap = isLegacy ? {} : savedCoordOrder.reduce((acc: any, c: any) => ({ ...acc, [c.id]: c.visible !== false }), {});
+        
+        const sortedCoord = [...DEFAULT_COORD_COLUMNS].sort((a, b) => {
+          const indexA = orderIds.indexOf(a.id);
+          const indexB = orderIds.indexOf(b.id);
+          if (indexA === -1 && indexB === -1) return 0;
+          if (indexA === -1) return 1;
+          if (indexB === -1) return -1;
+          return indexA - indexB;
+        }).map(c => ({
+          ...c,
+          visible: visibilityMap[c.id] ?? true
+        }));
+        setCoordColumns(sortedCoord);
+      } else {
+        setCoordColumns(DEFAULT_COORD_COLUMNS.map(c => ({ ...c, visible: true })));
       }
       
       setProjectInfo({
@@ -172,6 +214,10 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
       setHasChanges(false);
     }
   }, [settings, currentProject, projectId]);
+
+  useEffect(() => {
+    resetSettings();
+  }, [resetSettings]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -288,9 +334,33 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
     }
   };
 
+  const handleDragEndCoordColumns = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = coordColumns.findIndex(c => c.id === active.id);
+      const newIndex = coordColumns.findIndex(c => c.id === over.id);
+      setCoordColumns(arrayMove(coordColumns, oldIndex, newIndex));
+      setHasChanges(true);
+    }
+  };
+
   const toggleSidebarItem = (id: string) => {
     setSidebarItems(items => items.map(item => 
       item.id === id ? { ...item, visible: !item.visible } : item
+    ));
+    setHasChanges(true);
+  };
+
+  const toggleVeColumn = (id: string) => {
+    setVeColumns(cols => cols.map(col => 
+      col.id === id ? { ...col, visible: !col.visible } : col
+    ));
+    setHasChanges(true);
+  };
+
+  const toggleCoordColumn = (id: string) => {
+    setCoordColumns(cols => cols.map(col => 
+      col.id === id ? { ...col, visible: !col.visible } : col
     ));
     setHasChanges(true);
   };
@@ -316,7 +386,8 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         location: projectInfo.location,
         original_budget: Number(projectInfo.original_budget),
         enable_audit_logging: Boolean(projectInfo.enable_audit_logging),
-        ve_column_order: veColumns.map(c => c.id),
+        ve_column_order: veColumns.map(c => ({ id: c.id, visible: c.visible ?? true })),
+        coord_column_order: coordColumns.map(c => ({ id: c.id, visible: c.visible ?? true })),
         permit_types: permitTypes as any,
         permit_ahjs: permitAHJs as any
       },
@@ -326,145 +397,158 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
 
   if (settingsLoading || teamLoading || adminLoading) {
     return (
-      <div className="p-8 max-w-4xl mx-auto w-full h-full overflow-y-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <div className="h-8 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse mb-2"></div>
-            <div className="h-4 w-96 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>
-          </div>
-          <div className="h-10 w-36 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse"></div>
+      <div className="flex w-full h-full bg-white dark:bg-slate-900 overflow-hidden">
+        <div className="w-64 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-6">
+           <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mb-6"></div>
+           <div className="space-y-3">
+             {[...Array(6)].map((_, i) => <div key={i} className="h-8 w-full bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div>)}
+           </div>
         </div>
-        <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-800 pb-px">
-          {[...Array(5)].map((_, i) => (
-             <div key={i} className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-t-lg animate-pulse"></div>
-          ))}
+        <div className="flex-1 p-8">
+           <div className="max-w-4xl mx-auto">
+             <div className="h-8 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse mb-8"></div>
+             <div className="h-96 w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl animate-pulse"></div>
+           </div>
         </div>
-        <div className="h-96 w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl animate-pulse"></div>
       </div>
     );
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto w-full h-full overflow-y-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Project Settings</h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Configure global preferences for {projectId}</p>
+    <div className="flex w-full h-full bg-white dark:bg-slate-900 overflow-hidden relative">
+      {/* Left Sidebar Navigation */}
+      <div className="w-64 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex flex-col h-full overflow-y-auto custom-scrollbar">
+        <div className="p-4 space-y-6">
+          
+          {/* General Group */}
+          <div>
+            <h4 className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">General</h4>
+            <nav className="space-y-1">
+              <button
+                onClick={() => setActiveTab('info')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'info' 
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <Info size={16} className={activeTab === 'info' ? 'text-sky-500' : 'text-slate-400'} /> Project Info
+              </button>
+              {canManageTeam && (
+                <button
+                  onClick={() => setActiveTab('team')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                    activeTab === 'team' 
+                      ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                      : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                  }`}
+                >
+                  <Users size={16} className={activeTab === 'team' ? 'text-sky-500' : 'text-slate-400'} /> Team Members
+                </button>
+              )}
+            </nav>
+          </div>
+          
+          {/* Data & Classifications Group */}
+          <div>
+            <h4 className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Data & Classifications</h4>
+            <nav className="space-y-1">
+              <button
+                onClick={() => setActiveTab('building_areas')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'building_areas' 
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <Map size={16} className={activeTab === 'building_areas' ? 'text-sky-500' : 'text-slate-400'} /> Building Areas
+              </button>
+              <button
+                onClick={() => setActiveTab('categories')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'categories' 
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <Layers size={16} className={activeTab === 'categories' ? 'text-sky-500' : 'text-slate-400'} /> Categories
+              </button>
+              <button
+                onClick={() => setActiveTab('disciplines')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'disciplines' 
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <Tags size={16} className={activeTab === 'disciplines' ? 'text-sky-500' : 'text-slate-400'} /> Disciplines
+              </button>
+              <button
+                onClick={() => setActiveTab('csi_specs')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'csi_specs' 
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <LucideIcons.BookOpen size={16} className={activeTab === 'csi_specs' ? 'text-sky-500' : 'text-slate-400'} /> CSI & Specs
+              </button>
+            </nav>
+          </div>
+          
+          {/* Views & Config Group */}
+          <div>
+            <h4 className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Views & Config</h4>
+            <nav className="space-y-1">
+              <button
+                onClick={() => setActiveTab('sidebar')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'sidebar' 
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <LayoutDashboard size={16} className={activeTab === 'sidebar' ? 'text-sky-500' : 'text-slate-400'} /> Sidebar Menu
+              </button>
+              <button
+                onClick={() => setActiveTab('ve_matrix')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 've_matrix' 
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <TableProperties size={16} className={activeTab === 've_matrix' ? 'text-sky-500' : 'text-slate-400'} /> VE Matrix
+              </button>
+              <button
+                onClick={() => setActiveTab('coord_matrix')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'coord_matrix' 
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <TableProperties size={16} className={activeTab === 'coord_matrix' ? 'text-sky-500' : 'text-slate-400'} /> Coordination Tracker
+              </button>
+              <button
+                onClick={() => setActiveTab('permits')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'permits' 
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <LucideIcons.FileCheck2 size={16} className={activeTab === 'permits' ? 'text-sky-500' : 'text-slate-400'} /> Permits
+              </button>
+            </nav>
+          </div>
+          
         </div>
-        <button 
-          onClick={handleSave}
-          disabled={!hasChanges || updateSettings.isPending}
-          className="bg-sky-500 hover:bg-sky-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {updateSettings.isPending ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
-          {updateSettings.isPending ? 'Saving...' : 'Save Changes'}
-        </button>
       </div>
 
-      <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-800">
-        <button 
-          onClick={() => setActiveTab('info')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'info' 
-              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <Info size={18} />
-          Project Info
-        </button>
-        <button 
-          onClick={() => setActiveTab('building_areas')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'building_areas' 
-              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <Map size={18} />
-          Project Building Areas
-        </button>
-        <button 
-          onClick={() => setActiveTab('categories')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'categories' 
-              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <Layers size={18} />
-          Opportunity Categories
-        </button>
-        <button 
-          onClick={() => setActiveTab('sidebar')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'sidebar' 
-              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <LayoutDashboard size={18} />
-          Sidebar Menu
-        </button>
-        <button 
-          onClick={() => setActiveTab('disciplines')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'disciplines' 
-              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <Tags size={18} />
-          Coordination Disciplines
-        </button>
-        <button 
-          onClick={() => setActiveTab('ve_matrix')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 've_matrix' 
-              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <TableProperties size={18} />
-          VE Matrix
-        </button>
-        <button 
-          onClick={() => setActiveTab('permits')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'permits' 
-              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <LucideIcons.FileCheck2 size={18} />
-          Permits
-        </button>
-        <button 
-          onClick={() => setActiveTab('csi_specs')}
-          className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-            activeTab === 'csi_specs' 
-              ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <LucideIcons.BookOpen size={18} />
-          CSI & Specs
-        </button>
-        {canManageTeam && (
-          <button 
-            onClick={() => setActiveTab('team')}
-            className={`flex items-center gap-2 px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${
-              activeTab === 'team' 
-                ? 'border-sky-500 text-sky-600 dark:text-sky-400' 
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            <Users size={18} />
-            Team Members
-          </button>
-        )}
-      </div>
-      
+      {/* Main Content Pane */}
+      <div className="flex-1 overflow-y-auto p-8 relative custom-scrollbar">
+        <div className="max-w-4xl mx-auto pb-32">
       {activeTab === 'info' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in space-y-6">
           <div>
@@ -803,6 +887,59 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                     key={col.id} 
                     id={col.id} 
                     content={col.label}
+                    renderExtra={() => (
+                      <button
+                        onClick={() => toggleVeColumn(col.id)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
+                          col.visible ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                        title={col.visible ? 'Hide column by default' : 'Show column by default'}
+                      >
+                        <span 
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
+                            col.visible ? 'translate-x-6' : 'translate-x-1'
+                          }`} 
+                        />
+                      </button>
+                    )}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </div>
+      )}
+
+      {activeTab === 'coord_matrix' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Tracker Configuration</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            Set the default column order for the Coordination Tracker. Drag items to rearrange them or toggle their visibility.
+          </p>
+
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndCoordColumns}>
+            <SortableContext items={coordColumns.map(c => c.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2 mb-6">
+                {coordColumns.map((col) => (
+                  <SortableItem 
+                    key={col.id} 
+                    id={col.id} 
+                    content={col.label}
+                    renderExtra={() => (
+                      <button
+                        onClick={() => toggleCoordColumn(col.id)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
+                          col.visible ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
+                        }`}
+                        title={col.visible ? 'Hide column by default' : 'Show column by default'}
+                      >
+                        <span 
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
+                            col.visible ? 'translate-x-6' : 'translate-x-1'
+                          }`} 
+                        />
+                      </button>
+                    )}
                   />
                 ))}
               </div>
@@ -1024,6 +1161,44 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
           </div>
         </div>
       )}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {hasChanges && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 dark:bg-slate-800 border border-slate-700 shadow-2xl rounded-2xl px-6 py-4 flex items-center gap-6 z-[100]"
+          >
+            <div className="flex items-center gap-3 text-white">
+               <AlertTriangle size={20} className="text-amber-500" />
+               <div className="flex flex-col">
+                 <span className="text-sm font-bold">Unsaved changes</span>
+                 <span className="text-xs text-slate-400">Please save or discard to continue.</span>
+               </div>
+            </div>
+            <div className="flex items-center gap-3 ml-4">
+              <button 
+                onClick={resetSettings}
+                disabled={updateSettings.isPending}
+                className="px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 rounded-xl transition-colors disabled:opacity-50"
+              >
+                Discard
+              </button>
+              <button 
+                onClick={handleSave}
+                disabled={updateSettings.isPending}
+                className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                {updateSettings.isPending ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                {updateSettings.isPending ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

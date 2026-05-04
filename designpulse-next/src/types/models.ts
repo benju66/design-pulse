@@ -39,7 +39,8 @@ export interface PermitRevision {
 
 export type ProjectSettings = Database['public']['Tables']['project_settings']['Row'] & {
   disciplines?: DisciplineConfig[];
-  ve_column_order?: string[];
+  ve_column_order?: any[]; // Supports legacy string[] or new {id, visible}[] format
+  coord_column_order?: any[]; // New column for Coordination Tracker
   permit_types?: PermitTypeConfig[];
   permit_ahjs?: PermitAHJConfig[];
 };
@@ -112,4 +113,21 @@ export interface RemapCsiEntryParams {
   newCostCode: string;
   description: string | null;
   rawCsiNumber: string | null;
+}
+
+// Activity & Audit Log
+export interface ItemActivity {
+  id: string;
+  project_id: string;
+  opportunity_id: string;
+  option_id: string | null;
+  activity_type: 'system_log' | 'user_comment';
+  content: string;
+  mentions: string[]; // UUIDs
+  author_id: string | null;
+  include_in_oac: boolean;
+  is_edited: boolean;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
 }

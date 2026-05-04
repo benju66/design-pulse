@@ -26,13 +26,14 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 * **Tri-State Master-Detail View:** The main UI (`OpportunityGrid`) supports three modes: `flat` (dense table), `split` (DetailPanel slides in), and `pop-out` (isolated browser window).
 * **Compare Tray:** Users can check multiple rows in the mega-table to open an e-commerce style side-by-side comparison modal.
 * **Project Sidebar:** A collapsible left navigation bar controlling views (Dashboard, Map, Analytics, Coordination, Settings).
+* **Project Settings (Master-Detail):** Vertical sidebar configuration layout with a floating, global save/discard state bar (`AnimatePresence`) to manage heavy configurations.
 
 ## 5. Database Schema (Supabase PostgreSQL)
 * **SOURCE OF TRUTH:** You MUST read the `supabase_schema.sql` file in the root directory to understand the exact column names and types before writing any Supabase client queries or mutations.
 * `platform_admins`: Global super-user directory protected by strict RLS preventing privilege escalation.
 * `project_members`: Project-level relational table defining RBAC roles (`owner`, `gc_admin`, `design_team`, `viewer`).
 * `projects`: Master project records.
-* `project_settings`: JSONB configurations for dynamic `building_areas`, `categories`, `sidebar_items`, and `disciplines` (Array of objects: `[{id: "...", label: "..."}]`).
+* `project_settings`: JSONB configurations for dynamic `building_areas`, `categories`, `sidebar_items`, `disciplines`, and `ve_column_order` (Array of objects: `[{id: "...", label: "...", visible: true}]`).
 * `opportunities`: The parent VE log items. Contains `design_markups` JSONB and `coordination_details` JSONB.
 * `opportunity_options`: The relational contenders. Linked to `opportunities` via `opportunity_id` (Foreign Key, Cascade Delete).
 
@@ -43,6 +44,7 @@ When generating, refactoring, or modifying code, you MUST adhere to the followin
 
 ## A. TypeScript & Browser Compatibility (iOS Safety)
 * **CRITICAL:** Explicitly **FORBID** the use of JavaScript/TypeScript regex "negative lookbehinds" (e.g., `(?<!...)`). This causes fatal crashes on older iOS WebKit engines. You MUST use standard loop-based logic, string splitting, or manual parsing to achieve the intended result.
+* **Object-Based Mentions:** When implementing `@mentions` or rich-text tagging, avoid complex string parsing. Instead, insert the plain-text name into the UI textarea, but strictly store the underlying tagged user UUIDs in a dedicated JSONB array column (e.g., `mentions jsonb`).
 
 ## B. Backend Separation of Concerns
 * **Next.js API Routes (`/api/...`):** Strictly reserved for Authentication flows (e.g., Supabase native Email/Password Auth, Procore OAuth). Do NOT build general data CRUD endpoints here.
@@ -53,6 +55,7 @@ When generating, refactoring, or modifying code, you MUST adhere to the followin
 * **JSONB Type Casting & Safety in RPCs:** When iterating over JSONB objects in PL/pgSQL using `FOR k, v IN SELECT key, value FROM...`, strictly use `jsonb_each_text()` instead of `jsonb_each()` if you intend to compare the extracted values against standard SQL text/strings. Using `jsonb_each()` causes fatal `operator does not exist: text = jsonb` errors. Furthermore, ALWAYS wrap JSONB iteration loops in a type-safety check (e.g., `IF jsonb_typeof(COALESCE(column_name, '{}'::jsonb)) = 'object' THEN`) to prevent fatal transaction aborts if the frontend inadvertently saves a `NULL`, array `[]`, or scalar string to the column.
 * **Python FastAPI Backend:** Strictly dedicated to heavy processing tasks (PyMuPDF file conversions, vector extraction via Shapely). Do NOT use this for basic CRUD operations.
 * **Data Fetching:** Standard CRUD operations must be handled directly from the frontend using the `@supabase/supabase-js` client protected by RLS.
+* **Anti-Polymorphic Relationships:** Strictly avoid polymorphic relationships for core security or activity tables. Always use explicit, nullable Foreign Key columns (e.g., `opportunity_id`, `option_id`) to ensure RLS policies can cleanly traverse relationships and `ON DELETE CASCADE` triggers function correctly.
 
 ## C. Code Generation Instructions
 1.  **Strict TypeScript (No `any`):** The codebase strictly forbids the use of `any`. You must use `unknown` or exact interfaces for API payloads and TanStack generics. All TanStack data grids MUST utilize the globally declared `TableMeta` interface located in the types directory, rather than defining localized meta interfaces, to ensure strict type safety across all project modules. Furthermore, all Next.js App Router dynamic `params` must be typed and resolved as `Promises` (Next.js 15+ standard).
@@ -83,3 +86,4 @@ When generating, refactoring, or modifying code, you MUST adhere to the followin
 23. **Atomic Dropdown Mutations:** When implementing `<select>` dropdowns or instantly-resolvable input cells in a data grid, strictly execute the database mutation `onChange` rather than relying on `onBlur`. Because global grid state (like `activeCell`) can unmount the cell before a native browser `blur` event fires, relying on `onBlur` creates severe data-loss race conditions.
 24. **No Hooks Inside Virtualized Cell Components:** Never call data-fetching hooks (e.g., `useProjectSettings`, `useQuery`, `useProjectMembers`) directly inside a virtualized cell component. A virtualized table renders N visible rows simultaneously — each hook call inside a cell creates an independent subscriber registration. As the user scrolls, these registrations accumulate and are never cleaned up, causing progressive memory growth and eventual session slowdown. Instead, derive all shared data **once in the parent component** (e.g., `disciplines`, `buildingAreas`, `rawCostCodes`) and pass it into cells via `table.options.meta`. When a parent already provides the data via meta, downstream hooks must accept `null` as the query key to skip the fetch entirely (e.g., `useProjectSettings(metaHasData ? null : projectId)`).
 25. **Atomic Parent/Child Record Initialization:** Any `SECURITY DEFINER` RPC that creates a parent entity (e.g., `create_new_project`) MUST atomically initialize all required associated child records in the same transaction. Use `INSERT ... ON CONFLICT DO NOTHING` for idempotency, making the RPC safe to retry. Never assume that child records will be created lazily on first use — this creates a "silent hardcoded defaults" failure mode where the app appears to work but is actually ignoring user configuration. Example: `create_new_project` must immediately `INSERT INTO project_settings (project_id) VALUES (v_project.id) ON CONFLICT (project_id) DO NOTHING` before returning.
+26. **The Subscription Firehose:** When subscribing to Supabase Realtime channels for high-volume tables, you MUST explicitly define a server-side filter (e.g., `filter: 'opportunity_id=eq.' + id`) in the `postgres_changes` config. Never subscribe to an unfiltered table.

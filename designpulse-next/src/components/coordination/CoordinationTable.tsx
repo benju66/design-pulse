@@ -296,7 +296,7 @@ const EMPTY_VISIBILITY: any = {};
     }
   }, [selectedOpportunityId]);
 
-  const columns: ColumnDef<Opportunity, any>[] = [
+  const columns = useMemo<ColumnDef<Opportunity, any>[]>(() => [
     {
       id: 'select',
       header: () => null,
@@ -403,13 +403,42 @@ const EMPTY_VISIBILITY: any = {};
       size: 150,
       cell: DisciplineStatusCell,
     }
-  ];
+  ], []);
+
+  const activeColumns = useMemo(() => {
+    if (!settings?.coord_column_order || typeof settings.coord_column_order[0] === 'string') return columns;
+    const hiddenIds = settings.coord_column_order.filter((c: any) => c.visible === false).map((c: any) => c.id);
+    return columns.filter((c: any) => {
+      const id = c.accessorKey || c.id;
+      return !hiddenIds.includes(id);
+    });
+  }, [columns, settings?.coord_column_order]);
+
+  useEffect(() => {
+    if (settings?.coord_column_order && settings.coord_column_order.length > 0) {
+      const savedOrder = settings.coord_column_order;
+      const configuredIds = typeof savedOrder[0] === 'string' ? savedOrder : savedOrder.map((c: any) => c.id);
+      
+      const allColIds = activeColumns.map((c: any) => c.accessorKey || c.id).filter(Boolean);
+      
+      const pinnedFront = ['select', 'open_panel'].filter(id => allColIds.includes(id));
+      const unconfiguredIds = allColIds.filter(id => !configuredIds.includes(id as string) && !pinnedFront.includes(id as string));
+      const activeConfiguredIds = configuredIds.filter((id: string) => allColIds.includes(id));
+      
+      const newOrder = [...pinnedFront, ...activeConfiguredIds, ...unconfiguredIds] as string[];
+      
+      // Prevent infinite loop by only updating state if the order actually changed
+      if (JSON.stringify(coordColumnOrder) !== JSON.stringify(newOrder)) {
+        setCoordColumnOrder(newOrder);
+      }
+    }
+  }, [settings?.coord_column_order, activeColumns, setCoordColumnOrder, coordColumnOrder]);
 
   const moveActiveCellRef = useRef<any>(null);
 
   const table = useReactTable({
     data: opportunities,
-    columns,
+    columns: activeColumns,
     state: { sorting, globalFilter, columnVisibility: coordColumnVisibility, columnOrder: coordColumnOrder },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,

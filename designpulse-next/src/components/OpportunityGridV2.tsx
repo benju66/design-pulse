@@ -241,10 +241,21 @@ const EMPTY_VISIBILITY: VisibilityState = {};
 
   const moveActiveCellRef = useRef<any>(null);
 
+  const activeColumns = useMemo(() => {
+    if (!settings?.ve_column_order || typeof settings.ve_column_order[0] === 'string') return columns;
+    const hiddenIds = settings.ve_column_order.filter((c: any) => c.visible === false).map((c: any) => c.id);
+    return columns.filter((c: any) => {
+      const id = c.accessorKey || c.id;
+      return !hiddenIds.includes(id);
+    });
+  }, [columns, settings?.ve_column_order]);
+
   useEffect(() => {
     if (!isolateState && settings?.ve_column_order && settings.ve_column_order.length > 0) {
-      const allColIds = columns.map(c => (c as any).accessorKey || c.id).filter(Boolean);
-      const configuredIds = settings.ve_column_order;
+      const savedOrder = settings.ve_column_order;
+      const configuredIds = typeof savedOrder[0] === 'string' ? savedOrder : savedOrder.map((c: any) => c.id);
+      
+      const allColIds = activeColumns.map(c => (c as any).accessorKey || c.id).filter(Boolean);
       
       // Explicitly pin UI columns to the front
       const pinnedFront = ['select', 'open_panel'].filter(id => allColIds.includes(id));
@@ -252,13 +263,16 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       // Any new columns that aren't in the user's saved config should go to the back
       const unconfiguredIds = allColIds.filter(id => !configuredIds.includes(id as string) && !pinnedFront.includes(id as string));
       
-      setColumnOrder([...pinnedFront, ...configuredIds, ...unconfiguredIds] as string[]);
+      // Filter out configuredIds that are no longer in activeColumns (hidden)
+      const activeConfiguredIds = configuredIds.filter((id: string) => allColIds.includes(id));
+      
+      setColumnOrder([...pinnedFront, ...activeConfiguredIds, ...unconfiguredIds] as string[]);
     }
-  }, [settings?.ve_column_order, columns, isolateState]);
+  }, [settings?.ve_column_order, activeColumns, isolateState]);
 
   const table = useReactTable<Opportunity>({
     data,
-    columns: columns,
+    columns: activeColumns,
     state: { expanded, columnVisibility, columnOrder, sorting, globalFilter, grouping },
     getSubRows: (row) => {
       // Only return subrows for parent rows (Opportunities)

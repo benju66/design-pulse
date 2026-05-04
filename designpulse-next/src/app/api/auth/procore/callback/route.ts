@@ -115,18 +115,11 @@ export async function GET(request: NextRequest) {
 
         // Map the Procore JSON payload to your database schema
         const mappedProjectData = {
-          procore_project_id: procoreProject.id.toString(), // The connected Procore ID
-          name: procoreProject.name, // Project Name
-          project_number: procoreProject.project_number, // Human Readable Number
-          stage: procoreProject.project_stage?.name || 'Pre-Construction', // Stage of construction
-          description: procoreProject.description || '',
-          location: [procoreProject.address, procoreProject.city, procoreProject.state_code]
-            .filter(Boolean)
-            .join(', '), // Compiled location
-          start_date: procoreProject.estimated_start_date || null, // Dates
-          completion_date: procoreProject.estimated_completion_date || null,
-          // Client info is often tied to the 'program' or 'office' objects depending on how your Procore instance is structured
-          client_name: procoreProject.program?.name || 'TBD' 
+          procore_project_id: procoreProject.id.toString(),
+          procore_company_id: syncCompanyId, // Ensuring the company ID is tracked
+          name: procoreProject.name,
+          project_number: procoreProject.project_number,
+          description: procoreProject.description || ''
         };
 
         // Upsert the project into the database

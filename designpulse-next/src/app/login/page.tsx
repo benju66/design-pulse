@@ -42,18 +42,13 @@ function LoginContent() {
     const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/procore/callback`);
     const returnTo = searchParams.get('returnTo') || '/dashboard';
     
-    // 2. Pass a JSON payload in state to track the destination AND flag that this is a popup
-    const stateParam = encodeURIComponent(JSON.stringify({ returnTo, isPopup: true }));
+    // 1. Set isPopup to FALSE so the backend drops the user directly into the dashboard
+    const stateParam = encodeURIComponent(JSON.stringify({ returnTo, isPopup: false }));
 
     const authUrl = `https://login.procore.com/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${stateParam}`;
 
-    // 3. Open a centered popup window instead of redirecting the iframe
-    const width = 600;
-    const height = 700;
-    const left = (window.innerWidth / 2) - (width / 2);
-    const top = (window.innerHeight / 2) - (height / 2);
-    
-    window.open(authUrl, 'ProcoreAuth', `width=${width},height=${height},left=${left},top=${top}`);
+    // 2. Open a standard new tab instead of a constrained popup window
+    window.open(authUrl, '_blank');
   };
 
   const handleLogin = async (e: React.FormEvent) => {

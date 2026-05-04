@@ -46,6 +46,7 @@ export function useActivityFeed(opportunityId: string | null) {
         .eq('opportunity_id', opportunityId)
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
         .range((pageParam as number) * PAGE_SIZE, ((pageParam as number) + 1) * PAGE_SIZE - 1);
 
       if (error) {

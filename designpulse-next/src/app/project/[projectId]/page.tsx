@@ -395,7 +395,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   />
                   
                   {/* Filter Toolbar */}
-                  <div className="flex flex-wrap items-center gap-3 mb-4 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
+                  <div className="flex flex-wrap items-center gap-3 mb-4 mt-2 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
                     <div className="flex items-center gap-2 pl-2">
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filters</span>
                     </div>
@@ -487,7 +487,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   <BudgetSummaryV2 projectId={projectId} opportunities={opportunities} />
                   
                   {/* Filter Toolbar */}
-                  <div className="flex flex-wrap items-center gap-3 mb-4 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
+                  <div className="flex flex-wrap items-center gap-3 mb-4 mt-2 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
                     <div className="flex items-center gap-2 pl-2">
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filters</span>
                     </div>

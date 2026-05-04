@@ -277,7 +277,9 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
   
-  const coordColumnVisibility = useUIStore(state => state.coordColumnVisibility[projectId] || {}) as any;
+const EMPTY_VISIBILITY: any = {};
+
+  const coordColumnVisibility = useUIStore(state => state.coordColumnVisibility[projectId] || EMPTY_VISIBILITY) as any;
   const _setCoordColumnVisibility = useUIStore(state => state.setCoordColumnVisibility);
   const setCoordColumnVisibility = React.useCallback((updater: any) => _setCoordColumnVisibility(projectId, updater), [projectId, _setCoordColumnVisibility]);
 

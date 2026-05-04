@@ -573,6 +573,7 @@ import { SmartCostCodeCombobox } from '@/components/ui/SmartCostCodeCombobox';
 export const CostCodeSpecCell = React.memo(({ getValue, row, table }: CellContext<Opportunity, unknown>) => {
   const initialCode    = getValue() as string | null | undefined;
   const initialCostType = row.original.cost_type as CostType | null | undefined;
+  const initialSpecNumberId = row.original.spec_number_id as string | null | undefined;
 
   const updateMutation = table.options.meta?.updateData;
   const rawCostCodes   = table.options.meta?.rawCostCodes || [];
@@ -580,7 +581,7 @@ export const CostCodeSpecCell = React.memo(({ getValue, row, table }: CellContex
   const permissions    = table.options.meta?.permissions || { can_edit_records: false };
   const disabled       = !permissions.can_edit_records;
 
-  const handleChange = (updates: { cost_code?: string; division?: string; cost_type?: string }) => {
+  const handleChange = (updates: { cost_code?: string; division?: string; cost_type?: string; spec_number_id?: string | null }) => {
     if (updateMutation) {
       updateMutation.mutate({ id: row.original.id, updates });
     }
@@ -590,7 +591,8 @@ export const CostCodeSpecCell = React.memo(({ getValue, row, table }: CellContex
     <SmartCostCodeCombobox
       value={initialCode}
       costType={initialCostType}
-      onChange={handleChange}
+      specNumberId={initialSpecNumberId}
+      onChange={handleChange as any} // we can cast or keep updates properly typed
       rawCostCodes={rawCostCodes as CostCode[]}
       csiSpecs={csiSpecs as ProjectCsiSpec[]}
       disabled={disabled}

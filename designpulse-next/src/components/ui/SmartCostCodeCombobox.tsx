@@ -20,7 +20,8 @@ function normalizeSearch(q: string): string {
 export interface SmartCostCodeComboboxProps {
   value: string | null | undefined;
   costType?: CostType | null | undefined;
-  onChange: (updates: { cost_code?: string; division?: string; cost_type?: CostType }) => void;
+  specNumberId?: string | null | undefined;
+  onChange: (updates: { cost_code?: string; division?: string; cost_type?: CostType; spec_number_id?: string | null }) => void;
   rawCostCodes: CostCode[];
   csiSpecs?: ProjectCsiSpec[];
   disabled?: boolean;
@@ -30,6 +31,7 @@ export interface SmartCostCodeComboboxProps {
 export function SmartCostCodeCombobox({
   value,
   costType,
+  specNumberId,
   onChange,
   rawCostCodes,
   csiSpecs = [],
@@ -81,7 +83,10 @@ export function SmartCostCodeCombobox({
 
   // Rule C23: atomic onChange mutation — never onBlur
   const handleSelectBaseCode = (code: string) => {
-    const updates: { cost_code: string; division?: string } = { cost_code: code };
+    const updates: { cost_code: string; division?: string; spec_number_id: string | null } = { 
+      cost_code: code,
+      spec_number_id: null // clear spec if base code is manually selected
+    };
     const matched = rawCostCodes.find((c) => c.code === code && !c.is_division);
     if (matched?.parent_division) {
       const parentDiv = rawCostCodes.find((c) => c.code === matched.parent_division && c.is_division);
@@ -94,7 +99,10 @@ export function SmartCostCodeCombobox({
 
   const handleSelectCsiSpec = (spec: ProjectCsiSpec) => {
     if (!spec.cost_code) return;
-    const updates: { cost_code: string; division?: string } = { cost_code: spec.cost_code };
+    const updates: { cost_code: string; division?: string; spec_number_id: string } = { 
+      cost_code: spec.cost_code,
+      spec_number_id: spec.id
+    };
     const matched = rawCostCodes.find((c) => c.code === spec.cost_code && !c.is_division);
     if (matched?.parent_division) {
       const parentDiv = rawCostCodes.find((c) => c.code === matched.parent_division && c.is_division);
@@ -110,6 +118,7 @@ export function SmartCostCodeCombobox({
   };
 
   const isEmpty = !value;
+  const selectedSpec = specNumberId ? csiSpecs.find(s => s.id === specNumberId) : undefined;
 
   return (
     <div ref={containerRef} className="relative w-full h-full">
@@ -122,8 +131,13 @@ export function SmartCostCodeCombobox({
           ${isOpen ? 'ring-2 ring-inset ring-sky-500 bg-sky-50/50 dark:bg-sky-900/20' : ''}
         `}
       >
-        <span className={`font-mono text-xs truncate ${isEmpty ? 'text-slate-400 italic' : 'text-slate-900 dark:text-slate-100'}`}>
+        <span className={`truncate flex-1 ${isEmpty ? 'text-slate-400 italic' : 'text-slate-900 dark:text-slate-100'}`}>
           {value || 'Set Code…'}
+          {selectedSpec && (
+            <span className="ml-1.5 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono tracking-tight font-medium" title={selectedSpec.description || undefined}>
+              {selectedSpec.csi_number}
+            </span>
+          )}
         </span>
         {showCostTypeSegment && costType && (
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${COST_TYPE_PILL[costType] || ''}`}>

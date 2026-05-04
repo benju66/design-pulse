@@ -1,16 +1,17 @@
 "use client";
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/supabaseClient';
 import { Loader2, Building2 } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const handleProcoreLogin = () => {
     setError(null);
@@ -23,7 +24,10 @@ export default function LoginPage() {
     }
 
     const redirectUri = encodeURIComponent(`${window.location.origin}/api/auth/procore/callback`);
-    window.open(`https://login.procore.com/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}`, '_blank', 'noopener,noreferrer');
+    const returnTo = searchParams.get('returnTo') || '/dashboard';
+    const stateParam = encodeURIComponent(returnTo);
+
+    window.location.href = `https://login.procore.com/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${stateParam}`;
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -132,5 +136,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+          <Loader2 className="animate-spin w-8 h-8 text-sky-500" />
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }

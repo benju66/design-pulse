@@ -1001,7 +1001,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                 <option value="viewer">Viewer</option>
                 <option value="design_team">Design Team</option>
                 <option value="gc_admin">GC Admin</option>
-                <option value="owner">Owner</option>
+                <option value="project_admin">Project Admin</option>
               </select>
             </div>
             <button 
@@ -1051,13 +1051,13 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                         <select 
                           value={member.role}
                           onChange={e => updateRoleMutation.mutate({ userId: member.user_id, role: e.target.value })}
-                          disabled={isSelf || updateRoleMutation.isPending}
+                          disabled={(!isPlatformAdmin && isSelf) || updateRoleMutation.isPending}
                           className="bg-transparent text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-0 w-full disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <option value="viewer">Viewer</option>
                           <option value="design_team">Design Team</option>
                           <option value="gc_admin">GC Admin</option>
-                          <option value="owner">Owner</option>
+                          <option value="project_admin">Project Admin</option>
                         </select>
                       </td>
                       <td className="px-4 py-3 text-right">

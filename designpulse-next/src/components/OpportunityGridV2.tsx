@@ -221,13 +221,15 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const [globalFilter, setGlobalFilter] = useState<string>('');
   const [grouping, setGrouping] = useState<GroupingState>(['division']);
   
-  const globalColumnVisibility = useUIStore(state => state.gridColumnVisibility) as VisibilityState;
-  const setGlobalColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
+  const globalColumnVisibility = useUIStore(state => state.gridColumnVisibility[projectId] || {}) as VisibilityState;
+  const _setGridColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
   
   const [localColumnVisibility, setLocalColumnVisibility] = useState<VisibilityState>({});
   
   const columnVisibility = isolateState ? localColumnVisibility : globalColumnVisibility;
-  const setColumnVisibility = isolateState ? setLocalColumnVisibility : setGlobalColumnVisibility as any;
+  const setColumnVisibility = isolateState 
+    ? setLocalColumnVisibility 
+    : React.useCallback((updater: any) => _setGridColumnVisibility(projectId, updater), [projectId, _setGridColumnVisibility]);
   
   const columns = useOpportunityColumnsV2(viewMode);
   const { data: settings } = useProjectSettings(projectId);

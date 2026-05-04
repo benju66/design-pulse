@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
 
 export interface UIState {
   selectedOpportunityId: string | null;
@@ -16,11 +17,11 @@ export interface UIState {
   toggleCompareItem: (id: string) => void;
   clearCompareQueue: () => void;
   
-  gridColumnVisibility: Record<string, boolean>;
-  setGridColumnVisibility: (updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
+  gridColumnVisibility: Record<string, Record<string, boolean>>;
+  setGridColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
   
-  gridColumnOrder: string[];
-  setGridColumnOrder: (updater: string[] | ((old: string[]) => string[])) => void;
+  gridColumnOrder: Record<string, string[]>;
+  setGridColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
   
   gridMode: 'navigate' | 'edit';
   setGridMode: (mode: 'navigate' | 'edit') => void;
@@ -28,11 +29,11 @@ export interface UIState {
   activeCell: { rowIndex: number; columnId: string } | null;
   setActiveCell: (cell: { rowIndex: number; columnId: string } | null) => void;
   
-  coordColumnVisibility: Record<string, boolean>;
-  setCoordColumnVisibility: (updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
+  coordColumnVisibility: Record<string, Record<string, boolean>>;
+  setCoordColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
   
-  coordColumnOrder: string[];
-  setCoordColumnOrder: (updater: string[] | ((old: string[]) => string[])) => void;
+  coordColumnOrder: Record<string, string[]>;
+  setCoordColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
   
   coordinationViewMode: 'board' | 'table-split';
   setCoordinationViewMode: (mode: 'board' | 'table-split') => void;
@@ -49,13 +50,13 @@ export interface UIState {
   permitViewMode: 'board' | 'table-split';
   setPermitViewMode: (mode: 'board' | 'table-split') => void;
   
-  permitFilters: {
+  permitFilters: Record<string, {
     status?: string[];
     type?: string[];
     assignee?: string[];
     ahj?: string[];
-  };
-  setPermitFilters: (filters: { status?: string[]; type?: string[]; assignee?: string[]; ahj?: string[] }) => void;
+  }>;
+  setPermitFilters: (projectId: string, filters: { status?: string[]; type?: string[]; assignee?: string[]; ahj?: string[] }) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -86,14 +87,28 @@ export const useUIStore = create<UIState>()(
       compareQueue: [],
       
       gridColumnVisibility: {},
-      setGridColumnVisibility: (updater) => set((state) => ({ 
-        gridColumnVisibility: typeof updater === 'function' ? updater(state.gridColumnVisibility) : updater 
-      })),
+      setGridColumnVisibility: (projectId, updater) => set((state) => {
+        const oldState = state.gridColumnVisibility[projectId] || {};
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          gridColumnVisibility: {
+            ...state.gridColumnVisibility,
+            [projectId]: newState
+          }
+        };
+      }),
       
-      gridColumnOrder: [],
-      setGridColumnOrder: (updater) => set((state) => ({ 
-        gridColumnOrder: typeof updater === 'function' ? updater(state.gridColumnOrder) : updater 
-      })),
+      gridColumnOrder: {},
+      setGridColumnOrder: (projectId, updater) => set((state) => {
+        const oldState = state.gridColumnOrder[projectId] || [];
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          gridColumnOrder: {
+            ...state.gridColumnOrder,
+            [projectId]: newState
+          }
+        };
+      }),
       
       gridMode: 'navigate',
       setGridMode: (mode) => set({ gridMode: mode }),
@@ -102,14 +117,28 @@ export const useUIStore = create<UIState>()(
       setActiveCell: (cell) => set({ activeCell: cell }),
       
       coordColumnVisibility: {},
-      setCoordColumnVisibility: (updater) => set((state) => ({ 
-        coordColumnVisibility: typeof updater === 'function' ? updater(state.coordColumnVisibility) : updater 
-      })),
+      setCoordColumnVisibility: (projectId, updater) => set((state) => {
+        const oldState = state.coordColumnVisibility[projectId] || {};
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          coordColumnVisibility: {
+            ...state.coordColumnVisibility,
+            [projectId]: newState
+          }
+        };
+      }),
       
-      coordColumnOrder: ['select', 'open_panel', 'display_id', 'record_type', 'title', 'final_direction', 'priority', 'status', 'due_date', 'discipline_status'],
-      setCoordColumnOrder: (updater) => set((state) => ({ 
-        coordColumnOrder: typeof updater === 'function' ? updater(state.coordColumnOrder) : updater 
-      })),
+      coordColumnOrder: {},
+      setCoordColumnOrder: (projectId, updater) => set((state) => {
+        const oldState = state.coordColumnOrder[projectId] || DEFAULT_COORD_COLUMN_ORDER as unknown as string[];
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          coordColumnOrder: {
+            ...state.coordColumnOrder,
+            [projectId]: newState
+          }
+        };
+      }),
       
       coordinationViewMode: 'table-split',
       setCoordinationViewMode: (mode) => set({ coordinationViewMode: mode }),
@@ -127,7 +156,12 @@ export const useUIStore = create<UIState>()(
       setPermitViewMode: (mode) => set({ permitViewMode: mode }),
       
       permitFilters: {},
-      setPermitFilters: (filters) => set({ permitFilters: filters }),
+      setPermitFilters: (projectId, filters) => set((state) => ({
+        permitFilters: {
+          ...state.permitFilters,
+          [projectId]: filters
+        }
+      })),
       
       setCardOrder: (newOrder) => set({ cardOrder: newOrder }),
       
@@ -163,6 +197,21 @@ export const useUIStore = create<UIState>()(
         permitViewMode: state.permitViewMode ?? 'table-split',
         permitFilters: state.permitFilters ?? {},
       }),
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          // Wipe legacy flat objects to prevent schema corruption and type mismatch
+          return {
+            ...persistedState,
+            gridColumnVisibility: {},
+            gridColumnOrder: {},
+            coordColumnVisibility: {},
+            coordColumnOrder: {},
+            permitFilters: {},
+          };
+        }
+        return persistedState as UIState;
+      },
     }
   )
 );

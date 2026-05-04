@@ -16,6 +16,11 @@ export const ALL_PRIMARY_FIELDS = [
   { id: 'coordination_status', label: 'Coordination Status' },
 ] as const;
 
+export const DEFAULT_COORD_COLUMN_ORDER = [
+  'select', 'open_panel', 'display_id', 'record_type', 'title', 
+  'final_direction', 'priority', 'status', 'due_date', 'discipline_status'
+] as const;
+
 export const ADVANCED_FIELD_IDS = [
   'existing_conditions', 
   'mep_impact', 

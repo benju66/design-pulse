@@ -13,8 +13,9 @@ export default function PermitBoard({ projectId }: { projectId: string }) {
   const { data: permits = [], isLoading } = usePermits(projectId);
   
   const viewMode = useUIStore(state => state.permitViewMode);
-  const permitFilters = useUIStore(state => state.permitFilters);
-  const setPermitFilters = useUIStore(state => state.setPermitFilters);
+  const permitFilters = useUIStore(state => state.permitFilters[projectId] || {});
+  const _setPermitFilters = useUIStore(state => state.setPermitFilters);
+  const setPermitFilters = useMemo(() => (filters: any) => _setPermitFilters(projectId, filters), [projectId, _setPermitFilters]);
   const selectedPermitId = useUIStore(state => state.selectedOpportunityId);
   
   const [searchQuery, setSearchQuery] = useState('');

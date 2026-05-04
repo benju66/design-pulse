@@ -24,7 +24,7 @@ import { useProjectCsiSpecs } from '@/hooks/useProjectQueries';
 import { useUIStore } from '@/stores/useUIStore';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
-import { DEFAULT_DISCIPLINES } from '@/lib/constants';
+import { DEFAULT_DISCIPLINES, DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
 
 interface Props {
   projectId: string;
@@ -277,10 +277,13 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
   
-  const coordColumnVisibility = useUIStore(state => state.coordColumnVisibility);
-  const setCoordColumnVisibility = useUIStore(state => state.setCoordColumnVisibility);
-  const coordColumnOrder = useUIStore(state => state.coordColumnOrder);
-  const setCoordColumnOrder = useUIStore(state => state.setCoordColumnOrder);
+  const coordColumnVisibility = useUIStore(state => state.coordColumnVisibility[projectId] || {}) as any;
+  const _setCoordColumnVisibility = useUIStore(state => state.setCoordColumnVisibility);
+  const setCoordColumnVisibility = React.useCallback((updater: any) => _setCoordColumnVisibility(projectId, updater), [projectId, _setCoordColumnVisibility]);
+
+  const coordColumnOrder = useUIStore(state => state.coordColumnOrder[projectId] || DEFAULT_COORD_COLUMN_ORDER as unknown as string[]);
+  const _setCoordColumnOrder = useUIStore(state => state.setCoordColumnOrder);
+  const setCoordColumnOrder = React.useCallback((updater: any) => _setCoordColumnOrder(projectId, updater), [projectId, _setCoordColumnOrder]);
 
   useEffect(() => {
     if (selectedOpportunityId) {

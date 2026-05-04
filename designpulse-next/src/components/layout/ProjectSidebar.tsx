@@ -121,7 +121,7 @@ export const ProjectSidebar = ({ projectId, currentView, setCurrentView }: Proje
       </div>
 
       <div className={`p-4 border-t border-slate-800 mt-auto flex flex-col gap-4 bg-slate-950/30`}>
-        <UserAccountDropdown isCollapsed={isCollapsed} />
+        <UserAccountDropdown isCollapsed={isCollapsed} direction="up" />
 
         <div className={`flex items-center border-t border-slate-800/50 pt-4 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!isCollapsed && <span className="text-xs font-medium text-slate-400">Theme Preference</span>}

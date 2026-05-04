@@ -807,7 +807,7 @@ export function useToggleOptionBudget(opportunityId: string, projectId: string) 
 export interface ProjectMember {
   project_id: string;
   user_id: string;
-  role: 'owner' | 'gc_admin' | 'design_team' | 'viewer';
+  role: 'project_admin' | 'gc_admin' | 'design_team' | 'viewer';
   email: string;
   name: string | null;
 }

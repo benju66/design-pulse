@@ -57,7 +57,7 @@ export default function DashboardPage() {
           <ThemeToggle />
           
           <div className="w-48">
-            <UserAccountDropdown isCollapsed={false} />
+            <UserAccountDropdown isCollapsed={false} direction="down" />
           </div>
 
           {isGlobalAuthLoading ? (

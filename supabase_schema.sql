@@ -2,7 +2,7 @@
 -- Run this entire script in your Supabase SQL Editor to initialize or reset the environment.
 
 DO $$ BEGIN
-    CREATE TYPE project_role AS ENUM ('owner', 'gc_admin', 'design_team', 'viewer');
+    CREATE TYPE project_role AS ENUM ('project_admin', 'gc_admin', 'design_team', 'viewer');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
@@ -260,15 +260,15 @@ CREATE POLICY "Members can view project team"
 
 DROP POLICY IF EXISTS "Admins can insert project members" ON project_members;
 CREATE POLICY "Admins can insert project members" 
-  ON project_members FOR INSERT WITH CHECK (is_platform_admin() OR public.get_user_project_role(project_id) IN ('owner', 'gc_admin'));
+  ON project_members FOR INSERT WITH CHECK (is_platform_admin() OR public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin'));
 
 DROP POLICY IF EXISTS "Admins can update project members" ON project_members;
 CREATE POLICY "Admins can update project members" 
-  ON project_members FOR UPDATE USING (is_platform_admin() OR public.get_user_project_role(project_id) IN ('owner', 'gc_admin'));
+  ON project_members FOR UPDATE USING (is_platform_admin() OR public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin'));
 
 DROP POLICY IF EXISTS "Admins can delete project members" ON project_members;
 CREATE POLICY "Admins can delete project members" 
-  ON project_members FOR DELETE USING (is_platform_admin() OR public.get_user_project_role(project_id) IN ('owner', 'gc_admin'));
+  ON project_members FOR DELETE USING (is_platform_admin() OR public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin'));
 
 -- Projects
 DROP POLICY IF EXISTS "Members can view projects" ON projects;
@@ -284,11 +284,11 @@ CREATE POLICY "Members or Admins can view project_settings"
 
 DROP POLICY IF EXISTS "Admins can insert project_settings" ON project_settings;
 CREATE POLICY "Admins can insert project_settings" 
-  ON project_settings FOR INSERT WITH CHECK (is_platform_admin() OR public.get_user_project_role(project_id) IN ('owner', 'gc_admin'));
+  ON project_settings FOR INSERT WITH CHECK (is_platform_admin() OR public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin'));
 
 DROP POLICY IF EXISTS "Admins can update project_settings" ON project_settings;
 CREATE POLICY "Admins can update project_settings" 
-  ON project_settings FOR UPDATE USING (is_platform_admin() OR public.get_user_project_role(project_id) IN ('owner', 'gc_admin'));
+  ON project_settings FOR UPDATE USING (is_platform_admin() OR public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin'));
 
 -- Opportunities
 DROP POLICY IF EXISTS "Members can view opportunities" ON opportunities;
@@ -298,15 +298,15 @@ CREATE POLICY "Members or Admins can view opportunities"
 
 DROP POLICY IF EXISTS "Members can insert opportunities" ON opportunities;
 CREATE POLICY "Members can insert opportunities" 
-  ON opportunities FOR INSERT WITH CHECK (is_platform_admin() OR public.get_user_project_role(project_id) IN ('owner', 'gc_admin', 'design_team'));
+  ON opportunities FOR INSERT WITH CHECK (is_platform_admin() OR public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin', 'design_team'));
 
 DROP POLICY IF EXISTS "Members can update opportunities" ON opportunities;
 CREATE POLICY "Members can update opportunities" 
-  ON opportunities FOR UPDATE USING (is_platform_admin() OR public.get_user_project_role(project_id) IN ('owner', 'gc_admin', 'design_team'));
+  ON opportunities FOR UPDATE USING (is_platform_admin() OR public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin', 'design_team'));
 
 DROP POLICY IF EXISTS "Admins can delete opportunities" ON opportunities;
 CREATE POLICY "Admins can delete opportunities" 
-  ON opportunities FOR DELETE USING (is_platform_admin() OR public.get_user_project_role(project_id) IN ('owner', 'gc_admin'));
+  ON opportunities FOR DELETE USING (is_platform_admin() OR public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin'));
 
 -- Opportunity Options
 DROP POLICY IF EXISTS "Members can view opportunity_options" ON opportunity_options;
@@ -322,7 +322,7 @@ DROP POLICY IF EXISTS "Members can insert opportunity_options" ON opportunity_op
 CREATE POLICY "Members can insert opportunity_options" 
   ON opportunity_options FOR INSERT WITH CHECK (
     is_platform_admin() OR EXISTS (
-      SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_id AND public.get_user_project_role(opportunities.project_id) IN ('owner', 'gc_admin', 'design_team')
+      SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_id AND public.get_user_project_role(opportunities.project_id) IN ('project_admin', 'gc_admin', 'design_team')
     )
   );
 
@@ -330,7 +330,7 @@ DROP POLICY IF EXISTS "Members can update opportunity_options" ON opportunity_op
 CREATE POLICY "Members can update opportunity_options" 
   ON opportunity_options FOR UPDATE USING (
     is_platform_admin() OR EXISTS (
-      SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_id AND public.get_user_project_role(opportunities.project_id) IN ('owner', 'gc_admin', 'design_team')
+      SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_id AND public.get_user_project_role(opportunities.project_id) IN ('project_admin', 'gc_admin', 'design_team')
     )
   );
 
@@ -338,7 +338,7 @@ DROP POLICY IF EXISTS "Admins can delete opportunity_options" ON opportunity_opt
 CREATE POLICY "Admins can delete opportunity_options" 
   ON opportunity_options FOR DELETE USING (
     is_platform_admin() OR EXISTS (
-      SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_id AND public.get_user_project_role(opportunities.project_id) IN ('owner', 'gc_admin')
+      SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_id AND public.get_user_project_role(opportunities.project_id) IN ('project_admin', 'gc_admin')
     )
   );
 
@@ -401,7 +401,7 @@ CREATE POLICY "Admins can view all audit logs"
 DROP POLICY IF EXISTS "Project Admins can view project audit logs" ON audit_logs;
 CREATE POLICY "Project Admins can view project audit logs" 
   ON audit_logs FOR SELECT 
-  USING (public.get_user_project_role(project_id::uuid) IN ('owner', 'gc_admin'));
+  USING (public.get_user_project_role(project_id::uuid) IN ('project_admin', 'gc_admin'));
 
 -- 9. RPCs (Stored Procedures)
 
@@ -426,7 +426,7 @@ BEGIN
   
   -- 2. Assign the creator as owner
   INSERT INTO project_members (project_id, user_id, role) 
-  VALUES (v_project.id, auth.uid(), 'owner');
+  VALUES (v_project.id, auth.uid(), 'project_admin');
 
   -- 3. Guarantee a settings row exists atomically (Audit fix C-2 / AGENTS.md Rule 25)
   -- ON CONFLICT DO NOTHING makes this idempotent and safe to retry.
@@ -452,10 +452,11 @@ LANGUAGE sql SECURITY DEFINER AS $$
      OR EXISTS (
        SELECT 1 FROM project_members pm
        WHERE pm.user_id = auth.uid() 
-         AND pm.role IN ('owner', 'gc_admin')
+         AND pm.role IN ('project_admin', 'gc_admin')
      );
 $$;
 
+DROP FUNCTION IF EXISTS get_project_members_with_email(UUID);
 CREATE OR REPLACE FUNCTION get_project_members_with_email(p_project_id UUID)
 RETURNS TABLE (project_id uuid, user_id uuid, role project_role, email text, name text)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -512,7 +513,7 @@ DECLARE
   v_project_id uuid;
 BEGIN
   SELECT project_id INTO v_project_id FROM opportunities WHERE id = p_opp_id;
-  IF NOT (public.is_platform_admin() OR public.get_user_project_role(v_project_id) IN ('owner', 'gc_admin')) THEN
+  IF NOT (public.is_platform_admin() OR public.get_user_project_role(v_project_id) IN ('project_admin', 'gc_admin')) THEN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to lock options';
   END IF;
 
@@ -529,7 +530,7 @@ DECLARE
   v_project_id uuid;
 BEGIN
   SELECT project_id INTO v_project_id FROM opportunities WHERE id = p_opp_id;
-  IF NOT (public.is_platform_admin() OR public.get_user_project_role(v_project_id) IN ('owner', 'gc_admin')) THEN
+  IF NOT (public.is_platform_admin() OR public.get_user_project_role(v_project_id) IN ('project_admin', 'gc_admin')) THEN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to toggle budget';
   END IF;
 
@@ -726,7 +727,7 @@ CREATE POLICY "Only admins can modify role_permissions" ON role_permissions FOR 
 
 -- Seed default matrix to exactly match current hardcoded system behavior
 INSERT INTO role_permissions (role, can_lock_options, can_unlock_options, can_manage_team, can_edit_project_settings, can_manage_budget, can_edit_records, can_delete_records, can_view_audit_logs) VALUES
-  ('owner', true, true, true, true, true, true, true, true),
+  ('project_admin', true, true, true, true, true, true, true, true),
   ('gc_admin', true, true, true, true, true, true, true, true),
   ('design_team', false, false, false, false, false, true, false, false),
   ('viewer', false, false, false, false, false, false, false, false)
@@ -958,7 +959,7 @@ CREATE POLICY "Admins can update projects"
 
 DROP POLICY IF EXISTS "Admins can delete projects" ON projects;
 CREATE POLICY "Admins can delete projects" 
-  ON projects FOR DELETE USING (public.is_platform_admin() OR public.get_user_project_role(id) = 'owner');
+  ON projects FOR DELETE USING (public.is_platform_admin() OR public.get_user_project_role(id) = 'project_admin');
 
 -- Project Members
 DROP POLICY IF EXISTS "Admins can insert project members" ON project_members;
@@ -1547,3 +1548,75 @@ BEGIN
 END;
 $$;
 
+
+
+-- 2.0 User Management & RPCs Update
+DROP FUNCTION IF EXISTS get_system_users();
+CREATE OR REPLACE FUNCTION get_system_users()
+RETURNS TABLE (
+  id uuid, 
+  email text, 
+  name text, 
+  is_platform_admin boolean,
+  company_name text,
+  job_title text,
+  default_color text
+)
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT 
+    u.id, 
+    u.email::text, 
+    (u.raw_user_meta_data->>'display_name')::text as name,
+    EXISTS(SELECT 1 FROM platform_admins pa WHERE pa.user_id = u.id) as is_platform_admin,
+    (u.raw_user_meta_data->>'company_name')::text as company_name,
+    (u.raw_user_meta_data->>'job_title')::text as job_title,
+    (u.raw_user_meta_data->>'default_color')::text as default_color
+  FROM auth.users u
+  WHERE public.is_platform_admin() 
+     OR EXISTS (
+       SELECT 1 FROM project_members pm
+       WHERE pm.user_id = auth.uid() 
+         AND pm.role IN ('project_admin', 'gc_admin')
+     );
+$$;
+
+DROP FUNCTION IF EXISTS get_project_members_with_email(UUID);
+CREATE OR REPLACE FUNCTION get_project_members_with_email(p_project_id UUID)
+RETURNS TABLE (
+  project_id uuid, 
+  user_id uuid, 
+  role project_role, 
+  email text, 
+  name text,
+  company_name text,
+  job_title text,
+  default_color text
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Check if caller is authorized to view this project
+  IF NOT (public.is_platform_admin() OR EXISTS (
+    SELECT 1 FROM project_members pm WHERE pm.project_id = p_project_id AND pm.user_id = auth.uid()
+  )) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  RETURN QUERY
+  SELECT 
+    pm.project_id, 
+    pm.user_id, 
+    pm.role, 
+    u.email::text, 
+    (u.raw_user_meta_data->>'display_name')::text as name,
+    (u.raw_user_meta_data->>'company_name')::text as company_name,
+    (u.raw_user_meta_data->>'job_title')::text as job_title,
+    (u.raw_user_meta_data->>'default_color')::text as default_color
+  FROM project_members pm
+  JOIN auth.users u ON u.id = pm.user_id
+  WHERE pm.project_id = p_project_id;
+END;
+$$;

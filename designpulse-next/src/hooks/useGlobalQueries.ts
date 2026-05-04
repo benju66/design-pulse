@@ -54,6 +54,9 @@ export interface SystemUser {
   email: string;
   name: string | null;
   is_platform_admin: boolean;
+  company_name?: string | null;
+  job_title?: string | null;
+  default_color?: string | null;
 }
 
 export function useSystemUsers(options?: { enabled?: boolean }) {
@@ -88,7 +91,7 @@ export function useTogglePlatformAdmin() {
 }
 
 export interface RolePermission {
-  role: 'owner' | 'gc_admin' | 'design_team' | 'viewer';
+  role: 'project_admin' | 'gc_admin' | 'design_team' | 'viewer';
   can_lock_options: boolean;
   can_unlock_options: boolean;
   can_manage_team: boolean;
@@ -108,7 +111,7 @@ export function useRolePermissions() {
         .select('*');
       if (error) throw error;
       
-      const roleOrder = ['owner', 'gc_admin', 'design_team', 'viewer'];
+      const roleOrder = ['project_admin', 'gc_admin', 'design_team', 'viewer'];
       return (data as RolePermission[]).sort((a, b) => {
         return roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role);
       });

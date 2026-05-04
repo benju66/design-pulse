@@ -97,7 +97,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   const { data: isPlatformAdmin, isLoading: adminLoading } = useIsPlatformAdmin();
 
   const currentUserRole = teamMembers?.find(m => m.user_id === session?.user?.id)?.role;
-  const canManageTeam = isPlatformAdmin || currentUserRole === 'owner' || currentUserRole === 'gc_admin';
+  const canManageTeam = isPlatformAdmin || currentUserRole === 'project_admin' || currentUserRole === 'gc_admin';
   
   const addMemberMutation = useAddProjectMember(projectId);
   const updateRoleMutation = useUpdateProjectMemberRole(projectId);

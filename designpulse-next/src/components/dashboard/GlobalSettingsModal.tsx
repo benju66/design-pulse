@@ -987,6 +987,11 @@ function GlobalUserManagementTab({
                             </span>
                             {selfBadge && <span className="text-[10px] uppercase font-bold bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 px-1.5 py-0.5 rounded-full shrink-0">You</span>}
                           </div>
+                          {(user.job_title || user.company_name) && (
+                            <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate block mb-0.5">
+                              {[user.job_title, user.company_name].filter(Boolean).join(' • ')}
+                            </span>
+                          )}
                           <span className="text-xs text-slate-500 truncate block">{user.email}</span>
                         </div>
                       </button>
@@ -1017,7 +1022,12 @@ function GlobalUserManagementTab({
                     <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                       {activeUser.name || 'Unnamed User'}
                     </h2>
-                    <p className="text-sm text-slate-500 mt-1">{activeUser.email}</p>
+                    {(activeUser.job_title || activeUser.company_name) && (
+                      <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mt-1">
+                        {[activeUser.job_title, activeUser.company_name].filter(Boolean).join(' • ')}
+                      </p>
+                    )}
+                    <p className="text-sm text-slate-500 mt-0.5">{activeUser.email}</p>
                   </div>
                   
                   {/* Global Platform Admin Toggle */}
@@ -1097,13 +1107,13 @@ function GlobalUserManagementTab({
                                 disabled={isSelf || bulkUpdateMutation.isPending}
                                 onChange={(e) => updateDelta(project.id, true, e.target.value)}
                                 className={`w-full text-xs border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors disabled:opacity-50 appearance-none ${
-                                  currentRole === 'owner' ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/20 dark:border-rose-900 dark:text-rose-400' :
+                                  currentRole === 'project_admin' ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/20 dark:border-rose-900 dark:text-rose-400' :
                                   currentRole === 'gc_admin' ? 'bg-sky-50 border-sky-200 text-sky-700 dark:bg-sky-900/20 dark:border-sky-900 dark:text-sky-400' :
                                   currentRole === 'design_team' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-900 dark:text-indigo-400' :
                                   'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-900 dark:text-emerald-400'
                                 }`}
                               >
-                                <option value="owner">Owner (Admin)</option>
+                                <option value="project_admin">Owner (Admin)</option>
                                 <option value="gc_admin">GC Admin</option>
                                 <option value="design_team">Design Team</option>
                                 <option value="viewer">Viewer</option>

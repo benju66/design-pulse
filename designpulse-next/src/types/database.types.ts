@@ -361,17 +361,17 @@ export interface Database {
         Row: {
           project_id: string
           user_id: string
-          role: 'owner' | 'gc_admin' | 'design_team' | 'viewer'
+          role: 'project_admin' | 'gc_admin' | 'design_team' | 'viewer'
         }
         Insert: {
           project_id: string
           user_id: string
-          role: 'owner' | 'gc_admin' | 'design_team' | 'viewer'
+          role: 'project_admin' | 'gc_admin' | 'design_team' | 'viewer'
         }
         Update: {
           project_id?: string
           user_id?: string
-          role?: 'owner' | 'gc_admin' | 'design_team' | 'viewer'
+          role?: 'project_admin' | 'gc_admin' | 'design_team' | 'viewer'
         }
       }
     }

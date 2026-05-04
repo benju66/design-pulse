@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeSpecCell, DivisionCell, DisplayIdCell, AssigneeCell } from './EditableCell';
+import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell } from './EditableCell';
 import { OptionsCell } from './OptionsCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
@@ -86,7 +86,8 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
       { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
       { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
-      { accessorKey: 'cost_code', header: 'Cost Code / Spec', cell: CostCodeSpecCell, size: 200 },
+      { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 150 },
+      { accessorKey: 'spec_number_id', header: 'CSI Spec', cell: CsiSpecCell, size: 150 },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
       { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
@@ -117,7 +118,8 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell },
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
       { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
-      { accessorKey: 'cost_code', header: 'Cost Code / Spec', cell: CostCodeSpecCell, size: 200 },
+      { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 150 },
+      { accessorKey: 'spec_number_id', header: 'CSI Spec', cell: CsiSpecCell, size: 150 },
       { accessorKey: 'status', header: 'VE Status', cell: StatusCell },
       { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
       { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },

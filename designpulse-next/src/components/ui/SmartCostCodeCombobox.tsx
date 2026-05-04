@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Lock } from 'lucide-react';
 import { CostType, CostCode, ProjectCsiSpec } from '@/types/models';
 
 const COST_TYPE_PILL: Record<string, string> = {
@@ -21,6 +21,7 @@ export interface SmartCostCodeComboboxProps {
   value: string | null | undefined;
   costType?: CostType | null | undefined;
   specNumberId?: string | null | undefined;
+  mode?: 'combined' | 'cost_code_only' | 'csi_spec_only';
   onChange: (updates: { cost_code?: string; division?: string; cost_type?: CostType; spec_number_id?: string | null }) => void;
   rawCostCodes: CostCode[];
   csiSpecs?: ProjectCsiSpec[];
@@ -32,6 +33,7 @@ export function SmartCostCodeCombobox({
   value,
   costType,
   specNumberId,
+  mode = 'combined',
   onChange,
   rawCostCodes,
   csiSpecs = [],
@@ -66,13 +68,13 @@ export function SmartCostCodeCombobox({
 
   const nq = normalizeSearch(searchQuery);
 
-  const filteredBaseCodes = rawCostCodes.filter((c) => {
+  const filteredBaseCodes = mode === 'csi_spec_only' ? [] : rawCostCodes.filter((c) => {
     if (c.is_division) return false;
     if (!searchQuery) return true;
     return normalizeSearch(c.code).includes(nq) || normalizeSearch(c.description || '').includes(nq);
   });
 
-  const filteredCsiSpecs = csiSpecs.filter((spec) => {
+  const filteredCsiSpecs = mode === 'cost_code_only' ? [] : csiSpecs.filter((spec) => {
     if (!searchQuery) return true;
     return (
       spec.normalized_csi_number.includes(nq) ||
@@ -127,14 +129,15 @@ export function SmartCostCodeCombobox({
         onClick={() => { if (!disabled) setIsOpen(true); }}
         className={`
           w-full h-full px-2 py-1 text-sm min-h-[28px] flex items-center gap-1.5
-          ${disabled ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50'}
+          ${disabled ? 'cursor-not-allowed opacity-75 bg-slate-50 dark:bg-slate-800/30' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50'}
           ${isOpen ? 'ring-2 ring-inset ring-sky-500 bg-sky-50/50 dark:bg-sky-900/20' : ''}
         `}
       >
-        <span className={`truncate flex-1 ${isEmpty ? 'text-slate-400 italic' : 'text-slate-900 dark:text-slate-100'}`}>
-          {value || 'Set Code…'}
-          {selectedSpec && (
-            <span className="ml-1.5 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono tracking-tight font-medium" title={selectedSpec.description || undefined}>
+        <span className={`truncate flex-1 flex items-center gap-1.5 ${isEmpty && mode !== 'csi_spec_only' ? 'text-slate-400 italic' : 'text-slate-900 dark:text-slate-100'}`}>
+          {disabled && mode === 'cost_code_only' && <Lock className="w-3 h-3 text-slate-400 shrink-0" />}
+          {mode === 'csi_spec_only' ? (selectedSpec?.csi_number || '—') : (value || 'Set Code…')}
+          {selectedSpec && mode !== 'csi_spec_only' && (
+            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono tracking-tight font-medium" title={selectedSpec.description || undefined}>
               {selectedSpec.csi_number}
             </span>
           )}
@@ -174,6 +177,19 @@ export function SmartCostCodeCombobox({
 
           {/* Results list */}
           <div className="max-h-52 overflow-y-auto">
+            {mode === 'csi_spec_only' && (
+              <button
+                onClick={() => {
+                  onChange({ spec_number_id: null });
+                  setIsOpen(false);
+                  setSearchQuery('');
+                }}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors text-slate-500 hover:text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800"
+              >
+                <span className="font-semibold italic">Clear Spec…</span>
+              </button>
+            )}
+
             {/* Base codes */}
             {filteredBaseCodes.length > 0 && (
               <>

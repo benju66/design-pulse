@@ -18,7 +18,7 @@ import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { CoordinationGhostRow } from './CoordinationGhostRow';
-import { TextCell, PriorityCell, BuildingAreaCell, CostCodeSpecCell, DivisionCell } from '@/components/opportunities/EditableCell';
+import { TextCell, PriorityCell, BuildingAreaCell, CostCodeCell, CsiSpecCell, DivisionCell } from '@/components/opportunities/EditableCell';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useProjectCsiSpecs } from '@/hooks/useProjectQueries';
 import { useUIStore } from '@/stores/useUIStore';
@@ -370,9 +370,15 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
     },
     {
       accessorKey: 'cost_code',
-      header: 'Cost Code / Spec',
-      size: 200,
-      cell: CostCodeSpecCell,
+      header: 'Cost Code',
+      size: 150,
+      cell: CostCodeCell,
+    },
+    {
+      accessorKey: 'spec_number_id',
+      header: 'CSI Spec',
+      size: 150,
+      cell: CsiSpecCell,
     },
     {
       accessorKey: 'coordination_status',

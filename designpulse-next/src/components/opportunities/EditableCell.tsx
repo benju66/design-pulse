@@ -459,120 +459,44 @@ export const DivisionCell = React.memo(
     prev.row.original.division  === next.row.original.division
 );
 
-export const CostCodeCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
-  const initialValue = getValue() as string | null | undefined;
-  const [value, setValue] = useState(initialValue || '');
-  const updateMutation = table.options.meta?.updateData;
-  const inputRef = useRef<HTMLInputElement>(null);
-  const permissions = table.options.meta?.permissions || { can_edit_records: false };
-  const disabled = !permissions.can_edit_records;
-
-  const isSubmitting = useRef(false);
-
-  useEffect(() => {
-    setValue(initialValue || '');
-  }, [initialValue]);
-
-  const rawCostCodes = table.options.meta?.rawCostCodes || [];
-  const currentDivisionStr = row.original.division || '';
-  const currentDivisionCode = currentDivisionStr.split(' ')[0] || '';
-
-  const onBlur = () => {
-    if (isSubmitting.current) return;
-    if (value !== initialValue && updateMutation) {
-      isSubmitting.current = true;
-      const updates: Record<string, unknown> = { [column.id]: value };
-      if (value) {
-        const parsedCode = value.split(' - ')[0]?.trim();
-        const matchedCode = rawCostCodes.find((c) => c.code === parsedCode && !c.is_division);
-        if (matchedCode && matchedCode.parent_division) {
-          const parentDivObj = rawCostCodes.find((c) => c.code === matchedCode.parent_division && c.is_division);
-          if (parentDivObj) {
-            updates.division = `${parentDivObj.code} - ${parentDivObj.description}`;
-          }
-        }
-      }
-      updateMutation.mutate({ id: row.original.id, updates }, {
-        onSettled: () => { isSubmitting.current = false; }
-      });
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, setGridMode: (mode: 'navigate' | 'edit') => void) => {
-    const moveActiveCell = (table.options.meta as Record<string, unknown>)?.moveActiveCellRef as { current?: (d: string) => void } | undefined;
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      onBlur();
-      setGridMode('navigate');
-      moveActiveCell?.current?.('down');
-    } else if (e.key === 'Tab') {
-      e.preventDefault();
-      onBlur();
-      setGridMode('navigate');
-      moveActiveCell?.current?.(e.shiftKey ? 'left' : 'right');
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setValue(initialValue || '');
-      setGridMode('navigate');
-    }
-  };
-
-  const costCodeOptions = rawCostCodes
-    .filter((c) => {
-      if (c.is_division) return false;
-      if (currentDivisionCode && c.parent_division) {
-        return c.parent_division === currentDivisionCode;
-      }
-      return true;
-    })
-    .map((c) => `${c.code} - ${c.description}`);
-
-  return (
-    <>
-      <CellWrapper
-        disabled={disabled}
-        row={row}
-        column={column}
-        displayValue={value || ''}
-        inputElement={(_isActive, setGridMode) => (
-          <input
-            ref={inputRef}
-            autoFocus
-            list={`cost-codes-list-${row.original.id}`}
-            value={value || ''}
-            onChange={(e) => setValue(e.target.value)}
-            onBlur={onBlur}
-            onKeyDown={(e) => handleKeyDown(e, setGridMode)}
-            className="w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-900 dark:text-slate-100"
-            type="text"
-          />
-        )}
-      />
-      <datalist id={`cost-codes-list-${row.original.id}`}>
-        {costCodeOptions.map((opt: string) => (
-          <option key={opt} value={opt} />
-        ))}
-      </datalist>
-    </>
-  );
-}, (prev, next) => commonComparator(prev, next, false));
-
-// ---------------------------------------------------------------------------
-// CostCodeSpecCell — Phase 3 Rosetta Stone Smart Dropdown
-// Replaces the legacy datalist with a two-tier popover:
-//   Top: Smart combobox (base codes + project CSI specs with → mapping)
-//   Bottom: Segmented control for Cost Type
-// Guardrails:
-//   - Click-outside: useRef containment (Rule C16, no stopPropagation)
-//   - Mutation: onChange on selection (Rule C23, no onBlur race condition)
-//   - Escape: CANCELS and closes (Rule C18, inline grid cell behavior)
-//   - Memoization: strictly on row.original identity (Rule C10)
-//   - iOS-safe search: character stripping, no negative lookbehinds (Rule A)
 import { SmartCostCodeCombobox } from '@/components/ui/SmartCostCodeCombobox';
 
-export const CostCodeSpecCell = React.memo(({ getValue, row, table }: CellContext<Opportunity, unknown>) => {
+export const CostCodeCell = React.memo(({ getValue, row, table }: CellContext<Opportunity, unknown>) => {
   const initialCode    = getValue() as string | null | undefined;
   const initialCostType = row.original.cost_type as CostType | null | undefined;
+  const initialSpecNumberId = row.original.spec_number_id as string | null | undefined;
+
+  const updateMutation = table.options.meta?.updateData;
+  const rawCostCodes   = table.options.meta?.rawCostCodes || [];
+  const csiSpecs       = table.options.meta?.csiSpecs || [];
+  const permissions    = table.options.meta?.permissions || { can_edit_records: false };
+  
+  // Bottom-Up Locking: Disable if a granular CSI Spec is assigned
+  const disabled = !permissions.can_edit_records || !!initialSpecNumberId;
+
+  const handleChange = (updates: { cost_code?: string; division?: string; cost_type?: string; spec_number_id?: string | null }) => {
+    if (updateMutation) {
+      updateMutation.mutate({ id: row.original.id, updates });
+    }
+  };
+
+  return (
+    <SmartCostCodeCombobox
+      mode="cost_code_only"
+      value={initialCode}
+      costType={initialCostType}
+      specNumberId={initialSpecNumberId}
+      onChange={handleChange as any}
+      rawCostCodes={rawCostCodes as CostCode[]}
+      csiSpecs={csiSpecs as ProjectCsiSpec[]}
+      disabled={disabled}
+      showCostTypeSegment={true} // Financial focus
+    />
+  );
+}, (prev, next) => prev.row.original === next.row.original);
+
+export const CsiSpecCell = React.memo(({ row, table }: CellContext<Opportunity, unknown>) => {
+  const initialCode    = row.original.cost_code as string | null | undefined;
   const initialSpecNumberId = row.original.spec_number_id as string | null | undefined;
 
   const updateMutation = table.options.meta?.updateData;
@@ -589,14 +513,14 @@ export const CostCodeSpecCell = React.memo(({ getValue, row, table }: CellContex
 
   return (
     <SmartCostCodeCombobox
+      mode="csi_spec_only"
       value={initialCode}
-      costType={initialCostType}
       specNumberId={initialSpecNumberId}
-      onChange={handleChange as any} // we can cast or keep updates properly typed
+      onChange={handleChange as any}
       rawCostCodes={rawCostCodes as CostCode[]}
       csiSpecs={csiSpecs as ProjectCsiSpec[]}
       disabled={disabled}
-      showCostTypeSegment={true}
+      showCostTypeSegment={false} // Architectural focus
     />
   );
 }, (prev, next) => prev.row.original === next.row.original);

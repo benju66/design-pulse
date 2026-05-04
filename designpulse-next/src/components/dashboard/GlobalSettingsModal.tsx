@@ -8,7 +8,7 @@ import {
 import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission, useGlobalCsiTrainingData, useToggleGlobalCsiVerified, useRemapGlobalCsiEntry, useUserProjectMembers, useBulkUpdateUserProjects, SystemUser } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
-import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, CheckCircle2, Circle, Save, Undo } from 'lucide-react';
+import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, CheckCircle2, Circle, Save } from 'lucide-react';
 import { useProjects, useUpdateProjectCore, useDeleteProjectCore } from '@/hooks/useProjectQueries';
 import { Project, GlobalCsiTrainingData, RemapCsiEntryParams, CostCode } from '@/types/models';
 import { Database } from '@/types/database.types';
@@ -27,7 +27,6 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   const { data: costCodes = [] } = useCostCodes();
   const { data: isPlatformAdmin } = useIsPlatformAdmin();
   const { data: users, isLoading: usersLoading } = useSystemUsers();
-  const toggleAdmin = useTogglePlatformAdmin();
   const { session } = useAuth();
   
   const { data: myMemberships = [] } = useUserProjectMembers(session?.user?.id || null);

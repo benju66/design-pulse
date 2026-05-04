@@ -3,7 +3,6 @@ import { useState, useRef, useEffect } from 'react';
 import { LogOut, UserCircle } from 'lucide-react';
 import { supabase } from '@/supabaseClient';
 import { useAuth } from '@/providers/AuthProvider';
-import { useQueryClient } from '@tanstack/react-query';
 import UserProfileModal from '@/components/dashboard/UserProfileModal';
 
 interface UserAccountDropdownProps {

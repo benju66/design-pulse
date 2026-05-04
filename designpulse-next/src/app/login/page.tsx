@@ -113,11 +113,13 @@ function LoginContent() {
             )}
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Email address
               </label>
               <div className="mt-1">
                 <input
+                  id="email"
+                  name="email"
                   type="email"
                   required
                   value={email}
@@ -129,11 +131,13 @@ function LoginContent() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Password
               </label>
               <div className="mt-1">
                 <input
+                  id="password"
+                  name="password"
                   type="password"
                   required
                   value={password}

@@ -118,8 +118,8 @@ export default function DashboardPage() {
                     {project.project_number}
                   </div>
                 )}
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 line-clamp-1">
-                  {project.name}
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 line-clamp-1" title={project.project_settings?.[0]?.project_name || project.name}>
+                  {project.project_settings?.[0]?.project_name || project.name}
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-auto line-clamp-2">
                   {project.description || 'No description provided.'}

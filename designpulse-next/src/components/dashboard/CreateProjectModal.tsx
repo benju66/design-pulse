@@ -88,7 +88,7 @@ export default function CreateProjectModal({ isOpen, onClose, procoreProjectId, 
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Name <span className="text-rose-500">*</span></label>
+            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Display Name <span className="text-rose-500">*</span></label>
             <input
               type="text"
               autoFocus

@@ -90,8 +90,10 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   const currentProject = projects?.find(p => p.id === projectId);
   const updateProjectCore = useUpdateProjectCore(projectId);
 
+  const [activeTab, setActiveTab] = useState(initialTab); // 'info' | 'categories' | 'building_areas' | 'sidebar'
+  
   const { data: teamMembers, isLoading: teamLoading } = useProjectMembers(projectId);
-  const { data: allUsers } = useSystemUsers();
+  const { data: allUsers } = useSystemUsers({ enabled: activeTab === 'team' });
   const { data: isPlatformAdmin, isLoading: adminLoading } = useIsPlatformAdmin();
 
   const currentUserRole = teamMembers?.find(m => m.user_id === session?.user?.id)?.role;
@@ -104,8 +106,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   const [newMemberId, setNewMemberId] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('viewer');
 
-  const [activeTab, setActiveTab] = useState(initialTab); // 'info' | 'categories' | 'building_areas' | 'sidebar'
-  
+
   const [categories, setCategories] = useState<string[]>([]);
   const [buildingAreas, setBuildingAreas] = useState<string[]>([]);
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
@@ -558,31 +559,72 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-2 gap-6 mb-6">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Database ID</label>
+              <input 
+                type="text" 
+                readOnly
+                disabled
+                value={projectId}
+                className="w-full bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-500 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none font-mono opacity-70 cursor-not-allowed"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Display Name</label>
+              <input 
+                type="text" 
+                disabled={!canManageTeam}
+                value={projectInfo.project_name}
+                onChange={e => handleInfoChange('project_name', e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                placeholder="e.g. Acme Headquarters"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6 mb-6">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Number</label>
               <input 
                 type="text" 
+                disabled={!canManageTeam}
                 value={projectNumber}
                 onChange={e => {
                   setProjectNumber(e.target.value);
                   setHasChanges(true);
                 }}
-                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium uppercase"
+                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium uppercase disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="e.g. 26-123"
               />
             </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Location</label>
+              <input 
+                type="text" 
+                disabled={!canManageTeam}
+                value={projectInfo.location}
+                onChange={e => handleInfoChange('location', e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                placeholder="e.g. New York, NY"
+              />
+            </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Procore Project ID</label>
               <input 
                 type="text" 
+                disabled={!canManageTeam}
                 value={procoreProjectId}
                 onChange={e => {
                   setProcoreProjectId(e.target.value);
                   setHasChanges(true);
                 }}
-                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
+                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="e.g. 1234567"
               />
             </div>
@@ -591,37 +633,14 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Procore Company ID</label>
               <input 
                 type="text" 
+                disabled={!canManageTeam}
                 value={procoreCompanyId}
                 onChange={e => {
                   setProcoreCompanyId(e.target.value);
                   setHasChanges(true);
                 }}
-                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
+                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="e.g. 890123"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Project Name</label>
-              <input 
-                type="text" 
-                value={projectInfo.project_name}
-                onChange={e => handleInfoChange('project_name', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
-                placeholder="e.g. Acme Headquarters"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Location</label>
-              <input 
-                type="text" 
-                value={projectInfo.location}
-                onChange={e => handleInfoChange('location', e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
-                placeholder="e.g. New York, NY"
               />
             </div>
           </div>
@@ -634,9 +653,10 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium">$</span>
                 <input 
                   type="number" 
+                  disabled={!canManageTeam}
                   value={projectInfo.original_budget}
                   onChange={e => handleInfoChange('original_budget', e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium"
+                  className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="5000000"
                 />
               </div>

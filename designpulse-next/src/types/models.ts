@@ -49,6 +49,7 @@ export type Project = Database['public']['Tables']['projects']['Row'] & {
   procore_project_id?: string | null;
   procore_company_id?: string | null;
   is_archived?: boolean;
+  project_settings?: { project_name: string | null }[];
 };
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
 

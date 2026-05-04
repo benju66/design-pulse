@@ -430,8 +430,8 @@ BEGIN
 
   -- 3. Guarantee a settings row exists atomically (Audit fix C-2 / AGENTS.md Rule 25)
   -- ON CONFLICT DO NOTHING makes this idempotent and safe to retry.
-  INSERT INTO project_settings (project_id)
-  VALUES (v_project.id)
+  INSERT INTO project_settings (project_id, project_name)
+  VALUES (v_project.id, p_name)
   ON CONFLICT (project_id) DO NOTHING;
   
   RETURN NEXT v_project;

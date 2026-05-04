@@ -28,7 +28,7 @@ export function useProjectSettings(projectId: string | null) {
         building_areas: DEFAULT_BUILDING_AREAS as unknown as any,
         sidebar_items: DEFAULT_SIDEBAR_ITEMS as unknown as any,
         disciplines: DEFAULT_DISCIPLINES as unknown as any,
-        project_name: projectId,
+        project_name: null,
         location: 'Not Set',
         original_budget: 0,
         enable_audit_logging: false,
@@ -45,7 +45,7 @@ export function useProjectSettings(projectId: string | null) {
         building_areas: (settings.building_areas as any[])?.length > 0 ? settings.building_areas : defaultSettings.building_areas,
         sidebar_items: (settings.sidebar_items as any[])?.length > 0 ? settings.sidebar_items : defaultSettings.sidebar_items,
         disciplines: (settings.disciplines as any[])?.length > 0 ? settings.disciplines : defaultSettings.disciplines,
-        project_name: settings.project_name || defaultSettings.project_name,
+        project_name: settings.project_name || null,
         location: settings.location || defaultSettings.location,
         original_budget: settings.original_budget ?? defaultSettings.original_budget,
         enable_audit_logging: settings.enable_audit_logging ?? defaultSettings.enable_audit_logging,
@@ -354,7 +354,7 @@ export function useProjects() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select('*, project_settings(project_name)')
         .order('created_at', { ascending: false });
       
       if (error) {

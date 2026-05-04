@@ -56,7 +56,7 @@ export interface SystemUser {
   is_platform_admin: boolean;
 }
 
-export function useSystemUsers() {
+export function useSystemUsers(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['system_users'],
     queryFn: async () => {
@@ -64,6 +64,7 @@ export function useSystemUsers() {
       if (error) throw error;
       return data as SystemUser[];
     },
+    enabled: options?.enabled !== false
   });
 }
 

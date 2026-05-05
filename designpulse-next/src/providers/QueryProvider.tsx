@@ -3,8 +3,7 @@
 import { QueryClient, MutationCache } from '@tanstack/react-query';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/supabaseClient';
+import { useState, ReactNode } from 'react';
 
 
 export default function QueryProvider({ children }: { children: ReactNode }) {

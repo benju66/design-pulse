@@ -17,7 +17,7 @@ const robotoMono = Roboto_Mono({
 
 export const metadata = {
   title: "DesignPulse Pre-Construction Engine",
-  description: "Pre-construction Decision Engine and Coordination Tracker.",
+  description: "Pre-construction Decision Engine and Coordination Board",
 };
 
 interface RootLayoutProps {

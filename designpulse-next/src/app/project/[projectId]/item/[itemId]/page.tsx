@@ -6,6 +6,7 @@ import { useOpportunity } from '@/hooks/useProjectQueries';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
+import { useProjectRealtime } from '@/hooks/useProjectRealtime';
 
 interface ItemPageProps {
   params: Promise<{ projectId: string; itemId: string }>;
@@ -13,8 +14,9 @@ interface ItemPageProps {
 
 export default function ItemPopOutPage({ params }: ItemPageProps) {
   const resolvedParams = use(params);
-  const { itemId } = resolvedParams;
+  const { itemId, projectId } = resolvedParams;
   
+  useProjectRealtime(projectId);
   const { data: opportunity, isLoading } = useOpportunity(itemId);
 
   if (isLoading) {

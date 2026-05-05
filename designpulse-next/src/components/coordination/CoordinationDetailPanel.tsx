@@ -289,7 +289,7 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4 shadow-sm">
              <div>
-                <h4 className="text-sm font-bold text-purple-900 dark:text-purple-300">Escalate to VE Matrix</h4>
+                <h4 className="text-sm font-bold text-purple-900 dark:text-purple-300">Escalate to Value Matrix</h4>
                 <p className="text-xs font-semibold text-purple-700/80 dark:text-purple-400/80 mt-1">Send this item to Pre-Construction for financial review.</p>
              </div>
                <button 

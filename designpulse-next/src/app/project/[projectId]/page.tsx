@@ -23,6 +23,7 @@ import { supabase } from '@/supabaseClient';
 import DetailPanel from '@/components/DetailPanel';
 import { useUIStore } from '@/stores/useUIStore';
 import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
+import { useProjectRealtime } from '@/hooks/useProjectRealtime';
 
 import { ProjectSidebar } from '@/components/layout/ProjectSidebar';
 import { ProjectSettings } from '@/components/project/ProjectSettings';
@@ -34,6 +35,7 @@ interface ProjectPageProps {
 export default function ProjectPage({ params }: ProjectPageProps) {
   const resolvedParams = use(params);
   const projectId = resolvedParams.projectId;
+  useProjectRealtime(projectId);
   const { data: opportunities = [], isLoading } = useOpportunities(projectId);
   const { data: settings } = useProjectSettings(projectId);
   const { data: globalCostCodes = [] } = useCostCodes();
@@ -234,11 +236,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         {/* Top Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-            {currentView === 'dashboard' && 'Value Engineering Matrix'}
-            {currentView === 'dashboard-v2' && 'Value Engineering Matrix V2'}
+            {currentView === 'dashboard' && 'Value Matrix'}
+            {currentView === 'dashboard-v2' && 'Value Matrix V2'}
             {currentView === 'map' && 'Map View'}
             {currentView === 'analytics' && 'Project Analytics'}
-            {currentView === 'coordination' && 'Design Coordination Tracker'}
+            {currentView === 'coordination' && 'Design Coordination Board'}
             {currentView === 'permits' && 'Permits Tracker'}
             {currentView === 'my-desk' && 'My Desk'}
             {currentView === 'settings' && 'Project Settings'}

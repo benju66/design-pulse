@@ -139,7 +139,10 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
       setCategories((settings.categories as string[]) || []);
       setBuildingAreas((settings.building_areas as string[]) || []);
       const savedSidebarItems = (settings.sidebar_items as unknown as SidebarItem[]) || [];
-      const mergedSidebarItems = [...savedSidebarItems];
+      const mergedSidebarItems = savedSidebarItems.map(item => {
+        const defaultItem = DEFAULT_SIDEBAR_ITEMS.find(d => d.id === item.id);
+        return defaultItem ? { ...item, label: defaultItem.label, iconName: defaultItem.iconName } : item;
+      });
       DEFAULT_SIDEBAR_ITEMS.forEach(defaultItem => {
         if (!mergedSidebarItems.find(i => i.id === defaultItem.id)) {
           mergedSidebarItems.push({ ...defaultItem } as SidebarItem);
@@ -519,7 +522,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                     : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
                 }`}
               >
-                <TableProperties size={16} className={activeTab === 've_matrix' ? 'text-sky-500' : 'text-slate-400'} /> VE Matrix
+                <TableProperties size={16} className={activeTab === 've_matrix' ? 'text-sky-500' : 'text-slate-400'} /> Value Matrix
               </button>
               <button
                 onClick={() => setActiveTab('coord_matrix')}
@@ -529,7 +532,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                     : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
                 }`}
               >
-                <TableProperties size={16} className={activeTab === 'coord_matrix' ? 'text-sky-500' : 'text-slate-400'} /> Coordination Tracker
+                <TableProperties size={16} className={activeTab === 'coord_matrix' ? 'text-sky-500' : 'text-slate-400'} /> Coordination Board
               </button>
               <button
                 onClick={() => setActiveTab('permits')}
@@ -660,7 +663,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                   placeholder="5000000"
                 />
               </div>
-              <p className="text-xs text-slate-500 mt-1">This value sets the baseline for the Value Engineering Matrix.</p>
+              <p className="text-xs text-slate-500 mt-1">This value sets the baseline for the Value Matrix.</p>
             </div>
           </div>
 
@@ -694,7 +697,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Project Building Areas / Filtering Tabs</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Define the physical buildingAreas or locations within your project (e.g., Corridor, Exterior, Units). These become the main filter tabs at the top of the VE Matrix and can be assigned to items in the grid.
+            Define the physical buildingAreas or locations within your project (e.g., Corridor, Exterior, Units). These become the main filter tabs at the top of the Value Matrix and can be assigned to items in the grid.
           </p>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndBuildingAreas}>
@@ -846,7 +849,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Disciplines</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Define the engineering and design disciplines to track in the Coordination Tracker. Drag to reorder.
+            Define the engineering and design disciplines to track in the Coordination Board. Drag to reorder.
           </p>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndDisciplines}>
@@ -894,9 +897,9 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
 
       {activeTab === 've_matrix' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">VE Matrix Configuration</h3>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Value Matrix Configuration</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Set the default column order for the VE Matrix. Drag items to rearrange them. Note: individual users can still temporarily reorder columns using the View menu.
+            Set the default column order for the Value Matrix. Drag items to rearrange them. Note: individual users can still temporarily reorder columns using the View menu.
           </p>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndVeColumns}>
@@ -932,9 +935,9 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
 
       {activeTab === 'coord_matrix' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Tracker Configuration</h3>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Board Configuration</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Set the default column order for the Coordination Tracker. Drag items to rearrange them or toggle their visibility.
+            Set the default column order for the Coordination Board. Drag items to rearrange them or toggle their visibility.
           </p>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndCoordColumns}>

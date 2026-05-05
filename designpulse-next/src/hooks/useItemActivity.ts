@@ -37,6 +37,11 @@ export function useActivityFeed(opportunityId: string | null) {
 
   return useInfiniteQuery<{ data: ItemActivity[]; nextCursor: number | null }, Error>({
     queryKey: ['activity_feed', opportunityId],
+    // Override the global staleTime (5 min) so the feed always refetches when the
+    // Activity tab is opened. Without this, React Query serves cached (stale) data
+    // that predates the DB trigger insert from adding/deleting a contender. (AGENTS.md Rule C.2)
+    staleTime: 0,
+    refetchOnMount: 'always',
     queryFn: async ({ pageParam = 0 }) => {
       if (!opportunityId) return { data: [], nextCursor: null };
       
@@ -71,19 +76,19 @@ export function useAddComment(opportunityId: string, projectId: string) {
   return useMutation<
     ItemActivity,
     Error,
-    { content: string; mentions: string[]; option_id?: string; include_in_oac?: boolean },
+    { id?: string; content: string; mentions: string[]; option_id?: string; include_in_oac?: boolean; author_id?: string },
     { previousPages: any }
   >({
     mutationFn: async (newComment) => {
-      const realUUID = (newComment as any).id; // ID generated in onMutate
+      const { id, ...rest } = newComment;
       const { data, error } = await supabase
         .from('item_activity')
         .insert([{
-          id: realUUID,
+          id: id || crypto.randomUUID(),
           project_id: projectId,
           opportunity_id: opportunityId,
           activity_type: 'user_comment',
-          ...newComment
+          ...rest
         }])
         .select()
         .single();
@@ -95,8 +100,7 @@ export function useAddComment(opportunityId: string, projectId: string) {
       await queryClient.cancelQueries({ queryKey: ['activity_feed', opportunityId] });
       const previousPages = queryClient.getQueryData(['activity_feed', opportunityId]);
 
-      const realUUID = crypto.randomUUID();
-      (newComment as any).id = realUUID;
+      const realUUID = newComment.id || crypto.randomUUID();
 
       queryClient.setQueryData(['activity_feed', opportunityId], (old: any) => {
         if (!old || !old.pages) return old;
@@ -110,7 +114,7 @@ export function useAddComment(opportunityId: string, projectId: string) {
           activity_type: 'user_comment',
           content: newComment.content,
           mentions: newComment.mentions,
-          author_id: null, // We don't necessarily have it here synchronously, but Realtime will fix it
+          author_id: newComment.author_id || null, 
           include_in_oac: newComment.include_in_oac || false,
           is_edited: false,
           is_deleted: false,
@@ -136,6 +140,10 @@ export function useAddComment(opportunityId: string, projectId: string) {
       }
       toast.error(`Failed to add comment: ${err.message || 'Unknown error'}`);
     },
+    onSuccess: () => {
+      // Guarantee the feed refetches and persists the true DB state
+      queryClient.invalidateQueries({ queryKey: ['activity_feed', opportunityId] });
+    }
   });
 }
 
@@ -189,6 +197,9 @@ export function useUpdateComment(opportunityId: string) {
       }
       toast.error(`Failed to update comment: ${err.message || 'Unknown error'}`);
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activity_feed', opportunityId] });
+    }
   });
 }
 

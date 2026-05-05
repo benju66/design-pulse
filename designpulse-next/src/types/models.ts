@@ -40,7 +40,7 @@ export interface PermitRevision {
 export type ProjectSettings = Database['public']['Tables']['project_settings']['Row'] & {
   disciplines?: DisciplineConfig[];
   ve_column_order?: any[]; // Supports legacy string[] or new {id, visible}[] format
-  coord_column_order?: any[]; // New column for Coordination Tracker
+  coord_column_order?: any[]; // New column for Coordination Board
   permit_types?: PermitTypeConfig[];
   permit_ahjs?: PermitAHJConfig[];
 };

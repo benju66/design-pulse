@@ -35,7 +35,7 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 * `projects`: Master project records.
 * `project_settings`: JSONB configurations for dynamic `building_areas`, `categories`, `sidebar_items`, `disciplines`, and `ve_column_order` (Array of objects: `[{id: "...", label: "...", visible: true}]`).
 * `opportunities`: The parent VE log items. Contains `design_markups` JSONB and `coordination_details` JSONB.
-* `opportunity_options`: The relational contenders. Linked to `opportunities` via `opportunity_id` (Foreign Key, Cascade Delete).
+* `opportunity_options`: The relational contenders. Linked to `opportunities` via `opportunity_id` (Foreign Key, Cascade Delete). **DENORMALIZATION NOTE:** Also contains a `project_id` column explicitly for RLS performance, Realtime subscription scoping (`filter: project_id=eq.X`), and future cross-project global dashboard queries.
 
 ---
 

@@ -574,7 +574,7 @@ const EMPTY_VISIBILITY: any = {};
               <tbody>
                 <tr>
                   <td colSpan={columns.length} className="px-4 py-8 text-center text-slate-500">
-                    No items in Coordination Tracker. Add one below!
+                    No items in Coordination Board. Add one below!
                   </td>
                 </tr>
               </tbody>

@@ -24,31 +24,7 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
       })
   );
 
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout>;
-    
-    const debouncedInvalidate = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['opportunities'], refetchType: 'active' });
-        queryClient.invalidateQueries({ queryKey: ['all_project_options'], refetchType: 'active' });
-      }, 300);
-    };
 
-    const channel = supabase.channel('public:opportunities_and_options')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'opportunities' }, () => {
-        debouncedInvalidate();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'opportunity_options' }, () => {
-        debouncedInvalidate();
-      })
-      .subscribe();
-
-    return () => {
-      clearTimeout(timeoutId);
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

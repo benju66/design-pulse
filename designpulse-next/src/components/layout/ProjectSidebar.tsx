@@ -23,8 +23,12 @@ export const ProjectSidebar = ({ projectId, currentView, setCurrentView }: Proje
   
   const viewItems = (settings?.sidebar_items as unknown as SidebarItem[]) || (DEFAULT_SIDEBAR_ITEMS as unknown as SidebarItem[]);
   
-  // Merge missing default views dynamically (e.g. newly added features)
-  const mergedItems = [...viewItems];
+  // Merge missing default views dynamically and enforce correct labels
+  const mergedItems = viewItems.map(item => {
+    const defaultItem = DEFAULT_SIDEBAR_ITEMS.find(d => d.id === item.id);
+    return defaultItem ? { ...item, label: defaultItem.label, iconName: defaultItem.iconName } : item;
+  });
+  
   DEFAULT_SIDEBAR_ITEMS.forEach(defaultItem => {
     if (!mergedItems.find(i => i.id === defaultItem.id)) {
       mergedItems.push({ ...defaultItem } as SidebarItem);

@@ -472,7 +472,13 @@ export function useCreateOption(opportunityId: string, projectId: string) {
       const realUUID = (newOption as any).id; // ID generated in onMutate
       const { data, error } = await supabase
         .from('opportunity_options')
-        .insert([{ opportunity_id: opportunityId, title: 'New Contender', ...newOption, id: realUUID }])
+        .insert([{ 
+          opportunity_id: opportunityId, 
+          project_id: projectId,
+          title: 'New Contender', 
+          ...newOption, 
+          id: realUUID 
+        }])
         .select()
         .single();
       if (error) throw error;
@@ -520,8 +526,11 @@ export function useCreateOption(opportunityId: string, projectId: string) {
       toast.error(`Failed to create option: ${err.message || 'Unknown error'}`);
     },
     onSuccess: () => {
-      // Data is already set accurately by onMutate. 
-      // Supabase Realtime will trigger the invalidation.
+      // Explicitly invalidate the activity feed here because its Realtime subscription
+      // only exists when the Activity tab is mounted. If the user is on the Details tab
+      // when the option is created, the DB trigger fires and inserts into item_activity,
+      // but no subscriber is listening — the event is silently missed. (AGENTS.md Rule C.2)
+      queryClient.invalidateQueries({ queryKey: ['activity_feed', opportunityId] });
     }
   });
 }
@@ -627,6 +636,12 @@ export function useDeleteOption(opportunityId: string, projectId: string) {
         queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
       toast.error(`Failed to delete option: ${err.message || 'Unknown error'}`);
+    },
+    onSuccess: () => {
+      // Confirm the soft-delete is reflected in the cache and propagate the DB trigger
+      // activity log entry ("Option X was deleted") to the activity feed. (AGENTS.md Rule C.2)
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['activity_feed', opportunityId] });
     }
   });
 }

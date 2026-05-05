@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
 CREATE TABLE IF NOT EXISTS opportunity_options (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   opportunity_id uuid NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+  project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title text NOT NULL,
   cost_impact numeric DEFAULT 0,
   days_impact numeric DEFAULT 0,
@@ -313,33 +314,25 @@ DROP POLICY IF EXISTS "Members can view opportunity_options" ON opportunity_opti
 DROP POLICY IF EXISTS "Members or Admins can view opportunity_options" ON opportunity_options;
 CREATE POLICY "Members or Admins can view opportunity_options" 
   ON opportunity_options FOR SELECT USING (
-    is_platform_admin() OR (is_deleted = false AND EXISTS (
-      SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_options.opportunity_id AND public.get_user_project_role(opportunities.project_id) IS NOT NULL
-    ))
+    is_platform_admin() OR (is_deleted = false AND public.get_user_project_role(project_id) IS NOT NULL)
   );
 
 DROP POLICY IF EXISTS "Members can insert opportunity_options" ON opportunity_options;
 CREATE POLICY "Members can insert opportunity_options" 
   ON opportunity_options FOR INSERT WITH CHECK (
-    is_platform_admin() OR EXISTS (
-      SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_id AND public.get_user_project_role(opportunities.project_id) IN ('project_admin', 'gc_admin', 'design_team')
-    )
+    public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin', 'design_team')
   );
 
 DROP POLICY IF EXISTS "Members can update opportunity_options" ON opportunity_options;
 CREATE POLICY "Members can update opportunity_options" 
   ON opportunity_options FOR UPDATE USING (
-    is_platform_admin() OR EXISTS (
-      SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_id AND public.get_user_project_role(opportunities.project_id) IN ('project_admin', 'gc_admin', 'design_team')
-    )
+    public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin', 'design_team')
   );
 
 DROP POLICY IF EXISTS "Admins can delete opportunity_options" ON opportunity_options;
 CREATE POLICY "Admins can delete opportunity_options" 
   ON opportunity_options FOR DELETE USING (
-    is_platform_admin() OR EXISTS (
-      SELECT 1 FROM opportunities WHERE opportunities.id = opportunity_id AND public.get_user_project_role(opportunities.project_id) IN ('project_admin', 'gc_admin')
-    )
+    public.get_user_project_role(project_id) IN ('project_admin', 'gc_admin')
   );
 
 -- Permits

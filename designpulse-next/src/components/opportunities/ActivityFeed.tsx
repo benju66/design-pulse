@@ -94,9 +94,11 @@ export const ActivityFeed = ({ opportunityId, projectId }: ActivityFeedProps) =>
     if (!commentText.trim()) return;
     
     addComment.mutate({
+      id: crypto.randomUUID(),
       content: commentText.trim(),
       mentions: mentions,
-      include_in_oac: includeInOAC
+      include_in_oac: includeInOAC,
+      author_id: user?.id
     });
 
     setCommentText('');

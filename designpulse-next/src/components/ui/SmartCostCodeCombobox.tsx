@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, Lock } from 'lucide-react';
 import { CostType, CostCode, ProjectCsiSpec } from '@/types/models';
+import { formatCostCode } from '@/lib/formatCostCode';
 
 const COST_TYPE_PILL: Record<string, string> = {
   Labor:       'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -10,11 +11,67 @@ const COST_TYPE_PILL: Record<string, string> = {
   Other:       'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
 };
 
+// Standard construction suffix notation: suffix sits directly after the numeric code.
+// e.g. "10-2600.M – Wall and Door Protection"
+const COST_TYPE_ABBR: Record<string, string> = {
+  Labor:       '.L',
+  Material:    '.M',
+  Subcontract: '.S',
+  Equipment:   '.E',
+  Other:       '.O',
+};
+
+// Maps each category_* boolean flag on a CostCode row to its suffix + CostType value.
+// Used to fan out a single code into multiple selectable entries in the dropdown.
+const CATEGORY_SUFFIX: { field: keyof CostCode; suffix: string; costType: CostType }[] = [
+  { field: 'category_l', suffix: '.L', costType: 'Labor' },
+  { field: 'category_m', suffix: '.M', costType: 'Material' },
+  { field: 'category_s', suffix: '.S', costType: 'Subcontract' },
+  { field: 'category_e', suffix: '.E', costType: 'Equipment' },
+  { field: 'category_o', suffix: '.O', costType: 'Other' },
+];
+
 const COST_TYPES: CostType[] = ['Labor', 'Material', 'Subcontract', 'Equipment', 'Other'];
 
 // iOS-safe normalization: strip non-alphanumeric, lowercase (no negative lookbehind)
 function normalizeSearch(q: string): string {
   return q.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// A single selectable entry — one per active category flag per cost code.
+// Codes with no flags appear once with suffix='' and costType=null.
+interface CodeEntry {
+  code: string;         // raw stored code e.g. '102600'
+  description: string;  // e.g. 'Wall and Door Protection'
+  suffix: string;       // '.M' | '' etc.
+  costType: CostType | null;
+  displayCode: string;  // '10-2600.M' — used in both dropdown and trigger
+}
+
+// Expand each CostCode into one entry per active category flag.
+// A code with category_m=true + category_s=true yields TWO entries in the list.
+// A code with no flags yields one entry without a suffix (no cost type forced).
+function expandCodeEntries(codes: CostCode[]): CodeEntry[] {
+  const result: CodeEntry[] = [];
+  for (const c of codes) {
+    const description = c.description ?? '';
+    const formatted = formatCostCode(c.code);
+    const activeSuffixes = CATEGORY_SUFFIX.filter(cs => c[cs.field] === true);
+    if (activeSuffixes.length === 0) {
+      result.push({ code: c.code, description, suffix: '', costType: null, displayCode: formatted });
+    } else {
+      for (const cs of activeSuffixes) {
+        result.push({
+          code: c.code,
+          description,
+          suffix: cs.suffix,
+          costType: cs.costType,
+          displayCode: `${formatted}${cs.suffix}`,
+        });
+      }
+    }
+  }
+  return result;
 }
 
 export interface SmartCostCodeComboboxProps {
@@ -68,12 +125,15 @@ export function SmartCostCodeCombobox({
 
   const nq = normalizeSearch(searchQuery);
 
-  const filteredBaseCodes = mode === 'csi_spec_only' ? [] : rawCostCodes.filter((c) => {
-    // Include both child codes AND division-level codes (e.g. 260000 - Electrical).
-    // Division codes are legitimate selectable cost codes; is_division is a display
-    // hint for the viewer grouping only, not a filter for selectability.
+  // Fan out codes into one entry per category flag, then filter.
+  const allEntries: CodeEntry[] = mode === 'csi_spec_only' ? [] : expandCodeEntries(rawCostCodes);
+  const filteredEntries = allEntries.filter((entry) => {
     if (!searchQuery) return true;
-    return normalizeSearch(c.code).includes(nq) || normalizeSearch(c.description || '').includes(nq);
+    return (
+      normalizeSearch(entry.code).includes(nq) ||
+      normalizeSearch(entry.description).includes(nq) ||
+      normalizeSearch(entry.displayCode).includes(nq) // supports searching "10-2600.M"
+    );
   });
 
   const filteredCsiSpecs = mode === 'cost_code_only' ? [] : csiSpecs.filter((spec) => {
@@ -85,21 +145,26 @@ export function SmartCostCodeCombobox({
     );
   });
 
-  // Rule C23: atomic onChange mutation — never onBlur
-  const handleSelectBaseCode = (code: string) => {
-    const updates: { cost_code: string; division?: string; spec_number_id: string | null } = { 
-      cost_code: code,
-      spec_number_id: null // clear spec if base code is manually selected
+  // Rule C23: atomic onChange — selects both cost_code and cost_type in one mutation.
+  // The suffix entry determines the cost_type; no separate manual selector needed in the grid.
+  const handleSelectEntry = (entry: CodeEntry) => {
+    const updates: {
+      cost_code: string;
+      division?: string;
+      cost_type?: CostType;
+      spec_number_id: string | null;
+    } = {
+      cost_code: entry.code,
+      spec_number_id: null,
+      ...(entry.costType ? { cost_type: entry.costType } : {}),
     };
-    // Look up the matching row — works for both child codes and division-level codes.
-    const matched = rawCostCodes.find((c) => c.code === code);
+    // Derive division from the matching cost code row.
+    const matched = rawCostCodes.find((c) => c.code === entry.code);
     if (matched) {
       if (matched.parent_division) {
-        // Regular child code: look up its parent division header
         const parentDiv = rawCostCodes.find((c) => c.code === matched.parent_division && c.is_division);
         if (parentDiv) updates.division = `${parentDiv.code} - ${parentDiv.description}`;
       } else if (matched.is_division) {
-        // Division-level code selected directly (e.g. 260000 - Electrical)
         updates.division = `${matched.code} - ${matched.description}`;
       }
     }
@@ -110,9 +175,9 @@ export function SmartCostCodeCombobox({
 
   const handleSelectCsiSpec = (spec: ProjectCsiSpec) => {
     if (!spec.cost_code) return;
-    const updates: { cost_code: string; division?: string; spec_number_id: string } = { 
+    const updates: { cost_code: string; division?: string; spec_number_id: string } = {
       cost_code: spec.cost_code,
-      spec_number_id: spec.id
+      spec_number_id: spec.id,
     };
     const matched = rawCostCodes.find((c) => c.code === spec.cost_code);
     if (matched) {
@@ -132,8 +197,17 @@ export function SmartCostCodeCombobox({
     onChange({ cost_type: type });
   };
 
+  // Trigger display: "10-2600.M – Wall and Door Protection"
+  // Suffix immediately follows the number, description after the dash.
   const isEmpty = !value;
   const selectedSpec = specNumberId ? csiSpecs.find(s => s.id === specNumberId) : undefined;
+  const selectedCodeRow = value ? rawCostCodes.find(c => c.code === value) : undefined;
+  const costTypeSuffix = costType ? (COST_TYPE_ABBR[costType] ?? '') : '';
+  const triggerLabel = value
+    ? selectedCodeRow
+      ? `${formatCostCode(value)}${costTypeSuffix} \u2013 ${selectedCodeRow.description}`
+      : `${formatCostCode(value)}${costTypeSuffix}`
+    : null;
 
   return (
     <div ref={containerRef} className="relative w-full h-full">
@@ -141,20 +215,28 @@ export function SmartCostCodeCombobox({
       <div
         onClick={() => { if (!disabled) setIsOpen(true); }}
         className={`
-          w-full h-full px-2 py-1 text-sm min-h-[28px] flex items-center gap-1.5
+          w-full h-full px-2 py-1 text-xs min-h-[28px] flex items-center gap-1.5
           ${disabled ? 'cursor-not-allowed opacity-75 bg-slate-50 dark:bg-slate-800/30' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50'}
           ${isOpen ? 'ring-2 ring-inset ring-sky-500 bg-sky-50/50 dark:bg-sky-900/20' : ''}
         `}
       >
-        <span className={`truncate flex-1 flex items-center gap-1.5 ${isEmpty && mode !== 'csi_spec_only' ? 'text-slate-400 italic' : 'text-slate-900 dark:text-slate-100'}`}>
+        <span className={`truncate flex-1 flex items-center gap-1 min-w-0 ${
+          isEmpty && mode !== 'csi_spec_only' ? 'text-slate-400 italic' : 'text-slate-800 dark:text-slate-100'
+        }`}>
           {disabled && mode === 'cost_code_only' && <Lock className="w-3 h-3 text-slate-400 shrink-0" />}
-          {mode === 'csi_spec_only' ? (selectedSpec?.csi_number || '—') : (value || 'Set Code…')}
+          <span className="truncate text-xs">
+            {mode === 'csi_spec_only'
+              ? (selectedSpec?.csi_number || '\u2014')
+              : (triggerLabel || 'Set Code\u2026')
+            }
+          </span>
           {selectedSpec && mode !== 'csi_spec_only' && (
-            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono tracking-tight font-medium" title={selectedSpec.description || undefined}>
+            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono tracking-tight font-medium shrink-0" title={selectedSpec.description || undefined}>
               {selectedSpec.csi_number}
             </span>
           )}
         </span>
+        {/* Full colored pill — only when showCostTypeSegment is true (Detail Panel) */}
         {showCostTypeSegment && costType && (
           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${COST_TYPE_PILL[costType] || ''}`}>
             {costType}
@@ -164,7 +246,7 @@ export function SmartCostCodeCombobox({
 
       {/* ── Smart Popover ── */}
       {isOpen && (
-        <div className="absolute left-0 top-full mt-0.5 z-[200] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-72 overflow-hidden flex flex-col">
+        <div className="absolute left-0 top-full mt-0.5 z-[200] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-80 overflow-hidden flex flex-col">
 
           {/* Search input */}
           <div className="p-2 border-b border-slate-100 dark:border-slate-800">
@@ -182,14 +264,14 @@ export function SmartCostCodeCombobox({
                     setSearchQuery('');
                   }
                 }}
-                placeholder="Search codes or descriptions…"
+                placeholder="Search codes or descriptions\u2026"
                 className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100 placeholder-slate-400"
               />
             </div>
           </div>
 
           {/* Results list */}
-          <div className="max-h-52 overflow-y-auto">
+          <div className="max-h-56 overflow-y-auto">
             {mode === 'csi_spec_only' && (
               <button
                 onClick={() => {
@@ -199,30 +281,35 @@ export function SmartCostCodeCombobox({
                 }}
                 className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors text-slate-500 hover:text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800"
               >
-                <span className="font-semibold italic">Clear Spec…</span>
+                <span className="font-semibold italic">Clear Spec\u2026</span>
               </button>
             )}
 
-            {/* Base codes */}
-            {filteredBaseCodes.length > 0 && (
+            {/* Base codes — one row per suffix variant */}
+            {filteredEntries.length > 0 && (
               <>
                 <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 sticky top-0 border-b border-slate-100 dark:border-slate-800">
                   Cost Codes
                 </div>
-                {filteredBaseCodes.map((c) => (
-                  <button
-                    key={c.code}
-                    onClick={() => handleSelectBaseCode(c.code)}
-                    className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 transition-colors ${
-                      value === c.code
-                        ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 font-semibold'
-                        : 'text-slate-700 dark:text-slate-300 hover:bg-sky-50 dark:hover:bg-sky-900/20'
-                    }`}
-                  >
-                    <span className="font-mono font-semibold shrink-0">{c.code}</span>
-                    <span className="text-slate-500 dark:text-slate-400 truncate text-right text-[11px]">{c.description}</span>
-                  </button>
-                ))}
+                {filteredEntries.map((entry) => {
+                  const isSelected = entry.code === value && entry.costType === costType;
+                  return (
+                    <button
+                      key={`${entry.code}${entry.suffix}`}
+                      onClick={() => handleSelectEntry(entry)}
+                      className={`w-full text-left px-3 py-1.5 flex items-baseline gap-2 transition-colors ${
+                        isSelected
+                          ? 'bg-sky-50 dark:bg-sky-900/20'
+                          : 'hover:bg-sky-50 dark:hover:bg-sky-900/20'
+                      }`}
+                    >
+                      <span className={`text-xs tabular-nums font-semibold shrink-0 ${
+                        isSelected ? 'text-sky-700 dark:text-sky-300' : 'text-slate-700 dark:text-slate-200'
+                      }`}>{entry.displayCode}</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 truncate">{entry.description}</span>
+                    </button>
+                  );
+                })}
               </>
             )}
 
@@ -230,7 +317,7 @@ export function SmartCostCodeCombobox({
             {filteredCsiSpecs.length > 0 && (
               <>
                 <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-400 dark:text-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/10 sticky top-0 border-b border-slate-100 dark:border-slate-800">
-                  CSI Specs — This Project
+                  CSI Specs \u2014 This Project
                 </div>
                 {filteredCsiSpecs.map((spec) => (
                   <button
@@ -243,7 +330,7 @@ export function SmartCostCodeCombobox({
                     <span className="text-slate-500 dark:text-slate-400 truncate">{spec.description}</span>
                     {spec.cost_code && (
                       <span className="ml-auto shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono whitespace-nowrap">
-                        → {spec.cost_code}
+                        \u2192 {spec.cost_code}
                       </span>
                     )}
                   </button>
@@ -251,14 +338,14 @@ export function SmartCostCodeCombobox({
               </>
             )}
 
-            {filteredBaseCodes.length === 0 && filteredCsiSpecs.length === 0 && (
+            {filteredEntries.length === 0 && filteredCsiSpecs.length === 0 && (
               <div className="px-3 py-5 text-xs text-slate-400 text-center italic">
                 No matches found
               </div>
             )}
           </div>
 
-          {/* ── Cost Type Segmented Control ── */}
+          {/* ── Cost Type Segmented Control (Detail Panel only) ── */}
           {showCostTypeSegment && (
             <div className="p-2 border-t border-slate-100 dark:border-slate-800">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5">

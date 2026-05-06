@@ -499,7 +499,7 @@ export const CostCodeCell = React.memo(({ getValue, row, table }: CellContext<Op
       rawCostCodes={rawCostCodes as CostCode[]}
       csiSpecs={csiSpecs as ProjectCsiSpec[]}
       disabled={disabled}
-      showCostTypeSegment={true} // Financial focus
+      showCostTypeSegment={false} // Cost type belongs in Detail Panel, not the dense grid cell
     />
   );
 }, (prev, next) => prev.row.original === next.row.original);

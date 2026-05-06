@@ -422,12 +422,21 @@ export const DivisionCell = React.memo(
     // iOS-safe: no negative lookbehind, no regex — simple array finds.
     const derivedDivision = (() => {
       if (!costCode || rawCostCodes.length === 0) return null;
-      const matched = rawCostCodes.find(c => c.code === costCode && !c.is_division);
-      if (!matched?.parent_division) return null;
-      const parentDiv = rawCostCodes.find(
-        c => c.code === matched.parent_division && c.is_division
-      );
-      return parentDiv ? `${parentDiv.code} \u2013 ${parentDiv.description}` : null;
+      // Find the matching row regardless of is_division flag.
+      const matched = rawCostCodes.find(c => c.code === costCode);
+      if (!matched) return null;
+      if (matched.parent_division) {
+        // Regular child code: look up its division header.
+        const parentDiv = rawCostCodes.find(
+          c => c.code === matched.parent_division && c.is_division
+        );
+        return parentDiv ? `${parentDiv.code} \u2013 ${parentDiv.description}` : null;
+      }
+      if (matched.is_division) {
+        // Division-level code used directly (e.g. 260000 - Electrical).
+        return `${matched.code} \u2013 ${matched.description}`;
+      }
+      return null;
     })();
 
     // Fallback: show stored division string for legacy rows / unmapped codes.

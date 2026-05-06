@@ -8,7 +8,7 @@ import {
 import { CsiSpecItem } from '@/hooks/useProjectQueries';
 import { SmartCostCodeCombobox } from '@/components/ui/SmartCostCodeCombobox';
 import { CostCode } from '@/types/models';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Trash2 } from 'lucide-react';
 
 interface CsiStagingGridProps {
   data: CsiSpecItem[];
@@ -75,6 +75,25 @@ export function CsiStagingGrid({ data, setData, costCodes }: CsiStagingGridProps
           );
         },
         size: 250,
+      },
+      {
+        id: 'actions',
+        header: '',
+        cell: (info) => {
+          const row = info.row.original;
+          return (
+            <div className="flex items-center justify-end px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => setData(old => old.filter(item => item.id !== row.id))}
+                className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 p-1.5 rounded-md transition-colors"
+                title="Remove Spec"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          );
+        },
+        size: 50,
       },
     ],
     [costCodes, setData]

@@ -196,8 +196,12 @@ CREATE TABLE IF NOT EXISTS cost_codes (
   category_l boolean DEFAULT false,
   category_m boolean DEFAULT false,
   category_s boolean DEFAULT false,
+  category_e boolean DEFAULT false,
   category_o boolean DEFAULT false
 );
+
+-- Safely add category_e if the table was created before this column was introduced
+ALTER TABLE cost_codes ADD COLUMN IF NOT EXISTS category_e boolean DEFAULT false;
 
 -- 5.5 Audit Logs Table
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -1256,6 +1260,38 @@ $$;
 -- PHASE 5: ROSETTA STONE SPEC BOOK EXTRACTOR
 -- Database Architecture & RPC Additions
 -- ==========================================
+
+-- 0. Project CSI Specs Table
+CREATE TABLE IF NOT EXISTS public.project_csi_specs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  csi_number text NOT NULL,
+  description text NOT NULL,
+  cost_code text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(project_id, csi_number)
+);
+
+ALTER TABLE public.project_csi_specs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Members can view project_csi_specs" 
+  ON public.project_csi_specs FOR SELECT 
+  USING (
+    public.is_platform_admin() 
+    OR public.get_user_project_role(project_id) IS NOT NULL
+  );
+
+CREATE POLICY "Members can insert project_csi_specs"
+  ON public.project_csi_specs FOR INSERT
+  WITH CHECK (public.has_project_permission(project_id, 'can_edit_records'));
+
+CREATE POLICY "Members can update project_csi_specs"
+  ON public.project_csi_specs FOR UPDATE
+  USING (public.has_project_permission(project_id, 'can_edit_records'));
+
+CREATE POLICY "Members can delete project_csi_specs"
+  ON public.project_csi_specs FOR DELETE
+  USING (public.has_project_permission(project_id, 'can_delete_records'));
 
 -- 1. Optimized ML Auto-Suggest RPC (Minimizes network payload with DISTINCT ON)
 CREATE OR REPLACE FUNCTION get_csi_training_suggestions(p_normalized_codes jsonb)

@@ -296,3 +296,145 @@ export function useBulkUpdateUserProjects() {
     },
   });
 }
+
+// ── Phase 7: Cost Code Library Editing ───────────────────────────────────────
+
+// Strict union of the five category fields — used both here and in the viewer
+// to ensure no `any` casts when toggling individual category flags (AGENTS.md C1).
+export type CategoryField =
+  | 'category_l'
+  | 'category_m'
+  | 'category_s'
+  | 'category_e'
+  | 'category_o';
+
+export function useUpdateCostCodeDescription() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { code: string; description: string }>({
+    mutationFn: async ({ code, description }) => {
+      const { error } = await supabase
+        .from('cost_codes')
+        .update({ description })
+        .eq('code', code);
+      if (error) throw error;
+    },
+    onMutate: async ({ code, description }) => {
+      await queryClient.cancelQueries({ queryKey: ['cost_codes'] });
+      const previous = queryClient.getQueryData<CostCode[]>(['cost_codes']);
+      queryClient.setQueryData<CostCode[]>(['cost_codes'], old =>
+        old?.map(c => c.code === code ? { ...c, description } : c)
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      const c = ctx as { previous?: CostCode[] } | undefined;
+      if (c?.previous) queryClient.setQueryData(['cost_codes'], c.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cost_codes'] });
+    },
+  });
+}
+
+export function useDeleteCostCode() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (code) => {
+      const { error } = await supabase
+        .from('cost_codes')
+        .delete()
+        .eq('code', code);
+      if (error) throw error;
+    },
+    onMutate: async (code) => {
+      await queryClient.cancelQueries({ queryKey: ['cost_codes'] });
+      const previous = queryClient.getQueryData<CostCode[]>(['cost_codes']);
+      queryClient.setQueryData<CostCode[]>(['cost_codes'], old =>
+        old?.filter(c => c.code !== code)
+      );
+      return { previous };
+    },
+    onError: (_err, _code, ctx) => {
+      const c = ctx as { previous?: CostCode[] } | undefined;
+      if (c?.previous) queryClient.setQueryData(['cost_codes'], c.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cost_codes'] });
+    },
+  });
+}
+
+// Toggles a single category flag (L/M/S/E/O) on a cost code.
+// Optimistically flips the badge in the UI and rolls back on error (AGENTS.md C2).
+// Uses a strictly typed field union so no `any` is needed (AGENTS.md C1).
+export function useToggleCostCodeCategory() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    { code: string; field: CategoryField; value: boolean }
+  >({
+    mutationFn: async ({ code, field, value }) => {
+      // Safe cast: `field` is constrained to CategoryField which maps 1-to-1
+      // with the boolean columns on cost_codes — no `any` required.
+      const update = { [field]: value } as Partial<
+        Database['public']['Tables']['cost_codes']['Update']
+      >;
+      const { error } = await supabase
+        .from('cost_codes')
+        .update(update)
+        .eq('code', code);
+      if (error) throw error;
+    },
+    onMutate: async ({ code, field, value }) => {
+      await queryClient.cancelQueries({ queryKey: ['cost_codes'] });
+      const previous = queryClient.getQueryData<CostCode[]>(['cost_codes']);
+      queryClient.setQueryData<CostCode[]>(['cost_codes'], old =>
+        old?.map(c => c.code === code ? { ...c, [field]: value } : c)
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      const c = ctx as { previous?: CostCode[] } | undefined;
+      if (c?.previous) queryClient.setQueryData(['cost_codes'], c.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['cost_codes'] });
+    },
+  });
+}
+
+export async function checkCostCodeUsage(code: string): Promise<{
+  total: number;
+  breakdown: { opportunities: number; options: number; csiSpecs: number };
+}> {
+  const [oppResult, optResult, specResult] = await Promise.all([
+    supabase
+      .from('opportunities')
+      .select('id', { count: 'exact', head: true })
+      .eq('cost_code', code)
+      .eq('is_deleted', false),
+    supabase
+      .from('opportunity_options')
+      .select('id', { count: 'exact', head: true })
+      .eq('cost_code', code)
+      .eq('is_deleted', false),
+    supabase
+      .from('project_csi_specs')
+      .select('id', { count: 'exact', head: true })
+      .eq('cost_code', code),
+  ]);
+  
+  if (oppResult.error) throw oppResult.error;
+  if (optResult.error) throw optResult.error;
+  if (specResult.error) throw specResult.error;
+
+  const opportunities = oppResult.count ?? 0;
+  const options      = optResult.count  ?? 0;
+  const csiSpecs     = specResult.count ?? 0;
+  
+  return { 
+    total: opportunities + options + csiSpecs, 
+    breakdown: { opportunities, options, csiSpecs } 
+  };
+}

@@ -69,7 +69,9 @@ export function SmartCostCodeCombobox({
   const nq = normalizeSearch(searchQuery);
 
   const filteredBaseCodes = mode === 'csi_spec_only' ? [] : rawCostCodes.filter((c) => {
-    if (c.is_division) return false;
+    // Include both child codes AND division-level codes (e.g. 260000 - Electrical).
+    // Division codes are legitimate selectable cost codes; is_division is a display
+    // hint for the viewer grouping only, not a filter for selectability.
     if (!searchQuery) return true;
     return normalizeSearch(c.code).includes(nq) || normalizeSearch(c.description || '').includes(nq);
   });
@@ -89,10 +91,17 @@ export function SmartCostCodeCombobox({
       cost_code: code,
       spec_number_id: null // clear spec if base code is manually selected
     };
-    const matched = rawCostCodes.find((c) => c.code === code && !c.is_division);
-    if (matched?.parent_division) {
-      const parentDiv = rawCostCodes.find((c) => c.code === matched.parent_division && c.is_division);
-      if (parentDiv) updates.division = `${parentDiv.code} - ${parentDiv.description}`;
+    // Look up the matching row — works for both child codes and division-level codes.
+    const matched = rawCostCodes.find((c) => c.code === code);
+    if (matched) {
+      if (matched.parent_division) {
+        // Regular child code: look up its parent division header
+        const parentDiv = rawCostCodes.find((c) => c.code === matched.parent_division && c.is_division);
+        if (parentDiv) updates.division = `${parentDiv.code} - ${parentDiv.description}`;
+      } else if (matched.is_division) {
+        // Division-level code selected directly (e.g. 260000 - Electrical)
+        updates.division = `${matched.code} - ${matched.description}`;
+      }
     }
     onChange(updates);
     setIsOpen(false);
@@ -105,10 +114,14 @@ export function SmartCostCodeCombobox({
       cost_code: spec.cost_code,
       spec_number_id: spec.id
     };
-    const matched = rawCostCodes.find((c) => c.code === spec.cost_code && !c.is_division);
-    if (matched?.parent_division) {
-      const parentDiv = rawCostCodes.find((c) => c.code === matched.parent_division && c.is_division);
-      if (parentDiv) updates.division = `${parentDiv.code} - ${parentDiv.description}`;
+    const matched = rawCostCodes.find((c) => c.code === spec.cost_code);
+    if (matched) {
+      if (matched.parent_division) {
+        const parentDiv = rawCostCodes.find((c) => c.code === matched.parent_division && c.is_division);
+        if (parentDiv) updates.division = `${parentDiv.code} - ${parentDiv.description}`;
+      } else if (matched.is_division) {
+        updates.division = `${matched.code} - ${matched.description}`;
+      }
     }
     onChange(updates);
     setIsOpen(false);

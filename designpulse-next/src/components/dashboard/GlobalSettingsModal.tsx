@@ -5,14 +5,15 @@ import {
   getPaginationRowModel, getSortedRowModel, flexRender,
   ColumnDef,
 } from '@tanstack/react-table';
-import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission, useGlobalCsiTrainingData, useToggleGlobalCsiVerified, useRemapGlobalCsiEntry, useUserProjectMembers, useBulkUpdateUserProjects, SystemUser } from '@/hooks/useGlobalQueries';
+import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission, useGlobalCsiTrainingData, useToggleGlobalCsiVerified, useRemapGlobalCsiEntry, useUserProjectMembers, useBulkUpdateUserProjects, SystemUser, useUpdateCostCodeDescription, useDeleteCostCode, checkCostCodeUsage, useToggleCostCodeCategory, CategoryField } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
-import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, CheckCircle2, Circle, Save } from 'lucide-react';
+import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, Circle, Save, Pencil, Loader2, Check, TriangleAlert } from 'lucide-react';
 import { useProjects, useUpdateProjectCore, useDeleteProjectCore } from '@/hooks/useProjectQueries';
 import { Project, GlobalCsiTrainingData, RemapCsiEntryParams, CostCode } from '@/types/models';
-import { Database } from '@/types/database.types';
 import { formatCostCode } from '@/lib/formatCostCode';
+import { generateCostCodeTemplate } from '@/lib/excel/costCodeTemplate';
+import { parseCostCodeExcel } from '@/lib/excel/costCodeParser';
 
 interface Props {
   isOpen: boolean;
@@ -56,90 +57,22 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   // ── Export ──────────────────────────────────────────────────────────────────────
-  // Emits the new flat 8-column format so admins can round-trip: Download → Edit → Re-upload.
-  // H-4 fix: old "Col A / Col B" format replaced with explicit flat CSV headers.
-  const handleExportCSV = () => {
-    if (!costCodes || costCodes.length === 0) {
-      setError('No cost codes available to export.');
-      return;
+  const handleDownloadTemplate = async () => {
+    try {
+      const blob = await generateCostCodeTemplate(costCodes);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'DesignPulse_CostCode_Template.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error generating template:', err);
+      setError('Failed to generate template.');
     }
-
-    const header = 'code,description,parent_division,category_l,category_m,category_s,category_e,category_o';
-    const csvRows: string[] = [header];
-
-    const toBoolStr = (v: boolean | null | undefined) => (v === true ? 'TRUE' : 'FALSE');
-    // Minimal CSV quoting — only wrap fields that contain commas or double-quotes.
-    const q = (s: string | null | undefined): string => {
-      const safe = (s ?? '').replace(/"/g, '""');
-      return safe.includes(',') || safe.includes('"') ? `"${safe}"` : safe;
-    };
-
-    // Sort: divisions appear immediately before their children for human readability.
-    const sorted = [...costCodes].sort((a, b) => {
-      const aGroup = a.is_division ? a.code : (a.parent_division ?? '');
-      const bGroup = b.is_division ? b.code : (b.parent_division ?? '');
-      if (aGroup !== bGroup) return aGroup.localeCompare(bGroup);
-      if (a.is_division && !b.is_division) return -1;
-      if (!a.is_division && b.is_division) return 1;
-      return a.code.localeCompare(b.code);
-    });
-
-    sorted.forEach(c => {
-      csvRows.push([
-        q(c.code),
-        q(c.description),
-        q(c.parent_division),
-        toBoolStr(c.category_l),
-        toBoolStr(c.category_m),
-        toBoolStr(c.category_s),
-        toBoolStr(c.category_e),
-        toBoolStr(c.category_o),
-      ].join(','));
-    });
-
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'DesignPulse_Master_CostCodes.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
   };
 
   // ── Import ──────────────────────────────────────────────────────────────────────
-  // Parses the new flat 8-column format. Strictly typed — no any casting (H-3 fix).
-  // Guardrails applied:
-  //   C1  — CostCode['Insert'][] throughout, catch uses unknown
-  //   C20 — chunking lives in the mutation layer (useUploadCostCodesCSV)
-  //   L-3 — is_division derived from parent_division column
-  //   A   — iOS-safe CSV splitter: stateful loop instead of regex lookbehind
-  type CostCodeInsert = Database['public']['Tables']['cost_codes']['Insert'];
-
-  // Stateful CSV field splitter — handles quoted fields with embedded commas.
-  // Rule A: does NOT use a negative lookbehind regex. Uses an explicit loop.
-  const splitCsvRow = (line: string): string[] => {
-    const result: string[] = [];
-    let current = '';
-    let insideQuotes = false;
-    for (let ci = 0; ci < line.length; ci++) {
-      const ch = line[ci];
-      if (ch === '"') {
-        // Two consecutive quotes inside a quoted field = escaped literal quote
-        if (insideQuotes && line[ci + 1] === '"') { current += '"'; ci++; }
-        else { insideQuotes = !insideQuotes; }
-      } else if (ch === ',' && !insideQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += ch;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  };
-
-  const parseCsvBool = (val: string): boolean => val.trim().toUpperCase() === 'TRUE';
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -148,89 +81,22 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
 
     try {
       setError(null);
-      const text = await file.text();
-      const allLines = text.replace(/\r/g, '').split('\n').filter(l => l.trim() !== '');
-
-      if (allLines.length < 2) {
-        throw new Error('CSV must contain a header row and at least one data row.');
-      }
-
-      // 1. Build a column-index lookup from the header (case-insensitive)
-      const headerTokens = splitCsvRow(allLines[0]);
-      const col: Record<string, number> = {};
-      headerTokens.forEach((h, idx) => { col[h.toLowerCase().trim()] = idx; });
-
-      // Validate required headers
-      for (const req of ['code', 'description']) {
-        if (col[req] === undefined) {
-          throw new Error(
-            `CSV is missing required column: "${req}". ` +
-            'Expected headers: code, description, parent_division, category_l, category_m, category_s, category_e, category_o'
-          );
-        }
-      }
-
-      // 2. Parse data rows — strictly typed, no any
-      const payload: CostCodeInsert[] = [];
-      const BOOL_COLS = ['category_l', 'category_m', 'category_s', 'category_e', 'category_o'] as const;
-
-      allLines.slice(1).forEach((line, lineIdx) => {
-        const tokens = splitCsvRow(line);
-        const get = (key: string): string => (tokens[col[key]] ?? '').trim();
-
-        const code = get('code');
-        const description = get('description');
-        if (!code || !description) return; // skip blank/incomplete rows
-
-        // L-3 fix: is_division derived from parent_division column
-        const rawParent = get('parent_division');
-        const parent_division = rawParent !== '' ? rawParent : null;
-        const is_division = parent_division === null;
-
-        // Validate boolean columns before parsing
-        for (const bc of BOOL_COLS) {
-          const raw = get(bc).toUpperCase();
-          if (col[bc] !== undefined && raw !== '' && raw !== 'TRUE' && raw !== 'FALSE') {
-            throw new Error(
-              `Row ${lineIdx + 2}: column "${bc}" must be TRUE, FALSE, or empty — got "${get(bc)}".`
-            );
-          }
-        }
-
-        const row: CostCodeInsert = {
-          code,
-          description,
-          is_division,
-          parent_division,
-          category_l: col['category_l'] !== undefined ? parseCsvBool(get('category_l')) : false,
-          category_m: col['category_m'] !== undefined ? parseCsvBool(get('category_m')) : false,
-          category_s: col['category_s'] !== undefined ? parseCsvBool(get('category_s')) : false,
-          category_e: col['category_e'] !== undefined ? parseCsvBool(get('category_e')) : false,
-          category_o: col['category_o'] !== undefined ? parseCsvBool(get('category_o')) : false,
-        };
-
-        payload.push(row);
-      });
-
-      if (payload.length === 0) {
-        throw new Error(
-          'No valid cost code rows found. Ensure the CSV has a header row and ' +
-          'at least one data row with both a code and description.'
-        );
-      }
+      const arrayBuffer = await file.arrayBuffer();
+      
+      const payload = await parseCostCodeExcel(arrayBuffer);
 
       // 3. Chunk-UPSERT via mutation (chunking handled inside useUploadCostCodesCSV — Rule C20)
       await uploadMutation.mutateAsync(payload);
       onClose();
     } catch (err: unknown) {
-      console.error('CSV Import Error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to parse CSV or upload to database.');
+      console.error('Excel Import Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to parse Excel file or upload to database.');
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl w-full max-w-4xl h-[720px] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl w-full max-w-5xl h-[90vh] max-h-[1000px] overflow-hidden flex flex-col">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
           <h2 className="text-lg font-bold text-slate-800 dark:text-white">Platform Administration</h2>
           <button 
@@ -318,48 +184,71 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-950">
+        <div className="flex-1 flex flex-col overflow-hidden p-6 bg-white dark:bg-slate-950">
           {activeTab === 'cost_codes' && (
-            <div className="max-w-xl mx-auto">
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
-                Upload a master CSV to populate the Global Cost Codes & Divisions. The file must have the following columns in exact order: <strong>Code, Description, L, M, S, O</strong>. This will completely overwrite existing codes.
-              </p>
+            <div className="flex flex-col gap-4 flex-1 min-h-0">
 
-              <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 dark:bg-slate-800/50 dark:border-slate-700 hover:bg-sky-50 hover:border-sky-300 dark:hover:bg-sky-900/20 dark:hover:border-sky-700 transition-colors group">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <UploadCloud className="w-10 h-10 mb-3 text-slate-400 group-hover:text-sky-500 transition-colors" />
-                  <p className="text-sm text-slate-600 dark:text-slate-300 font-semibold mb-1">
-                    {uploadMutation.isPending ? 'Uploading to database...' : 'Click or drag file to upload'}
-                  </p>
-                  <p className="text-xs text-slate-500">CSV files only</p>
+              {/* ── Compact Workflow Bar ──────────────────────────────────────────── */}
+              <div className="shrink-0 flex items-center gap-3 flex-wrap px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/80 dark:bg-slate-900/40">
+
+                {/* Step pills */}
+                <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap text-[11px]">
+                  <span className="flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[9px] font-bold shrink-0">1</span>
+                    <span className="font-semibold text-slate-600 dark:text-slate-300">Download template</span>
+                  </span>
+                  <ChevronRight size={11} className="text-slate-300 dark:text-slate-600 shrink-0" />
+                  <span className="flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[9px] font-bold shrink-0">2</span>
+                    <span className="font-semibold text-slate-600 dark:text-slate-300">
+                      Fill <span className="font-bold">Sheet&nbsp;1</span> <span className="text-slate-400 font-normal">(Divisions)</span> &amp; <span className="font-bold">Sheet&nbsp;2</span> <span className="text-slate-400 font-normal">(Cost Codes)</span>
+                    </span>
+                  </span>
+                  <ChevronRight size={11} className="text-slate-300 dark:text-slate-600 shrink-0" />
+                  <span className="flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[9px] font-bold shrink-0">3</span>
+                    <span className="font-semibold text-slate-600 dark:text-slate-300">Upload to sync</span>
+                  </span>
+                  <span className="text-slate-300 dark:text-slate-600 hidden sm:inline">&middot;</span>
+                  <span className="text-slate-400 dark:text-slate-500 hidden sm:inline">
+                    Division codes (e.g. <code className="font-mono text-[10px]">260000</code>) in Sheet&nbsp;1 are selectable in dropdowns
+                  </span>
                 </div>
-                <input 
-                  type="file" 
-                  className="hidden" 
-                  accept=".csv" 
-                  onChange={handleFileUpload} 
-                  disabled={uploadMutation.isPending}
-                />
-              </label>
 
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={handleExportCSV}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
-                >
-                  <FileSpreadsheet size={16} />
-                  Download Current Master CSV
-                </button>
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={handleDownloadTemplate}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <FileSpreadsheet size={13} />
+                    Download Template
+                  </button>
+                  <label className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer shadow-sm ${
+                    uploadMutation.isPending
+                      ? 'bg-sky-50 border-sky-300 text-sky-500 dark:bg-sky-900/20 dark:border-sky-700 dark:text-sky-400 cursor-wait'
+                      : 'bg-sky-500 border-sky-600 text-white hover:bg-sky-600'
+                  }`}>
+                    <UploadCloud size={13} />
+                    {uploadMutation.isPending ? 'Uploading…' : 'Upload .xlsx'}
+                    <input type="file" className="hidden" accept=".xlsx" onChange={handleFileUpload} disabled={uploadMutation.isPending} />
+                  </label>
+                </div>
               </div>
 
+              {/* Error banner */}
               {error && (
-                <div className="mt-6 p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl text-sm flex items-start gap-3 border border-rose-100 dark:border-rose-900/50">
-                  <AlertCircle size={20} className="shrink-0 mt-0.5" />
+                <div className="shrink-0 px-3 py-2.5 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl text-xs flex items-center gap-2 border border-rose-100 dark:border-rose-900/50">
+                  <AlertCircle size={14} className="shrink-0" />
                   <span className="leading-relaxed font-medium">{error}</span>
                 </div>
               )}
+
+              {/* ── Live Cost Code Viewer (flex-1 — dominates remaining space) ────── */}
+              <CostCodeViewer costCodes={costCodes} isPlatformAdmin={!!isPlatformAdmin} />
             </div>
           )}
+
 
           {activeTab === 'users' && canAccessUsers && (
             <GlobalUserManagementTab 
@@ -1161,6 +1050,483 @@ function GlobalUserManagementTab({
               </div>
             </>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Global Cost Code Viewer ──────────────────────────────────────────────────
+// Read-only hierarchical browser for all cost_codes in the system.
+//
+// Architecture notes:
+//   - Purely presentational — uses the already-fetched `costCodes` prop; no new
+//     hook calls and therefore no extra Supabase round-trips.
+//   - Builds a division → children map via a single useMemo loop (no any).
+//   - Search filters across both `code` and `description` simultaneously.
+//   - Divisions that have no matching children are hidden when a search query is
+//     active, but the division header is shown when its own code/description
+//     matches the query.
+//   - Collapse state tracked per-division in a local Set stored in useState.
+//   - Category badges (L/M/S/E/O) are conditionally rendered; active = amber,
+//     inactive = muted grey.
+//   - iOS-safe: zero regex, no lookbehinds (AGENTS.md Rule A).
+
+interface CostCodeViewerProps {
+  costCodes: CostCode[];
+  isPlatformAdmin: boolean;
+}
+
+function CostCodeViewer({ costCodes, isPlatformAdmin }: CostCodeViewerProps) {
+  const [search, setSearch] = useState('');
+  // Tracks which division codes are collapsed. Starts fully expanded.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  
+  // ── Edit Description State ──────────────────────────────────────────────
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+  const [draftDescription, setDraftDescription] = useState('');
+  const updateDescriptionMutation = useUpdateCostCodeDescription();
+
+  // ── Delete State ────────────────────────────────────────────────────────
+  const [pendingDeleteCode, setPendingDeleteCode] = useState<string | null>(null);
+  const [usageCheckResult, setUsageCheckResult] = useState<{
+    total: number;
+    breakdown: { opportunities: number; options: number; csiSpecs: number };
+  } | null>(null);
+  const [isCheckingUsage, setIsCheckingUsage] = useState(false);
+  const deleteMutation = useDeleteCostCode();
+  const toggleCategoryMutation = useToggleCostCodeCategory();
+
+  const toggleCollapse = (divCode: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(divCode)) next.delete(divCode);
+      else next.add(divCode);
+      return next;
+    });
+  };
+
+  const startEdit = (code: string, currentDescription: string) => {
+    setEditingCode(code);
+    setDraftDescription(currentDescription);
+  };
+
+  const cancelEdit = () => {
+    setEditingCode(null);
+    setDraftDescription('');
+  };
+
+  const commitEdit = (originalDescription: string) => {
+    const trimmed = draftDescription.trim();
+    if (!trimmed) {
+      cancelEdit();
+      return;
+    }
+    if (trimmed === originalDescription) {
+      cancelEdit();
+      return;
+    }
+    updateDescriptionMutation.mutate({ code: editingCode!, description: trimmed });
+    cancelEdit();
+  };
+
+  const handleDeleteClick = async (code: string) => {
+    setIsCheckingUsage(true);
+    setPendingDeleteCode(code);
+    try {
+      const result = await checkCostCodeUsage(code);
+      setUsageCheckResult(result);
+    } catch (err) {
+      console.error("Failed to check usage", err);
+      // Revert if check fails
+      setPendingDeleteCode(null);
+      setUsageCheckResult(null);
+    } finally {
+      setIsCheckingUsage(false);
+    }
+  };
+
+  const cancelDelete = () => {
+    setPendingDeleteCode(null);
+    setUsageCheckResult(null);
+  };
+
+  const commitDelete = (code: string) => {
+    deleteMutation.mutate(code);
+    cancelDelete();
+  };
+
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const { divisions, childrenByDivision, orphans } = useMemo(() => {
+    const divs: CostCode[] = [];
+    const children: Record<string, CostCode[]> = {};
+    const orph: CostCode[] = [];
+
+    for (const cc of costCodes) {
+      if (cc.is_division) {
+        divs.push(cc);
+        // Also add the division code itself as the first child of its own group.
+        // This makes division-level codes (e.g. 260000 - Electrical) visible and
+        // selectable as cost codes in the viewer, not only as group headers.
+        if (!children[cc.code]) children[cc.code] = [cc];
+      }
+    }
+    for (const cc of costCodes) {
+      if (!cc.is_division) {
+        const parent = cc.parent_division;
+        if (parent && children[parent] !== undefined) {
+          children[parent].push(cc);
+        } else {
+          orph.push(cc);
+        }
+      }
+    }
+    return { divisions: divs, childrenByDivision: children, orphans: orph };
+  }, [costCodes]);
+
+  // Count only child codes (is_division=false) — division header rows are counted
+  // separately by the {divisions.length} badge already shown in the viewer header.
+  // This ensures the badge reads "228 codes" not "242" (228 codes + 14 division headers).
+  const totalCodes = costCodes.filter(c => !c.is_division).length;
+
+  // ── Filtered view ─────────────────────────────────────────────────────────
+  const q = search.trim().toLowerCase();
+
+  const matchesCostCode = (cc: CostCode): boolean => {
+    if (!q) return true;
+    return (
+      cc.code.toLowerCase().includes(q) ||
+      cc.description.toLowerCase().includes(q)
+    );
+  };
+
+  // ── Category badge helper ─────────────────────────────────────────────────
+  const CATEGORY_KEYS: { key: CategoryField; label: string }[] = [
+    { key: 'category_l', label: 'L' },
+    { key: 'category_m', label: 'M' },
+    { key: 'category_s', label: 'S' },
+    { key: 'category_e', label: 'E' },
+    { key: 'category_o', label: 'O' },
+  ];
+
+  const renderCategoryBadges = (cc: CostCode) => (
+    <div className="flex items-center gap-0.5 shrink-0">
+      {CATEGORY_KEYS.map(({ key, label }) => {
+        const active = cc[key] === true;
+        const colorClass = active
+          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+          : 'bg-slate-100 text-slate-300 dark:bg-slate-800 dark:text-slate-600';
+        const baseClass = `inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold transition-all`;
+
+        if (isPlatformAdmin) {
+          return (
+            <button
+              key={key}
+              type="button"
+              title={`Category ${label}: ${active ? 'Yes' : 'No'} — click to toggle`}
+              onClick={() =>
+                toggleCategoryMutation.mutate({ code: cc.code, field: key, value: !active })
+              }
+              className={`${baseClass} ${colorClass} cursor-pointer hover:ring-2 hover:ring-offset-1 ${
+                active
+                  ? 'hover:ring-amber-400 dark:hover:ring-amber-500'
+                  : 'hover:ring-slate-300 dark:hover:ring-slate-600'
+              }`}
+            >
+              {label}
+            </button>
+          );
+        }
+
+        return (
+          <span
+            key={key}
+            title={`Category ${label}: ${active ? 'Yes' : 'No'}`}
+            className={`${baseClass} ${colorClass}`}
+          >
+            {label}
+          </span>
+        );
+      })}
+    </div>
+  );
+
+  const renderActions = (cc: CostCode, isDivisionWithChildren: boolean = false) => {
+    if (!isPlatformAdmin) return null;
+    
+    // Delete Confirmation State
+    if (pendingDeleteCode === cc.code) {
+      if (isCheckingUsage) {
+        return (
+          <div className="flex items-center justify-end">
+            <Loader2 size={16} className="text-slate-400 animate-spin" />
+          </div>
+        );
+      }
+      if (usageCheckResult) {
+        if (usageCheckResult.total > 0 || isDivisionWithChildren) {
+          // Blocked
+          const count = isDivisionWithChildren ? childrenByDivision[cc.code]?.length || 0 : usageCheckResult.total;
+          const blockedType = isDivisionWithChildren ? 'child code' : 'record';
+          const breakdown = isDivisionWithChildren ? '' : 
+            `— ${usageCheckResult.breakdown.opportunities} opps, ${usageCheckResult.breakdown.options} options, ${usageCheckResult.breakdown.csiSpecs} specs`;
+
+          return (
+            <div className="flex justify-end relative group">
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400">
+                <TriangleAlert size={14} />
+                {count} {blockedType}{count !== 1 ? 's' : ''}
+              </span>
+              <div className="absolute right-0 top-full mt-1 w-max z-[100] px-2.5 py-1.5 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                In use by {count} {blockedType}{count !== 1 ? 's' : ''} {breakdown} — cannot delete.
+              </div>
+              <button onClick={cancelDelete} className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X size={16} />
+              </button>
+            </div>
+          );
+        }
+        // Safe to delete confirm
+        return (
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 mr-2">Delete?</span>
+            <button
+              onClick={() => commitDelete(cc.code)}
+              className="px-2 py-1 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold rounded flex items-center gap-1 transition-colors"
+            >
+              <Check size={14} /> Yes
+            </button>
+            <button
+              onClick={cancelDelete}
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded flex items-center gap-1 transition-colors"
+            >
+              <X size={14} /> Cancel
+            </button>
+          </div>
+        );
+      }
+    }
+
+    return (
+      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={() => startEdit(cc.code, cc.description)}
+          className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30 rounded transition-colors"
+          title="Edit description"
+        >
+          <Pencil size={14} />
+        </button>
+        <button
+          onClick={() => handleDeleteClick(cc.code)}
+          className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded transition-colors"
+          title="Delete cost code"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    );
+  };
+
+  // ── Child row ─────────────────────────────────────────────────────────────
+  const renderChildRow = (cc: CostCode, indent: boolean) => {
+    const isEditing = editingCode === cc.code;
+
+    return (
+      <tr
+        key={cc.code}
+        className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group"
+      >
+        <td className={`py-2 pr-3 align-middle ${indent ? 'pl-8' : 'pl-4'}`}>
+          <span className="font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+            {formatCostCode(cc.code)}
+          </span>
+        </td>
+        <td className="py-2 pr-3 align-middle">
+          {isEditing ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                autoFocus
+                className="flex-1 px-2 py-1 text-xs border border-sky-300 dark:border-sky-700 rounded bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                value={draftDescription}
+                onChange={e => setDraftDescription(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitEdit(cc.description); }
+                  if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                }}
+              />
+              <button onClick={() => commitEdit(cc.description)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check size={16}/></button>
+              <button onClick={cancelEdit} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><X size={16}/></button>
+            </div>
+          ) : (
+            <span className="text-xs text-slate-700 dark:text-slate-300 truncate block">
+              {cc.description}
+            </span>
+          )}
+        </td>
+        <td className="py-2 pr-4 align-middle">
+          <div className="flex items-center justify-between">
+            {renderCategoryBadges(cc)}
+            {renderActions(cc)}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  // ── Empty state ───────────────────────────────────────────────────────────
+  if (costCodes.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+        <FileSpreadsheet size={32} className="text-slate-300 dark:text-slate-600 mb-3" />
+        <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1">No cost codes loaded</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500">Upload a master CSV above to populate the library.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 flex-1 min-h-0">
+      {/* Header bar */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Cost Code Library</h3>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+            {divisions.length} divisions
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
+            {totalCodes.toLocaleString()} codes
+          </span>
+        </div>
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search code or description..."
+            className="pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100 w-60"
+          />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col min-h-0">
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-left text-sm" style={{ tableLayout: 'fixed', minWidth: 520 }}>
+            <colgroup>
+              <col style={{ width: 140 }} />
+              <col />
+              <col style={{ width: 160 }} />
+            </colgroup>
+            <thead className="bg-slate-50 dark:bg-slate-900/80 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+              <tr>
+                <th className="pl-4 pr-3 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Code</th>
+                <th className="pr-3 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Description</th>
+                <th className="pr-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Categories</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+              {divisions.map(div => {
+                const divChildren = childrenByDivision[div.code] ?? [];
+                const filteredChildren = q
+                  ? divChildren.filter(matchesCostCode)
+                  : divChildren;
+                const divMatchesSearch = !q || matchesCostCode(div);
+
+                // Hide the whole division group if neither the division header nor
+                // any of its children match the current search query.
+                if (q && !divMatchesSearch && filteredChildren.length === 0) return null;
+
+                const isCollapsed = collapsed.has(div.code);
+                const isEditing = editingCode === div.code;
+
+                return (
+                  <React.Fragment key={div.code}>
+                    {/* Division header row */}
+                    <tr className="bg-slate-50 dark:bg-slate-900/60 group">
+                      <td className="pl-2 pr-3 py-2 align-middle">
+                        <button
+                          onClick={() => toggleCollapse(div.code)}
+                          className="flex items-center gap-2 w-full text-left hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+                        >
+                          <span className="text-slate-400 dark:text-slate-500 shrink-0 transition-transform" style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+                            <ChevronDown size={14} />
+                          </span>
+                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                            {`Div. ${formatCostCode(div.code).split('-')[0]}`}
+                          </span>
+                        </button>
+                      </td>
+                      <td className="py-2 pr-3 align-middle">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              autoFocus
+                              className="flex-1 px-2 py-1 text-xs border border-sky-300 dark:border-sky-700 rounded bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                              value={draftDescription}
+                              onChange={e => setDraftDescription(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') { e.preventDefault(); commitEdit(div.description); }
+                                if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                              }}
+                            />
+                            <button onClick={() => commitEdit(div.description)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check size={16}/></button>
+                            <button onClick={cancelEdit} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><X size={16}/></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1">
+                              {div.description}
+                            </span>
+                            <span className="ml-2 text-[10px] text-slate-400 dark:text-slate-500 shrink-0 tabular-nums">
+                              {filteredChildren.length} code{filteredChildren.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 align-middle">
+                         {renderActions(div, divChildren.length > 0)}
+                      </td>
+                    </tr>
+                    {/* Child code rows */}
+                    {!isCollapsed && filteredChildren.map(cc => renderChildRow(cc, true))}
+                  </React.Fragment>
+                );
+              })}
+
+              {/* Orphan codes (no matching parent division) */}
+              {(() => {
+                const filteredOrphans = q ? orphans.filter(matchesCostCode) : orphans;
+                if (filteredOrphans.length === 0) return null;
+                return (
+                  <React.Fragment>
+                    <tr className="bg-amber-50/60 dark:bg-amber-900/10">
+                      <td colSpan={3} className="pl-4 pr-4 py-2">
+                        <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                          Uncategorised ({filteredOrphans.length})
+                        </span>
+                      </td>
+                    </tr>
+                    {filteredOrphans.map(cc => renderChildRow(cc, false))}
+                  </React.Fragment>
+                );
+              })()}
+
+              {/* No results */}
+              {q && divisions.every(div => {
+                const divChildren = childrenByDivision[div.code] ?? [];
+                return !matchesCostCode(div) && divChildren.filter(matchesCostCode).length === 0;
+              }) && (q ? orphans.filter(matchesCostCode).length === 0 : false) && (
+                <tr>
+                  <td colSpan={3} className="px-4 py-10 text-center text-sm text-slate-400 italic">
+                    No cost codes match &quot;{search}&quot;
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

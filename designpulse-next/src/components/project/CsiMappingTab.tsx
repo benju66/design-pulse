@@ -1,11 +1,12 @@
 "use client";
 import React, { useState, useCallback, useEffect } from 'react';
-import { Upload, RefreshCw, Save } from 'lucide-react';
+import { Upload, RefreshCw, Save, Download, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CsiStagingGrid } from '@/components/project/CsiStagingGrid';
 import { useUploadCsiTOC, useBulkUpsertProjectCsiSpecs, CsiSpecItem } from '@/hooks/useProjectQueries';
 import { useCostCodes, useCsiTrainingSuggestions } from '@/hooks/useGlobalQueries';
 import { toast } from 'sonner';
+import type { Row } from 'exceljs';
 
 export function CsiMappingTab({ projectId }: { projectId: string }) {
   const [, setFile] = useState<File | null>(null);
@@ -54,18 +55,158 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
 
   const onDragLeave = () => setIsDragging(false);
 
+  const handleExcelUpload = async (file: File) => {
+    try {
+      const ExcelJS = (await import('exceljs/dist/exceljs.min.js')).default;
+      const workbook = new ExcelJS.Workbook();
+      const buffer = await file.arrayBuffer();
+      await workbook.xlsx.load(buffer);
+      
+      // Find the first visible sheet that contains recognizable headers.
+      // We cannot use worksheets[0] because our own template puts 'Hidden_CostCodes'
+      // as the first sheet, making the actual 'Template' sheet index 1.
+      let csiCol = -1;
+      let descCol = -1;
+      let costCodeCol = -1;
+      let sheet: any | undefined;
+
+      for (const ws of workbook.worksheets) {
+        if (ws.state === 'hidden') continue;
+        csiCol = -1;
+        descCol = -1;
+        costCodeCol = -1;
+        ws.getRow(1).eachCell((cell, colNumber) => {
+          const val = String(cell.text || '').toLowerCase().replace(/[^a-z]/g, '');
+          if (val.includes('csi')) csiCol = colNumber;
+          else if (val.includes('desc')) descCol = colNumber;
+          else if (val.includes('costcode')) costCodeCol = colNumber;
+        });
+        if (csiCol !== -1 && descCol !== -1) {
+          sheet = ws;
+          break;
+        }
+      }
+
+      if (!sheet) {
+        toast.error("Could not find a sheet with 'CSI Number' and 'Description' columns. Please use the downloaded template.");
+        return;
+      }
+
+      const parsedData: CsiSpecItem[] = [];
+      sheet.eachRow((row: Row, rowNumber: number) => {
+        if (rowNumber === 1) return; // skip header
+
+        const rawCsi = String(row.getCell(csiCol).text || '');
+        const rawDesc = String(row.getCell(descCol).text || '');
+        if (!rawCsi) return;
+
+        // Strict Formatting & iOS Safety (No negative lookbehinds)
+        // Allow periods for extended CSI codes (e.g. 10 1423.16)
+        const cleanCsi = rawCsi.replace(/[^a-zA-Z0-9.]/g, '');
+        let formattedCsi = cleanCsi;
+        
+        const parts = cleanCsi.split('.');
+        const base = parts[0];
+        const ext = parts.length > 1 ? `.${parts[1]}` : '';
+
+        if (/^\d{6}$/.test(base)) {
+          formattedCsi = `${base.substring(0,2)} ${base.substring(2,4)} ${base.substring(4,6)}${ext}`;
+        }
+
+        let costCodeVal = null;
+        if (costCodeCol !== -1) {
+          const rawCostCode = String(row.getCell(costCodeCol).text || '');
+          if (rawCostCode) {
+            costCodeVal = rawCostCode.split(' - ')[0].trim();
+          }
+        }
+
+        parsedData.push({
+          id: crypto.randomUUID(),
+          csi_number: formattedCsi,
+          description: rawDesc || "No Description",
+          cost_code: costCodeVal || undefined
+        });
+      });
+
+      if (parsedData.length === 0) {
+        toast.error("No valid rows found in spreadsheet.");
+        return;
+      }
+
+      setStagingData(parsedData);
+      toast.success(`Loaded ${parsedData.length} items from Excel.`);
+    } catch (e: unknown) {
+      console.error(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to parse Excel file: ${msg}`);
+    }
+  };
+
+  const downloadTemplate = async () => {
+    try {
+      const ExcelJS = (await import('exceljs/dist/exceljs.min.js')).default;
+      const workbook = new ExcelJS.Workbook();
+      
+      const hiddenSheet = workbook.addWorksheet('Hidden_CostCodes', { state: 'hidden' });
+      costCodes.forEach((cc, i) => {
+        hiddenSheet.getCell(`A${i + 1}`).value = `${cc.code} - ${cc.description}`;
+      });
+
+      const sheet = workbook.addWorksheet('Template');
+      sheet.columns = [
+        { header: 'CSI Number', key: 'csi', width: 15 },
+        { header: 'Description', key: 'desc', width: 40 },
+        { header: 'Cost Code', key: 'cost_code', width: 40 }
+      ];
+
+      if (costCodes.length > 0) {
+        for (let i = 2; i <= 1000; i++) {
+          sheet.getCell(`C${i}`).dataValidation = {
+            type: 'list',
+            allowBlank: true,
+            formulae: [`Hidden_CostCodes!$A$1:$A$${costCodes.length}`]
+          };
+        }
+      }
+
+      sheet.addRow(['09 65 16', 'Resilient Flooring', '']);
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'CSI_Spec_Template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      console.error(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to generate template: ${msg}`);
+    }
+  };
+
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile?.type === 'application/pdf') {
       handleUpload(droppedFile);
+    } else if (droppedFile?.name.endsWith('.xlsx')) {
+      handleExcelUpload(droppedFile);
     } else {
-      toast.error('Please upload a valid PDF file.');
+      toast.error('Please upload a valid PDF or .xlsx file.');
     }
   }, []);
 
   const handleUpload = (selectedFile: File) => {
+    if (selectedFile.name.endsWith('.xlsx')) {
+      handleExcelUpload(selectedFile);
+      return;
+    }
     setFile(selectedFile);
     uploadMutation.mutate(selectedFile, {
       onSuccess: (data) => {
@@ -96,9 +237,18 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
         <div>
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">CSI Spec Book Extractor</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Upload your project's PDF Table of Contents to automatically extract CSI divisions and map them to base Cost Codes using our ML Flywheel.
+            Upload your project's PDF Table of Contents or `.xlsx` template to extract CSI divisions and map them to base Cost Codes using our ML Flywheel.
           </p>
         </div>
+        
+        <div className="flex gap-3">
+          <button 
+            onClick={downloadTemplate}
+            className="bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"
+          >
+            <Download size={18} />
+            Download Template
+          </button>
         
         {stagingData.length > 0 && (
           <button 
@@ -110,6 +260,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
             {upsertMutation.isPending ? 'Saving to Project...' : 'Save & Lock Specs'}
           </button>
         )}
+        </div>
       </div>
 
       <motion.div layout>
@@ -139,15 +290,20 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-4 cursor-pointer">
-                  <div className="w-16 h-16 bg-sky-100 dark:bg-sky-900/40 rounded-full flex items-center justify-center text-sky-600 dark:text-sky-400">
-                    <Upload size={28} />
+                  <div className="flex gap-4">
+                    <div className="w-16 h-16 bg-sky-100 dark:bg-sky-900/40 rounded-full flex items-center justify-center text-sky-600 dark:text-sky-400">
+                      <Upload size={28} />
+                    </div>
+                    <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/40 rounded-full flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                      <FileSpreadsheet size={28} />
+                    </div>
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-200">Drag & Drop PDF TOC Here</h4>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-200">Drag & Drop PDF or XLSX Here</h4>
                     <p className="text-sm text-slate-500 mt-1 mb-4">or click to browse your computer</p>
                     <input 
                       type="file" 
-                      accept="application/pdf"
+                      accept="application/pdf,.xlsx"
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (f) handleUpload(f);

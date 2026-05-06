@@ -4,16 +4,16 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, X, Star, RotateCcw } from 'lucide-react';
-import { OpportunityOption, DisciplineConfig } from '@/types/models';
+import { OpportunityOption, DisciplineConfig, CategoryConfig } from '@/types/models';
 import { UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { useProjectSettings, useCurrentUserPermissions, useUpdateOptionRequirements } from '@/hooks/useProjectQueries';
+import { useCurrentUserPermissions, useUpdateOptionRequirements } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
-import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface SortableContenderCardProps {
   opt: OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean };
-  categories: string[];
+  categories: CategoryConfig[];
+  disciplines: DisciplineConfig[];
   updateOption: UseMutationResult<OpportunityOption, Error, { id: string; updates: Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }> }, unknown>;
   deleteOption: UseMutationResult<string, Error, string, unknown>;
   lockOption: UseMutationResult<unknown, Error, string, unknown>;
@@ -25,13 +25,14 @@ interface SortableContenderCardProps {
   onUnlockClick?: () => void;
 }
 
-export const SortableContenderCard = ({ 
-  opt, 
-  categories, 
-  updateOption, 
-  deleteOption, 
-  lockOption, 
-  toggleOptionBudget, 
+export const SortableContenderCard = ({
+  opt,
+  categories,
+  disciplines,
+  updateOption,
+  deleteOption,
+  lockOption,
+  toggleOptionBudget,
   hasLockedOption,
   isLocked,
   canUnlock,
@@ -44,15 +45,10 @@ export const SortableContenderCard = ({
 
   const params = useParams();
   const projectId = params?.projectId as string;
-  const { data: settings } = useProjectSettings(projectId);
+  // [AGENTS.md C24] No useProjectSettings here — disciplines/categories derived in parent.
   const permissions = useCurrentUserPermissions(projectId);
   const updateOptionReqs = useUpdateOptionRequirements(projectId, opportunityId);
   const { data: rawCostCodes = [] } = useCostCodes();
-  
-  const rawDisciplines = settings?.disciplines;
-  const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
-    ? rawDisciplines.map((d: any) => typeof d === 'string' ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d } : d)
-    : DEFAULT_DISCIPLINES;
 
   // Accumulating Debounce Strategy
   const pendingUpdates = useRef<Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }>>({});
@@ -156,14 +152,21 @@ export const SortableContenderCard = ({
             value={opt.category || 'Other'}
             disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
             onChange={(e) => {
+              const selectedCat = categories.find(c => c.label === e.target.value);
               queueUpdate({ category: e.target.value });
+              // Smart pre-fill: if category has no_coord_default ON and toggle is currently ON, flip it OFF.
+              // Atomic onChange per AGENTS.md C23 (not onBlur — avoids unmount race condition).
+              if (selectedCat?.no_coord_default === true && (opt.requires_coordination ?? true)) {
+                queueUpdate({ requires_coordination: false });
+              }
             }}
           >
-            {opt.category && !categories.includes(opt.category) && (
+            {/* Stale-value fallback — .some() required now that categories is CategoryConfig[] not string[] */}
+            {opt.category && !categories.some(c => c.label === opt.category) && (
               <option value={opt.category}>{opt.category}</option>
             )}
             {categories.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
+              <option key={cat.id} value={cat.label}>{cat.label}</option>
             ))}
           </select>
         </div>
@@ -375,7 +378,10 @@ export const SortableContenderCard = ({
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Plan Update Required</span>
+          <span
+            className="text-xs font-bold text-slate-500 dark:text-slate-400"
+            title="When ON, locking this contender creates a coordination task for the design team"
+          >Requires Coordination</span>
           <button
             onClick={() => {
               flushUpdates();

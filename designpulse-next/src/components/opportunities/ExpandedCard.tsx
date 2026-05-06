@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
-import { useUpdateOpportunity, useProjectSettings, useDeleteOpportunity, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useProjectSettings, useDeleteOpportunity, useProjectMembers, useCurrentUserPermissions, useDeEscalateOpportunity } from '@/hooks/useProjectQueries';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { List, Paperclip, MessageSquare, Settings, ChevronDown } from 'lucide-react';
@@ -24,12 +24,20 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const projectId = params?.projectId as string;
   const updateData = useUpdateOpportunity(projectId);
   const deleteData = useDeleteOpportunity(projectId);
+  const deEscalate = useDeEscalateOpportunity(projectId);
   const { data: settings } = useProjectSettings(projectId);
   const { data: members = [] } = useProjectMembers(projectId);
   const permissions = useCurrentUserPermissions(projectId);
   const buildingAreas = (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
   const isLocked = row.original.status === 'Approved';
+
+  // Detect escalated Coordination items surfaced in the Value Matrix.
+  // These must NOT be hard-deleted — de-escalation is the only safe action.
+  const coordDetails = row.original.coordination_details as Record<string, unknown> | null;
+  const isEscalatedCoordItem =
+    row.original.record_type === 'Coordination' &&
+    (coordDetails?.is_escalated as boolean | undefined) === true;
 
   const cardOrder = useUIStore(state => state.cardOrder);
   const setCardOrder = useUIStore(state => state.setCardOrder);
@@ -225,7 +233,26 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               <span className="text-sm font-semibold">Configure Layout</span>
             </button>
             <div className="w-px h-5 bg-slate-300 dark:bg-slate-700" />
-            {permissions.can_delete_records && (
+            {isEscalatedCoordItem ? (
+              // "Remove from Value Matrix" is accurate from both the Value Matrix
+              // AND the CoordinationTable card-mode contexts (ExpandedCard renders in both).
+              <button
+                onClick={() => {
+                  if (window.confirm(
+                    'Remove from Value Matrix?\n\nThis returns the item to the Coordination Board only.\nContender options will be unlocked and financial figures cleared.\nNo data will be deleted.'
+                  )) {
+                    deEscalate.mutate({ id: row.original.id });
+                  }
+                }}
+                disabled={deEscalate.isPending}
+                className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Remove from Value Matrix — returns item to Coordination Board, clears financials, no data deleted"
+              >
+                <span className="text-sm font-semibold">
+                  {deEscalate.isPending ? 'Removing…' : 'Remove from Value Matrix'}
+                </span>
+              </button>
+            ) : permissions.can_delete_records ? (
               <button 
                 onClick={() => {
                   if (window.confirm('Are you sure you want to delete this item and all its options? This cannot be undone.')) {
@@ -237,7 +264,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               >
                 <span className="text-sm font-semibold">Delete</span>
               </button>
-            )}
+            ) : null}
             {showSettings && (
               <div className="absolute right-0 top-10 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-20">
                 <h5 className="text-xs font-semibold text-slate-500 mb-2 px-2">Visible Fields</h5>

@@ -5,7 +5,9 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEn
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
 import { useAllProjectOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useToggleOptionBudget, useProjectSettings, useReorderOptions, useCurrentUserPermissions, useUnlockOpportunityOption } from '@/hooks/useProjectQueries';
-import { DEFAULT_CATEGORIES } from '@/lib/constants';
+import { DEFAULT_DISCIPLINES } from '@/lib/constants';
+import { normalizeCategories } from '@/lib/normalizeSettings';
+import type { CategoryConfig, DisciplineConfig } from '@/types/models';
 import { SortableContenderCard } from './SortableContenderCard';
 
 interface ContendersMatrixProps {
@@ -20,7 +22,18 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   const options = useMemo(() => allOptions.filter(o => o.opportunity_id === opportunityId), [allOptions, opportunityId]);
   const { data: settings } = useProjectSettings(projectId);
-  const categories = (settings?.categories as string[]) || DEFAULT_CATEGORIES;
+  const categories: CategoryConfig[] = normalizeCategories(settings?.categories);
+
+  // [AGENTS.md C24] Derive disciplines ONCE at parent level — never inside virtualized cards.
+  const disciplines = useMemo((): DisciplineConfig[] => {
+    const raw = settings?.disciplines;
+    return Array.isArray(raw)
+      ? raw.map((d: unknown) => typeof d === 'string'
+          ? { id: `d_${(d as string).toLowerCase().replace(/\s+/g, '_')}`, label: d as string }
+          : d as DisciplineConfig
+        )
+      : DEFAULT_DISCIPLINES;
+  }, [settings?.disciplines]);
 
   const createOption = useCreateOption(opportunityId, projectId);
   const updateOption = useUpdateOption(opportunityId, projectId);
@@ -80,6 +93,7 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
                 opt={opt}
                 opportunityId={opportunityId}
                 categories={categories}
+                disciplines={disciplines}
                 updateOption={updateOption} 
                 deleteOption={deleteOption} 
                 lockOption={lockOption} 

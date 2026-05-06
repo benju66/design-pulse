@@ -10,8 +10,9 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as LucideIcons from 'lucide-react';
-import { SidebarItem, DisciplineConfig, PermitTypeConfig, PermitAHJConfig } from '@/types/models';
+import { SidebarItem, DisciplineConfig, PermitTypeConfig, PermitAHJConfig, CategoryConfig } from '@/types/models';
 import { DEFAULT_SIDEBAR_ITEMS, DEFAULT_DISCIPLINES } from '@/lib/constants';
+import { normalizeCategories } from '@/lib/normalizeSettings';
 import { CsiMappingTab } from '@/components/project/CsiMappingTab';
 
 interface SortableItemProps {
@@ -107,7 +108,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   const [newMemberRole, setNewMemberRole] = useState('viewer');
 
 
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<CategoryConfig[]>([]);
   const [buildingAreas, setBuildingAreas] = useState<string[]>([]);
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [disciplines, setDisciplines] = useState<DisciplineConfig[]>([]);
@@ -136,7 +137,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
 
   const resetSettings = useCallback(() => {
     if (settings) {
-      setCategories((settings.categories as string[]) || []);
+      setCategories(normalizeCategories(settings.categories));
       setBuildingAreas((settings.building_areas as string[]) || []);
       const savedSidebarItems = (settings.sidebar_items as unknown as SidebarItem[]) || [];
       const mergedSidebarItems = savedSidebarItems.map(item => {
@@ -229,8 +230,8 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   );
 
   const addCat = () => {
-    if (newCat.trim() && !categories.includes(newCat.trim())) {
-      setCategories([...categories, newCat.trim()]);
+    if (newCat.trim() && !categories.some(c => c.label === newCat.trim())) {
+      setCategories([...categories, { id: crypto.randomUUID(), label: newCat.trim(), no_coord_default: false }]);
       setNewCat('');
       setHasChanges(true);
     }
@@ -271,8 +272,8 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   const handleDragEndCategories = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-      const oldIndex = categories.indexOf(active.id as string);
-      const newIndex = categories.indexOf(over.id as string);
+      const oldIndex = categories.findIndex(c => c.id === active.id);
+      const newIndex = categories.findIndex(c => c.id === over.id);
       setCategories(arrayMove(categories, oldIndex, newIndex));
       setHasChanges(true);
     }
@@ -382,7 +383,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
     });
     updateSettings.mutate(
       { 
-        categories,
+        categories: categories as unknown as any,
         building_areas: buildingAreas,
         sidebar_items: sidebarItems as any,
         disciplines: disciplines as any,
@@ -751,17 +752,42 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
           </p>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndCategories}>
-            <SortableContext items={categories} strategy={verticalListSortingStrategy}>
+            <SortableContext items={categories.map(c => c.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-2 mb-6">
                 {categories.map((cat) => (
                   <SortableItem 
-                    key={cat} 
-                    id={cat} 
-                    content={cat} 
+                    key={cat.id} 
+                    id={cat.id} 
+                    content={cat.label} 
                     onRemove={() => {
-                      setCategories(categories.filter(c => c !== cat));
+                      setCategories(categories.filter(c => c.id !== cat.id));
                       setHasChanges(true);
-                    }} 
+                    }}
+                    renderExtra={() => (
+                      <div className="flex items-center gap-2 mr-2">
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap" title="When ON, locking a contender in this category will default the Requires Coordination toggle to OFF">
+                          No Coord Default
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={cat.no_coord_default}
+                          onClick={() => {
+                            setCategories(categories.map(c =>
+                              c.id === cat.id ? { ...c, no_coord_default: !c.no_coord_default } : c
+                            ));
+                            setHasChanges(true);
+                          }}
+                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                            cat.no_coord_default ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-600'
+                          }`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                            cat.no_coord_default ? 'translate-x-4' : 'translate-x-0'
+                          }`} />
+                        </button>
+                      </div>
+                    )}
                   />
                 ))}
                 {categories.length === 0 && (

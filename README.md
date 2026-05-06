@@ -75,3 +75,59 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 # Procore Integration (OAuth)
 NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
+
+## 6. Release Notes
+
+---
+
+### v0.6 — Escalation Workflow Hardening & Category-Controlled Coordination Routing
+**Released:** 2026-05-06
+
+This release hardens the bridge between the **Value Matrix** (Pre-Construction) and the **Coordination Board** (Design Team), eliminating data loss risks, cleaning up board noise, and giving project admins per-category control over what triggers a coordination task.
+
+#### New Features
+
+**Category-Controlled Coordination Routing**
+Project admins can configure each dropdown category in **Project Settings → Categories** with a **"No Coord Default"** toggle. When ON, selecting that category on a contender automatically pre-fills the *Requires Coordination* toggle to OFF. This prevents categories like "Already in Plans/Specs" from generating coordination tasks on the board when locked.
+- _Location:_ Project Settings → Categories tab
+- _Storage:_ `project_settings.categories` (`CategoryConfig[]` — `{id, label, no_coord_default}`)
+- _Logic:_ `SortableContenderCard.tsx` → `onChange` on the category `<select>`
+
+**Safe De-escalation ("Recall from Value Matrix")**
+Coordination Board items escalated to the Value Matrix now have a safe reversal path. The delete button context-switches to **"Remove from Value Matrix"**, calling the new `de_escalate_opportunity` RPC. This atomically resets financials to zero, unlocks contender options, and strips the escalation flag — without touching the original Coordination record.
+- _Location:_ `ExpandedCard.tsx` (Value Matrix detail panel)
+- _RPC:_ `public.de_escalate_opportunity(p_opp_id UUID)` — SECURITY DEFINER
+- _Pattern:_ Non-Destructive State Reversal (AGENTS.md C31)
+
+**VE Selection Details — Always Visible for Locked Records**
+The VE Selection Details card in the Coordination Detail Panel now renders for any record that has a locked contender, regardless of record origin. Previously this was hidden for some escalated items due to a record type guard.
+- _Location:_ `CoordinationDetailPanel.tsx`
+
+**Escalation Button UX Parity**
+The escalation button now reads **"Escalate to Value Matrix"** / **"Recall from Value Matrix"** with descriptive tooltips explaining each action.
+- _Location:_ `CoordinationDetailPanel.tsx`
+
+#### Bug Fixes
+
+**Coordination Board Filter — Dead Status Removed**
+Removed `'Pending Plan Update'` from the board filter (a phantom status the lock RPC never writes). Board visibility is now strictly `coordination_status !== 'Not Required'`.
+- _Location:_ `app/project/[projectId]/page.tsx`
+
+**C24 Hook Firehose — SortableContenderCard**
+Removed `useProjectSettings` from inside `SortableContenderCard` (rendered N times per opportunity). Disciplines and categories are now derived once in `ContendersMatrix` and passed as props.
+- _Location:_ `ContendersMatrix.tsx`, `SortableContenderCard.tsx`
+
+**Stale Category Dropdown Guard**
+Category `<select>` now uses `.some()` instead of `.includes()` when checking if a saved value still exists in settings — previously saved categories remain visible even after being removed from project settings.
+- _Location:_ `SortableContenderCard.tsx`
+
+#### Internal / Architecture
+
+| Item | Detail |
+|------|--------|
+| `CategoryConfig` interface | `types/models.ts` — `{id: string, label: string, no_coord_default: boolean}` |
+| `normalizeCategories()` | `lib/normalizeSettings.ts` — Migrates legacy `string[]` to `CategoryConfig[]` at read-time, no DB migration required |
+| `DEFAULT_CATEGORIES` | `lib/constants.ts` — Upgraded to `CategoryConfig[]` with stable prefixed IDs |
+| `CoordinationDetailsMap` type | `types/models.ts` — Correctly types mixed JSONB: `{ is_escalated?: boolean } & Record<string, DisciplineDetails>` |
+| Type guards | `CoordinationBoard.tsx`, `CoordinationTable.tsx` — Safe `.filter()` before accessing `.status` on discipline entries |
+

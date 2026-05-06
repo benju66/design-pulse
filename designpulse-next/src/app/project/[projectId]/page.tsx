@@ -174,7 +174,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const coordinationOpportunities = React.useMemo(() => {
     return opportunities.filter(opp => {
       if (opp.record_type === 'Coordination') return true;
-      if (opp.record_type === 'VE' && (opp.status === 'Pending Plan Update' || opp.status === 'Approved')) return true;
+      if (opp.record_type === 'VE' && opp.status === 'Approved' && opp.coordination_status !== 'Not Required') return true;
       return false;
     });
   }, [opportunities]);

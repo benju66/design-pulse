@@ -3,12 +3,18 @@ import { Database } from './database.types';
 // Rosetta Stone: The canonical Cost Type dimension
 export type CostType = 'Labor' | 'Material' | 'Subcontract' | 'Equipment' | 'Other';
 
+// Accurate representation of the mixed-key JSONB structure in coordination_details.
+// Discipline entries keyed by UUID; is_escalated is a top-level boolean flag.
+export type CoordinationDetailsMap = {
+  is_escalated?: boolean;
+} & Record<string, DisciplineDetails | boolean | undefined>;
+
 export type Opportunity = Database['public']['Tables']['opportunities']['Row'] & {
   division?: string | null;
   cost_code?: string | null;
   record_type?: string | null;
   coordination_status?: string | null;
-  coordination_details?: Record<string, DisciplineDetails> | null;
+  coordination_details?: CoordinationDetailsMap | null;
   description?: string | null;
   cost_type?: CostType | null;
   spec_number_id?: string | null;
@@ -57,6 +63,11 @@ export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
 export interface DisciplineConfig {
   id: string;
   label: string;
+}
+export interface CategoryConfig {
+  id: string;            // Immutable UUID — dnd-kit key, JSONB identity (AGENTS.md C7)
+  label: string;         // Display name; stored as loose-text FK in opportunity_options.category
+  no_coord_default: boolean; // false = coordination required (default for all new categories)
 }
 export interface PermitTypeConfig {
   id: string;

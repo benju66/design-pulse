@@ -42,7 +42,12 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
   return (
     <div className="flex gap-1 items-center px-2 py-1 h-full cursor-default">
       {disciplines.map((d: DisciplineConfig) => {
-        const status = coordDetails[d.id]?.status || 'Not Required';
+        // CoordinationDetailsMap values are DisciplineDetails | boolean. Guard against is_escalated boolean.
+        const rawEntry = (coordDetails as Record<string, unknown>)[d.id];
+        const disciplineEntry = (typeof rawEntry === 'object' && rawEntry !== null && 'status' in rawEntry)
+          ? rawEntry as { status: string }
+          : null;
+        const status = disciplineEntry?.status || 'Not Required';
         if (status === 'Not Required') return null;
         
         const isCompleted = status === 'Complete';
@@ -62,7 +67,11 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
           </div>
         );
       })}
-      {disciplines.every((d: DisciplineConfig) => (coordDetails[d.id]?.status || 'Not Required') === 'Not Required') && (
+      {disciplines.every((d: DisciplineConfig) => {
+        const rawD = (coordDetails as Record<string, unknown>)[d.id];
+        const s = (typeof rawD === 'object' && rawD !== null && 'status' in rawD) ? (rawD as { status: string }).status : 'Not Required';
+        return s === 'Not Required';
+      }) && (
         <span className="text-xs text-slate-400 italic">No tasks</span>
       )}
     </div>

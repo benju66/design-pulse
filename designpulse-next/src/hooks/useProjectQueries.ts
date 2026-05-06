@@ -4,6 +4,7 @@ import { calculateParentTotals } from '@/utils/financialMath';
 import { toast } from 'sonner';
 import { Opportunity, OpportunityOption, ProjectSettings, Project, ProjectCsiSpec } from '@/types/models';
 import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_BUILDING_AREAS, DEFAULT_DISCIPLINES } from '@/lib/constants';
+import { normalizeCategories } from '@/lib/normalizeSettings';
 import { useAuth } from '@/providers/AuthProvider';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useRolePermissions } from '@/hooks/useGlobalQueries';
@@ -41,7 +42,7 @@ export function useProjectSettings(projectId: string | null) {
 
       return {
         ...settings,
-        categories: (settings.categories as any[])?.length > 0 ? settings.categories : defaultSettings.categories,
+        categories: normalizeCategories(settings.categories) as unknown as ProjectSettings['categories'],
         building_areas: (settings.building_areas as any[])?.length > 0 ? settings.building_areas : defaultSettings.building_areas,
         sidebar_items: (settings.sidebar_items as any[])?.length > 0 ? settings.sidebar_items : defaultSettings.sidebar_items,
         disciplines: (settings.disciplines as any[])?.length > 0 ? settings.disciplines : defaultSettings.disciplines,
@@ -208,6 +209,67 @@ export function useUpdateCoordinationDetails(projectId: string) {
       console.error('Update Coordination Details Error:', err);
       toast.error(`Failed to update coordination details: ${err.message || 'Unknown error'}`);
     }
+  });
+}
+
+export function useDeEscalateOpportunity(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    { id: string },
+    { previousOpportunities: Opportunity[] | undefined }
+  >({
+    mutationFn: async ({ id }) => {
+      const { error } = await supabase.rpc('de_escalate_opportunity', {
+        p_opp_id: id   // string UUID — never undefined (AGENTS.md C11)
+      });
+      if (error) throw new Error(error.message || JSON.stringify(error));
+    },
+    onMutate: async ({ id }) => {
+      // Cancel in-flight refetches so they don't overwrite the optimistic update (AGENTS.md C2)
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(
+        ['opportunities', projectId]
+      );
+
+      // Optimistic update: reflect de-escalation instantly (AGENTS.md C9 — spread parent row)
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp => {
+          if (opp.id !== id) return opp;
+          const coordDetails = (opp.coordination_details as Record<string, unknown>) ?? {};
+          const { is_escalated: _stripped, ...cleanDetails } = coordDetails;
+          return {
+            ...opp,  // always spread parent (AGENTS.md C9)
+            cost_impact: 0,
+            days_impact: 0,
+            status: 'Draft',
+            final_direction: null,
+            coordination_details: cleanDetails,
+          } as Opportunity;
+        });
+      });
+
+      return { previousOpportunities };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(
+          ['opportunities', projectId],
+          context.previousOpportunities
+        );
+      }
+      toast.error('Failed to remove from Value Matrix. Please try again.');
+    },
+    onSuccess: () => {
+      // Hard refetch both tables — RPC mutated opportunity_options (is_locked)
+      // AND opportunities. Both caches are now stale. (AGENTS.md C2)
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+    },
   });
 }
 

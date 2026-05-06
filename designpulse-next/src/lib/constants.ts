@@ -1,3 +1,5 @@
+import type { CategoryConfig } from '@/types/models';
+
 export const ALL_PRIMARY_FIELDS = [
   { id: 'priority', label: 'Priority' },
   { id: 'cost_impact', label: 'Cost Impact' },
@@ -29,13 +31,15 @@ export const ADVANCED_FIELD_IDS = [
   'design_lock_phase'
 ] as const;
 
-export const DEFAULT_CATEGORIES = [
-  "Existing Conditions",
-  "Arch Plans/Specs",
-  "Owner Standard",
-  "Budgeted Item",
-  "Other"
-] as const;
+// Stable prefixed IDs so all new projects share identical defaults.
+// User-created categories get crypto.randomUUID() at creation time.
+export const DEFAULT_CATEGORIES: CategoryConfig[] = [
+  { id: 'd_existing_conditions', label: 'Existing Conditions', no_coord_default: false },
+  { id: 'd_arch_plans_specs',    label: 'Arch Plans/Specs',    no_coord_default: false },
+  { id: 'd_owner_standard',      label: 'Owner Standard',      no_coord_default: false },
+  { id: 'd_budgeted_item',       label: 'Budgeted Item',        no_coord_default: false },
+  { id: 'd_other',               label: 'Other',                no_coord_default: false },
+];
 
 export const DEFAULT_BUILDING_AREAS = [
   "Corridor / Common",

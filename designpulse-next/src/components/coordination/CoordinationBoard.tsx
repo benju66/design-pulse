@@ -1,6 +1,6 @@
 "use client";
 
-import { Opportunity } from '@/types/models';
+import { Opportunity, DisciplineDetails } from '@/types/models';
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { CoordinationColumn } from './CoordinationColumn';
 import { CoordinationCard } from './CoordinationCard';
@@ -51,7 +51,10 @@ export default function CoordinationBoard({ projectId, opportunities }: Coordina
     // Validation Logic
     if (targetColumnId === 'Ready for Review' || targetColumnId === 'Implemented') {
       const details = opportunity.coordination_details || {};
-      const hasPending = Object.values(details).some(d => d?.status === 'Required' || d?.status === 'Pending');
+      // Type guard: filter out the boolean is_escalated flag — only discipline detail objects have a .status field
+      const hasPending = Object.values(details)
+        .filter((d): d is DisciplineDetails => typeof d === 'object' && d !== null && 'status' in d)
+        .some(d => d.status === 'Required' || d.status === 'Pending');
       if (hasPending) {
         toast.error('Coordination Incomplete', {
           description: 'All required discipline pills must be completed before moving to Review or Implementation.',

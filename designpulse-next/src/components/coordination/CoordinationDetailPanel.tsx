@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle, List, MessageSquare } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { Opportunity, DisciplineConfig, DisciplineDetails } from '@/types/models';
@@ -221,8 +221,8 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
           </div>
         </div>
 
-        {/* VE Selection Details (Only for VE items pushed to Coordination) */}
-        {opportunity.record_type !== 'Coordination' && lockedOption && (
+        {/* VE Selection Details — visible for any record that has a locked contender */}
+        {lockedOption && (
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm flex flex-col gap-4">
              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 pb-2">VE Selection Details</h4>
              
@@ -260,8 +260,8 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
           </div>
         )}
 
-        {/* Coordination Description (Only for Direct Coordination items) */}
-        {opportunity.record_type === 'Coordination' && (
+        {/* Coordination Description (Only for Direct Coordination items without a locked contender) */}
+        {opportunity.record_type === 'Coordination' && !lockedOption && (
           <div className="flex flex-col gap-2">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-1">Description</label>
             <textarea
@@ -313,8 +313,11 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
                     ? 'bg-purple-600 text-white shadow-purple-500/30 hover:bg-purple-700' 
                     : 'bg-white text-purple-600 border border-purple-200 hover:bg-purple-50 dark:bg-slate-800 dark:border-purple-800 dark:hover:bg-slate-700'
                 }`}
-             >
-                {localDetails?.is_escalated === true ? 'Escalated' : 'Escalate'}
+                title={localDetails?.is_escalated === true
+                  ? 'Remove from Value Matrix and return this item to the Coordination Board only'
+                  : 'Send to Value Matrix for financial evaluation by Pre-Construction'}
+              >
+                 {localDetails?.is_escalated === true ? 'Recall from Value Matrix' : 'Escalate to Value Matrix'}
              </button>
           </div>
         </div>

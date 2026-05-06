@@ -899,6 +899,50 @@ BEGIN
 END;
 $$;
 
+-- De-Escalation RPC: Removes an escalated Coordination item from the Value Matrix.
+-- Atomically: unlocks contender options, resets opportunity state, strips is_escalated flag.
+-- Requires designpulse.bypass_immutability escape hatch (AGENTS.md Rule B5).
+CREATE OR REPLACE FUNCTION public.de_escalate_opportunity(p_opp_id UUID)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  -- 1. RBAC check — same permission as editing records (not lock-level).
+  IF NOT public.has_project_permission(
+    (SELECT project_id FROM opportunities WHERE id = p_opp_id),
+    'can_edit_records'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Insufficient privileges to de-escalate this item';
+  END IF;
+
+  -- 2. Open escape hatch AFTER RBAC, BEFORE any UPDATE statement.
+  --    Covers BOTH enforce_financial_immutability (opportunities)
+  --    AND enforce_options_immutability (opportunity_options).
+  --    Per AGENTS.md B5: opening the hatch late still triggers on earlier UPDATEs.
+  PERFORM set_config('designpulse.bypass_immutability', 'true', true);
+
+  -- 3. Unlock all contender options first (CRITICAL ordering).
+  --    trg_sync_parent_opportunity_totals (AFTER trigger on opportunity_options) fires
+  --    here and recalculates parent costs from now-unlocked options.
+  --    Our explicit UPDATE in step 4 then overrides that intermediate calculation.
+  UPDATE opportunity_options
+  SET is_locked = false
+  WHERE opportunity_id = p_opp_id;
+
+  -- 4. Reset opportunity to Coordination-only state.
+  --    Uses JSONB key-deletion operator (-) to cleanly strip is_escalated.
+  --    COALESCE guards against NULL coordination_details (NULL - key = NULL without it).
+  --    trg_auto_update_coordination_status (BEFORE trigger) recalculates coordination_status
+  --    from remaining discipline task data automatically before this UPDATE commits.
+  UPDATE opportunities
+  SET
+    cost_impact          = 0,
+    days_impact          = 0,
+    status               = 'Draft',
+    final_direction      = NULL,
+    coordination_details = COALESCE(coordination_details, '{}'::jsonb) - 'is_escalated'
+  WHERE id = p_opp_id;
+
+END;
+$$;
 
 
 

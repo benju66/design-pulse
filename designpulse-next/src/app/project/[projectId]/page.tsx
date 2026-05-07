@@ -524,7 +524,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
               }`}>
                 <div className="shrink-0">
-                  <BudgetSummaryV2 projectId={projectId} opportunities={opportunities} />
+                  <BudgetSummaryV2 projectId={projectId} />
                   
                   {/* Filter Toolbar */}
                   <div className="flex flex-wrap items-center gap-3 mb-4 mt-2 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">

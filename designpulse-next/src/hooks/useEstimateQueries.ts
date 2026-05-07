@@ -37,7 +37,7 @@ const CHUNK_SIZE = 50; // AGENTS.md C20 — Kong gateway protection
 export const estimateKeys = {
   versions:  (projectId: string) => ['estimate-versions', projectId] as const,
   lines:     (versionId: string) => ['estimate-lines',    versionId] as const,
-  waterfall: (projectId: string) => ['budget-waterfall',  projectId] as const,
+  waterfall: (projectId: string, versionId: string | null) => ['budget-waterfall',  projectId, versionId] as const,
 };
 
 // ── useProjectEstimateVersions ───────────────────────────────────────────────
@@ -259,14 +259,15 @@ export function useDeleteDraftEstimateVersion(projectId: string) {
 // ── useProjectBudgetWaterfall ────────────────────────────────────────────────
 // Server-side aggregation — never compute client-side (AGENTS.md C5).
 // 5-minute staleTime: expensive RPC, does not need real-time freshness.
-export function useProjectBudgetWaterfall(projectId: string | null) {
+export function useProjectBudgetWaterfall(projectId: string | null, versionId: string | null = null) {
   return useQuery<BudgetWaterfallRow[]>({
-    queryKey: estimateKeys.waterfall(projectId ?? ''),
+    queryKey: estimateKeys.waterfall(projectId ?? '', versionId),
     enabled: !!projectId,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_project_budget_waterfall', {
         p_project_id: projectId!,
+        p_version_id: versionId || null,
       });
       if (error) throw error;
       return (data ?? []) as BudgetWaterfallRow[];

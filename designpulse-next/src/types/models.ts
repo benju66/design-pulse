@@ -196,5 +196,7 @@ export interface BudgetWaterfallRow {
   description: string;
   budget_amount: number;
   ve_impact: number;
+  pending_impact: number;
   net_position: number;
+  projected_position: number;
 }

@@ -19,7 +19,7 @@ import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions, useProjectCsiSpecs } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
-import { useGridNavigation } from '@/hooks/useGridNavigation';
+
 
 import { ExpandedCard } from './opportunities/ExpandedCard';
 import { ColumnChooser } from './opportunities/ColumnChooser';
@@ -239,8 +239,6 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   const permissions = useCurrentUserPermissions(projectId);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
 
-  const moveActiveCellRef = useRef<any>(null);
-
   const activeColumns = useMemo(() => {
     if (!settings?.ve_column_order || typeof settings.ve_column_order[0] === 'string') return columns;
     const hiddenIds = settings.ve_column_order.filter((c: any) => c.visible === false).map((c: any) => c.id);
@@ -301,7 +299,6 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       csiSpecs,
       projectMembers,
       permissions,
-      moveActiveCellRef,
     } as any,
   });
 
@@ -314,9 +311,6 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     estimateSize: () => 44, // Base height
     overscan: 5,
   });
-
-  const { handleKeyDown, moveActiveCell } = useGridNavigation(table as any, virtualizer);
-  moveActiveCellRef.current = moveActiveCell;
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;
@@ -344,9 +338,6 @@ const EMPTY_VISIBILITY: VisibilityState = {};
         ref={tableContainerRef} 
         className="flex-1 overflow-auto rounded-b-xl outline-none"
         tabIndex={0}
-        onKeyDown={(e) => {
-          if (handleKeyDown) handleKeyDown(e as any);
-        }}
       >
         <table 
           className="text-left text-sm whitespace-nowrap" 

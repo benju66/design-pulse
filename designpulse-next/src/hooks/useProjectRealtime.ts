@@ -16,6 +16,7 @@ export function useProjectRealtime(projectId: string | null) {
         // AGENTS.md Rule C.2: Respect the Cache (Invalidate don't reload)
         queryClient.invalidateQueries({ queryKey: ['opportunities', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId], refetchType: 'active' });
+        queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId], refetchType: 'active' });
       }, 300);
     };
 

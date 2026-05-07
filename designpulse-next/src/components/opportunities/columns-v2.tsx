@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell } from './EditableCell';
+import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell } from './ReadOnlyCell';
 import { OptionsCell } from './OptionsCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';

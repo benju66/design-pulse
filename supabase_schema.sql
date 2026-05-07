@@ -1946,35 +1946,55 @@ GRANT  EXECUTE ON FUNCTION public.delete_draft_estimate_version(uuid, uuid) TO a
 -- ── RPC 6: get_project_budget_waterfall ─────────────────────────────────────
 -- Server-side aggregation for the waterfall chart (AGENTS.md C5).
 -- IS NOT DISTINCT FROM handles NULL cost_code join correctly.
-CREATE OR REPLACE FUNCTION public.get_project_budget_waterfall(p_project_id uuid)
+CREATE OR REPLACE FUNCTION public.get_project_budget_waterfall(p_project_id uuid, p_version_id uuid DEFAULT NULL)
 RETURNS TABLE (
   cost_code     text,
   description   text,
   budget_amount numeric,
   ve_impact     numeric,
-  net_position  numeric
+  pending_impact numeric,
+  net_position  numeric,
+  projected_position numeric
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF NOT (is_platform_admin() OR get_user_project_role(p_project_id) IS NOT NULL) THEN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
   RETURN QUERY
-  SELECT
-    COALESCE(e.cost_code, 'Unassigned')::text              AS cost_code,
-    MAX(e.description)::text                                AS description,
-    SUM(e.budget_amount)                                    AS budget_amount,
-    COALESCE(SUM(o.cost_impact), 0)                         AS ve_impact,
-    SUM(e.budget_amount) + COALESCE(SUM(o.cost_impact), 0) AS net_position
-  FROM project_estimates e
-  JOIN project_estimate_versions v ON v.id = e.version_id
-  LEFT JOIN opportunities o
-    ON o.cost_code IS NOT DISTINCT FROM e.cost_code
-   AND o.project_id = p_project_id
-   AND o.is_deleted = false
-   AND o.status IN ('Approved', 'Pending Plan Update', 'Implemented')
-  WHERE v.project_id = p_project_id AND v.is_active = true
-  GROUP BY COALESCE(e.cost_code, 'Unassigned');
+  WITH budget_agg AS (
+    SELECT COALESCE(e.cost_code, 'Unassigned')::text AS cost_code,
+           MAX(e.description)::text AS description,
+           SUM(e.budget_amount) AS budget_amount
+    FROM project_estimates e
+    JOIN project_estimate_versions v ON v.id = e.version_id
+    WHERE v.project_id = p_project_id 
+      AND (
+        (p_version_id IS NOT NULL AND v.id = p_version_id) OR 
+        (p_version_id IS NULL AND v.is_active = true)
+      )
+    GROUP BY COALESCE(e.cost_code, 'Unassigned')
+  ),
+  opp_agg AS (
+    SELECT COALESCE(o.cost_code, 'Unassigned')::text AS cost_code,
+           SUM(CASE WHEN o.status IN ('Approved', 'Pending Plan Update', 'Implemented') THEN o.cost_impact ELSE 0 END) AS locked_impact,
+           SUM(CASE WHEN o.status IN ('Draft', 'Pending Review', 'Pending') THEN o.cost_impact ELSE 0 END) AS pending_impact
+    FROM opportunities o
+    WHERE o.project_id = p_project_id AND o.is_deleted = false
+    GROUP BY COALESCE(o.cost_code, 'Unassigned')
+  )
+  SELECT 
+    COALESCE(b.cost_code, o.cost_code) AS cost_code,
+    COALESCE(b.description, c.description, 'Unbudgeted')::text AS description,
+    COALESCE(b.budget_amount, 0) AS budget_amount,
+    COALESCE(o.locked_impact, 0) AS ve_impact,
+    COALESCE(o.pending_impact, 0) AS pending_impact,
+    COALESCE(b.budget_amount, 0) + COALESCE(o.locked_impact, 0) AS net_position,
+    COALESCE(b.budget_amount, 0) + COALESCE(o.locked_impact, 0) + COALESCE(o.pending_impact, 0) AS projected_position
+  FROM budget_agg b
+  FULL OUTER JOIN opp_agg o ON b.cost_code = o.cost_code
+  LEFT JOIN cost_codes c ON c.code = COALESCE(b.cost_code, o.cost_code)
+  ORDER BY COALESCE(b.cost_code, o.cost_code);
 END;
 $$;
-REVOKE EXECUTE ON FUNCTION public.get_project_budget_waterfall(uuid) FROM PUBLIC, anon;
-GRANT  EXECUTE ON FUNCTION public.get_project_budget_waterfall(uuid) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_project_budget_waterfall(uuid, uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.get_project_budget_waterfall(uuid, uuid) TO authenticated;

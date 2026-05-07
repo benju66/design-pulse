@@ -245,7 +245,9 @@ ALTER TABLE permit_task_links ENABLE ROW LEVEL SECURITY;
 
 -- Platform Admins
 DROP POLICY IF EXISTS "Platform admins can view platform_admins" ON platform_admins;
-CREATE POLICY "Platform admins can view platform_admins" ON platform_admins FOR SELECT USING (true);
+CREATE POLICY "Platform admins can view platform_admins" ON platform_admins FOR SELECT USING (
+  public.is_platform_admin() OR user_id = auth.uid()
+);
 DROP POLICY IF EXISTS "Only platform admins can insert platform_admins" ON platform_admins;
 CREATE POLICY "Only platform admins can insert platform_admins" ON platform_admins FOR INSERT WITH CHECK (is_platform_admin());
 DROP POLICY IF EXISTS "Only platform admins can delete platform_admins" ON platform_admins;
@@ -502,6 +504,29 @@ BEGIN
   END IF;
 
   UPDATE opportunity_options SET include_in_budget = p_is_included WHERE id = p_option_id;
+END;
+$$;
+
+-- Bulk JSONB Reorder for Opportunity Options
+CREATE OR REPLACE FUNCTION public.reorder_opportunity_options(p_project_id uuid, p_payload jsonb)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- RBAC Guard
+  IF NOT has_project_permission(p_project_id, 'can_edit_records') THEN
+    RAISE EXCEPTION 'Unauthorized: Insufficient privileges';
+  END IF;
+
+  -- Array Type-Safety Guard (AGENTS.md C21)
+  IF jsonb_typeof(COALESCE(p_payload, '[]'::jsonb)) = 'array' THEN
+    UPDATE opportunity_options AS o
+    SET order_index = (elem->>'order_index')::integer
+    FROM jsonb_array_elements(p_payload) AS elem
+    WHERE o.id = (elem->>'id')::uuid AND o.project_id = p_project_id;
+  END IF;
 END;
 $$;
 

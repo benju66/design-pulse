@@ -280,10 +280,11 @@ export function useAllProjectOptions(projectId: string | null) {
       if (!projectId) return [];
       const { data, error } = await supabase
         .from('opportunity_options')
-        .select('*, opportunities!inner(project_id)')
-        .eq('opportunities.project_id', projectId)
+        .select('*')
+        .eq('project_id', projectId)
         .eq('is_deleted', false)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
       if (error) {
         console.warn("Supabase Error:", error);
         return [];
@@ -489,9 +490,12 @@ export function useReorderOptions(projectId: string) {
     { previousOptions: OpportunityOption[] | undefined }
   >({
     mutationFn: async (orderedIds) => {
-      await Promise.all(orderedIds.map((id, index) => 
-        supabase.from('opportunity_options').update({ order_index: index }).eq('id', id)
-      ));
+      const payload = orderedIds.map((id, index) => ({ id, order_index: index }));
+      const { error } = await supabase.rpc('reorder_opportunity_options', {
+        p_project_id: projectId,
+        p_payload: payload
+      });
+      if (error) throw error;
       return orderedIds;
     },
     onMutate: async (orderedIds) => {
@@ -514,6 +518,9 @@ export function useReorderOptions(projectId: string) {
         queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
       toast.error(`Failed to reorder options: ${err.message || 'Unknown error'}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
     }
   });
 }

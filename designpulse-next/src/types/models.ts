@@ -200,3 +200,25 @@ export interface BudgetWaterfallRow {
   net_position: number;
   projected_position: number;
 }
+
+export interface RolePermission {
+  role: 'project_admin' | 'gc_admin' | 'design_team' | 'viewer';
+  can_lock_options: boolean;
+  can_unlock_options: boolean;
+  can_manage_team: boolean;
+  can_edit_project_settings: boolean;
+  can_manage_budget: boolean;
+  can_edit_records: boolean;
+  can_delete_records: boolean;
+  can_view_audit_logs: boolean;
+}
+
+export type UserPermissions = Omit<RolePermission, 'role'>;
+
+export interface ProjectMember {
+  user_id: string;
+  email: string;
+  name: string | null;
+  role: RolePermission['role'];
+  joined_at: string;
+}

@@ -485,7 +485,7 @@ export const CostCodeCell = React.memo(({ getValue, row, table }: CellContext<Op
 
   const handleChange = (updates: { cost_code?: string; division?: string; cost_type?: string; spec_number_id?: string | null }) => {
     if (updateMutation) {
-      updateMutation.mutate({ id: row.original.id, updates });
+      updateMutation.mutate({ id: row.original.id, updates: updates as Partial<Opportunity> });
     }
   };
 
@@ -516,7 +516,7 @@ export const CsiSpecCell = React.memo(({ row, table }: CellContext<Opportunity, 
 
   const handleChange = (updates: { cost_code?: string; division?: string; cost_type?: string; spec_number_id?: string | null }) => {
     if (updateMutation) {
-      updateMutation.mutate({ id: row.original.id, updates });
+      updateMutation.mutate({ id: row.original.id, updates: updates as Partial<Opportunity> });
     }
   };
 

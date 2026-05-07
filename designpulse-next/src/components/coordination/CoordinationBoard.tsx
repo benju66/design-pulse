@@ -4,7 +4,7 @@ import { Opportunity, DisciplineDetails } from '@/types/models';
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { CoordinationColumn } from './CoordinationColumn';
 import { CoordinationCard } from './CoordinationCard';
-import { useUpdateOpportunity } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useProjectSettings, useProjectMembers } from '@/hooks/useProjectQueries';
 import { toast } from 'sonner';
 
 interface CoordinationBoardProps {
@@ -21,6 +21,8 @@ const COLUMNS = [
 
 export default function CoordinationBoard({ projectId, opportunities }: CoordinationBoardProps) {
   const updateMutation = useUpdateOpportunity(projectId);
+  const { data: settings } = useProjectSettings(projectId);
+  const { data: members = [] } = useProjectMembers(projectId);
 
   // Filter opportunities to only those that should be on the board.
   // Assuming the board tracks execution after an item is locked and moved to 'Pending Plan Update'
@@ -85,7 +87,7 @@ export default function CoordinationBoard({ projectId, opportunities }: Coordina
               return (
                 <CoordinationColumn key={col.id} id={col.id} title={col.title} count={colOpps.length}>
                   {colOpps.map(opp => (
-                    <CoordinationCard key={opp.id} opportunity={opp} projectId={projectId} />
+                    <CoordinationCard key={opp.id} opportunity={opp} updateMutation={updateMutation} settings={settings} members={members} />
                   ))}
                 </CoordinationColumn>
               );

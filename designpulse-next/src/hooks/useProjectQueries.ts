@@ -2,12 +2,35 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { calculateParentTotals } from '@/utils/financialMath';
 import { toast } from 'sonner';
-import { Opportunity, OpportunityOption, ProjectSettings, Project, ProjectCsiSpec } from '@/types/models';
+import { Opportunity, OpportunityOption, ProjectSettings, Project, ProjectCsiSpec, UserPermissions, ProjectMember } from '@/types/models';
 import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_BUILDING_AREAS, DEFAULT_DISCIPLINES } from '@/lib/constants';
 import { normalizeCategories } from '@/lib/normalizeSettings';
 import { useAuth } from '@/providers/AuthProvider';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useRolePermissions } from '@/hooks/useGlobalQueries';
+
+// Constants for Permission defaults
+export const DEFAULT_PERMS: UserPermissions = {
+  can_lock_options: false,
+  can_unlock_options: false,
+  can_manage_team: false,
+  can_edit_project_settings: false,
+  can_manage_budget: false,
+  can_edit_records: false,
+  can_delete_records: false,
+  can_view_audit_logs: false,
+};
+
+export const ALL_PERMS: UserPermissions = {
+  can_lock_options: true,
+  can_unlock_options: true,
+  can_manage_team: true,
+  can_edit_project_settings: true,
+  can_manage_budget: true,
+  can_edit_records: true,
+  can_delete_records: true,
+  can_view_audit_logs: true,
+};
 
 export function useProjectSettings(projectId: string | null) {
   return useQuery<ProjectSettings, Error>({
@@ -881,14 +904,6 @@ export function useToggleOptionBudget(opportunityId: string, projectId: string) 
   });
 }
 
-export interface ProjectMember {
-  project_id: string;
-  user_id: string;
-  role: 'project_admin' | 'gc_admin' | 'design_team' | 'viewer';
-  email: string;
-  name: string | null;
-}
-
 export function useProjectMembers(projectId: string) {
   return useQuery({
     queryKey: ['project_members', projectId],
@@ -952,25 +967,34 @@ export function useRemoveProjectMember(projectId: string) {
   });
 }
 
-export function useCurrentUserPermissions(projectId: string | null) {
+export function useCurrentUserPermissions(projectId: string | null): {
+  permissions: UserPermissions;
+  isLoading: boolean;
+} {
   const { session } = useAuth();
-  const { data: members } = useProjectMembers(projectId || '');
-  const { data: isPlatformAdmin } = useIsPlatformAdmin();
-  const { data: rolePermissions } = useRolePermissions();
+  const { data: members, isLoading: membersLoading } = useProjectMembers(projectId || '');
+  const { data: isPlatformAdmin, isLoading: adminLoading } = useIsPlatformAdmin();
+  const { data: rolePermissions, isLoading: rolesLoading } = useRolePermissions();
 
-  const defaultPerms = { can_lock_options: false, can_unlock_options: false, can_manage_team: false, can_edit_project_settings: false, can_manage_budget: false, can_edit_records: false, can_delete_records: false, can_view_audit_logs: false };
+  const isLoading = membersLoading || adminLoading || rolesLoading;
 
-  if (isPlatformAdmin) {
-    return Object.keys(defaultPerms).reduce((acc, key) => ({ ...acc, [key]: true }), {} as typeof defaultPerms);
+  if (!isLoading && isPlatformAdmin) {
+    return { permissions: ALL_PERMS, isLoading: false };
   }
 
-  if (!session?.user?.id || !members || !rolePermissions) return defaultPerms;
+  if (isLoading || !session?.user?.id || !members || !rolePermissions) {
+    return { permissions: DEFAULT_PERMS, isLoading };
+  }
 
   const userMember = members.find(m => m.user_id === session.user.id);
-  if (!userMember) return defaultPerms;
+  if (!userMember) return { permissions: DEFAULT_PERMS, isLoading: false };
 
-  const perms = rolePermissions.find(rp => rp.role === userMember.role);
-  return perms || defaultPerms;
+  const found = rolePermissions.find(rp => rp.role === userMember.role);
+  if (!found) return { permissions: DEFAULT_PERMS, isLoading: false };
+
+  // Explicitly strip 'role' field per UserPermissions definition
+  const { role: _, ...permissions } = found;
+  return { permissions, isLoading: false };
 }
 
 export function useUnlockOpportunityOption(projectId: string) {

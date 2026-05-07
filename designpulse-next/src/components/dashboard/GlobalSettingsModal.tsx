@@ -5,12 +5,12 @@ import {
   getPaginationRowModel, getSortedRowModel, flexRender,
   ColumnDef,
 } from '@tanstack/react-table';
-import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, RolePermission, useGlobalCsiTrainingData, useToggleGlobalCsiVerified, useRemapGlobalCsiEntry, useUserProjectMembers, useBulkUpdateUserProjects, SystemUser, useUpdateCostCodeDescription, useDeleteCostCode, checkCostCodeUsage, useToggleCostCodeCategory, CategoryField } from '@/hooks/useGlobalQueries';
+import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, useGlobalCsiTrainingData, useToggleGlobalCsiVerified, useRemapGlobalCsiEntry, useUserProjectMembers, useBulkUpdateUserProjects, SystemUser, useUpdateCostCodeDescription, useDeleteCostCode, checkCostCodeUsage, useToggleCostCodeCategory, CategoryField } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
 import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, Circle, Save, Pencil, Loader2, Check, TriangleAlert } from 'lucide-react';
 import { useProjects, useUpdateProjectCore, useDeleteProjectCore } from '@/hooks/useProjectQueries';
-import { Project, GlobalCsiTrainingData, RemapCsiEntryParams, CostCode } from '@/types/models';
+import { Project, GlobalCsiTrainingData, RemapCsiEntryParams, CostCode, RolePermission } from '@/types/models';
 import { formatCostCode } from '@/lib/formatCostCode';
 import { generateCostCodeTemplate } from '@/lib/excel/costCodeTemplate';
 import { parseCostCodeExcel } from '@/lib/excel/costCodeParser';

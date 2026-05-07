@@ -1,24 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { Opportunity, DisciplineConfig } from '@/types/models';
-import { useUpdateOpportunity, useProjectSettings, useProjectMembers } from '@/hooks/useProjectQueries';
+import { Opportunity, DisciplineConfig, ProjectSettings, ProjectMember } from '@/types/models';
+import { UseMutationResult } from '@tanstack/react-query';
 import { CheckCircle2, Circle } from 'lucide-react';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface CoordinationCardProps {
   opportunity: Opportunity;
-  projectId: string;
+  updateMutation: UseMutationResult<Opportunity, Error, { id: string; updates: Partial<Opportunity> }, unknown>;
+  settings?: ProjectSettings;
+  members: ProjectMember[];
 }
 
-export const CoordinationCard = ({ opportunity, projectId }: CoordinationCardProps) => {
+export const CoordinationCard = ({ opportunity, updateMutation, settings, members }: CoordinationCardProps) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: opportunity.id,
     data: { opportunity },
   });
-  
-  const updateMutation = useUpdateOpportunity(projectId);
-  const { data: settings } = useProjectSettings(projectId);
-  const { data: members = [] } = useProjectMembers(projectId);
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,

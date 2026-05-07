@@ -27,7 +27,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const deEscalate = useDeEscalateOpportunity(projectId);
   const { data: settings } = useProjectSettings(projectId);
   const { data: members = [] } = useProjectMembers(projectId);
-  const permissions = useCurrentUserPermissions(projectId);
+  const { permissions } = useCurrentUserPermissions(projectId);
   const buildingAreas = (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
   const isLocked = row.original.status === 'Approved';

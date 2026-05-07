@@ -17,7 +17,7 @@ export const ActivityFeed = ({ opportunityId, projectId }: ActivityFeedProps) =>
   const addComment = useAddComment(opportunityId, projectId);
   const deleteComment = useDeleteComment(opportunityId);
   const { data: members = [] } = useProjectMembers(projectId);
-  const permissions = useCurrentUserPermissions(projectId);
+  const { permissions } = useCurrentUserPermissions(projectId);
   const { session } = useAuth();
   const user = session?.user;
 

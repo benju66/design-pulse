@@ -228,15 +228,19 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   
   const [localColumnVisibility, setLocalColumnVisibility] = useState<VisibilityState>({});
   
+  const globalColumnVisibilitySetter = React.useCallback(
+    (updater: VisibilityState | ((old: VisibilityState) => VisibilityState)) => 
+      _setGridColumnVisibility(projectId, updater), 
+    [projectId, _setGridColumnVisibility]
+  );
+  
   const columnVisibility = isolateState ? localColumnVisibility : globalColumnVisibility;
-  const setColumnVisibility = isolateState 
-    ? setLocalColumnVisibility 
-    : React.useCallback((updater: any) => _setGridColumnVisibility(projectId, updater), [projectId, _setGridColumnVisibility]);
+  const setColumnVisibility = isolateState ? setLocalColumnVisibility : globalColumnVisibilitySetter;
   
   const columns = useOpportunityColumnsV2(viewMode);
   const { data: settings } = useProjectSettings(projectId);
   const { data: projectMembers = [] } = useProjectMembers(projectId);
-  const permissions = useCurrentUserPermissions(projectId);
+  const { permissions } = useCurrentUserPermissions(projectId);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
 
   const activeColumns = useMemo(() => {

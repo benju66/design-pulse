@@ -4,10 +4,10 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, X, Star, RotateCcw } from 'lucide-react';
-import { OpportunityOption, DisciplineConfig, CategoryConfig } from '@/types/models';
+import { OpportunityOption, DisciplineConfig, CategoryConfig, UserPermissions } from '@/types/models';
 import { UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { useCurrentUserPermissions, useUpdateOptionRequirements } from '@/hooks/useProjectQueries';
+import { useUpdateOptionRequirements } from '@/hooks/useProjectQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 
 interface SortableContenderCardProps {
@@ -23,6 +23,7 @@ interface SortableContenderCardProps {
   isLocked?: boolean;
   canUnlock?: boolean;
   onUnlockClick?: () => void;
+  permissions: UserPermissions;
 }
 
 export const SortableContenderCard = ({
@@ -37,7 +38,8 @@ export const SortableContenderCard = ({
   isLocked,
   canUnlock,
   onUnlockClick,
-  opportunityId
+  opportunityId,
+  permissions
 }: SortableContenderCardProps) => {
 
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: opt.id });
@@ -46,7 +48,6 @@ export const SortableContenderCard = ({
   const params = useParams();
   const projectId = params?.projectId as string;
   // [AGENTS.md C24] No useProjectSettings here — disciplines/categories derived in parent.
-  const permissions = useCurrentUserPermissions(projectId);
   const updateOptionReqs = useUpdateOptionRequirements(projectId, opportunityId);
   const { data: rawCostCodes = [] } = useCostCodes();
 

@@ -247,7 +247,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
-  const permissions = useCurrentUserPermissions(projectId);
+  const { permissions } = useCurrentUserPermissions(projectId);
   const { data: rawCostCodes = [] } = useCostCodes();
   const { data: csiSpecs = [] } = useProjectCsiSpecs(projectId);
 

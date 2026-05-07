@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Building2, Plus, ArrowRight, Settings, X } from 'lucide-react';
+import { Building2, Plus, ArrowRight, Settings, X, Briefcase, LayoutGrid } from 'lucide-react';
 import { useProjects } from '@/hooks/useProjectCoreQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useUserProjectMembers } from '@/hooks/useGlobalQueries';
@@ -9,6 +9,8 @@ import { useAuth } from '@/providers/AuthProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import GlobalSettingsModal from '@/components/dashboard/GlobalSettingsModal';
 import CreateProjectModal from '@/components/dashboard/CreateProjectModal';
+import CreateClientModal from '@/components/dashboard/CreateClientModal';
+import ClientList from '@/components/dashboard/ClientList';
 import UserAccountDropdown from '@/components/layout/UserAccountDropdown';
 
 export default function DashboardPage() {
@@ -18,8 +20,10 @@ export default function DashboardPage() {
   const { data: myMemberships = [], isLoading: isMembershipsLoading } = useUserProjectMembers(session?.user?.id || null);
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
+  const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
   const [procoreLinkData, setProcoreLinkData] = useState<{ projectId: string, companyId: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'projects' | 'clients'>('projects');
 
   const isGcAdminAnywhere = myMemberships.some(m => m.role === 'gc_admin');
   const canAccessSettings = isSuperAdmin || isGcAdminAnywhere;
@@ -48,9 +52,9 @@ export default function DashboardPage() {
     <div className="p-8 max-w-7xl mx-auto h-full flex flex-col">
       <div className="flex justify-between items-end mb-8 shrink-0">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Design Pulse Projects</h1>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-2">
-            Select a project to view its VE tracker and interactive floor plans.
+            Manage your project portfolio and global client standards.
           </p>
         </div>
         <div className="flex items-center gap-4 h-11">
@@ -77,13 +81,23 @@ export default function DashboardPage() {
                   <span className="hidden sm:inline">Global Settings</span>
                 </button>
               )}
-              {isSuperAdmin && (
+              {isSuperAdmin && activeTab === 'projects' && (
                 <button
-                  onClick={() => setIsCreateModalOpen(true)}
+                  onClick={() => setIsCreateProjectModalOpen(true)}
                   className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 h-10 rounded-xl font-bold transition-colors shadow-sm"
                 >
                   <Plus size={20} />
                   <span className="hidden sm:inline">New Project</span>
+                  <span className="sm:hidden">New</span>
+                </button>
+              )}
+              {isSuperAdmin && activeTab === 'clients' && (
+                <button
+                  onClick={() => setIsCreateClientModalOpen(true)}
+                  className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 h-10 rounded-xl font-bold transition-colors shadow-sm"
+                >
+                  <Plus size={20} />
+                  <span className="hidden sm:inline">New Client</span>
                   <span className="sm:hidden">New</span>
                 </button>
               )}
@@ -111,13 +125,45 @@ export default function DashboardPage() {
 
       <GlobalSettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <CreateProjectModal 
-        isOpen={isCreateModalOpen} 
-        onClose={() => setIsCreateModalOpen(false)} 
+        isOpen={isCreateProjectModalOpen} 
+        onClose={() => setIsCreateProjectModalOpen(false)} 
         procoreProjectId={procoreLinkData?.projectId}
         procoreCompanyId={procoreLinkData?.companyId}
       />
+      <CreateClientModal
+        isOpen={isCreateClientModalOpen}
+        onClose={() => setIsCreateClientModalOpen(false)}
+      />
 
-      {isLoading ? (
+      {/* Segmented Control */}
+      <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-fit mb-6">
+        <button
+          onClick={() => setActiveTab('projects')}
+          className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${
+            activeTab === 'projects' 
+              ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' 
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <LayoutGrid size={16} />
+          Projects
+        </button>
+        <button
+          onClick={() => setActiveTab('clients')}
+          className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${
+            activeTab === 'clients' 
+              ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' 
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <Briefcase size={16} />
+          Clients
+        </button>
+      </div>
+
+      {activeTab === 'clients' ? (
+        <ClientList />
+      ) : isLoading ? (
         <div className="flex-1 flex items-center justify-center text-slate-500">
           Loading projects...
         </div>
@@ -154,7 +200,7 @@ export default function DashboardPage() {
               <p className="text-slate-500 dark:text-slate-400 mb-4 text-lg">No projects found.</p>
               {isSuperAdmin && (
                 <button 
-                  onClick={() => setIsCreateModalOpen(true)} 
+                  onClick={() => setIsCreateProjectModalOpen(true)} 
                   className="text-sky-500 font-bold hover:underline"
                 >
                   Spin up your first sandbox project

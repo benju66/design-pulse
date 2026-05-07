@@ -60,7 +60,8 @@ export function useCreateProject() {
           p_description: newProject.description || null,
           p_project_number: newProject.project_number || null,
           p_procore_project_id: newProject.procore_project_id || null,
-          p_procore_company_id: newProject.procore_company_id || null
+          p_procore_company_id: newProject.procore_company_id || null,
+          p_client_id: newProject.client_id || null
         })
         .single();
         
@@ -69,6 +70,7 @@ export function useCreateProject() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['client_metrics'] });
     },
     onError: (err) => {
       console.error('Create Project Error:', err);
@@ -92,6 +94,7 @@ export function useUpdateProjectCore(projectId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['client_metrics'] });
     },
     onError: (err) => {
       console.error('Update Project Core Error:', err);
@@ -114,6 +117,7 @@ export function useDeleteProjectCore() {
     onSuccess: () => {
       toast.success('Project deleted successfully.');
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['client_metrics'] });
     },
     onError: (err) => {
       console.error('Delete Project Error:', err);

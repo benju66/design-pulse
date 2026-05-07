@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useCreateProject } from '@/hooks/useProjectCoreQueries';
+import { useClients } from '@/hooks/useClientQueries';
 import { X, Loader2 } from 'lucide-react';
 
 interface CreateProjectModalProps {
@@ -15,8 +16,10 @@ export default function CreateProjectModal({ isOpen, onClose, procoreProjectId, 
   const [newProjectData, setNewProjectData] = useState({
     name: '',
     description: '',
-    project_number: ''
+    project_number: '',
+    client_id: ''
   });
+  const { data: clients = [] } = useClients();
 
   // Auto-fetch and populate data when modal opens with a Procore ID
   useEffect(() => {
@@ -54,11 +57,12 @@ export default function CreateProjectModal({ isOpen, onClose, procoreProjectId, 
       name: newProjectData.name.trim(),
       description: newProjectData.description.trim() || undefined,
       project_number: newProjectData.project_number.trim() || null,
+      client_id: newProjectData.client_id || null,
       procore_project_id: procoreProjectId || null,
       procore_company_id: procoreCompanyId || null
     }, {
       onSuccess: () => {
-        setNewProjectData({ name: '', description: '', project_number: '' });
+        setNewProjectData({ name: '', description: '', project_number: '', client_id: '' });
         onClose();
       }
     });
@@ -111,6 +115,21 @@ export default function CreateProjectModal({ isOpen, onClose, procoreProjectId, 
               className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-mono uppercase disabled:opacity-50"
               placeholder="e.g., PROJ-2026-001"
             />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Client (Optional)</label>
+            <select
+              disabled={isFetchingProcore}
+              value={newProjectData.client_id}
+              onChange={e => setNewProjectData({ ...newProjectData, client_id: e.target.value })}
+              className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 focus:ring-2 focus:ring-sky-500 outline-none transition-shadow disabled:opacity-50"
+            >
+              <option value="">No Client Assigned</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>{client.name}</option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">

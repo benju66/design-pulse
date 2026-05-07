@@ -25,6 +25,8 @@ import { DEFAULT_SIDEBAR_ITEMS, DEFAULT_DISCIPLINES } from '@/lib/constants';
 import { normalizeCategories } from '@/lib/normalizeSettings';
 import { CsiMappingTab } from '@/components/project/CsiMappingTab';
 import { ProjectEstimateTab } from '@/components/project/ProjectEstimateTab';
+import { BrandStandardsSyncGrid } from '@/components/project/BrandStandardsSyncGrid';
+import { useClients } from '@/hooks/useClientQueries';
 
 interface SortableItemProps {
   id: string;
@@ -64,7 +66,7 @@ const DEFAULT_COORD_COLUMNS = [
 // ── Valid settings tabs — module-level guard used by the controlled component ───────
 const VALID_SETTINGS_TABS = new Set<SettingsTab>([
   'info', 'team', 'building_areas', 'categories', 'disciplines',
-  'csi_specs', 'estimate', 'sidebar', 've_matrix', 'coord_matrix', 'permits',
+  'csi_specs', 'estimate', 'sidebar', 've_matrix', 'coord_matrix', 'brand_standards', 'permits',
 ]);
 
 const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps) => {
@@ -115,6 +117,7 @@ export const ProjectSettings = ({
   const { data: projects } = useProjects();
   const currentProject = projects?.find(p => p.id === projectId);
   const updateProjectCore = useUpdateProjectCore(projectId);
+  const { data: clients = [] } = useClients();
 
   // Tab state is now CONTROLLED via props (activeTab / onTabChange from parent).
   // The parent (page.tsx) persists this in useUIStore so it survives page refreshes.
@@ -158,6 +161,7 @@ export const ProjectSettings = ({
   const [projectNumber, setProjectNumber] = useState('');
   const [procoreProjectId, setProcoreProjectId] = useState('');
   const [procoreCompanyId, setProcoreCompanyId] = useState('');
+  const [clientId, setClientId] = useState('');
   
   const [newCat, setNewCat] = useState('');
   const [newBuildingArea, setNewBuildingArea] = useState('');
@@ -246,6 +250,7 @@ export const ProjectSettings = ({
         setProjectNumber(currentProject.project_number || '');
         setProcoreProjectId(currentProject.procore_project_id || '');
         setProcoreCompanyId(currentProject.procore_company_id || '');
+        setClientId(currentProject.client_id || '');
       }
       setHasChanges(false);
     }
@@ -410,7 +415,8 @@ export const ProjectSettings = ({
     updateProjectCore.mutate({ 
       project_number: projectNumber || null,
       procore_project_id: procoreProjectId.trim() || null,
-      procore_company_id: procoreCompanyId.trim() || null
+      procore_company_id: procoreCompanyId.trim() || null,
+      client_id: clientId || null
     });
     updateSettings.mutate(
       { 
@@ -539,6 +545,16 @@ export const ProjectSettings = ({
               >
                 <LucideIcons.BarChart3 size={16} className={activeTab === 'estimate' ? 'text-sky-500' : 'text-slate-400'} /> Estimate
               </button>
+              <button
+                onClick={() => onTabChange('brand_standards')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'brand_standards'
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400'
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <LucideIcons.Link2 size={16} className={activeTab === 'brand_standards' ? 'text-sky-500' : 'text-slate-400'} /> Brand Standards
+              </button>
             </nav>
           </div>
           
@@ -627,6 +643,24 @@ export const ProjectSettings = ({
                 placeholder="e.g. Acme Headquarters"
               />
             </div>
+          </div>
+
+          <div className="space-y-2 mb-6">
+            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Client Association</label>
+            <select 
+              disabled={!canManageTeam}
+              value={clientId}
+              onChange={e => {
+                setClientId(e.target.value);
+                setHasChanges(true);
+              }}
+              className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="">No Client Assigned</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>{client.name}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-6 mb-6">
@@ -783,6 +817,10 @@ export const ProjectSettings = ({
              </button>
           </div>
         </div>
+      )}
+
+      {displayTab === 'brand_standards' && (
+        <BrandStandardsSyncGrid projectId={projectId} />
       )}
 
       {displayTab === 'categories' && (

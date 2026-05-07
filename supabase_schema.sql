@@ -2023,3 +2023,108 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.get_project_budget_waterfall(uuid, uuid) FROM PUBLIC, anon;
 GRANT  EXECUTE ON FUNCTION public.get_project_budget_waterfall(uuid, uuid) TO authenticated;
+
+-- ── CLIENT DATABASE INTEGRATION ──────────────────────────────────────────────
+
+-- 1. Client Brand Standards Table (Global)
+CREATE TABLE IF NOT EXISTS client_brand_standards (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  cost_code text,
+  normalized_csi_number text,
+  standard_description text NOT NULL,
+  is_deleted boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  CHECK (cost_code IS NOT NULL OR normalized_csi_number IS NOT NULL)
+);
+
+-- 2. Project Brand Standards Table (Project Snapshot)
+CREATE TABLE IF NOT EXISTS project_brand_standards (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  client_standard_id uuid REFERENCES client_brand_standards(id) ON DELETE SET NULL,
+  spec_number_id uuid REFERENCES project_csi_specs(id) ON DELETE SET NULL,
+  cost_code text,
+  standard_description text NOT NULL,
+  is_verified boolean DEFAULT false,
+  is_deleted boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 3. Triggers for Audit and Auto-Timestamp
+CREATE TRIGGER trg_clients_updated_at BEFORE UPDATE ON clients FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
+CREATE TRIGGER trg_client_brand_standards_updated_at BEFORE UPDATE ON client_brand_standards FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
+
+CREATE TRIGGER trg_audit_clients AFTER INSERT OR UPDATE OR DELETE ON clients FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+CREATE TRIGGER trg_audit_client_brand_standards AFTER INSERT OR UPDATE OR DELETE ON client_brand_standards FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+-- 4. RLS Policies
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view clients for their projects" ON clients FOR SELECT USING (is_platform_admin() OR EXISTS (SELECT 1 FROM projects WHERE client_id = clients.id AND public.get_user_project_role(id) IS NOT NULL));
+CREATE POLICY "Only admins can modify clients" ON clients FOR ALL USING (is_platform_admin());
+
+ALTER TABLE client_brand_standards ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view global standards for their clients" ON client_brand_standards FOR SELECT USING (is_platform_admin() OR EXISTS (SELECT 1 FROM projects WHERE client_id = client_brand_standards.client_id AND public.get_user_project_role(id) IS NOT NULL));
+CREATE POLICY "Only admins can modify global standards" ON client_brand_standards FOR ALL USING (is_platform_admin());
+
+ALTER TABLE project_brand_standards ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Members can view project standards" ON project_brand_standards FOR SELECT USING (is_platform_admin() OR public.get_user_project_role(project_id) IS NOT NULL);
+CREATE POLICY "Members can edit project standards" ON project_brand_standards FOR ALL USING (public.has_project_permission(project_id, 'can_edit_records'));
+
+-- 5. RPC: get_client_projects_metrics
+CREATE OR REPLACE FUNCTION get_client_projects_metrics(p_client_id uuid)
+RETURNS TABLE (
+  project_id uuid,
+  name text,
+  status text,
+  original_budget numeric,
+  locked_variance numeric,
+  potential_exposure numeric
+) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS 
+BEGIN
+  IF NOT public.is_platform_admin() AND NOT EXISTS (SELECT 1 FROM projects WHERE client_id = p_client_id AND public.get_user_project_role(id) IS NOT NULL) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  RETURN QUERY
+  SELECT 
+    p.id as project_id,
+    p.name,
+    CASE WHEN p.is_archived THEN 'Archived' ELSE 'Active' END as status,
+    COALESCE((SELECT ps.original_budget FROM project_settings ps WHERE ps.project_id = p.id), 0) as original_budget,
+    COALESCE((SELECT SUM(o.cost_impact) FROM opportunities o WHERE o.project_id = p.id AND o.status = 'Approved' AND o.is_deleted = false), 0) as locked_variance,
+    COALESCE((SELECT SUM(o2.cost_impact) FROM opportunities o2 WHERE o2.project_id = p.id AND o2.status != 'Approved' AND o2.is_deleted = false), 0) as potential_exposure
+  FROM projects p
+  WHERE p.client_id = p_client_id AND (public.is_platform_admin() OR public.get_user_project_role(p.id) IS NOT NULL);
+END;
+;
+REVOKE EXECUTE ON FUNCTION public.get_client_projects_metrics(uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.get_client_projects_metrics(uuid) TO authenticated;
+
+-- 6. RPC: bulk_map_project_standards
+CREATE OR REPLACE FUNCTION bulk_map_project_standards(p_project_id uuid, p_standards jsonb)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS 
+BEGIN
+  IF NOT public.has_project_permission(p_project_id, 'can_edit_records') THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  IF jsonb_typeof(p_standards) != 'array' THEN
+    RAISE EXCEPTION 'Payload must be a JSON array';
+  END IF;
+
+  INSERT INTO project_brand_standards (id, project_id, client_standard_id, spec_number_id, cost_code, standard_description, is_verified)
+  SELECT 
+    COALESCE((elem->>'id')::uuid, gen_random_uuid()),
+    p_project_id,
+    (elem->>'client_standard_id')::uuid,
+    (elem->>'spec_number_id')::uuid,
+    elem->>'cost_code',
+    elem->>'standard_description',
+    COALESCE((elem->>'is_verified')::boolean, true)
+  FROM jsonb_array_elements(p_standards) AS elem;
+END;
+;
+REVOKE EXECUTE ON FUNCTION public.bulk_map_project_standards(uuid, jsonb) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.bulk_map_project_standards(uuid, jsonb) TO authenticated;

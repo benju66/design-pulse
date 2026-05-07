@@ -54,9 +54,57 @@ export type Project = Database['public']['Tables']['projects']['Row'] & {
   project_number?: string | null;
   procore_project_id?: string | null;
   procore_company_id?: string | null;
+  client_id?: string | null;
   is_archived?: boolean;
   project_settings?: { project_name: string | null }[];
+  clients?: { name: string } | null; // For joined query results
 };
+
+export interface Client {
+  id: string;
+  name: string;
+  description: string | null;
+  general_standards_url: string | null;
+  primary_contact_name: string | null;
+  primary_contact_email: string | null;
+  is_archived: boolean;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientBrandStandard {
+  id: string;
+  client_id: string;
+  cost_code: string | null;
+  normalized_csi_number: string | null;
+  standard_description: string;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectBrandStandard {
+  id: string;
+  project_id: string;
+  client_standard_id: string | null;
+  spec_number_id: string | null;
+  cost_code: string | null;
+  standard_description: string;
+  is_verified: boolean;
+  is_deleted: boolean;
+  created_at: string;
+}
+
+export interface ClientProjectsMetrics {
+  project_id: string;
+  name: string;
+  status: string;
+  original_budget: number;
+  locked_variance: number;
+  potential_exposure: number;
+}
+
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
 
 // Strictly typing the JSONB columns

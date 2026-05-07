@@ -24,6 +24,7 @@ export type SettingsTab =
   | 'sidebar'
   | 've_matrix'
   | 'coord_matrix'
+  | 'brand_standards'
   | 'permits';
 
 // Flat view mode — matches coordinationViewMode / permitViewMode store pattern

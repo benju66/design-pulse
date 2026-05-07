@@ -37,7 +37,8 @@ const CHUNK_SIZE = 50; // AGENTS.md C20 — Kong gateway protection
 export const estimateKeys = {
   versions:  (projectId: string) => ['estimate-versions', projectId] as const,
   lines:     (versionId: string) => ['estimate-lines',    versionId] as const,
-  waterfall: (projectId: string, versionId: string | null) => ['budget-waterfall',  projectId, versionId] as const,
+  waterfall: (projectId: string, versionId?: string | null) => 
+    versionId !== undefined ? ['budget-waterfall', projectId, versionId] as const : ['budget-waterfall', projectId] as const,
 };
 
 // ── useProjectEstimateVersions ───────────────────────────────────────────────

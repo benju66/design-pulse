@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useCreateProject } from '@/hooks/useProjectQueries';
+import { useCreateProject } from '@/hooks/useProjectCoreQueries';
 import { X, Loader2 } from 'lucide-react';
 
 interface CreateProjectModalProps {

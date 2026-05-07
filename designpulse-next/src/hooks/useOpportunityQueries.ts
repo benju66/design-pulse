@@ -2,105 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { calculateParentTotals } from '@/utils/financialMath';
 import { toast } from 'sonner';
-import { Opportunity, OpportunityOption, ProjectSettings, Project, ProjectCsiSpec, UserPermissions, ProjectMember } from '@/types/models';
-import { DEFAULT_CATEGORIES, DEFAULT_SIDEBAR_ITEMS, DEFAULT_BUILDING_AREAS, DEFAULT_DISCIPLINES } from '@/lib/constants';
-import { normalizeCategories } from '@/lib/normalizeSettings';
-import { useAuth } from '@/providers/AuthProvider';
-import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
-import { useRolePermissions } from '@/hooks/useGlobalQueries';
-
-// Constants for Permission defaults
-export const DEFAULT_PERMS: UserPermissions = {
-  can_lock_options: false,
-  can_unlock_options: false,
-  can_manage_team: false,
-  can_edit_project_settings: false,
-  can_manage_budget: false,
-  can_edit_records: false,
-  can_delete_records: false,
-  can_view_audit_logs: false,
-};
-
-export const ALL_PERMS: UserPermissions = {
-  can_lock_options: true,
-  can_unlock_options: true,
-  can_manage_team: true,
-  can_edit_project_settings: true,
-  can_manage_budget: true,
-  can_edit_records: true,
-  can_delete_records: true,
-  can_view_audit_logs: true,
-};
-
-export function useProjectSettings(projectId: string | null) {
-  return useQuery<ProjectSettings, Error>({
-    queryKey: ['project_settings', projectId],
-    queryFn: async () => {
-      if (!projectId) throw new Error("No Project ID");
-      const { data, error } = await supabase
-        .from('project_settings')
-        .select('*')
-        .eq('project_id', projectId)
-        .limit(1);
-        
-      if (error) {
-        console.warn("Supabase Error:", error);
-      }
-      
-      const defaultSettings: Partial<ProjectSettings> = {
-        categories: DEFAULT_CATEGORIES as unknown as any, 
-        building_areas: DEFAULT_BUILDING_AREAS as unknown as any,
-        sidebar_items: DEFAULT_SIDEBAR_ITEMS as unknown as any,
-        disciplines: DEFAULT_DISCIPLINES as unknown as any,
-        project_name: null,
-        location: 'Not Set',
-        original_budget: 0,
-        enable_audit_logging: false,
-        ve_column_order: []
-      };
-
-      const settings = data?.[0];
-      
-      if (!settings) return defaultSettings as ProjectSettings;
-
-      return {
-        ...settings,
-        categories: normalizeCategories(settings.categories) as unknown as ProjectSettings['categories'],
-        building_areas: (settings.building_areas as any[])?.length > 0 ? settings.building_areas : defaultSettings.building_areas,
-        sidebar_items: (settings.sidebar_items as any[])?.length > 0 ? settings.sidebar_items : defaultSettings.sidebar_items,
-        disciplines: (settings.disciplines as any[])?.length > 0 ? settings.disciplines : defaultSettings.disciplines,
-        project_name: settings.project_name || null,
-        location: settings.location || defaultSettings.location,
-        original_budget: settings.original_budget ?? defaultSettings.original_budget,
-        enable_audit_logging: settings.enable_audit_logging ?? defaultSettings.enable_audit_logging,
-        ve_column_order: settings.ve_column_order ?? defaultSettings.ve_column_order
-      } as ProjectSettings;
-    },
-    enabled: !!projectId
-  });
-}
-
-export function useUpdateProjectSettings(projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation<ProjectSettings, Error, Partial<ProjectSettings>>({
-    mutationFn: async (updates) => {
-      const { data, error } = await supabase
-        .from('project_settings')
-        .upsert({ project_id: projectId, ...updates })
-        .select()
-        .single();
-      if (error) throw error;
-      return data as ProjectSettings;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project_settings', projectId] });
-    },
-    onError: (err) => {
-      console.error('Update Project Settings Error:', err);
-      toast.error(`Failed to update settings: ${err.message || 'Unknown error'}`);
-    }
-  });
-}
+import { Opportunity, OpportunityOption } from '@/types/models';
 
 export function useOpportunities(projectId: string | null) {
   return useQuery<Opportunity[], Error>({
@@ -145,6 +47,28 @@ export function useOpportunity(opportunityId: string | null) {
   });
 }
 
+export function useCreateOpportunity(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<Opportunity, Error, Partial<Opportunity>>({
+    mutationFn: async (newRow) => {
+      const { data, error } = await supabase
+        .from('opportunities')
+        .insert([{ project_id: projectId, status: 'Draft', cost_impact: 0, title: 'New Option', building_area: null, ...newRow }])
+        .select()
+        .single();
+      if (error) throw new Error(error.message || JSON.stringify(error));
+      return data as Opportunity;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+    },
+    onError: (err) => {
+      console.error('Create Opportunity Error:', err);
+      toast.error(`Failed to add: ${err.message || 'Unknown error'}`);
+    }
+  });
+}
+
 export function useUpdateOpportunity(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<
@@ -180,6 +104,59 @@ export function useUpdateOpportunity(projectId: string) {
       }
       console.error('Update Opportunity Error:', err);
       toast.error(`Failed to update opportunity: ${err.message || 'Unknown error'}`);
+    }
+  });
+}
+
+export function useDeleteOpportunity(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    string, 
+    Error, 
+    string, 
+    { previousOpportunities: Opportunity[] | undefined; previousOptions: OpportunityOption[] | undefined }
+  >({
+    mutationFn: async (id) => {
+      const { error } = await supabase
+        .from('opportunities')
+        .update({ is_deleted: true })
+        .eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
+
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.filter(opp => opp.id !== id);
+      });
+
+      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
+        if (!old) return old;
+        return old.filter(opt => opt.opportunity_id !== id);
+      });
+
+      return { previousOpportunities, previousOptions };
+    },
+    onSuccess: () => {
+      toast.success('Item deleted successfully.');
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+    },
+    onError: (err, _id, context) => {
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
+      }
+      console.error('Delete Opportunity Error:', err);
+      toast.error(`Failed to delete: ${err.message || 'Unknown error'}`);
     }
   });
 }
@@ -293,234 +270,6 @@ export function useDeEscalateOpportunity(projectId: string) {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
       queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
     },
-  });
-}
-
-export function useUpdateOptionRequirements(projectId: string, opportunityId: string) {
-  const queryClient = useQueryClient();
-  return useMutation<
-    OpportunityOption, 
-    Error, 
-    { id: string; updates: Record<string, { required?: boolean; notes?: string }> }, 
-    { previousOptions: OpportunityOption[] | undefined; previousOpportunities: Opportunity[] | undefined }
-  >({
-    mutationFn: async ({ id, updates }) => {
-      const { data, error } = await supabase.rpc('update_option_requirements_delta', {
-        p_option_id: id,
-        p_updates: updates
-      }).single();
-      if (error) throw new Error(error.message || JSON.stringify(error));
-      return data as OpportunityOption;
-    },
-    onMutate: async ({ id, updates }) => {
-      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
-      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
-      
-      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
-      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
-      
-      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
-        if (!old) return old;
-        return old.map(opt => {
-          if (opt.id === id) {
-            const currentReqs = (opt.coordination_requirements as Record<string, { required: boolean; notes?: string }>) || {};
-            let newReqs = { ...currentReqs };
-            for (const [key, value] of Object.entries(updates)) {
-              newReqs[key] = { ...(newReqs[key] || {}), ...(value as Record<string, any>) } as { required: boolean; notes?: string };
-            }
-            return { ...opt, coordination_requirements: newReqs };
-          }
-          return opt;
-        });
-      });
-
-      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
-        if (!old) return old;
-        return old.map(opp => opp.id === opportunityId ? { ...opp } : opp);
-      });
-
-      return { previousOptions, previousOpportunities };
-    },
-    onError: (err, _variables, context) => {
-      if (context?.previousOptions) {
-        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
-      }
-      if (context?.previousOpportunities) {
-        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
-      }
-      console.error('Update Option Requirements Error:', err);
-      toast.error(`Failed to update requirements: ${err.message || 'Unknown error'}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
-    }
-  });
-}
-
-export function useCreateOpportunity(projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation<Opportunity, Error, Partial<Opportunity>>({
-    mutationFn: async (newRow) => {
-      const { data, error } = await supabase
-        .from('opportunities')
-        .insert([{ project_id: projectId, status: 'Draft', cost_impact: 0, title: 'New Option', building_area: null, ...newRow }])
-        .select()
-        .single();
-      if (error) throw new Error(error.message || JSON.stringify(error));
-      return data as Opportunity;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
-    },
-    onError: (err) => {
-      console.error('Create Opportunity Error:', err);
-      toast.error(`Failed to add: ${err.message || 'Unknown error'}`);
-    }
-  });
-}
-
-export function useDeleteOpportunity(projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation<
-    string, 
-    Error, 
-    string, 
-    { previousOpportunities: Opportunity[] | undefined; previousOptions: OpportunityOption[] | undefined }
-  >({
-    mutationFn: async (id) => {
-      const { error } = await supabase
-        .from('opportunities')
-        .update({ is_deleted: true })
-        .eq('id', id);
-      if (error) throw error;
-      return id;
-    },
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
-      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
-
-      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
-      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
-
-      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
-        if (!old) return old;
-        return old.filter(opp => opp.id !== id);
-      });
-
-      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
-        if (!old) return old;
-        return old.filter(opt => opt.opportunity_id !== id);
-      });
-
-      return { previousOpportunities, previousOptions };
-    },
-    onSuccess: () => {
-      toast.success('Item deleted successfully.');
-      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
-    },
-    onError: (err, _id, context) => {
-      if (context?.previousOpportunities) {
-        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
-      }
-      if (context?.previousOptions) {
-        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
-      }
-      console.error('Delete Opportunity Error:', err);
-      toast.error(`Failed to delete: ${err.message || 'Unknown error'}`);
-    }
-  });
-}
-
-export function useProjects() {
-  return useQuery<Project[], Error>({
-    queryKey: ['projects'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*, project_settings(project_name)')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.warn("Supabase Projects Error:", error);
-        return [];
-      }
-      return data as Project[];
-    }
-  });
-}
-
-export function useUpdateProjectCore(projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation<Project, Error, Partial<Project>>({
-    mutationFn: async (updates) => {
-      const { data, error } = await supabase
-        .from('projects')
-        .update(updates)
-        .eq('id', projectId)
-        .select()
-        .single();
-      if (error) throw error;
-      return data as Project;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-    },
-    onError: (err) => {
-      console.error('Update Project Core Error:', err);
-      toast.error(`Failed to update project details: ${err.message || 'Unknown error'}`);
-    }
-  });
-}
-
-export function useCreateProject() {
-  const queryClient = useQueryClient();
-  
-  return useMutation<Project, Error, Partial<Project>>({
-    mutationFn: async (newProject) => {
-      const { data, error } = await supabase
-        .rpc('create_new_project', { 
-          p_name: newProject.name, 
-          p_description: newProject.description || null,
-          p_project_number: newProject.project_number || null,
-          p_procore_project_id: newProject.procore_project_id || null,
-          p_procore_company_id: newProject.procore_company_id || null
-        })
-        .single();
-        
-      if (error) throw error;
-      return data as Project;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-    },
-    onError: (err) => {
-      console.error('Create Project Error:', err);
-      toast.error(`Failed to create project: ${err.message}`);
-    }
-  });
-}
-
-export function useDeleteProjectCore() {
-  const queryClient = useQueryClient();
-  return useMutation<string, Error, string>({
-    mutationFn: async (projectId) => {
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId);
-      if (error) throw error;
-      return projectId;
-    },
-    onSuccess: () => {
-      toast.success('Project deleted successfully.');
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-    },
-    onError: (err) => {
-      console.error('Delete Project Error:', err);
-      toast.error(`Failed to delete project: ${err.message || 'Unknown error'}`);
-    }
   });
 }
 
@@ -769,6 +518,68 @@ export function useReorderOptions(projectId: string) {
   });
 }
 
+export function useUpdateOptionRequirements(projectId: string, opportunityId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    OpportunityOption, 
+    Error, 
+    { id: string; updates: Record<string, { required?: boolean; notes?: string }> }, 
+    { previousOptions: OpportunityOption[] | undefined; previousOpportunities: Opportunity[] | undefined }
+  >({
+    mutationFn: async ({ id, updates }) => {
+      const { data, error } = await supabase.rpc('update_option_requirements_delta', {
+        p_option_id: id,
+        p_updates: updates
+      }).single();
+      if (error) throw new Error(error.message || JSON.stringify(error));
+      return data as OpportunityOption;
+    },
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      
+      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+      
+      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
+        if (!old) return old;
+        return old.map(opt => {
+          if (opt.id === id) {
+            const currentReqs = (opt.coordination_requirements as Record<string, { required: boolean; notes?: string }>) || {};
+            let newReqs = { ...currentReqs };
+            for (const [key, value] of Object.entries(updates)) {
+              newReqs[key] = { ...(newReqs[key] || {}), ...(value as Record<string, any>) } as { required: boolean; notes?: string };
+            }
+            return { ...opt, coordination_requirements: newReqs };
+          }
+          return opt;
+        });
+      });
+
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp => opp.id === opportunityId ? { ...opp } : opp);
+      });
+
+      return { previousOptions, previousOpportunities };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
+      }
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+      console.error('Update Option Requirements Error:', err);
+      toast.error(`Failed to update requirements: ${err.message || 'Unknown error'}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+    }
+  });
+}
+
 export function useLockOption(opportunityId: string, projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<
@@ -852,151 +663,6 @@ export function useLockOption(opportunityId: string, projectId: string) {
   });
 }
 
-export function useToggleOptionBudget(opportunityId: string, projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation<
-    unknown, 
-    Error, 
-    { optionId: string; isIncluded: boolean }, 
-    { previousOptions: OpportunityOption[] | undefined; previousOpportunities: Opportunity[] | undefined }
-  >({
-    mutationFn: async ({ optionId, isIncluded }) => {
-      const { data, error } = await supabase.rpc('toggle_option_budget', {
-        p_option_id: optionId,
-        p_opp_id: opportunityId,
-        p_is_included: isIncluded
-      });
-      if (error) throw error;
-      return data;
-    },
-    onMutate: async ({ optionId, isIncluded }) => {
-      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
-      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
-
-      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
-      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
-
-      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
-        if (!old) return old;
-        return old.map(opt => opt.id === optionId ? { ...opt, include_in_budget: isIncluded } : opt);
-      });
-
-      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
-        if (!old) return old;
-        return old.map(opp => opp.id === opportunityId ? { ...opp } : opp);
-      });
-
-      return { previousOptions, previousOpportunities };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
-    },
-    onError: (err, _variables, context) => {
-      if (context?.previousOptions) {
-        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
-      }
-      if (context?.previousOpportunities) {
-        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
-      }
-      toast.error(`Failed to toggle budget inclusion: ${err.message || 'Unknown error'}`);
-    }
-  });
-}
-
-export function useProjectMembers(projectId: string) {
-  return useQuery({
-    queryKey: ['project_members', projectId],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_project_members_with_email', { p_project_id: projectId });
-      if (error) throw error;
-      return data as ProjectMember[];
-    },
-    enabled: !!projectId,
-  });
-}
-
-export function useAddProjectMember(projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ userId, role }: { userId: string, role: string }) => {
-      const { error } = await supabase.from('project_members').insert({ project_id: projectId, user_id: userId, role });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project_members', projectId] });
-    },
-    onError: (err) => {
-      console.error('Add Member Error:', err);
-      toast.error(`Failed to add member: ${err.message}`);
-    }
-  });
-}
-
-export function useUpdateProjectMemberRole(projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ userId, role }: { userId: string, role: string }) => {
-      const { error } = await supabase.from('project_members').update({ role }).eq('project_id', projectId).eq('user_id', userId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project_members', projectId] });
-    },
-    onError: (err) => {
-      console.error('Update Member Role Error:', err);
-      toast.error(`Failed to update role: ${err.message}`);
-    }
-  });
-}
-
-export function useRemoveProjectMember(projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (userId: string) => {
-      const { error } = await supabase.from('project_members').delete().eq('project_id', projectId).eq('user_id', userId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project_members', projectId] });
-    },
-    onError: (err) => {
-      console.error('Remove Member Error:', err);
-      toast.error(`Failed to remove member: ${err.message}`);
-    }
-  });
-}
-
-export function useCurrentUserPermissions(projectId: string | null): {
-  permissions: UserPermissions;
-  isLoading: boolean;
-} {
-  const { session } = useAuth();
-  const { data: members, isLoading: membersLoading } = useProjectMembers(projectId || '');
-  const { data: isPlatformAdmin, isLoading: adminLoading } = useIsPlatformAdmin();
-  const { data: rolePermissions, isLoading: rolesLoading } = useRolePermissions();
-
-  const isLoading = membersLoading || adminLoading || rolesLoading;
-
-  if (!isLoading && isPlatformAdmin) {
-    return { permissions: ALL_PERMS, isLoading: false };
-  }
-
-  if (isLoading || !session?.user?.id || !members || !rolePermissions) {
-    return { permissions: DEFAULT_PERMS, isLoading };
-  }
-
-  const userMember = members.find(m => m.user_id === session.user.id);
-  if (!userMember) return { permissions: DEFAULT_PERMS, isLoading: false };
-
-  const found = rolePermissions.find(rp => rp.role === userMember.role);
-  if (!found) return { permissions: DEFAULT_PERMS, isLoading: false };
-
-  // Explicitly strip 'role' field per UserPermissions definition
-  const { role: _, ...permissions } = found;
-  return { permissions, isLoading: false };
-}
-
 export function useUnlockOpportunityOption(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<
@@ -1051,82 +717,55 @@ export function useUnlockOpportunityOption(projectId: string) {
 
 // Analytics Phase 4 Hooks
 
-export const useTradeVariances = (projectId: string) => {
-  return useQuery({
-    queryKey: ['tradeVariances', projectId],
-    queryFn: async () => {
-      if (!projectId) return [];
-      const { data, error } = await supabase.rpc('get_project_trade_variances', { p_project_id: projectId });
+export function useToggleOptionBudget(opportunityId: string, projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    unknown, 
+    Error, 
+    { optionId: string; isIncluded: boolean }, 
+    { previousOptions: OpportunityOption[] | undefined; previousOpportunities: Opportunity[] | undefined }
+  >({
+    mutationFn: async ({ optionId, isIncluded }) => {
+      const { data, error } = await supabase.rpc('toggle_option_budget', {
+        p_option_id: optionId,
+        p_opp_id: opportunityId,
+        p_is_included: isIncluded
+      });
       if (error) throw error;
       return data;
     },
-    enabled: !!projectId,
-    staleTime: 60 * 1000,
-  });
-};
+    onMutate: async ({ optionId, isIncluded }) => {
+      await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
 
-export const useGCBottleneckMetrics = (projectId: string) => {
-  return useQuery({
-    queryKey: ['gcBottleneckMetrics', projectId],
-    queryFn: async () => {
-      if (!projectId) return [];
-      const { data, error } = await supabase.rpc('get_gc_bottleneck_metrics', { p_project_id: projectId });
-      if (error) throw error;
-      return data;
+      const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+
+      queryClient.setQueryData<OpportunityOption[]>(['all_project_options', projectId], old => {
+        if (!old) return old;
+        return old.map(opt => opt.id === optionId ? { ...opt, include_in_budget: isIncluded } : opt);
+      });
+
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp => opp.id === opportunityId ? { ...opp } : opp);
+      });
+
+      return { previousOptions, previousOpportunities };
     },
-    enabled: !!projectId,
-    staleTime: 60 * 1000,
-  });
-};
-
-export const useOwnerROIMetrics = (projectId: string) => {
-  return useQuery({
-    queryKey: ['ownerROIMetrics', projectId],
-    queryFn: async () => {
-      if (!projectId) return [];
-      const { data, error } = await supabase.rpc('get_owner_roi_metrics', { p_project_id: projectId });
-      if (error) throw error;
-      return data;
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
     },
-    enabled: !!projectId,
-    staleTime: 60 * 1000,
-  });
-};
-
-export const useDesignCompletionMetrics = (projectId: string) => {
-  return useQuery({
-    queryKey: ['designCompletionMetrics', projectId],
-    queryFn: async () => {
-      if (!projectId) return [];
-      const { data, error } = await supabase.rpc('get_design_completion_metrics', { p_project_id: projectId });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!projectId,
-    staleTime: 60 * 1000,
-  });
-};
-
-// Rosetta Stone: Project-level CSI Specs
-// Called once in the parent grid, passed via meta.csiSpecs — never called per-row
-export function useProjectCsiSpecs(projectId: string | null) {
-  return useQuery<ProjectCsiSpec[], Error>({
-    queryKey: ['project_csi_specs', projectId],
-    queryFn: async () => {
-      if (!projectId) return [];
-      const { data, error } = await supabase
-        .from('project_csi_specs')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('csi_number', { ascending: true });
-      if (error) {
-        console.warn('project_csi_specs error:', error);
-        return [];
+    onError: (err, _variables, context) => {
+      if (context?.previousOptions) {
+        queryClient.setQueryData(['all_project_options', projectId], context.previousOptions);
       }
-      return data as ProjectCsiSpec[];
-    },
-    enabled: !!projectId,
-    staleTime: 5 * 60 * 1000, // 5 min — CSI specs are populated infrequently
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+      toast.error(`Failed to toggle budget inclusion: ${err.message || 'Unknown error'}`);
+    }
   });
 }
 
@@ -1162,63 +801,5 @@ export function useBulkImportCoordinationTasks(projectId: string) {
   });
 }
 
-export interface CsiSpecItem {
-  csi_number: string;
-  description: string;
-  id?: string;
-  cost_code?: string;
-}
 
-export function useUploadCsiTOC() {
-  return useMutation({
-    mutationFn: async (file: File) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Authentication expired. Please log in again.');
 
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/extract-csi-toc`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session?.access_token}` },
-        body: formData
-      });
-      if (!res.ok) throw new Error('Extraction failed');
-      
-      const extracted = await res.json() as CsiSpecItem[];
-      return extracted.map(item => ({ ...item, id: crypto.randomUUID() }));
-    }
-  });
-}
-
-export function useBulkUpsertProjectCsiSpecs(projectId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: Partial<ProjectCsiSpec>[]) => {
-      if (!payload.length) return;
-
-      const CHUNK_SIZE = 50;
-      const chunks = [];
-      for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
-        chunks.push(payload.slice(i, i + CHUNK_SIZE));
-      }
-      
-      await Promise.all(
-        chunks.map(chunk => 
-          supabase.rpc('bulk_upsert_project_csi_specs', {
-            p_project_id: projectId,
-            p_payload: chunk
-          })
-        )
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project_csi_specs', projectId] });
-      toast.success('CSI specs saved successfully.');
-    },
-    onError: (err: any) => {
-      console.error('Bulk Upsert Error:', err);
-      toast.error(`Failed to save specs: ${err.message || JSON.stringify(err)}`);
-    }
-  });
-}

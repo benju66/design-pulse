@@ -2,7 +2,7 @@
 import { use } from 'react';
 import { X } from 'lucide-react';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
-import { useOpportunity } from '@/hooks/useProjectQueries';
+import { useOpportunity } from '@/hooks/useOpportunityQueries';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';

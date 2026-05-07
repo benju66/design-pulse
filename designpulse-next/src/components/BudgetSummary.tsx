@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { useProjectSettings, useAllProjectOptions } from '@/hooks/useProjectQueries';
+import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
+import { useAllProjectOptions } from '@/hooks/useOpportunityQueries';
 import { Opportunity } from '@/types/models';
 import { useUIStore } from '@/stores/useUIStore';
 import { motion, AnimatePresence } from 'framer-motion';

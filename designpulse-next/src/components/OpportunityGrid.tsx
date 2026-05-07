@@ -14,7 +14,14 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
-import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useAllProjectOptions, useProjectSettings, useProjectMembers, useCurrentUserPermissions, useProjectCsiSpecs } from '@/hooks/useProjectQueries';
+import {
+  useUpdateOpportunity,
+  useCreateOpportunity,
+  useDeleteOpportunity,
+  useAllProjectOptions
+} from '@/hooks/useOpportunityQueries';
+import { useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
+import { useProjectCsiSpecs } from '@/hooks/useCsiQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useUIStore } from '@/stores/useUIStore';
 import { useGridNavigation } from '@/hooks/useGridNavigation';

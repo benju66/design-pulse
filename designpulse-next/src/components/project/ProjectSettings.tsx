@@ -3,7 +3,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { SettingsTab } from '@/stores/useUIStore';
 import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags, Users, TableProperties, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useProjects, useUpdateProjectCore, useProjectSettings, useUpdateProjectSettings, useProjectMembers, useAddProjectMember, useUpdateProjectMemberRole, useRemoveProjectMember } from '@/hooks/useProjectQueries';
+import {
+  useProjects,
+  useUpdateProjectCore,
+  useProjectSettings,
+  useUpdateProjectSettings,
+  useProjectMembers,
+  useAddProjectMember,
+  useUpdateProjectMemberRole,
+  useRemoveProjectMember
+} from '@/hooks/useProjectCoreQueries';
 import { useSystemUsers } from '@/hooks/useGlobalQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';

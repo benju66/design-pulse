@@ -2,7 +2,8 @@
 import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle, List, MessageSquare } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { Opportunity, DisciplineConfig, DisciplineDetails } from '@/types/models';
-import { useUpdateOpportunity, useUpdateCoordinationDetails, useProjectSettings, useAllProjectOptions } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useUpdateCoordinationDetails, useAllProjectOptions } from '@/hooks/useOpportunityQueries';
+import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface CoordinationDetailPanelProps {

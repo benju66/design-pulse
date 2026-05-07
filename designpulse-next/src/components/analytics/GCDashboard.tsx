@@ -2,7 +2,7 @@
 import { useMemo } from 'react';
 import { Opportunity } from '@/types/models';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
-import { useGCBottleneckMetrics } from '@/hooks/useProjectQueries';
+import { useGCBottleneckMetrics } from '@/hooks/useProjectAnalyticsQueries';
 
 interface Props {
   projectId: string;

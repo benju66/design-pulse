@@ -106,6 +106,13 @@ export interface ProjectCsiSpec {
   updated_at: string;
 }
 
+export interface CsiSpecItem {
+  csi_number: string;
+  description: string;
+  id?: string;
+  cost_code?: string;
+}
+
 // Rosetta Stone Phase 4: ML Flywheel — Global cross-project CSI training data
 // Composite PK: (normalized_csi_number, global_cost_code_id)
 export interface GlobalCsiTrainingData {

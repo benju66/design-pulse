@@ -4,7 +4,17 @@ import { useParams } from 'next/navigation';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
-import { useAllProjectOptions, useCreateOption, useUpdateOption, useLockOption, useDeleteOption, useToggleOptionBudget, useProjectSettings, useReorderOptions, useCurrentUserPermissions, useUnlockOpportunityOption } from '@/hooks/useProjectQueries';
+import {
+  useAllProjectOptions,
+  useCreateOption,
+  useUpdateOption,
+  useLockOption,
+  useDeleteOption,
+  useToggleOptionBudget,
+  useReorderOptions,
+  useUnlockOpportunityOption
+} from '@/hooks/useOpportunityQueries';
+import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 import { normalizeCategories } from '@/lib/normalizeSettings';
 import type { CategoryConfig, DisciplineConfig } from '@/types/models';

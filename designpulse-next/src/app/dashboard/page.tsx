@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Building2, Plus, ArrowRight, Settings, X } from 'lucide-react';
-import { useProjects } from '@/hooks/useProjectQueries';
+import { useProjects } from '@/hooks/useProjectCoreQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useUserProjectMembers } from '@/hooks/useGlobalQueries';
 import { useAuth } from '@/providers/AuthProvider';

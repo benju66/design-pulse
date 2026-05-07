@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { Opportunity } from '@/types/models';
 import VarianceWaterfallChart from './VarianceWaterfallChart';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { useOwnerROIMetrics } from '@/hooks/useProjectQueries';
+import { useOwnerROIMetrics } from '@/hooks/useProjectAnalyticsQueries';
 
 interface Props {
   projectId: string;

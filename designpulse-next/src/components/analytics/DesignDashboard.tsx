@@ -2,7 +2,8 @@
 import { useMemo } from 'react';
 import { Opportunity } from '@/types/models';
 import { RadialBarChart, RadialBar, Legend, ResponsiveContainer, PolarAngleAxis, Tooltip } from 'recharts';
-import { useDesignCompletionMetrics, useProjectSettings } from '@/hooks/useProjectQueries';
+import { useDesignCompletionMetrics } from '@/hooks/useProjectAnalyticsQueries';
+import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 
 interface Props {
   projectId: string;

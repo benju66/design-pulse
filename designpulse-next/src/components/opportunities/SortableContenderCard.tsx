@@ -7,7 +7,7 @@ import { GripVertical, X, Star, RotateCcw } from 'lucide-react';
 import { OpportunityOption, DisciplineConfig, CategoryConfig, UserPermissions } from '@/types/models';
 import { UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { useUpdateOptionRequirements } from '@/hooks/useProjectQueries';
+import { useUpdateOptionRequirements } from '@/hooks/useOpportunityQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 
 interface SortableContenderCardProps {

@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
-import { useUpdateOpportunity, useProjectSettings, useDeleteOpportunity, useProjectMembers, useCurrentUserPermissions, useDeEscalateOpportunity } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity, useDeleteOpportunity, useDeEscalateOpportunity } from '@/hooks/useOpportunityQueries';
+import { useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { List, Paperclip, MessageSquare, Settings, ChevronDown } from 'lucide-react';

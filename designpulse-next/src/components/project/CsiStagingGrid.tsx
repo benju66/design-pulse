@@ -5,7 +5,7 @@ import {
   flexRender,
   ColumnDef,
 } from '@tanstack/react-table';
-import { CsiSpecItem } from '@/hooks/useProjectQueries';
+import { CsiSpecItem } from '@/types/models';
 import { SmartCostCodeCombobox } from '@/components/ui/SmartCostCodeCombobox';
 import { CostCode } from '@/types/models';
 import { Sparkles, Trash2 } from 'lucide-react';

@@ -4,7 +4,8 @@ import { Opportunity, DisciplineDetails } from '@/types/models';
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { CoordinationColumn } from './CoordinationColumn';
 import { CoordinationCard } from './CoordinationCard';
-import { useUpdateOpportunity, useProjectSettings, useProjectMembers } from '@/hooks/useProjectQueries';
+import { useUpdateOpportunity } from '@/hooks/useOpportunityQueries';
+import { useProjectSettings, useProjectMembers } from '@/hooks/useProjectCoreQueries';
 import { toast } from 'sonner';
 
 interface CoordinationBoardProps {

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useActivityFeed, useAddComment, useDeleteComment } from '@/hooks/useItemActivity';
-import { useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
+import { useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { formatDistanceToNow } from 'date-fns';
 import { User, Shield, MessageSquare, Trash2 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';

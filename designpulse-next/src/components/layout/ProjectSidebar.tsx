@@ -4,7 +4,7 @@ import * as LucideIcons from 'lucide-react';
 import { Settings, ChevronLeft, ChevronRight, Home } from 'lucide-react';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { useProjectSettings, useProjects } from '@/hooks/useProjectQueries';
+import { useProjectSettings, useProjects } from '@/hooks/useProjectCoreQueries';
 import { DEFAULT_SIDEBAR_ITEMS } from '@/lib/constants';
 import { SidebarItem } from '@/types/models';
 import { ProjectView } from '@/stores/useUIStore';

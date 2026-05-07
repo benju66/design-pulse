@@ -15,12 +15,13 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronUp, ChevronDown, PanelRight, AlertTriangle } from 'lucide-react';
 import { Opportunity, DisciplineConfig } from '@/types/models';
-import { useProjectSettings, useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useCurrentUserPermissions } from '@/hooks/useProjectQueries';
+import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity } from '@/hooks/useOpportunityQueries';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { CoordinationGhostRow } from './CoordinationGhostRow';
 import { TextCell, PriorityCell, BuildingAreaCell, CostCodeCell, CsiSpecCell, DivisionCell } from '@/components/opportunities/EditableCell';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
-import { useProjectCsiSpecs } from '@/hooks/useProjectQueries';
+import { useProjectCsiSpecs } from '@/hooks/useCsiQueries';
 import { useUIStore } from '@/stores/useUIStore';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';

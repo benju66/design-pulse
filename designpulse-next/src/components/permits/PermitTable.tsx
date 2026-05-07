@@ -14,7 +14,7 @@ import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
 import { ChevronUp, ChevronDown, PanelRight } from 'lucide-react';
 import { Permit, PermitTypeConfig, PermitAHJConfig } from '@/types/models';
 import { useUpdatePermit, useDeletePermit } from '@/hooks/usePermitQueries';
-import { useProjectSettings } from '@/hooks/useProjectQueries';
+import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { useUIStore } from '@/stores/useUIStore';
 
 interface PermitTableMeta {

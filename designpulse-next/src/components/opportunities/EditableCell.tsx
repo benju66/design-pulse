@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { useProjectSettings } from '@/hooks/useProjectQueries';
+import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
 import { CellContext, Row, Column } from '@tanstack/react-table';

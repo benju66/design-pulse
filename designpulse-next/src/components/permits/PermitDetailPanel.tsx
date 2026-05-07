@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react';
 import { PermitRevision } from '@/types/models';
 import { useLogPermitRevision, usePermits, usePermitTaskLinks, useLinkPermitTask, useUnlinkPermitTask } from '@/hooks/usePermitQueries';
-import { useOpportunities } from '@/hooks/useProjectQueries';
+import { useOpportunities } from '@/hooks/useOpportunityQueries';
 import { X, Save, Clock, Link as LinkIcon, Unlink, Maximize, Minimize, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { useUIStore } from '@/stores/useUIStore';

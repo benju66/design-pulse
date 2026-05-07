@@ -13,7 +13,7 @@ import {
 import { X, UploadCloud, AlertCircle, Check, Download, Trash2 } from 'lucide-react';
 import { DraftCoordinationTask, parseCoordinationExcel } from '@/lib/excel/coordinationParser';
 import { generateCoordinationTemplate } from '@/lib/excel/coordinationTemplate';
-import { useBulkImportCoordinationTasks } from '@/hooks/useProjectQueries';
+import { useBulkImportCoordinationTasks } from '@/hooks/useOpportunityQueries';
 import { ProjectSettings } from '@/types/models';
 import { toast } from 'sonner';
 

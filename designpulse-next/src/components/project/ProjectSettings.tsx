@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
+import { SettingsTab } from '@/stores/useUIStore';
 import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags, Users, TableProperties, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProjects, useUpdateProjectCore, useProjectSettings, useUpdateProjectSettings, useProjectMembers, useAddProjectMember, useUpdateProjectMemberRole, useRemoveProjectMember } from '@/hooks/useProjectQueries';
@@ -14,6 +15,7 @@ import { SidebarItem, DisciplineConfig, PermitTypeConfig, PermitAHJConfig, Categ
 import { DEFAULT_SIDEBAR_ITEMS, DEFAULT_DISCIPLINES } from '@/lib/constants';
 import { normalizeCategories } from '@/lib/normalizeSettings';
 import { CsiMappingTab } from '@/components/project/CsiMappingTab';
+import { ProjectEstimateTab } from '@/components/project/ProjectEstimateTab';
 
 interface SortableItemProps {
   id: string;
@@ -50,6 +52,12 @@ const DEFAULT_COORD_COLUMNS = [
   { id: 'discipline_status', label: 'Disciplines' }
 ];
 
+// ── Valid settings tabs — module-level guard used by the controlled component ───────
+const VALID_SETTINGS_TABS = new Set<SettingsTab>([
+  'info', 'team', 'building_areas', 'categories', 'disciplines',
+  'csi_specs', 'estimate', 'sidebar', 've_matrix', 'coord_matrix', 'permits',
+]);
+
 const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -82,7 +90,15 @@ const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps)
   );
 };
 
-export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId: string, initialTab?: string }) => {
+export const ProjectSettings = ({
+  projectId,
+  activeTab,
+  onTabChange,
+}: {
+  projectId: string;
+  activeTab: SettingsTab;
+  onTabChange: (tab: SettingsTab) => void;
+}) => {
   const { session } = useAuth();
   const { data: settings, isLoading: settingsLoading } = useProjectSettings(projectId);
   const updateSettings = useUpdateProjectSettings(projectId);
@@ -91,7 +107,8 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
   const currentProject = projects?.find(p => p.id === projectId);
   const updateProjectCore = useUpdateProjectCore(projectId);
 
-  const [activeTab, setActiveTab] = useState(initialTab); // 'info' | 'categories' | 'building_areas' | 'sidebar'
+  // Tab state is now CONTROLLED via props (activeTab / onTabChange from parent).
+  // The parent (page.tsx) persists this in useUIStore so it survives page refreshes.
   
   const { data: teamMembers, isLoading: teamLoading } = useProjectMembers(projectId);
   const { data: allUsers } = useSystemUsers({ enabled: activeTab === 'team' });
@@ -99,6 +116,11 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
 
   const currentUserRole = teamMembers?.find(m => m.user_id === session?.user?.id)?.role;
   const canManageTeam = isPlatformAdmin || currentUserRole === 'project_admin' || currentUserRole === 'gc_admin';
+
+  // Guard 1: reject stale or unknown tab values from persisted storage
+  const safeTab: SettingsTab = VALID_SETTINGS_TABS.has(activeTab) ? activeTab : 'info';
+  // Guard 2: role-gate — team tab requires management permissions; redirect to info silently
+  const displayTab: SettingsTab = (safeTab === 'team' && !canManageTeam) ? 'info' : safeTab;
   
   const addMemberMutation = useAddProjectMember(projectId);
   const updateRoleMutation = useUpdateProjectMemberRole(projectId);
@@ -430,7 +452,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
             <h4 className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">General</h4>
             <nav className="space-y-1">
               <button
-                onClick={() => setActiveTab('info')}
+                onClick={() => onTabChange('info')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                   activeTab === 'info' 
                     ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
@@ -441,7 +463,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
               </button>
               {canManageTeam && (
                 <button
-                  onClick={() => setActiveTab('team')}
+                  onClick={() => onTabChange('team')}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                     activeTab === 'team' 
                       ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
@@ -459,7 +481,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
             <h4 className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Data & Classifications</h4>
             <nav className="space-y-1">
               <button
-                onClick={() => setActiveTab('building_areas')}
+                onClick={() => onTabChange('building_areas')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                   activeTab === 'building_areas' 
                     ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
@@ -469,7 +491,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                 <Map size={16} className={activeTab === 'building_areas' ? 'text-sky-500' : 'text-slate-400'} /> Building Areas
               </button>
               <button
-                onClick={() => setActiveTab('categories')}
+                onClick={() => onTabChange('categories')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                   activeTab === 'categories' 
                     ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
@@ -479,7 +501,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                 <Layers size={16} className={activeTab === 'categories' ? 'text-sky-500' : 'text-slate-400'} /> Categories
               </button>
               <button
-                onClick={() => setActiveTab('disciplines')}
+                onClick={() => onTabChange('disciplines')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                   activeTab === 'disciplines' 
                     ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
@@ -489,14 +511,24 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                 <Tags size={16} className={activeTab === 'disciplines' ? 'text-sky-500' : 'text-slate-400'} /> Disciplines
               </button>
               <button
-                onClick={() => setActiveTab('csi_specs')}
+                onClick={() => onTabChange('csi_specs')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                   activeTab === 'csi_specs' 
                     ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
                     : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
                 }`}
               >
-                <LucideIcons.BookOpen size={16} className={activeTab === 'csi_specs' ? 'text-sky-500' : 'text-slate-400'} /> CSI & Specs
+                <LucideIcons.BookOpen size={16} className={activeTab === 'csi_specs' ? 'text-sky-500' : 'text-slate-400'} /> CSI &amp; Specs
+              </button>
+              <button
+                onClick={() => onTabChange('estimate')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'estimate'
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400'
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <LucideIcons.BarChart3 size={16} className={activeTab === 'estimate' ? 'text-sky-500' : 'text-slate-400'} /> Estimate
               </button>
             </nav>
           </div>
@@ -506,7 +538,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
             <h4 className="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Views & Config</h4>
             <nav className="space-y-1">
               <button
-                onClick={() => setActiveTab('sidebar')}
+                onClick={() => onTabChange('sidebar')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                   activeTab === 'sidebar' 
                     ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
@@ -516,7 +548,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                 <LayoutDashboard size={16} className={activeTab === 'sidebar' ? 'text-sky-500' : 'text-slate-400'} /> Sidebar Menu
               </button>
               <button
-                onClick={() => setActiveTab('ve_matrix')}
+                onClick={() => onTabChange('ve_matrix')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                   activeTab === 've_matrix' 
                     ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
@@ -526,7 +558,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                 <TableProperties size={16} className={activeTab === 've_matrix' ? 'text-sky-500' : 'text-slate-400'} /> Value Matrix
               </button>
               <button
-                onClick={() => setActiveTab('coord_matrix')}
+                onClick={() => onTabChange('coord_matrix')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                   activeTab === 'coord_matrix' 
                     ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
@@ -536,7 +568,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
                 <TableProperties size={16} className={activeTab === 'coord_matrix' ? 'text-sky-500' : 'text-slate-400'} /> Coordination Board
               </button>
               <button
-                onClick={() => setActiveTab('permits')}
+                onClick={() => onTabChange('permits')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
                   activeTab === 'permits' 
                     ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
@@ -553,8 +585,8 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
 
       {/* Main Content Pane */}
       <div className="flex-1 overflow-y-auto p-8 relative custom-scrollbar">
-        <div className="max-w-4xl mx-auto pb-32">
-      {activeTab === 'info' && (
+        <div className={`mx-auto pb-32 ${displayTab === 'estimate' ? 'max-w-full' : 'max-w-4xl'}`}>
+      {displayTab === 'info' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in space-y-6">
           <div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Project Information</h3>
@@ -694,7 +726,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         </div>
       )}
 
-      {activeTab === 'building_areas' && (
+      {displayTab === 'building_areas' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Project Building Areas / Filtering Tabs</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
@@ -744,7 +776,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         </div>
       )}
 
-      {activeTab === 'categories' && (
+      {displayTab === 'categories' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Custom Dropdown Categories</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
@@ -819,7 +851,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         </div>
       )}
 
-      {activeTab === 'sidebar' && (
+      {displayTab === 'sidebar' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Sidebar Layout Configuration</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
@@ -871,7 +903,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         </div>
       )}
 
-      {activeTab === 'disciplines' && (
+      {displayTab === 'disciplines' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Disciplines</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
@@ -921,7 +953,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         </div>
       )}
 
-      {activeTab === 've_matrix' && (
+      {displayTab === 've_matrix' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Value Matrix Configuration</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
@@ -959,7 +991,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         </div>
       )}
 
-      {activeTab === 'coord_matrix' && (
+      {displayTab === 'coord_matrix' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Board Configuration</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
@@ -997,11 +1029,15 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         </div>
       )}
 
-      {activeTab === 'csi_specs' && (
+      {displayTab === 'csi_specs' && (
         <CsiMappingTab projectId={projectId} />
       )}
 
-      {activeTab === 'team' && (
+      {displayTab === 'estimate' && (
+        <ProjectEstimateTab projectId={projectId} />
+      )}
+
+      {displayTab === 'team' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Team Members</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
@@ -1115,7 +1151,7 @@ export const ProjectSettings = ({ projectId, initialTab = 'info' }: { projectId:
         </div>
       )}
 
-      {activeTab === 'permits' && (
+      {displayTab === 'permits' && (
         <div className="space-y-6 animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
             <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Permit Types</h3>

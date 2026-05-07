@@ -7,12 +7,13 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useProjectSettings, useProjects } from '@/hooks/useProjectQueries';
 import { DEFAULT_SIDEBAR_ITEMS } from '@/lib/constants';
 import { SidebarItem } from '@/types/models';
+import { ProjectView } from '@/stores/useUIStore';
 import UserAccountDropdown from './UserAccountDropdown';
 
 interface ProjectSidebarProps {
   projectId: string;
-  currentView: string;
-  setCurrentView: (view: string) => void;
+  currentView: ProjectView;
+  setCurrentView: (view: ProjectView) => void;
 }
 
 export const ProjectSidebar = ({ projectId, currentView, setCurrentView }: ProjectSidebarProps) => {
@@ -86,7 +87,7 @@ export const ProjectSidebar = ({ projectId, currentView, setCurrentView }: Proje
           return (
             <button
               key={item.id}
-              onClick={() => setCurrentView(item.id)}
+              onClick={() => setCurrentView(item.id as ProjectView)}
               title={isCollapsed ? item.label : undefined}
               className={`flex items-center rounded-lg font-medium transition-all ${
                 isCollapsed ? 'p-2 justify-center' : 'gap-3 px-3 py-2 text-sm'

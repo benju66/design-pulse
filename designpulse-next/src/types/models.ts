@@ -143,3 +143,58 @@ export interface ItemActivity {
   created_at: string;
   updated_at: string;
 }
+
+// ── Project Estimate (Budget Import) ──────────────────────────────────────────
+// EstimateCostType is aliased from CostType for semantic clarity in estimate context.
+// It must remain a separate export so tanstack.d.ts can import it without circular deps.
+export type EstimateCostType = 'Labor' | 'Material' | 'Subcontract' | 'Equipment' | 'Other';
+
+export interface ProjectEstimateVersion {
+  id: string;
+  project_id: string;
+  version_name: string;
+  version_date: string;   // ISO date string, e.g. "2024-01-15"
+  is_active: boolean;
+  is_finalized: boolean;  // set to true by finalize_estimate_version RPC; never trust total_budget=0 as proxy
+  total_budget: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectEstimateLine {
+  id: string;
+  version_id: string;
+  project_id: string;
+  cost_code: string | null;             // Loose FK to cost_codes.code (AGENTS.md §5)
+  cost_type: EstimateCostType | null;   // Plain text, not an enum (AGENTS.md §5)
+  description: string;
+  unit_qty: number;
+  uom: string | null;
+  unit_cost: number;
+  budget_amount: number;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Client-side staging row enriched with validation state before database save.
+// version_id is omitted — it is assigned at commit time after create_estimate_version RPC returns.
+export interface EstimateStagingRow extends Omit<ProjectEstimateLine, 'version_id' | 'created_at' | 'updated_at'> {
+  procore_raw_code:    string;  // Original Procore code, e.g. "2-29005.000" — display only
+  is_matched:          boolean; // true if cost_code found in cost_codes table
+  is_budget_resolved:  boolean; // true when parser found a real value (manual, cached formula, or column remap).
+                                // false when all sources returned 0/null — UI shows amber warning (informational only,
+                                // NOT a block; $0 budgets and early estimates are valid user data).
+  // Client-only: raw numeric values keyed by lowercase column header (e.g. "budget amount", "unit cost").
+  // Populated during parse so the staging column picker can remap without re-reading the file.
+  // Stripped by the mutation hook's explicit payload map — never sent to the DB.
+  _rawCols?:           Record<string, number>;
+}
+
+export interface BudgetWaterfallRow {
+  cost_code: string;
+  description: string;
+  budget_amount: number;
+  ve_impact: number;
+  net_position: number;
+}

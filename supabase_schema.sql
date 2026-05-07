@@ -1700,3 +1700,281 @@ BEGIN
   WHERE pm.project_id = p_project_id;
 END;
 $$;
+
+-- ============================================================
+-- PROJECT ESTIMATE VERSIONING (Budget Import Feature)
+-- ============================================================
+
+-- Versioned snapshots of a project's imported budget estimate.
+-- Only one version may be active per project at any time.
+CREATE TABLE IF NOT EXISTS public.project_estimate_versions (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id    uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  version_name  text NOT NULL,
+  version_date  date NOT NULL DEFAULT CURRENT_DATE,
+  is_active     boolean NOT NULL DEFAULT false,
+  is_finalized  boolean NOT NULL DEFAULT false,
+  total_budget  numeric NOT NULL DEFAULT 0,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+-- Idempotent column addition for existing deployments that pre-date this column
+ALTER TABLE public.project_estimate_versions
+  ADD COLUMN IF NOT EXISTS is_finalized boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_estimate_versions_project ON public.project_estimate_versions(project_id);
+CREATE INDEX IF NOT EXISTS idx_estimate_versions_active  ON public.project_estimate_versions(project_id, is_active);
+ALTER TABLE public.project_estimate_versions ENABLE ROW LEVEL SECURITY;
+
+-- Line-item children of a version. Cascade-deletes when parent version is deleted.
+-- cost_code is a loose text FK to cost_codes.code (intentional — see AGENTS.md §5)
+-- cost_type is plain text NOT an enum (AGENTS.md §5)
+CREATE TABLE IF NOT EXISTS public.project_estimates (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  version_id     uuid NOT NULL REFERENCES public.project_estimate_versions(id) ON DELETE CASCADE,
+  project_id     uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  cost_code      text,
+  cost_type      text,
+  description    text NOT NULL DEFAULT 'No Description',
+  unit_qty       numeric NOT NULL DEFAULT 1,
+  uom            text,
+  unit_cost      numeric NOT NULL DEFAULT 0,
+  budget_amount  numeric NOT NULL DEFAULT 0,
+  display_order  integer NOT NULL DEFAULT 0,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_estimates_version ON public.project_estimates(version_id);
+CREATE INDEX IF NOT EXISTS idx_estimates_project  ON public.project_estimates(project_id);
+ALTER TABLE public.project_estimates ENABLE ROW LEVEL SECURITY;
+
+-- RLS: any project member can read; only project settings editors can write
+CREATE POLICY "Members can view estimate versions"
+  ON public.project_estimate_versions FOR SELECT
+  USING (public.is_platform_admin() OR public.get_user_project_role(project_id) IS NOT NULL);
+CREATE POLICY "Admins can manage estimate versions"
+  ON public.project_estimate_versions FOR ALL
+  USING (public.has_project_permission(project_id, 'can_edit_project_settings'));
+
+CREATE POLICY "Members can view estimates"
+  ON public.project_estimates FOR SELECT
+  USING (public.is_platform_admin() OR public.get_user_project_role(project_id) IS NOT NULL);
+CREATE POLICY "Admins can manage estimates"
+  ON public.project_estimates FOR ALL
+  USING (public.has_project_permission(project_id, 'can_edit_project_settings'));
+
+-- auto_update_timestamp triggers (consistent with all other tables)
+DROP TRIGGER IF EXISTS trg_estimate_versions_updated_at ON public.project_estimate_versions;
+CREATE TRIGGER trg_estimate_versions_updated_at
+  BEFORE UPDATE ON public.project_estimate_versions
+  FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_estimates_updated_at ON public.project_estimates;
+CREATE TRIGGER trg_estimates_updated_at
+  BEFORE UPDATE ON public.project_estimates
+  FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
+
+-- ── RPC 1: create_estimate_version ──────────────────────────────────────────
+-- Called once per import. Creates the version header and optionally
+-- atomically deactivates all prior active versions (AGENTS.md C33).
+CREATE OR REPLACE FUNCTION public.create_estimate_version(
+  p_project_id   uuid,
+  p_version_name text,
+  p_version_date date,
+  p_set_active   boolean
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_version_id uuid;
+BEGIN
+  IF NOT has_project_permission(p_project_id, 'can_edit_project_settings') THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  IF p_set_active THEN
+    UPDATE project_estimate_versions SET is_active = false
+    WHERE project_id = p_project_id AND is_active = true;
+  END IF;
+  INSERT INTO project_estimate_versions (project_id, version_name, version_date, is_active)
+  VALUES (p_project_id, p_version_name, p_version_date, p_set_active)
+  RETURNING id INTO v_version_id;
+  RETURN v_version_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.create_estimate_version(uuid, text, date, boolean) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.create_estimate_version(uuid, text, date, boolean) TO authenticated;
+
+-- ── RPC 2: bulk_append_estimate_lines ───────────────────────────────────────
+-- Called N times in 50-row chunks (AGENTS.md C20).
+-- Set-based insert; no FOR loops (AGENTS.md C21).
+-- Cross-ownership guard prevents cross-project data injection.
+CREATE OR REPLACE FUNCTION public.bulk_append_estimate_lines(
+  p_version_id uuid,
+  p_project_id uuid,
+  p_payload    jsonb
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT has_project_permission(p_project_id, 'can_edit_project_settings') THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  -- Cross-ownership guard: verify version belongs to declared project
+  IF NOT EXISTS (
+    SELECT 1 FROM project_estimate_versions
+    WHERE id = p_version_id AND project_id = p_project_id
+  ) THEN
+    RAISE EXCEPTION 'Version % does not belong to project %', p_version_id, p_project_id;
+  END IF;
+  -- JSONB array safety (AGENTS.md C21)
+  IF jsonb_typeof(COALESCE(p_payload, '[]'::jsonb)) != 'array' THEN
+    RAISE EXCEPTION 'p_payload must be a JSON array';
+  END IF;
+  INSERT INTO project_estimates (
+    version_id, project_id, cost_code, cost_type, description,
+    unit_qty, uom, unit_cost, budget_amount, display_order
+  )
+  SELECT
+    p_version_id, p_project_id,
+    NULLIF(val->>'cost_code', ''),
+    NULLIF(val->>'cost_type', ''),
+    COALESCE(NULLIF(val->>'description', ''), 'No Description'),
+    COALESCE((val->>'unit_qty')::numeric, 1),
+    NULLIF(val->>'uom', ''),
+    COALESCE((val->>'unit_cost')::numeric, 0),
+    ROUND(COALESCE((val->>'budget_amount')::numeric, 0), 2),
+    COALESCE((val->>'display_order')::integer, 0)
+  FROM jsonb_array_elements(p_payload) AS val;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.bulk_append_estimate_lines(uuid, uuid, jsonb) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.bulk_append_estimate_lines(uuid, uuid, jsonb) TO authenticated;
+
+-- ── RPC 3: finalize_estimate_version ────────────────────────────────────────
+-- Called once after all chunks complete. Computes total_budget and stamps is_finalized=true.
+-- Only syncs original_budget when version is_active (AGENTS.md C33).
+-- Row-lock on project_settings prevents concurrent sync races (AGENTS.md C7).
+CREATE OR REPLACE FUNCTION public.finalize_estimate_version(
+  p_version_id uuid,
+  p_project_id uuid
+) RETURNS numeric LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_total numeric; v_is_active boolean;
+BEGIN
+  IF NOT has_project_permission(p_project_id, 'can_edit_project_settings') THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM project_estimate_versions
+    WHERE id = p_version_id AND project_id = p_project_id
+  ) THEN
+    RAISE EXCEPTION 'Version % does not belong to project %', p_version_id, p_project_id;
+  END IF;
+  SELECT ROUND(COALESCE(SUM(budget_amount), 0), 2) INTO v_total
+  FROM project_estimates WHERE version_id = p_version_id;
+  SELECT is_active INTO v_is_active
+  FROM project_estimate_versions WHERE id = p_version_id;
+  -- Stamp is_finalized=true and persist total_budget atomically
+  UPDATE project_estimate_versions
+  SET total_budget = v_total, is_finalized = true
+  WHERE id = p_version_id;
+  IF v_is_active THEN
+    -- Row-lock on project_settings to prevent concurrent budget sync races (AGENTS.md C7).
+    -- project_settings uses project_id as PK, not id — use PERFORM 1, not PERFORM id.
+    PERFORM 1 FROM project_settings WHERE project_id = p_project_id FOR UPDATE;
+    UPDATE project_settings SET original_budget = v_total WHERE project_id = p_project_id;
+  END IF;
+  RETURN v_total;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.finalize_estimate_version(uuid, uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.finalize_estimate_version(uuid, uuid) TO authenticated;
+
+-- ── RPC 4: activate_estimate_version ────────────────────────────────────────
+-- Atomic swap: deactivates all others, activates target, syncs budget.
+-- NOT FOUND guard prevents silent no-op on bad UUID (AGENTS.md C33).
+CREATE OR REPLACE FUNCTION public.activate_estimate_version(p_version_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_project_id uuid; v_total numeric;
+BEGIN
+  SELECT project_id INTO v_project_id
+  FROM project_estimate_versions WHERE id = p_version_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Estimate version % not found', p_version_id;
+  END IF;
+  IF NOT has_project_permission(v_project_id, 'can_edit_project_settings') THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  -- Atomic swap (uses composite index idx_estimate_versions_active)
+  UPDATE project_estimate_versions SET is_active = false
+  WHERE project_id = v_project_id AND is_active = true;
+  UPDATE project_estimate_versions SET is_active = true WHERE id = p_version_id;
+  -- Sync budget with row-lock guard (AGENTS.md C33)
+  -- project_settings uses project_id as PK, not id — use PERFORM 1, not PERFORM id.
+  SELECT total_budget INTO v_total FROM project_estimate_versions WHERE id = p_version_id;
+  PERFORM 1 FROM project_settings WHERE project_id = v_project_id FOR UPDATE;
+  UPDATE project_settings SET original_budget = v_total WHERE project_id = v_project_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.activate_estimate_version(uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.activate_estimate_version(uuid) TO authenticated;
+
+-- ── RPC 5: delete_draft_estimate_version ────────────────────────────────────
+-- Orphan cleanup: called from mutation onError when chunked insert fails.
+-- Safety guards: never deletes active or finalized versions.
+CREATE OR REPLACE FUNCTION public.delete_draft_estimate_version(
+  p_version_id uuid,
+  p_project_id uuid
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_version public.project_estimate_versions%ROWTYPE;
+BEGIN
+  IF NOT has_project_permission(p_project_id, 'can_edit_project_settings') THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  SELECT * INTO v_version FROM project_estimate_versions
+  WHERE id = p_version_id AND project_id = p_project_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Version % not found in project %', p_version_id, p_project_id;
+  END IF;
+  IF v_version.is_active THEN
+    RAISE EXCEPTION 'Cannot delete an active estimate version';
+  END IF;
+  -- Use is_finalized (not total_budget != 0) — the old proxy would incorrectly
+  -- allow deleting legitimately $0 budgets and block deletions on uncompleted imports.
+  IF v_version.is_finalized THEN
+    RAISE EXCEPTION 'Cannot delete a finalized estimate version. Use deactivation instead.';
+  END IF;
+  DELETE FROM project_estimate_versions WHERE id = p_version_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.delete_draft_estimate_version(uuid, uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.delete_draft_estimate_version(uuid, uuid) TO authenticated;
+
+-- ── RPC 6: get_project_budget_waterfall ─────────────────────────────────────
+-- Server-side aggregation for the waterfall chart (AGENTS.md C5).
+-- IS NOT DISTINCT FROM handles NULL cost_code join correctly.
+CREATE OR REPLACE FUNCTION public.get_project_budget_waterfall(p_project_id uuid)
+RETURNS TABLE (
+  cost_code     text,
+  description   text,
+  budget_amount numeric,
+  ve_impact     numeric,
+  net_position  numeric
+) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT (is_platform_admin() OR get_user_project_role(p_project_id) IS NOT NULL) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  RETURN QUERY
+  SELECT
+    COALESCE(e.cost_code, 'Unassigned')::text              AS cost_code,
+    MAX(e.description)::text                                AS description,
+    SUM(e.budget_amount)                                    AS budget_amount,
+    COALESCE(SUM(o.cost_impact), 0)                         AS ve_impact,
+    SUM(e.budget_amount) + COALESCE(SUM(o.cost_impact), 0) AS net_position
+  FROM project_estimates e
+  JOIN project_estimate_versions v ON v.id = e.version_id
+  LEFT JOIN opportunities o
+    ON o.cost_code IS NOT DISTINCT FROM e.cost_code
+   AND o.project_id = p_project_id
+   AND o.is_deleted = false
+   AND o.status IN ('Approved', 'Pending Plan Update', 'Implemented')
+  WHERE v.project_id = p_project_id AND v.is_active = true
+  GROUP BY COALESCE(e.cost_code, 'Unassigned');
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.get_project_budget_waterfall(uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.get_project_budget_waterfall(uuid) TO authenticated;

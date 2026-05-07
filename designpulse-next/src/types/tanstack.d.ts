@@ -1,6 +1,6 @@
 import '@tanstack/react-table';
 import { UseMutationResult } from '@tanstack/react-query';
-import { Opportunity, OpportunityOption, CostCode, ProjectCsiSpec, RemapCsiEntryParams } from './models';
+import { Opportunity, OpportunityOption, CostCode, ProjectCsiSpec, RemapCsiEntryParams, EstimateCostType } from './models';
 
 declare module '@tanstack/react-table' {
   interface TableMeta<TData extends RowData> {
@@ -30,5 +30,8 @@ declare module '@tanstack/react-table' {
       remapEntry: (params: RemapCsiEntryParams) => void;
       isMutating: boolean;
     };
+    // Project Estimate staging grid meta (AGENTS.md C24 — derived once in parent, not per-row)
+    estimateCostCodes?: CostCode[];
+    onAssignCostCode?: (rowId: string, costCode: string, costType: EstimateCostType) => void;
   }
 }

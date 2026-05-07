@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, use } from 'react';
+import React, { use } from 'react';
 import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid, UploadCloud } from 'lucide-react';
 import MarkupCanvas from '@/components/MarkupCanvas';
 import OpportunityGrid from '@/components/OpportunityGrid';
@@ -21,12 +21,29 @@ import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import DetailPanel from '@/components/DetailPanel';
-import { useUIStore } from '@/stores/useUIStore';
+import { useUIStore, ProjectView, SettingsTab } from '@/stores/useUIStore';
 import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
 import { useProjectRealtime } from '@/hooks/useProjectRealtime';
 
 import { ProjectSidebar } from '@/components/layout/ProjectSidebar';
 import { ProjectSettings } from '@/components/project/ProjectSettings';
+
+// ── Module-level navigation type guards ─────────────────────────────────────────
+const VALID_PROJECT_VIEWS = new Set<ProjectView>([
+  'dashboard', 'dashboard-v2', 'map', 'analytics',
+  'coordination', 'permits', 'my-desk', 'settings',
+]);
+function isProjectView(v: string | undefined): v is ProjectView {
+  return !!v && VALID_PROJECT_VIEWS.has(v as ProjectView);
+}
+
+const VALID_SETTINGS_TABS = new Set<SettingsTab>([
+  'info', 'team', 'building_areas', 'categories', 'disciplines',
+  'csi_specs', 'estimate', 'sidebar', 've_matrix', 'coord_matrix', 'permits',
+]);
+function isSettingsTab(v: string | undefined): v is SettingsTab {
+  return !!v && VALID_SETTINGS_TABS.has(v as SettingsTab);
+}
 
 interface ProjectPageProps {
   params: Promise<{ projectId: string }>;
@@ -42,19 +59,43 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const createMutation = useCreateOpportunity(projectId);
   const createPermitMutation = useCreatePermit(projectId);
   
-  const [currentView, setCurrentView] = useState('dashboard');
-  const [settingsTab, setSettingsTab] = useState('info');
-  const [activeBuildingAreas, setActiveBuildingAreas] = useState<string[]>([]);
-  const [activeCostCodes, setActiveCostCodes] = useState<string[]>([]);
-  const [activeStatus, setActiveStatus] = useState('All');
-  const [coordActiveBuildingAreas, setCoordActiveBuildingAreas] = useState<string[]>([]);
-  const [coordActiveCostCodes, setCoordActiveCostCodes] = useState<string[]>([]);
-  const [coordActiveType, setCoordActiveType] = useState('All');
-  const [coordActiveStatus, setCoordActiveStatus] = useState('All');
-  const [coordActiveDisciplines, setCoordActiveDisciplines] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState('split'); // 'split' | 'flat' | 'card'
-  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
-  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  // ── Navigation state (persisted in Zustand, replaces useState) ────────────────
+  const _rawView        = useUIStore(state => state.activeView[projectId]);
+  const currentView: ProjectView = isProjectView(_rawView) ? _rawView : 'dashboard';
+  const _setActiveView  = useUIStore(state => state.setActiveView);
+  const setCurrentView  = React.useMemo(
+    () => (view: ProjectView) => _setActiveView(projectId, view),
+    [projectId, _setActiveView]
+  );
+
+  const _rawTab           = useUIStore(state => state.activeSettingsTab[projectId]);
+  const settingsTab: SettingsTab = isSettingsTab(_rawTab) ? _rawTab : 'info';
+  const _setActiveTab     = useUIStore(state => state.setActiveSettingsTab);
+  const setSettingsTab    = React.useMemo(
+    () => (tab: SettingsTab) => _setActiveTab(projectId, tab),
+    [projectId, _setActiveTab]
+  );
+
+  const _navigateFn         = useUIStore(state => state.navigateToSettings);
+  const navigateToSettings  = React.useMemo(
+    () => (tab: SettingsTab) => _navigateFn(projectId, tab),
+    [projectId, _navigateFn]
+  );
+
+  // VE grid view mode — flat selector, no wrapper needed (same as coordinationViewMode)
+  const viewMode    = useUIStore(state => state.veGridViewMode);
+  const setViewMode = useUIStore(state => state.setVeGridViewMode);
+
+  const [activeBuildingAreas, setActiveBuildingAreas] = React.useState<string[]>([]);
+  const [activeCostCodes, setActiveCostCodes] = React.useState<string[]>([]);
+  const [activeStatus, setActiveStatus] = React.useState('All');
+  const [coordActiveBuildingAreas, setCoordActiveBuildingAreas] = React.useState<string[]>([]);
+  const [coordActiveCostCodes, setCoordActiveCostCodes] = React.useState<string[]>([]);
+  const [coordActiveType, setCoordActiveType] = React.useState('All');
+  const [coordActiveStatus, setCoordActiveStatus] = React.useState('All');
+  const [coordActiveDisciplines, setCoordActiveDisciplines] = React.useState<string[]>([]);
+  const [isCompareModalOpen, setIsCompareModalOpen] = React.useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = React.useState(false);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
@@ -429,10 +470,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         placeholder="Search areas..."
                       />
                       <button
-                        onClick={() => {
-                          setSettingsTab('building_areas');
-                          setCurrentView('settings');
-                        }}
+                        onClick={() => navigateToSettings('building_areas')}
                         className="text-slate-400 hover:text-sky-500 transition-colors bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
                         title="Manage Building Areas"
                       >
@@ -506,10 +544,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                         placeholder="Search areas..."
                       />
                       <button
-                        onClick={() => {
-                          setSettingsTab('building_areas');
-                          setCurrentView('settings');
-                        }}
+                        onClick={() => navigateToSettings('building_areas')}
                         className="text-slate-400 hover:text-sky-500 transition-colors bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
                         title="Manage Building Areas"
                       >
@@ -570,7 +605,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           )}
 
           {currentView === 'settings' && (
-            <ProjectSettings projectId={projectId} initialTab={settingsTab} />
+            <ProjectSettings
+              projectId={projectId}
+              activeTab={settingsTab}
+              onTabChange={setSettingsTab}
+            />
           )}
 
           {currentView === 'analytics' && (

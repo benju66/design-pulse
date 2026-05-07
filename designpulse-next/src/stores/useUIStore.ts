@@ -2,6 +2,33 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
 
+// ── Navigation domain types ───────────────────────────────────────────────────
+export type ProjectView =
+  | 'dashboard'
+  | 'dashboard-v2'
+  | 'map'
+  | 'analytics'
+  | 'coordination'
+  | 'permits'
+  | 'my-desk'
+  | 'settings';
+
+export type SettingsTab =
+  | 'info'
+  | 'team'
+  | 'building_areas'
+  | 'categories'
+  | 'disciplines'
+  | 'csi_specs'
+  | 'estimate'
+  | 'sidebar'
+  | 've_matrix'
+  | 'coord_matrix'
+  | 'permits';
+
+// Flat view mode — matches coordinationViewMode / permitViewMode store pattern
+export type VEGridViewMode = 'split' | 'flat' | 'card';
+
 export interface UIState {
   selectedOpportunityId: string | null;
   setSelectedOpportunityId: (id: string | null) => void;
@@ -37,7 +64,21 @@ export interface UIState {
   
   coordinationViewMode: 'board' | 'table-split';
   setCoordinationViewMode: (mode: 'board' | 'table-split') => void;
-  
+
+  // VE grid view mode — flat, matching coordinationViewMode / permitViewMode pattern
+  veGridViewMode: VEGridViewMode;
+  setVeGridViewMode: (mode: VEGridViewMode) => void;
+
+  // Per-project navigation persistence
+  activeView: Record<string, ProjectView>;
+  setActiveView: (projectId: string, view: ProjectView) => void;
+
+  activeSettingsTab: Record<string, SettingsTab>;
+  setActiveSettingsTab: (projectId: string, tab: SettingsTab) => void;
+
+  // Atomic compound action — updates both fields in a single set() call to prevent flash
+  navigateToSettings: (projectId: string, tab: SettingsTab) => void;
+
   isBudgetSummaryCollapsed: boolean;
   toggleBudgetSummary: () => void;
   
@@ -142,6 +183,24 @@ export const useUIStore = create<UIState>()(
       
       coordinationViewMode: 'table-split',
       setCoordinationViewMode: (mode) => set({ coordinationViewMode: mode }),
+
+      veGridViewMode: 'split',
+      setVeGridViewMode: (mode) => set({ veGridViewMode: mode }),
+
+      activeView: {},
+      setActiveView: (projectId, view) => set((state) => ({
+        activeView: { ...state.activeView, [projectId]: view },
+      })),
+
+      activeSettingsTab: {},
+      setActiveSettingsTab: (projectId, tab) => set((state) => ({
+        activeSettingsTab: { ...state.activeSettingsTab, [projectId]: tab },
+      })),
+
+      navigateToSettings: (projectId, tab) => set((state) => ({
+        activeView: { ...state.activeView, [projectId]: 'settings' },
+        activeSettingsTab: { ...state.activeSettingsTab, [projectId]: tab },
+      })),
       
       isBudgetSummaryCollapsed: false,
       toggleBudgetSummary: () => set((state) => ({ isBudgetSummaryCollapsed: !state.isBudgetSummaryCollapsed })),
@@ -196,21 +255,39 @@ export const useUIStore = create<UIState>()(
         isPermitSummaryCollapsed: state.isPermitSummaryCollapsed ?? false,
         permitViewMode: state.permitViewMode ?? 'table-split',
         permitFilters: state.permitFilters ?? {},
+        // Navigation persistence (v2+)
+        activeView: state.activeView ?? {},
+        activeSettingsTab: state.activeSettingsTab ?? {},
+        veGridViewMode: state.veGridViewMode ?? 'split',
       }),
-      version: 1,
-      migrate: (persistedState: any, version: number) => {
-        if (version === 0) {
-          // Wipe legacy flat objects to prevent schema corruption and type mismatch
+      version: 2,
+      migrate: (persistedState: unknown, version: number) => {
+        const state = persistedState as Partial<UIState>;
+        if (version < 1) {
+          // v0 → v1: wipe legacy flat objects to prevent schema corruption
           return {
-            ...persistedState,
+            ...state,
             gridColumnVisibility: {},
             gridColumnOrder: {},
             coordColumnVisibility: {},
             coordColumnOrder: {},
             permitFilters: {},
-          };
+            // Also initialise v2 fields for users upgrading straight from v0
+            activeView: {},
+            activeSettingsTab: {},
+            veGridViewMode: 'split' as VEGridViewMode,
+          } as UIState;
         }
-        return persistedState as UIState;
+        if (version < 2) {
+          // v1 → v2: add navigation persistence fields
+          return {
+            ...state,
+            activeView: {},
+            activeSettingsTab: {},
+            veGridViewMode: 'split' as VEGridViewMode,
+          } as UIState;
+        }
+        return state as UIState;
       },
     }
   )

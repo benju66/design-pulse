@@ -40,7 +40,7 @@ function isProjectView(v: string | undefined): v is ProjectView {
 
 const VALID_SETTINGS_TABS = new Set<SettingsTab>([
   'info', 'team', 'building_areas', 'categories', 'disciplines',
-  'csi_specs', 'estimate', 'sidebar', 've_matrix', 'coord_matrix', 'permits',
+  'csi_specs', 'estimate', 'sidebar', 've_matrix', 'coord_matrix', 'brand_standards', 'permits',
 ]);
 function isSettingsTab(v: string | undefined): v is SettingsTab {
   return !!v && VALID_SETTINGS_TABS.has(v as SettingsTab);

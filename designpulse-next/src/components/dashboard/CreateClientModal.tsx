@@ -23,8 +23,9 @@ export default function CreateClientModal({ isOpen, onClose }: CreateClientModal
     if (!newClientData.name.trim()) return;
 
     createClient.mutate({
+      id: crypto.randomUUID(),
       name: newClientData.name.trim(),
-      description: newClientData.description.trim() || undefined,
+      description: newClientData.description.trim() || null,
       primary_contact_name: newClientData.primary_contact_name.trim() || null,
       primary_contact_email: newClientData.primary_contact_email.trim() || null,
     }, {

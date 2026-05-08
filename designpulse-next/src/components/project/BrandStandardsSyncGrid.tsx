@@ -5,6 +5,14 @@ import { useClients } from '@/hooks/useClientQueries';
 import { useProjects } from '@/hooks/useProjectCoreQueries';
 import { Briefcase, Link2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ClientBrandStandard, ProjectBrandStandard } from '@/types/models';
+
+interface BrandStandardSyncPayload {
+  client_standard_id: string;
+  cost_code: string | null;
+  standard_description: string;
+  is_verified: boolean;
+}
 
 export function BrandStandardsSyncGrid({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -15,7 +23,7 @@ export function BrandStandardsSyncGrid({ projectId }: { projectId: string }) {
   const client = clients.find(c => c.id === currentProject?.client_id);
 
   // Fetch global brand standards for this client
-  const { data: globalStandards = [], isLoading: isGlobalLoading } = useQuery({
+  const { data: globalStandards = [], isLoading: isGlobalLoading } = useQuery<ClientBrandStandard[], Error>({
     queryKey: ['client_brand_standards', client?.id],
     queryFn: async () => {
       if (!client?.id) return [];
@@ -31,7 +39,7 @@ export function BrandStandardsSyncGrid({ projectId }: { projectId: string }) {
   });
 
   // Fetch project mapped standards
-  const { data: projectStandards = [], isLoading: isProjectLoading } = useQuery({
+  const { data: projectStandards = [], isLoading: isProjectLoading } = useQuery<ProjectBrandStandard[], Error>({
     queryKey: ['project_brand_standards', projectId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -45,7 +53,7 @@ export function BrandStandardsSyncGrid({ projectId }: { projectId: string }) {
   });
 
   const syncStandards = useMutation({
-    mutationFn: async (payload: any[]) => {
+    mutationFn: async (payload: BrandStandardSyncPayload[]) => {
       const { error } = await supabase.rpc('bulk_map_project_standards', {
         p_project_id: projectId,
         p_standards: payload

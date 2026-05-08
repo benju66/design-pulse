@@ -295,23 +295,23 @@ export function useAllProjectOptions(projectId: string | null) {
   });
 }
 
-export function useCreateOption(opportunityId: string, projectId: string) {
+export function useCreateOption(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<
     OpportunityOption, 
     Error, 
-    Partial<OpportunityOption>, 
+    { opportunityId: string; option: Partial<OpportunityOption> }, 
     { previousOptions: OpportunityOption[] | undefined }
   >({
-    mutationFn: async (newOption) => {
-      const realUUID = (newOption as any).id; // ID generated in onMutate
+    mutationFn: async ({ opportunityId, option }) => {
+      const realUUID = (option as any).id; // ID generated in onMutate
       const { data, error } = await supabase
         .from('opportunity_options')
         .insert([{ 
           opportunity_id: opportunityId, 
           project_id: projectId,
           title: 'New Contender', 
-          ...newOption, 
+          ...option, 
           id: realUUID 
         }])
         .select()
@@ -319,7 +319,7 @@ export function useCreateOption(opportunityId: string, projectId: string) {
       if (error) throw error;
       return data as OpportunityOption;
     },
-    onMutate: async (newOption) => {
+    onMutate: async ({ opportunityId, option: newOption }) => {
       await queryClient.cancelQueries({ queryKey: ['all_project_options', projectId] });
       await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
       const previousOptions = queryClient.getQueryData<OpportunityOption[]>(['all_project_options', projectId]);
@@ -360,17 +360,17 @@ export function useCreateOption(opportunityId: string, projectId: string) {
       }
       toast.error(`Failed to create option: ${err.message || 'Unknown error'}`);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       // Explicitly invalidate the activity feed here because its Realtime subscription
       // only exists when the Activity tab is mounted. If the user is on the Details tab
       // when the option is created, the DB trigger fires and inserts into item_activity,
       // but no subscriber is listening — the event is silently missed. (AGENTS.md Rule C.2)
-      queryClient.invalidateQueries({ queryKey: ['activity_feed', opportunityId] });
+      queryClient.invalidateQueries({ queryKey: ['activity_feed', variables.opportunityId] });
     }
   });
 }
 
-export function useUpdateOption(opportunityId: string, projectId: string) {
+export function useUpdateOption(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<
     OpportunityOption, 
@@ -405,8 +405,8 @@ export function useUpdateOption(opportunityId: string, projectId: string) {
       if (updatedOpt) {
         queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
           if (!old) return old;
-          const { cost_impact, days_impact } = calculateParentTotals(opportunityId, previousOptions || [], updates, id);
-          return old.map(opp => opp.id === opportunityId ? { ...opp, cost_impact, days_impact } : opp);
+          const { cost_impact, days_impact } = calculateParentTotals(updatedOpt.opportunity_id, previousOptions || [], updates, id);
+          return old.map(opp => opp.id === updatedOpt.opportunity_id ? { ...opp, cost_impact, days_impact } : opp);
         });
       }
 

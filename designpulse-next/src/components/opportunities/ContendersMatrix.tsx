@@ -45,8 +45,8 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
       : DEFAULT_DISCIPLINES;
   }, [settings?.disciplines]);
 
-  const createOption = useCreateOption(opportunityId, projectId);
-  const updateOption = useUpdateOption(opportunityId, projectId);
+  const createOption = useCreateOption(projectId);
+  const updateOption = useUpdateOption(projectId);
   const lockOption = useLockOption(opportunityId, projectId);
   const toggleOptionBudget = useToggleOptionBudget(opportunityId, projectId);
   const deleteOption = useDeleteOption(opportunityId, projectId);
@@ -118,7 +118,7 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
 
             {!isLocked && permissions.can_edit_records && (
               <div 
-                onClick={() => createOption.mutate({})}
+                onClick={() => createOption.mutate({ opportunityId, option: {} })}
                 className="shrink-0 w-80 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors text-slate-500 hover:text-sky-600 dark:hover:text-sky-400"
               >
                 <Plus size={32} className="mb-2 opacity-50" />

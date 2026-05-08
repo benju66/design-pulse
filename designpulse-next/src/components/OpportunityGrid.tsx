@@ -18,7 +18,9 @@ import {
   useUpdateOpportunity,
   useCreateOpportunity,
   useDeleteOpportunity,
-  useAllProjectOptions
+  useAllProjectOptions,
+  useCreateOption,
+  useUpdateOption
 } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { useProjectCsiSpecs } from '@/hooks/useCsiQueries';
@@ -86,6 +88,8 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
+  const createOptionMutation = useCreateOption(projectId);
+  const updateOptionMutation = useUpdateOption(projectId);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const compareQueue = useUIStore(state => state.compareQueue);
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
@@ -132,6 +136,18 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     }, {});
   }, [allOptions]);
 
+  const maxOptionCount = useMemo(() => {
+    let max = -1;
+    for (const opts of Object.values(optionsMap)) {
+      for (const opt of opts) {
+        if (typeof opt.order_index === 'number' && opt.order_index > max) {
+          max = opt.order_index;
+        }
+      }
+    }
+    return max + 1;
+  }, [optionsMap]);
+
   useEffect(() => {
     if (selectedOpportunityId) {
       const element = document.getElementById(`row-${selectedOpportunityId}`);
@@ -161,7 +177,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   const columnVisibility = isolateState ? localColumnVisibility : globalColumnVisibility;
   const setColumnVisibility = isolateState ? setLocalColumnVisibility : globalColumnVisibilitySetter;
   
-  const columns = useOpportunityColumns(viewMode);
+  const columns = useOpportunityColumns(viewMode, maxOptionCount);
   const { data: settings } = useProjectSettings(projectId);
   const { data: projectMembers = [] } = useProjectMembers(projectId);
   const { permissions } = useCurrentUserPermissions(projectId);
@@ -186,22 +202,38 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       const allColIds = activeColumns.map(c => (c as any).accessorKey || c.id).filter(Boolean);
       
       // Explicitly pin UI columns to the front
-      const pinnedFront = ['select', 'open_panel'].filter(id => allColIds.includes(id));
+      const pinnedFront = ['select', 'open_panel', 'display_id', 'title'].filter(id => allColIds.includes(id));
       
-      // Any new columns that aren't in the user's saved config should go to the back
-      const unconfiguredIds = allColIds.filter(id => !configuredIds.includes(id as string) && !pinnedFront.includes(id as string));
+      // Dynamic Matrix columns should be placed immediately after the pinned columns
+      const dynamicOptionIds = allColIds.filter(id => typeof id === 'string' && id.startsWith('opt_'));
       
-      // Filter out configuredIds that are no longer in activeColumns (hidden)
-      const activeConfiguredIds = configuredIds.filter((id: string) => allColIds.includes(id));
+      // Filter out configuredIds that are no longer active, and ignore pinned/dynamic to avoid duplicates
+      const activeConfiguredIds = configuredIds.filter((id: string) => 
+        allColIds.includes(id) && !pinnedFront.includes(id) && !dynamicOptionIds.includes(id)
+      );
       
-      setColumnOrder([...pinnedFront, ...activeConfiguredIds, ...unconfiguredIds] as string[]);
+      // Any new columns that aren't in the config, pinned, or dynamic go to the back
+      const unconfiguredIds = allColIds.filter(id => 
+        !configuredIds.includes(id as string) && 
+        !pinnedFront.includes(id as string) && 
+        !dynamicOptionIds.includes(id as string)
+      );
+      
+      setColumnOrder([...pinnedFront, ...dynamicOptionIds, ...activeConfiguredIds, ...unconfiguredIds] as string[]);
     }
   }, [settings?.ve_column_order, activeColumns, isolateState]);
 
   const table = useReactTable<Opportunity>({
     data,
     columns: activeColumns,
-    state: { expanded, columnVisibility, columnOrder, sorting, globalFilter },
+    state: { expanded, columnVisibility, columnOrder, sorting, globalFilter, columnPinning: { left: ['select', 'open_panel', 'display_id', 'title'] } },
+    getSubRows: (row) => {
+      if (viewMode === 'flat') return [];
+      if ('project_id' in row) {
+        return (optionsMap[row.id] as unknown as Opportunity[]) || [];
+      }
+      return [];
+    },
     onExpandedChange: setExpanded,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnOrderChange: setColumnOrder,
@@ -216,6 +248,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     meta: {
       updateData: updateMutation,
       optionsMap,
+      createOption: createOptionMutation.mutate,
+      updateOption: updateOptionMutation.mutate,
       rawCostCodes,
       csiSpecs,
       projectMembers,

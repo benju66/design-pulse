@@ -6,6 +6,8 @@ declare module '@tanstack/react-table' {
   interface TableMeta<TData extends RowData> {
     updateData?: any; // Generic to support Permits and Opportunities
     optionsMap?: Record<string, OpportunityOption[]>;
+    createOption?: (params: { opportunityId: string; option: Partial<OpportunityOption> }) => void;
+    updateOption?: (params: { id: string; updates: Partial<OpportunityOption> }) => void;
     moveActiveCell?: (direction: 'down' | 'right' | 'left' | 'up') => void;
     activeCell?: { rowIndex: number | null; columnId: string | null };
     setActiveCell?: (cell: { rowIndex: number; columnId: string } | null) => void;

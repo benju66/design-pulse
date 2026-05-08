@@ -3,6 +3,7 @@ import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell } from './EditableCell';
 import { OptionsCell } from './OptionsCell';
+import { InlineOptionCell } from './InlineOptionCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
 
@@ -48,7 +49,7 @@ const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
   );
 };
 
-export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, unknown>[] => {
+export const useOpportunityColumns = (viewMode: string, maxOptionCount: number = 0): ColumnDef<Opportunity, unknown>[] => {
   const checkboxColumn: ColumnDef<Opportunity, unknown> = useMemo(() => ({
     id: 'select',
     header: () => null,
@@ -72,15 +73,43 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
     return a - b;
   };
 
+  const dynamicOptionColumns: ColumnDef<Opportunity, unknown>[] = useMemo(() => {
+    if (viewMode !== 'flat') return [];
+    
+    const columns: ColumnDef<Opportunity, unknown>[] = [];
+    // +1 to always have an empty column at the end for fast data entry
+    for (let i = 0; i <= maxOptionCount; i++) {
+      columns.push({
+        id: `opt_${i}_title`,
+        header: `[C${i + 1}] Title`,
+        cell: (context) => <InlineOptionCell context={context} />,
+        meta: { order_index: i, field: 'title' },
+        enableSorting: false,
+        enableColumnFilter: false,
+        size: 200,
+      });
+      columns.push({
+        id: `opt_${i}_cost`,
+        header: `[C${i + 1}] Cost`,
+        cell: (context) => <InlineOptionCell context={context} />,
+        meta: { order_index: i, field: 'cost_impact' },
+        enableSorting: false,
+        enableColumnFilter: false,
+        size: 120,
+      });
+    }
+    return columns;
+  }, [viewMode, maxOptionCount]);
+
   const flatColumns: ColumnDef<Opportunity, unknown>[] = useMemo(
     () => [
       checkboxColumn,
       ...(viewMode === 'split' ? [openPanelColumn] : []),
       { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
       { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
-      { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
-      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
-      { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell },
+      ...dynamicOptionColumns,
+      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell, aggregationFn: 'sum' as any },
+      { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell, aggregationFn: 'sum' as any },
       { accessorKey: 'status', header: 'VE Status', cell: StatusCell },
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
       { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
@@ -92,7 +121,7 @@ export const useOpportunityColumns = (viewMode: string): ColumnDef<Opportunity, 
       { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
     ],
-    [viewMode, checkboxColumn, openPanelColumn]
+    [viewMode, checkboxColumn, openPanelColumn, dynamicOptionColumns]
   );
 
   const cardColumns: ColumnDef<Opportunity, unknown>[] = useMemo(

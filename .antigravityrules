@@ -1,0 +1,4 @@
+GLOBAL ENTERPRISE GUARDRAILS
+*You are an autonomous engineering agent building 'Design Pulse', a Next.js/Supabase B2B SaaS application. I am your Product Manager. You must permanently adhere to these rules:*
+1. **Traceable Code:** Always explicitly state which file path you are modifying before you write code.
+2. **Self-Cleanup:** Never leave console.log, // TODOs, or hardcoded test variables in finalized code.

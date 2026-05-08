@@ -1,38 +1,12 @@
 import Link from 'next/link';
-import { Users, ArrowRight, Briefcase, AlertTriangle } from 'lucide-react';
-import { useClients } from '@/hooks/useClientQueries';
+import { Users, ArrowRight, Briefcase } from 'lucide-react';
+import { Client } from '@/types/models';
 
-export default function ClientList() {
-  const { data: clients = [], isLoading, isError } = useClients();
+interface ClientCardGridProps {
+  clients: Client[];
+}
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-slate-500 py-12">
-        Loading clients...
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="col-span-full py-16 flex flex-col items-center justify-center border-2 border-dashed border-rose-300 dark:border-rose-700 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20">
-        <AlertTriangle size={48} className="text-rose-400 dark:text-rose-500 mb-4" />
-        <p className="text-rose-600 dark:text-rose-400 mb-2 text-lg font-semibold">Failed to load clients</p>
-        <p className="text-slate-500 text-sm">Check your connection and try refreshing the page.</p>
-      </div>
-    );
-  }
-
-  if (clients.length === 0) {
-    return (
-      <div className="col-span-full py-16 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
-        <Users size={48} className="text-slate-300 dark:text-slate-600 mb-4" />
-        <p className="text-slate-500 dark:text-slate-400 mb-4 text-lg">No clients found.</p>
-        <p className="text-slate-400 text-sm">Platform Admins can create new clients to start mapping global brand standards.</p>
-      </div>
-    );
-  }
-
+export default function ClientCardGrid({ clients }: ClientCardGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
       {clients.map(client => (

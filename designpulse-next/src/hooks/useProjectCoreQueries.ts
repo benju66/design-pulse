@@ -38,7 +38,8 @@ export function useProjects() {
       const { data, error } = await supabase
         .from('projects')
         .select('*, project_settings(project_name)')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true });
       
       if (error) {
         console.warn("Supabase Projects Error:", error);

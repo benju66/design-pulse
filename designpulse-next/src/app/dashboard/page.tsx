@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
-import { Building2, Plus, ArrowRight, Settings, X, Briefcase, LayoutGrid } from 'lucide-react';
+import { Building2, Plus, Settings, X, Briefcase, LayoutGrid, List, AlertTriangle } from 'lucide-react';
 import { useProjects } from '@/hooks/useProjectCoreQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useUserProjectMembers } from '@/hooks/useGlobalQueries';
@@ -10,15 +9,32 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import GlobalSettingsModal from '@/components/dashboard/GlobalSettingsModal';
 import CreateProjectModal from '@/components/dashboard/CreateProjectModal';
 import CreateClientModal from '@/components/dashboard/CreateClientModal';
-import ClientList from '@/components/dashboard/ClientList';
 import UserAccountDropdown from '@/components/layout/UserAccountDropdown';
+import { useUIStore, DashboardViewMode } from '@/stores/useUIStore';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useClients } from '@/hooks/useClientQueries';
+import ProjectCardGrid from '@/components/dashboard/ProjectCardGrid';
+import ProjectList from '@/components/dashboard/ProjectList';
+import ClientCardGrid from '@/components/dashboard/ClientCardGrid';
+import ClientListTable from '@/components/dashboard/ClientListTable';
+
+const VALID_DASHBOARD_MODES = new Set<DashboardViewMode>(['card', 'table']);
+
+function isDashboardMode(v: string | undefined): v is DashboardViewMode {
+  return !!v && VALID_DASHBOARD_MODES.has(v as DashboardViewMode);
+}
 
 export default function DashboardPage() {
-  const { data: projects = [], isLoading } = useProjects();
+  const { data: projects = [], isLoading: isProjectsLoading } = useProjects();
+  const { data: clients = [], isLoading: isClientsLoading, isError: isClientsError } = useClients();
   const { data: isSuperAdmin, isLoading: isAuthLoading } = useIsPlatformAdmin();
   const { session } = useAuth();
   const { data: myMemberships = [], isLoading: isMembershipsLoading } = useUserProjectMembers(session?.user?.id || null);
   
+  const rawViewMode = useUIStore(s => s.dashboardViewMode);
+  const setDashboardViewMode = useUIStore(s => s.setDashboardViewMode);
+  const dashboardViewMode = isDashboardMode(rawViewMode) ? rawViewMode : 'card';
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
   const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
@@ -135,81 +151,107 @@ export default function DashboardPage() {
         onClose={() => setIsCreateClientModalOpen(false)}
       />
 
-      {/* Segmented Control */}
-      <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-fit mb-6">
-        <button
-          onClick={() => setActiveTab('projects')}
-          className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${
-            activeTab === 'projects' 
-              ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' 
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-          }`}
-        >
-          <LayoutGrid size={16} />
-          Projects
-        </button>
-        <button
-          onClick={() => setActiveTab('clients')}
-          className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${
-            activeTab === 'clients' 
-              ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' 
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-          }`}
-        >
-          <Briefcase size={16} />
-          Clients
-        </button>
+      {/* Segmented Controls */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-fit">
+          <button
+            onClick={() => setActiveTab('projects')}
+            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${
+              activeTab === 'projects' 
+                ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' 
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <Building2 size={16} />
+            Projects
+          </button>
+          <button
+            onClick={() => setActiveTab('clients')}
+            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${
+              activeTab === 'clients' 
+                ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' 
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <Briefcase size={16} />
+            Clients
+          </button>
+        </div>
+
+        <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-fit">
+          <button
+            onClick={() => setDashboardViewMode('card')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+              dashboardViewMode === 'card' 
+                ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' 
+                : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <LayoutGrid size={16} />
+            <span className="hidden sm:inline">Cards</span>
+          </button>
+          <button
+            onClick={() => setDashboardViewMode('table')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+              dashboardViewMode === 'table' 
+                ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' 
+                : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <List size={16} />
+            <span className="hidden sm:inline">Table</span>
+          </button>
+        </div>
       </div>
 
-      {activeTab === 'clients' ? (
-        <ClientList />
-      ) : isLoading ? (
-        <div className="flex-1 flex items-center justify-center text-slate-500">
-          Loading projects...
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
-          {visibleProjects.map(project => (
-            <Link key={project.id} href={`/project/${project.id}`}>
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 hover:shadow-lg hover:border-sky-300 dark:hover:border-sky-700 transition-all group cursor-pointer h-full flex flex-col">
-                <div className="flex items-start justify-between mb-6">
-                  <div className="bg-sky-100 dark:bg-sky-900/30 p-3.5 rounded-xl text-sky-600 dark:text-sky-400">
-                    <Building2 size={26} strokeWidth={1.5} />
-                  </div>
-                  <ArrowRight className="text-slate-300 dark:text-slate-600 group-hover:text-sky-500 group-hover:translate-x-1 transition-all" size={22} />
-                </div>
-                {project.project_number && (
-                  <div className="font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-1 rounded-md w-fit mb-2">
-                    {project.project_number}
-                  </div>
-                )}
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 line-clamp-1" title={project.project_settings?.[0]?.project_name || project.name}>
-                  {project.project_settings?.[0]?.project_name || project.name}
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-auto line-clamp-2">
-                  {project.description || 'No description provided.'}
-                </p>
+      <AnimatePresence mode="popLayout">
+        <motion.div
+          key={`${activeTab}-${dashboardViewMode}`}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.15 }}
+          layout
+          className="flex-1"
+        >
+          {activeTab === 'projects' ? (
+            isProjectsLoading ? (
+              <div className="flex-1 flex items-center justify-center text-slate-500 py-12">
+                Loading projects...
               </div>
-            </Link>
-          ))}
-          
-          {/* Empty State Fallback */}
-          {visibleProjects.length === 0 && (
-            <div className="col-span-full py-16 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
-              <Building2 size={48} className="text-slate-300 dark:text-slate-600 mb-4" />
-              <p className="text-slate-500 dark:text-slate-400 mb-4 text-lg">No projects found.</p>
-              {isSuperAdmin && (
-                <button 
-                  onClick={() => setIsCreateProjectModalOpen(true)} 
-                  className="text-sky-500 font-bold hover:underline"
-                >
-                  Spin up your first sandbox project
-                </button>
-              )}
-            </div>
+            ) : dashboardViewMode === 'card' ? (
+              <ProjectCardGrid 
+                projects={visibleProjects} 
+                isSuperAdmin={isSuperAdmin} 
+                onOpenCreateProject={() => setIsCreateProjectModalOpen(true)} 
+              />
+            ) : (
+              <ProjectList 
+                projects={visibleProjects} 
+                isSuperAdmin={isSuperAdmin} 
+                onOpenCreateProject={() => setIsCreateProjectModalOpen(true)} 
+              />
+            )
+          ) : (
+            isClientsLoading ? (
+              <div className="flex-1 flex items-center justify-center text-slate-500 py-12">
+                Loading clients...
+              </div>
+            ) : isClientsError ? (
+              <div className="col-span-full py-16 flex flex-col items-center justify-center border-2 border-dashed border-rose-300 dark:border-rose-700 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20">
+                <AlertTriangle size={48} className="text-rose-400 dark:text-rose-500 mb-4" />
+                <p className="text-rose-600 dark:text-rose-400 mb-2 text-lg font-semibold">Failed to load clients</p>
+                <p className="text-slate-500 text-sm">Check your connection and try refreshing the page.</p>
+              </div>
+            ) : dashboardViewMode === 'card' ? (
+              <ClientCardGrid clients={clients} />
+            ) : (
+              <ClientListTable clients={clients} />
+            )
           )}
-        </div>
-      )}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
+

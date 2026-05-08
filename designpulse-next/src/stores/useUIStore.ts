@@ -30,6 +30,9 @@ export type SettingsTab =
 // Flat view mode — matches coordinationViewMode / permitViewMode store pattern
 export type VEGridViewMode = 'split' | 'flat' | 'card';
 
+// Flat view mode for Projects / Clients dashboard
+export type DashboardViewMode = 'card' | 'table';
+
 export interface UIState {
   selectedOpportunityId: string | null;
   setSelectedOpportunityId: (id: string | null) => void;
@@ -73,6 +76,10 @@ export interface UIState {
   // VE grid view mode — flat, matching coordinationViewMode / permitViewMode pattern
   veGridViewMode: VEGridViewMode;
   setVeGridViewMode: (mode: VEGridViewMode) => void;
+
+  // Dashboard view mode
+  dashboardViewMode: DashboardViewMode;
+  setDashboardViewMode: (mode: DashboardViewMode) => void;
 
   // Per-project navigation persistence
   activeView: Record<string, ProjectView>;
@@ -219,6 +226,9 @@ export const useUIStore = create<UIState>()(
       veGridViewMode: 'split',
       setVeGridViewMode: (mode) => set({ veGridViewMode: mode }),
 
+      dashboardViewMode: 'card',
+      setDashboardViewMode: (mode) => set({ dashboardViewMode: mode }),
+
       activeView: {},
       setActiveView: (projectId, view) => set((state) => ({
         activeView: { ...state.activeView, [projectId]: view },
@@ -292,8 +302,9 @@ export const useUIStore = create<UIState>()(
         activeSettingsTab: state.activeSettingsTab ?? {},
         veGridViewMode: state.veGridViewMode ?? 'split',
         gridColumnPinningOverrides: state.gridColumnPinningOverrides ?? {},
+        dashboardViewMode: state.dashboardViewMode ?? 'card',
       }),
-      version: 3,
+      version: 4,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -325,6 +336,13 @@ export const useUIStore = create<UIState>()(
           return {
             ...state,
             gridColumnPinningOverrides: {},
+          } as UIState;
+        }
+        if (version < 4) {
+          // v3 → v4: add dashboardViewMode
+          return {
+            ...state,
+            dashboardViewMode: 'card' as DashboardViewMode,
           } as UIState;
         }
         return state as UIState;

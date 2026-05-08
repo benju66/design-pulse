@@ -506,7 +506,7 @@ const EMPTY_VISIBILITY: any = {};
               className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
             />
           </div>
-          <ColumnChooser table={table as any} />
+          <ColumnChooser table={table} projectId={projectId} />
         </div>
 
         <div 

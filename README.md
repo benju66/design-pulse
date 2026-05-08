@@ -9,6 +9,7 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 ## 2. Core Features
 
 - **Tri-State Master-Detail Grid:** A high-performance Value Engineering matrix featuring an Excel-like keyboard navigation experience. Supports flat dense tables, split detail panels, and pop-out isolated views for rapid data entry and evaluation.
+- **Persistent Grid Pinning:** Enterprise-grade column pinning that merges global admin-defined default layouts with local, user-specific browser overrides, utilizing high-performance CSS and zero-JS tooltips.
 - **Design Coordination Tracker:** A drag-and-drop Kanban pipeline for managing architectural and MEP drawing updates directly downstream from locked financial decisions.
 - **Permits Tracker:** A specialized workspace for managing complex permit lifecycles, featuring both a high-fidelity Board view for status tracking and a Table view for granular detail management.
 - **Bulk Import Engine:** A high-performance Excel/CSV processing pipeline that utilizes client-side chunking and set-based PostgreSQL operations to import hundreds of records instantly.
@@ -77,6 +78,27 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
 
 ## 6. Release Notes
+
+---
+
+### v0.9 — Persistent Grid Pinning & Matrix Architecture
+**Released:** 2026-05-08
+
+This release introduces an enterprise-grade column pinning system for the Value Engineering Matrix (Flat View & Grid V2). The architecture bridges global admin control with individual user flexibility, utilizing high-performance CSS rendering to eliminate React recalculation lag during column resizing.
+
+#### New Features
+
+**Dual-State Column Pinning Architecture**
+The matrix now supports a robust column locking system that merges two distinct states:
+- _Global Admin Defaults:_ Project Admins can define the default horizontal pinning layout for the entire team directly from **Project Settings → Value Matrix**, using a zero-JS toggle.
+- _Local User Overrides:_ Users can customize their personal view using the grid's "View" dropdown. These preferences are saved locally to the browser via Zustand.
+- _Delta Merging:_ The system uses a strict "Pinning Delta" logic (`explicitlyPinned`, `explicitlyUnpinned`). If an Admin adds a new column to the global project template, users instantly inherit it without their local browser cache hiding the update (AGENTS.md Rule 39).
+
+**Sticky Grid Performance Enhancements**
+We overhauled the rendering pipeline for pinned columns to solve native browser bleeding and layout tearing.
+- _Z-Index & CSS Hardening:_ Replaced `border-collapse` with `border-separate border-spacing-0` and applied `bg-clip-padding` with opaque backgrounds (`bg-white`, `bg-[#f4f8fa]`). This guarantees that horizontally scrolling text perfectly slides *behind* the pinned columns without leaking through translucent colors or borders.
+- _Memoization Hash:_ Injected a `pinnedColumnOffsets` hash directly into the `React.memo` comparator for virtualized rows. This ensures that live-resizing pinned columns dynamically updates adjacent cell positions without visual tearing (AGENTS.md Rule 10).
+- _Zero-JS Enterprise Tooltips:_ The Pin icons utilize Tailwind's `group` and `absolute z-[100]` classes, strictly adhering to zero-JS portal guardrails.
 
 ---
 

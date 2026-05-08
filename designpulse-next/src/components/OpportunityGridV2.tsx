@@ -103,17 +103,20 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
     >
       <tr 
         id={`row-${row.original.id}`}
-        className={`transition-colors ${
+        className={`group transition-colors ${
           isSelected 
             ? (isSubRow 
-                ? 'bg-sky-50/30 dark:bg-sky-900/20 border-l border-sky-400' 
-                : 'bg-sky-50/50 dark:bg-sky-900/10 border-l-2 border-sky-500')
+                ? 'bg-sky-50/60 dark:bg-sky-900/40 border-l border-sky-400' 
+                : 'bg-sky-50/80 dark:bg-sky-900/40 border-l-2 border-sky-500')
             : (isSubRow 
                 ? 'border-l border-sky-200 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-900/20' 
                 : 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
         }`}
       >
         {row.getVisibleCells().map((cell: any) => {
+          const isPinned = cell.column.getIsPinned() === 'left';
+          const isLastPinned = isPinned && cell.column.getIsLastColumn('left');
+          
           if (cell.getIsGrouped() || cell.getIsPlaceholder()) return <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800" />;
           
           if (isSubRow) {
@@ -129,14 +132,38 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
             }
 
             return (
-              <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-middle">
+              <td 
+                key={cell.id} 
+                className={`p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-middle bg-clip-padding ${
+                  isPinned 
+                    ? `sticky z-10 ${
+                        isSelected 
+                          ? 'bg-sky-50 dark:bg-slate-800' 
+                          : 'bg-[#f4f8fa] dark:bg-[#151e2e] group-hover:bg-sky-50 dark:group-hover:bg-slate-800'
+                      }` 
+                    : ''
+                } ${isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2' : ''}`}
+                style={isPinned ? { left: cell.column.getStart('left') } : {}}
+              >
                 {content}
               </td>
             );
           }
 
           return (
-            <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
+            <td 
+              key={cell.id} 
+              className={`p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top bg-clip-padding ${
+                isPinned 
+                  ? `sticky z-10 ${
+                      isSelected 
+                        ? 'bg-sky-50 dark:bg-slate-800' 
+                        : 'bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800'
+                    }` 
+                  : ''
+              } ${isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2' : ''}`}
+              style={isPinned ? { left: cell.column.getStart('left') } : {}}
+            >
               {flexRender(cell.column.columnDef.cell, cell.getContext())}
             </td>
           );
@@ -158,7 +185,8 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
     prev.viewMode === next.viewMode &&
     prev.row.getIsExpanded() === next.row.getIsExpanded() &&
     prev.virtualRow.index === next.virtualRow.index &&
-    prev.visibleColumnIds === next.visibleColumnIds
+    prev.visibleColumnIds === next.visibleColumnIds &&
+    prev.pinnedColumnOffsets === next.pinnedColumnOffsets
   );
 });
 
@@ -304,10 +332,19 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     }
   }, [settings?.ve_column_order, activeColumns, isolateState]);
 
+  const userPinningOverrides = useUIStore(state => state.gridColumnPinningOverrides[projectId]) || { pinned: [], unpinned: [] };
+  const columnPinning = useMemo(() => {
+    const defaultPinned = ['select', 'open_panel'];
+    const globalPinned = settings?.ve_column_order?.filter((c: any) => c.pinned).map((c: any) => c.id) || ['display_id', 'title'];
+    const allPinned = new Set([...defaultPinned, ...globalPinned, ...userPinningOverrides.pinned]);
+    userPinningOverrides.unpinned.forEach(id => allPinned.delete(id));
+    return { left: Array.from(allPinned) };
+  }, [settings?.ve_column_order, userPinningOverrides]);
+
   const table = useReactTable<Opportunity>({
     data,
     columns: activeColumns,
-    state: { expanded, columnVisibility, columnOrder, sorting, globalFilter, grouping, columnPinning: { left: ['select', 'open_panel', 'display_id', 'title'] } },
+    state: { expanded, columnVisibility, columnOrder, sorting, globalFilter, grouping, columnPinning },
     getSubRows: (row) => {
       // Disable subrows completely in Flat (Matrix) View to render contenders horizontally
       if (viewMode === 'flat') return [];
@@ -372,7 +409,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
           />
         </div>
-        <ColumnChooser table={table} />
+        <ColumnChooser table={table} projectId={projectId} />
       </div>
 
       <div 
@@ -381,17 +418,22 @@ const EMPTY_VISIBILITY: VisibilityState = {};
         tabIndex={0}
       >
         <table 
-          className="text-left text-sm whitespace-nowrap" 
+          className="text-left text-sm whitespace-nowrap border-separate border-spacing-0" 
           style={{ tableLayout: 'fixed', width: table.getTotalSize() }}
         >
-          <thead className="bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700 sticky top-0 z-10">
+          <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-20">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
+              {headerGroup.headers.map((header) => {
+                const isPinned = header.column.getIsPinned() === 'left';
+                const isLastPinned = isPinned && header.column.getIsLastColumn('left');
+                return (
                 <th 
                   key={header.id} 
-                  className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900"
-                  style={{ width: header.getSize() }}
+                  className={`relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-b-2 border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900 bg-clip-padding ${
+                    isPinned ? 'sticky z-30' : ''
+                  } ${isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2' : ''}`}
+                  style={{ width: header.getSize(), ...(isPinned ? { left: header.column.getStart('left') } : {}) }}
                 >
                   <div 
                     className={`truncate flex items-center justify-between ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}
@@ -414,7 +456,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                     />
                   )}
                 </th>
-              ))}
+              )})}
             </tr>
           ))}
         </thead>
@@ -430,6 +472,10 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             const row = rows[virtualRow.index];
             const isSelected = selectedOpportunityId === row.original.id;
             const visibleColumnIds = row.getVisibleCells().map((c: any) => c.column.id).join(',');
+            const pinnedColumnOffsets = row.getVisibleCells()
+              .filter((c: any) => c.column.getIsPinned())
+              .map((c: any) => c.column.getStart('left'))
+              .join(',');
             
             if (row.getIsGrouped()) {
               return (
@@ -452,6 +498,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                 viewMode={viewMode}
                 measureElement={virtualizer.measureElement}
                 visibleColumnIds={visibleColumnIds}
+                pinnedColumnOffsets={pinnedColumnOffsets}
               />
             );
           })}

@@ -51,6 +51,10 @@ export interface UIState {
   gridColumnOrder: Record<string, string[]>;
   setGridColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
   
+  gridColumnPinningOverrides: Record<string, { pinned: string[]; unpinned: string[] }>;
+  toggleUserColumnPin: (projectId: string, columnId: string, isPinned: boolean) => void;
+  clearUserColumnPinOverrides: (projectId: string) => void;
+  
   gridMode: 'navigate' | 'edit';
   setGridMode: (mode: 'navigate' | 'edit') => void;
   
@@ -150,6 +154,33 @@ export const useUIStore = create<UIState>()(
             [projectId]: newState
           }
         };
+      }),
+      
+      gridColumnPinningOverrides: {},
+      toggleUserColumnPin: (projectId, columnId, isPinned) => set((state) => {
+        const current = state.gridColumnPinningOverrides[projectId] || { pinned: [], unpinned: [] };
+        
+        let newPinned = current.pinned.filter(id => id !== columnId);
+        let newUnpinned = current.unpinned.filter(id => id !== columnId);
+        
+        if (isPinned) {
+          newPinned.push(columnId);
+        } else {
+          newUnpinned.push(columnId);
+        }
+        
+        return {
+          gridColumnPinningOverrides: {
+            ...state.gridColumnPinningOverrides,
+            [projectId]: { pinned: newPinned, unpinned: newUnpinned }
+          }
+        };
+      }),
+      
+      clearUserColumnPinOverrides: (projectId) => set((state) => {
+        const newOverrides = { ...state.gridColumnPinningOverrides };
+        delete newOverrides[projectId];
+        return { gridColumnPinningOverrides: newOverrides };
       }),
       
       gridMode: 'navigate',
@@ -260,8 +291,9 @@ export const useUIStore = create<UIState>()(
         activeView: state.activeView ?? {},
         activeSettingsTab: state.activeSettingsTab ?? {},
         veGridViewMode: state.veGridViewMode ?? 'split',
+        gridColumnPinningOverrides: state.gridColumnPinningOverrides ?? {},
       }),
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -286,6 +318,13 @@ export const useUIStore = create<UIState>()(
             activeView: {},
             activeSettingsTab: {},
             veGridViewMode: 'split' as VEGridViewMode,
+          } as UIState;
+        }
+        if (version < 3) {
+          // v2 → v3: add grid column pinning overrides
+          return {
+            ...state,
+            gridColumnPinningOverrides: {},
           } as UIState;
         }
         return state as UIState;

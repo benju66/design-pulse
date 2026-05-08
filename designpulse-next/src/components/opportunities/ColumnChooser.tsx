@@ -1,17 +1,19 @@
 "use client";
 import { useState, useRef, useEffect } from 'react';
-import { Settings, GripVertical, Check } from 'lucide-react';
+import { Settings, GripVertical, Check, Pin, PinOff } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Table, Column } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
+import { useUIStore } from '@/stores/useUIStore';
 
 interface SortableColumnItemProps {
   column: Column<Opportunity, unknown>;
+  onTogglePin: (id: string, isPinned: boolean) => void;
 }
 
-const SortableColumnItem = ({ column }: SortableColumnItemProps) => {
+const SortableColumnItem = ({ column, onTogglePin }: SortableColumnItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -20,6 +22,7 @@ const SortableColumnItem = ({ column }: SortableColumnItemProps) => {
   };
 
   const headerTitle = typeof column.columnDef.header === 'string' ? column.columnDef.header : column.id;
+  const isPinned = column.getIsPinned() === 'left';
 
   return (
     <li
@@ -30,7 +33,24 @@ const SortableColumnItem = ({ column }: SortableColumnItemProps) => {
       <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
         <GripVertical size={14} />
       </div>
-      <label className="flex items-center gap-2 flex-1 cursor-pointer">
+      
+      <div className="relative group flex items-center justify-center">
+        <button
+          onClick={() => onTogglePin(column.id, !isPinned)}
+          className={`p-1 rounded transition-colors ${
+            isPinned 
+              ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30' 
+              : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+          }`}
+        >
+          {isPinned ? <Pin size={14} className="fill-sky-500" /> : <PinOff size={14} />}
+        </button>
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[100]">
+          {isPinned ? 'Unpin column' : 'Pin to left side'}
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 flex-1 cursor-pointer pl-1">
         <div className="relative flex items-center justify-center">
           <input
             type="checkbox"
@@ -50,9 +70,12 @@ const SortableColumnItem = ({ column }: SortableColumnItemProps) => {
 
 interface ColumnChooserProps {
   table: Table<Opportunity>;
+  projectId: string;
 }
 
-export const ColumnChooser = ({ table }: ColumnChooserProps) => {
+export const ColumnChooser = ({ table, projectId }: ColumnChooserProps) => {
+  const toggleUserColumnPin = useUIStore(state => state.toggleUserColumnPin);
+  const clearUserColumnPinOverrides = useUIStore(state => state.clearUserColumnPinOverrides);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -69,7 +92,7 @@ export const ColumnChooser = ({ table }: ColumnChooserProps) => {
   }, [isOpen]);
 
   const allColumns = table.getAllLeafColumns();
-  const configurableColumns = allColumns.filter(c => typeof c.columnDef.header === 'string');
+  const configurableColumns = allColumns.filter(c => typeof c.columnDef.header === 'string' && !c.id.startsWith('opt_'));
   const pinnedColumnIds = allColumns.filter(c => typeof c.columnDef.header !== 'string').map(c => c.id);
 
   const sensors = useSensors(
@@ -134,7 +157,11 @@ export const ColumnChooser = ({ table }: ColumnChooserProps) => {
               <SortableContext items={configurableColumns.map(c => c.id)} strategy={verticalListSortingStrategy}>
                 <ul className="space-y-1">
                   {configurableColumns.map(column => (
-                    <SortableColumnItem key={column.id} column={column} />
+                    <SortableColumnItem 
+                      key={column.id} 
+                      column={column} 
+                      onTogglePin={(id, isPinned) => toggleUserColumnPin(projectId, id, isPinned)}
+                    />
                   ))}
                 </ul>
               </SortableContext>
@@ -146,6 +173,7 @@ export const ColumnChooser = ({ table }: ColumnChooserProps) => {
               onClick={() => {
                 table.setColumnVisibility({});
                 table.setColumnOrder([]);
+                clearUserColumnPinOverrides(projectId);
               }}
               className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2 py-1 transition-colors"
             >

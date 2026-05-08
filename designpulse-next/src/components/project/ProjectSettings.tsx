@@ -146,7 +146,7 @@ export const ProjectSettings = ({
   const [buildingAreas, setBuildingAreas] = useState<string[]>([]);
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [disciplines, setDisciplines] = useState<DisciplineConfig[]>([]);
-  const [veColumns, setVeColumns] = useState<{id: string, label: string, visible?: boolean}[]>([]);
+  const [veColumns, setVeColumns] = useState<{id: string, label: string, visible?: boolean, pinned?: boolean}[]>([]);
   const [coordColumns, setCoordColumns] = useState<{id: string, label: string, visible?: boolean}[]>([]);
   const [permitTypes, setPermitTypes] = useState<PermitTypeConfig[]>([]);
   const [permitAHJs, setPermitAHJs] = useState<PermitAHJConfig[]>([]);
@@ -199,8 +199,9 @@ export const ProjectSettings = ({
       const savedOrder = settings.ve_column_order || [];
       if (savedOrder.length > 0) {
         const isLegacy = typeof savedOrder[0] === 'string';
-        const orderIds = isLegacy ? savedOrder : savedOrder.map((c: any) => c.id);
-        const visibilityMap = isLegacy ? {} : savedOrder.reduce((acc: any, c: any) => ({ ...acc, [c.id]: c.visible !== false }), {});
+        const orderIds = isLegacy ? savedOrder : savedOrder.map((c: { id: string }) => c.id);
+        const visibilityMap = isLegacy ? {} : savedOrder.reduce((acc: Record<string, boolean>, c: { id: string, visible?: boolean }) => ({ ...acc, [c.id]: c.visible !== false }), {});
+        const pinnedMap = isLegacy ? {} : savedOrder.reduce((acc: Record<string, boolean>, c: { id: string, pinned?: boolean }) => ({ ...acc, [c.id]: !!c.pinned }), {});
         
         const sorted = [...DEFAULT_VE_COLUMNS].sort((a, b) => {
           const indexA = orderIds.indexOf(a.id);
@@ -211,7 +212,8 @@ export const ProjectSettings = ({
           return indexA - indexB;
         }).map(c => ({
           ...c,
-          visible: visibilityMap[c.id] ?? true
+          visible: visibilityMap[c.id] ?? true,
+          pinned: pinnedMap[c.id] ?? false
         }));
         setVeColumns(sorted);
       } else {
@@ -221,8 +223,8 @@ export const ProjectSettings = ({
       const savedCoordOrder = settings.coord_column_order || [];
       if (savedCoordOrder.length > 0) {
         const isLegacy = typeof savedCoordOrder[0] === 'string';
-        const orderIds = isLegacy ? savedCoordOrder : savedCoordOrder.map((c: any) => c.id);
-        const visibilityMap = isLegacy ? {} : savedCoordOrder.reduce((acc: any, c: any) => ({ ...acc, [c.id]: c.visible !== false }), {});
+        const orderIds = isLegacy ? savedCoordOrder : savedCoordOrder.map((c: { id: string }) => c.id);
+        const visibilityMap = isLegacy ? {} : savedCoordOrder.reduce((acc: Record<string, boolean>, c: { id: string, visible?: boolean }) => ({ ...acc, [c.id]: c.visible !== false }), {});
         
         const sortedCoord = [...DEFAULT_COORD_COLUMNS].sort((a, b) => {
           const indexA = orderIds.indexOf(a.id);
@@ -399,6 +401,13 @@ export const ProjectSettings = ({
     setHasChanges(true);
   };
 
+  const toggleVeColumnPin = (id: string) => {
+    setVeColumns(cols => cols.map(col => 
+      col.id === id ? { ...col, pinned: !col.pinned } : col
+    ));
+    setHasChanges(true);
+  };
+
   const toggleCoordColumn = (id: string) => {
     setCoordColumns(cols => cols.map(col => 
       col.id === id ? { ...col, visible: !col.visible } : col
@@ -428,7 +437,7 @@ export const ProjectSettings = ({
         location: projectInfo.location,
         original_budget: Number(projectInfo.original_budget),
         enable_audit_logging: Boolean(projectInfo.enable_audit_logging),
-        ve_column_order: veColumns.map(c => ({ id: c.id, visible: c.visible ?? true })),
+        ve_column_order: veColumns.map(c => ({ id: c.id, visible: c.visible ?? true, pinned: c.pinned ?? false })),
         coord_column_order: coordColumns.map(c => ({ id: c.id, visible: c.visible ?? true })),
         permit_types: permitTypes as any,
         permit_ahjs: permitAHJs as any
@@ -1016,19 +1025,41 @@ export const ProjectSettings = ({
                     id={col.id} 
                     content={col.label}
                     renderExtra={() => (
-                      <button
-                        onClick={() => toggleVeColumn(col.id)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
-                          col.visible ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                        title={col.visible ? 'Hide column by default' : 'Show column by default'}
-                      >
-                        <span 
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
-                            col.visible ? 'translate-x-6' : 'translate-x-1'
-                          }`} 
-                        />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <div className="relative group">
+                          <button
+                            onClick={() => toggleVeColumnPin(col.id)}
+                            className={`p-1 rounded transition-colors ${
+                              col.pinned 
+                                ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30' 
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                            }`}
+                          >
+                            {col.pinned ? <LucideIcons.Pin size={16} className="fill-sky-500" /> : <LucideIcons.PinOff size={16} />}
+                          </button>
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                            {col.pinned ? 'Unpin column' : 'Pin to left side'}
+                          </div>
+                        </div>
+
+                        <div className="relative group">
+                          <button
+                            onClick={() => toggleVeColumn(col.id)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
+                              col.visible ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
+                            }`}
+                          >
+                            <span 
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
+                                col.visible ? 'translate-x-6' : 'translate-x-1'
+                              }`} 
+                            />
+                          </button>
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                            {col.visible ? 'Hide column by default' : 'Show column by default'}
+                          </div>
+                        </div>
+                      </div>
                     )}
                   />
                 ))}

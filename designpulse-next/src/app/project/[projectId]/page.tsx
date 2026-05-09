@@ -1,7 +1,7 @@
 "use client";
 import React, { use } from 'react';
 import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid, UploadCloud } from 'lucide-react';
-import MarkupCanvas from '@/components/MarkupCanvas';
+import FloorplanCanvas from '@/components/FloorplanCanvas';
 import OpportunityGrid from '@/components/OpportunityGrid';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import CompareModal from '@/components/CompareModal';
@@ -102,6 +102,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
   const permitViewMode = useUIStore(state => state.permitViewMode);
   const setPermitViewMode = useUIStore(state => state.setPermitViewMode);
+  const isMapVisible = useUIStore(state => state.isMapVisible);
 
   const handleExport = async () => {
     try {
@@ -204,7 +205,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   const globalCostCodeStrings = React.useMemo(() => {
     return globalCostCodes
-      .filter(c => !c.is_division)
       .map(c => c.description ? `${c.code} - ${c.description}` : c.code);
   }, [globalCostCodes]);
 
@@ -280,7 +280,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">
             {currentView === 'dashboard' && 'Value Matrix'}
             {currentView === 'dashboard-v2' && 'Value Matrix V2'}
-            {currentView === 'map' && 'Map View'}
+            {currentView === 'map' && 'Drawings'}
             {currentView === 'analytics' && 'Project Analytics'}
             {currentView === 'coordination' && 'Design Coordination Board'}
             {currentView === 'permits' && 'Permits Tracker'}
@@ -495,7 +495,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden flex flex-col relative">
+                  {isMapVisible && (
+                    <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                      <FloorplanCanvas 
+                        imageUrl="https://upload.wikimedia.org/wikipedia/commons/4/41/Floor_plan_example.png"
+                        zones={[]}
+                      />
+                    </div>
+                  )}
                   {isLoading ? (
                     <div className="h-full flex items-center justify-center text-slate-500">Loading log...</div>
                   ) : (
@@ -569,7 +577,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden flex flex-col relative">
+                  {isMapVisible && (
+                    <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                      <FloorplanCanvas 
+                        imageUrl="https://upload.wikimedia.org/wikipedia/commons/4/41/Floor_plan_example.png"
+                        zones={[]}
+                      />
+                    </div>
+                  )}
                   {isLoading ? (
                     <div className="h-full flex items-center justify-center text-slate-500">Loading log...</div>
                   ) : (
@@ -595,7 +611,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           {currentView === 'map' && (
             <>
               <div className="w-full h-full relative bg-slate-50 dark:bg-slate-900 shrink-0">
-                <MarkupCanvas />
+                <FloorplanCanvas 
+                  imageUrl="https://upload.wikimedia.org/wikipedia/commons/4/41/Floor_plan_example.png"
+                  zones={[]}
+                />
               </div>
               <DetailPanel 
                 projectId={projectId} 
@@ -705,7 +724,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-hidden flex flex-col relative">
+                    {isMapVisible && (
+                      <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                        <FloorplanCanvas 
+                          imageUrl="https://upload.wikimedia.org/wikipedia/commons/4/41/Floor_plan_example.png"
+                          zones={[]}
+                        />
+                      </div>
+                    )}
                     {coordinationViewMode.startsWith('table') ? (
                       <CoordinationTable projectId={projectId} opportunities={filteredCoordinationOpportunities} viewMode={coordinationViewMode.replace('table-', '')} />
                     ) : (

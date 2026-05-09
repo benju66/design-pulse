@@ -11,9 +11,11 @@ import {
   SortingState,
   VisibilityState,
   ColumnOrderState,
+  Row,
+  Cell,
 } from '@tanstack/react-table';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
+import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon } from 'lucide-react';
 import {
   useUpdateOpportunity,
   useCreateOpportunity,
@@ -43,7 +45,17 @@ interface OpportunityGridProps {
   hideGhostRow?: boolean;
 }
 
-const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement }: any) => {
+interface GridRowProps {
+  row: Row<Opportunity>;
+  virtualRow: VirtualItem;
+  isSelected: boolean;
+  viewMode: string;
+  measureElement: (el: Element | null) => void;
+  visibleColumnIds: string;
+  pinnedColumnOffsets: string;
+}
+
+const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement }: GridRowProps) => {
   return (
     <tbody 
       ref={measureElement}
@@ -58,7 +70,7 @@ const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, mea
             : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
         }`}
       >
-        {row.getVisibleCells().map((cell: any) => {
+        {row.getVisibleCells().map((cell: Cell<Opportunity, unknown>) => {
           const isPinned = cell.column.getIsPinned() === 'left';
           const isLastPinned = isPinned && cell.column.getIsLastColumn('left');
           return (
@@ -83,13 +95,13 @@ const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, mea
       {viewMode === 'card' && row.getIsExpanded() && (
         <tr>
           <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
-            <ExpandedCard row={row as any} />
+            <ExpandedCard row={row as Row<Opportunity>} />
           </td>
         </tr>
       )}
     </tbody>
   );
-}, (prev: any, next: any) => {
+}, (prev: GridRowProps, next: GridRowProps) => {
   return (
     prev.row.original === next.row.original &&
     prev.isSelected === next.isSelected &&
@@ -108,6 +120,8 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const createOptionMutation = useCreateOption(projectId);
   const updateOptionMutation = useUpdateOption(projectId);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
+  const isMapVisible = useUIStore(state => state.isMapVisible);
   const compareQueue = useUIStore(state => state.compareQueue);
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
   const setCompareQueue = useUIStore(state => state.setCompareQueue);
@@ -165,14 +179,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
     return max + 1;
   }, [optionsMap]);
 
-  useEffect(() => {
-    if (selectedOpportunityId) {
-      const element = document.getElementById(`row-${selectedOpportunityId}`);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    }
-  }, [selectedOpportunityId]);
+
 
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -200,7 +207,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   const { permissions } = useCurrentUserPermissions(projectId);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
 
-  const moveActiveCellRef = useRef<any>(null);
+  const moveActiveCellRef = useRef<((direction: 'down' | 'right' | 'left' | 'up') => void) | null>(null);
 
   const activeColumns = useMemo(() => {
     if (!settings?.ve_column_order || typeof settings.ve_column_order[0] === 'string') return columns;
@@ -281,7 +288,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       projectMembers,
       permissions,
       moveActiveCellRef,
-    } as any,
+    },
   });
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -293,6 +300,15 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     estimateSize: () => 44, // Base height
     overscan: 5,
   });
+
+  useEffect(() => {
+    if (selectedOpportunityId) {
+      const index = rows.findIndex(r => r.original.id === selectedOpportunityId);
+      if (index !== -1) {
+        virtualizer.scrollToIndex(index, { align: 'center' });
+      }
+    }
+  }, [selectedOpportunityId, rows, virtualizer]);
 
   const { handleKeyDown, moveActiveCell } = useGridNavigation(table as any, virtualizer);
   moveActiveCellRef.current = moveActiveCell;
@@ -316,7 +332,19 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
           />
         </div>
-        <ColumnChooser table={table} projectId={projectId} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleMapVisibility}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              isMapVisible
+                ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
+                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+            }`}
+          >
+            <MapIcon size={16} /> Drawings
+          </button>
+          <ColumnChooser table={table} projectId={projectId} />
+        </div>
       </div>
 
       <div 

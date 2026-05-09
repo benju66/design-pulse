@@ -9,11 +9,12 @@ import {
   ColumnDef,
   CellContext,
   SortingState,
+  VisibilityState,
   Row,
   getExpandedRowModel
 } from '@tanstack/react-table';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronUp, ChevronDown, PanelRight, AlertTriangle } from 'lucide-react';
+import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
+import { ChevronUp, ChevronDown, PanelRight, AlertTriangle, Map as MapIcon } from 'lucide-react';
 import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity } from '@/hooks/useOpportunityQueries';
@@ -37,7 +38,7 @@ interface Props {
 const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity, unknown>) => {
   // [C-6 FIX] Read from meta (derived once in parent) instead of calling
   // useProjectSettings inside every virtualized row — prevents N subscriber registrations.
-  const disciplines: DisciplineConfig[] = (table.options.meta as any)?.disciplines || DEFAULT_DISCIPLINES;
+  const disciplines: DisciplineConfig[] = table.options.meta?.disciplines || DEFAULT_DISCIPLINES;
   const coordDetails = row.original.coordination_details || {};
 
   return (
@@ -81,7 +82,7 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
 
 const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const initialValue = getValue() as string;
-  const updateData = (table.options.meta as any)?.updateData;
+  const updateData = table.options.meta?.updateData;
   const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
   const setActiveCell = useUIStore(state => state.setActiveCell);
 
@@ -184,11 +185,12 @@ const MemoizedCoordinationRow = React.memo(({
   measureElement
 }: { 
   row: Row<Opportunity>; 
-  virtualRow: any; 
+  virtualRow: VirtualItem; 
   selectedOpportunityId: string | null; 
   viewMode: string;
   measureElement: (element: Element | null) => void;
   visibleColumnIds: string;
+  pinnedColumnOffsets: string;
 }) => {
   return (
     <tbody 
@@ -213,7 +215,7 @@ const MemoizedCoordinationRow = React.memo(({
       {viewMode === 'card' && row.getIsExpanded() && (
         <tr>
           <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
-            <ExpandedCard row={row as any} />
+            <ExpandedCard row={row} />
           </td>
         </tr>
       )}
@@ -224,12 +226,15 @@ const MemoizedCoordinationRow = React.memo(({
   if (prevProps.selectedOpportunityId !== nextProps.selectedOpportunityId) return false;
   if (prevProps.viewMode !== nextProps.viewMode) return false;
   if (prevProps.visibleColumnIds !== nextProps.visibleColumnIds) return false;
+  if (prevProps.pinnedColumnOffsets !== nextProps.pinnedColumnOffsets) return false;
   if (prevProps.row.getIsExpanded() !== nextProps.row.getIsExpanded()) return false;
   return true;
 });
 
 export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat' }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
+  const isMapVisible = useUIStore(state => state.isMapVisible);
 
   // [C-6 FIX] Derive shared cell data once at the parent level.
   // Virtualized cells read from meta instead of each registering their own subscriber.
@@ -287,15 +292,21 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
   
-const EMPTY_VISIBILITY: any = {};
+const EMPTY_VISIBILITY: VisibilityState = {};
 
-  const coordColumnVisibility = useUIStore(state => state.coordColumnVisibility[projectId] || EMPTY_VISIBILITY) as any;
+  const coordColumnVisibility = useUIStore(state => state.coordColumnVisibility[projectId] || EMPTY_VISIBILITY);
   const _setCoordColumnVisibility = useUIStore(state => state.setCoordColumnVisibility);
-  const setCoordColumnVisibility = React.useCallback((updater: any) => _setCoordColumnVisibility(projectId, updater), [projectId, _setCoordColumnVisibility]);
+  const setCoordColumnVisibility = React.useCallback(
+    (updater: VisibilityState | ((old: VisibilityState) => VisibilityState)) => _setCoordColumnVisibility(projectId, updater), 
+    [projectId, _setCoordColumnVisibility]
+  );
 
   const coordColumnOrder = useUIStore(state => state.coordColumnOrder[projectId] || DEFAULT_COORD_COLUMN_ORDER as unknown as string[]);
   const _setCoordColumnOrder = useUIStore(state => state.setCoordColumnOrder);
-  const setCoordColumnOrder = React.useCallback((updater: any) => _setCoordColumnOrder(projectId, updater), [projectId, _setCoordColumnOrder]);
+  const setCoordColumnOrder = React.useCallback(
+    (updater: string[] | ((old: string[]) => string[])) => _setCoordColumnOrder(projectId, updater), 
+    [projectId, _setCoordColumnOrder]
+  );
 
   useEffect(() => {
     if (selectedOpportunityId) {
@@ -306,7 +317,7 @@ const EMPTY_VISIBILITY: any = {};
     }
   }, [selectedOpportunityId]);
 
-  const columns = useMemo<ColumnDef<Opportunity, any>[]>(() => [
+  const columns = useMemo<ColumnDef<Opportunity, unknown>[]>(() => [
     {
       id: 'select',
       header: () => null,
@@ -444,7 +455,7 @@ const EMPTY_VISIBILITY: any = {};
     }
   }, [settings?.coord_column_order, activeColumns, setCoordColumnOrder, coordColumnOrder]);
 
-  const moveActiveCellRef = useRef<any>(null);
+  const moveActiveCellRef = useRef<((direction: 'down' | 'right' | 'left' | 'up') => void) | null>(null);
 
   const table = useReactTable({
     data: opportunities,
@@ -469,7 +480,7 @@ const EMPTY_VISIBILITY: any = {};
       moveActiveCellRef,
       disciplines,
       buildingAreas,
-    } as any
+    }
   });
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -481,6 +492,15 @@ const EMPTY_VISIBILITY: any = {};
     estimateSize: () => 44, // Base height
     overscan: 5,
   });
+
+  useEffect(() => {
+    if (selectedOpportunityId) {
+      const index = rows.findIndex(r => r.original.id === selectedOpportunityId);
+      if (index !== -1) {
+        virtualizer.scrollToIndex(index, { align: 'center' });
+      }
+    }
+  }, [selectedOpportunityId, rows, virtualizer]);
 
   const { handleKeyDown, moveActiveCell } = useGridNavigation(table as any, virtualizer);
   moveActiveCellRef.current = moveActiveCell; // [C-5 FIX] ref assignment, never mutate meta inline
@@ -506,7 +526,19 @@ const EMPTY_VISIBILITY: any = {};
               className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
             />
           </div>
-          <ColumnChooser table={table} projectId={projectId} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleMapVisibility}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isMapVisible
+                  ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              <MapIcon size={16} /> Drawings
+            </button>
+            <ColumnChooser table={table} projectId={projectId} />
+          </div>
         </div>
 
         <div 
@@ -518,7 +550,7 @@ const EMPTY_VISIBILITY: any = {};
           }}
         >
           <table 
-            className="w-full text-left text-sm whitespace-nowrap" 
+            className="w-full text-left text-sm whitespace-nowrap border-separate border-spacing-0" 
             style={{ tableLayout: 'fixed', minWidth: table.getTotalSize() }}
           >
             <thead className="bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700 sticky top-0 z-10">
@@ -563,6 +595,10 @@ const EMPTY_VISIBILITY: any = {};
             {virtualItems.map((virtualRow) => {
               const row = rows[virtualRow.index];
               const visibleColumnIds = row.getVisibleCells().map(c => c.column.id).join(',');
+              const pinnedColumnOffsets = row.getVisibleCells()
+                .filter(c => c.column.getIsPinned())
+                .map(c => c.column.getStart('left'))
+                .join(',');
               return (
                 <MemoizedCoordinationRow
                   key={row.id}
@@ -572,6 +608,7 @@ const EMPTY_VISIBILITY: any = {};
                   viewMode={viewMode}
                   measureElement={virtualizer.measureElement}
                   visibleColumnIds={visibleColumnIds}
+                  pinnedColumnOffsets={pinnedColumnOffsets}
                 />
               );
             })}

@@ -50,7 +50,7 @@ export const DEFAULT_BUILDING_AREAS = [
 export const DEFAULT_SIDEBAR_ITEMS = [
   { id: 'dashboard', label: 'Value Matrix', iconName: 'LayoutDashboard', visible: true },
   { id: 'coordination', label: 'Coordination Board', iconName: 'ListChecks', visible: true },
-  { id: 'map', label: 'Map View', iconName: 'Map', visible: false },
+  { id: 'map', label: 'Drawings', iconName: 'Map', visible: false },
   { id: 'permits', label: 'Permit Board', iconName: 'FileCheck2', visible: true },
   { id: 'analytics', label: 'Analytics', iconName: 'PieChart', visible: true },
   { id: 'dashboard-v2', label: 'Grid V2 (Proto)', iconName: 'LayoutDashboard', visible: true },

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Building2, ArrowRight } from 'lucide-react';
 import { Project } from '@/types/models';

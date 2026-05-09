@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
+import { useMapStore } from '@/stores/useMapStore';
 
 // ── Navigation domain types ───────────────────────────────────────────────────
 export type ProjectView =
@@ -110,13 +111,25 @@ export interface UIState {
     ahj?: string[];
   }>;
   setPermitFilters: (projectId: string, filters: { status?: string[]; type?: string[]; assignee?: string[]; ahj?: string[] }) => void;
+  
+  isMapVisible: boolean;
+  toggleMapVisibility: () => void;
 }
 
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
       selectedOpportunityId: null,
-      setSelectedOpportunityId: (id) => set({ selectedOpportunityId: id }),
+      setSelectedOpportunityId: (id) => {
+        const currentId = useUIStore.getState().selectedOpportunityId;
+        if (currentId === id) return;
+        set({ selectedOpportunityId: id });
+        if (id) {
+          useMapStore.getState().setSelectedZoneIds([id]);
+        } else {
+          useMapStore.getState().clearSelectedZones();
+        }
+      },
       
       cardOrder: ['priority', 'status', 'cost_impact', 'days_impact', 'assignee', 'arch_plans_spec', 'bok_standard', 'existing_conditions', 'mep_impact', 'owner_goals', 'final_direction', 'backing_required', 'coordination_required', 'design_lock_phase'],
       
@@ -272,6 +285,9 @@ export const useUIStore = create<UIState>()(
           [cardId]: !state.visibleCards[cardId]
         }
       })),
+      
+      isMapVisible: false,
+      toggleMapVisibility: () => set((state) => ({ isMapVisible: !state.isMapVisible })),
       
       toggleCompareItem: (id) => set((state) => ({
         compareQueue: state.compareQueue.includes(id) 

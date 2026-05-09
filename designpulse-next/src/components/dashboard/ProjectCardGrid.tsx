@@ -1,4 +1,3 @@
-import React from 'react';
 import Link from 'next/link';
 import { Building2, ArrowRight } from 'lucide-react';
 import { Project } from '@/types/models';

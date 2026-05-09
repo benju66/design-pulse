@@ -13,9 +13,11 @@ import {
   VisibilityState,
   ColumnOrderState,
   GroupingState,
+  Row,
+  Cell,
 } from '@tanstack/react-table';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
+import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon } from 'lucide-react';
 import {
   useUpdateOpportunity,
   useCreateOpportunity,
@@ -45,7 +47,14 @@ interface OpportunityGridProps {
   hideGhostRow?: boolean;
 }
 
-const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement }: any) => {
+interface GroupedRowProps {
+  row: Row<Opportunity>;
+  virtualRow: VirtualItem;
+  measureElement: (el: Element | null) => void;
+  visibleColumnIds: string;
+}
+
+const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement }: GroupedRowProps) => {
   return (
     <tbody 
       ref={measureElement}
@@ -82,7 +91,7 @@ const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement }: any)
       </tr>
     </tbody>
   );
-}, (prev: any, next: any) => {
+}, (prev: GroupedRowProps, next: GroupedRowProps) => {
   return (
     prev.row.getIsExpanded() === next.row.getIsExpanded() &&
     prev.row.getValue('cost_impact') === next.row.getValue('cost_impact') &&
@@ -92,7 +101,17 @@ const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement }: any)
   );
 });
 
-const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement }: any) => {
+interface GridRowV2Props {
+  row: Row<Opportunity>;
+  virtualRow: VirtualItem;
+  isSelected: boolean;
+  viewMode: string;
+  measureElement: (el: Element | null) => void;
+  visibleColumnIds: string;
+  pinnedColumnOffsets: string;
+}
+
+const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement }: GridRowV2Props) => {
   const isSubRow = row.original && !('project_id' in row.original) && 'opportunity_id' in row.original;
 
   return (
@@ -113,7 +132,7 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
                 : 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
         }`}
       >
-        {row.getVisibleCells().map((cell: any) => {
+        {row.getVisibleCells().map((cell: Cell<Opportunity, unknown>) => {
           const isPinned = cell.column.getIsPinned() === 'left';
           const isLastPinned = isPinned && cell.column.getIsLastColumn('left');
           
@@ -128,7 +147,7 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
             } else if (cell.column.id === 'days_impact') {
               content = <div className="px-3 py-2 text-sm text-center text-slate-600 dark:text-slate-400 truncate">{row.original.days_impact || 0}</div>;
             } else if (cell.column.id === 'options') {
-              content = <div className="px-3 py-2 text-xs font-bold text-sky-500 truncate">{row.original.is_locked ? 'LOCKED' : ''}</div>;
+              content = <div className="px-3 py-2 text-xs font-bold text-sky-500 truncate">{'is_locked' in row.original && row.original.is_locked ? 'LOCKED' : ''}</div>;
             }
 
             return (
@@ -172,13 +191,13 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
       {viewMode === 'card' && row.getIsExpanded() && !isSubRow && (
         <tr>
           <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
-            <ExpandedCard row={row as any} />
+            <ExpandedCard row={row as Row<Opportunity>} />
           </td>
         </tr>
       )}
     </tbody>
   );
-}, (prev: any, next: any) => {
+}, (prev: GridRowV2Props, next: GridRowV2Props) => {
   return (
     prev.row.original === next.row.original &&
     prev.isSelected === next.isSelected &&
@@ -254,18 +273,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
     return max + 1;
   }, [optionsMap]);
 
-  useEffect(() => {
-    if (selectedOpportunityId) {
-      const element = document.getElementById(`row-${selectedOpportunityId}`);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.add('bg-sky-100/50', 'dark:bg-sky-900/50', 'transition-colors', 'duration-500');
-        setTimeout(() => {
-          element.classList.remove('bg-sky-100/50', 'dark:bg-sky-900/50');
-        }, 1000);
-      }
-    }
-  }, [selectedOpportunityId]);
+
 
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -377,11 +385,14 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       csiSpecs,
       projectMembers,
       permissions,
-    } as any,
+    },
   });
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const { rows } = table.getRowModel();
+
+  const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
+  const isMapVisible = useUIStore(state => state.isMapVisible);
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -389,6 +400,23 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     estimateSize: () => 44, // Base height
     overscan: 5,
   });
+
+  useEffect(() => {
+    if (selectedOpportunityId) {
+      const index = rows.findIndex(r => r.original.id === selectedOpportunityId);
+      if (index !== -1) {
+        virtualizer.scrollToIndex(index, { align: 'center' });
+        // Deferred DOM flash after virtualizer renders the row
+        requestAnimationFrame(() => {
+          const el = document.getElementById(`row-${selectedOpportunityId}`);
+          if (el) {
+            el.classList.add('bg-sky-100/50', 'dark:bg-sky-900/50', 'transition-colors', 'duration-500');
+            setTimeout(() => el.classList.remove('bg-sky-100/50', 'dark:bg-sky-900/50'), 1000);
+          }
+        });
+      }
+    }
+  }, [selectedOpportunityId, rows, virtualizer]);
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;
@@ -409,7 +437,19 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
           />
         </div>
-        <ColumnChooser table={table} projectId={projectId} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleMapVisibility}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              isMapVisible
+                ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
+                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+            }`}
+          >
+            <MapIcon size={16} /> Drawings
+          </button>
+          <ColumnChooser table={table} projectId={projectId} />
+        </div>
       </div>
 
       <div 

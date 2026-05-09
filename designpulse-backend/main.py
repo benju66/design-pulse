@@ -12,6 +12,8 @@ from jose import jwt, JWTError, ExpiredSignatureError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 
+from services.PDFMapService import PDFMapService
+
 load_dotenv()
 
 app = FastAPI(title="SitePulse Backend API")
@@ -297,6 +299,33 @@ async def extract_csi_toc(
         print(f"Error extracting CSI TOC: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/extract-vectors/{sheet_id}")
+async def extract_vectors(
+    sheet_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Extracts structural vector lines from the PDF for use in the map snapping engine.
+    Returns the parsed JSON payload to the Next.js frontend (Rule B.5).
+    """
+    try:
+        await verify_sheet_access(sheet_id, user["sub"])
+        
+        pdf_path = f"originals/{sheet_id}.pdf"
+        try:
+            pdf_bytes = supabase.storage.from_("floorplans").download(pdf_path)
+        except Exception:
+            raise HTTPException(status_code=404, detail="Original PDF not found in Storage. Please re-upload or attach the source file.")
+
+        import asyncio
+        # Run heavy PyMuPDF extraction in a thread to prevent blocking
+        vectors = await asyncio.to_thread(PDFMapService.extract_snapping_vectors, pdf_bytes)
+        return {"status": "success", "vectors": vectors}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error extracting vectors: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to extract vectors from PDF")
 
 @app.post("/export-pdf/{sheet_id}")
 async def export_status_pdf(

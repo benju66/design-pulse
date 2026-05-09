@@ -118,7 +118,10 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
 
             {!isLocked && permissions.can_edit_records && (
               <div 
-                onClick={() => createOption.mutate({ opportunityId, option: {} })}
+                onClick={() => {
+                  const nextOrderIndex = options.length > 0 ? Math.max(...options.map(o => o.order_index ?? -1)) + 1 : 0;
+                  createOption.mutate({ opportunityId, option: { order_index: nextOrderIndex } });
+                }}
                 className="shrink-0 w-80 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors text-slate-500 hover:text-sky-600 dark:hover:text-sky-400"
               >
                 <Plus size={32} className="mb-2 opacity-50" />

@@ -81,6 +81,29 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 
 ---
 
+### v0.10 — Interactive Drawings & Bi-Directional Synchronization
+**Released:** 2026-05-08
+
+This release introduces an interactive, vector-based floorplan canvas natively integrated into the primary data grids. The "Drawings" module provides spatial context to Value Engineering and Coordination items, ensuring teams can visualize exactly where decisions impact the project.
+
+#### New Features
+
+**Bi-Directional State Synchronization**
+The canvas (`FloorplanCanvas`) and data grids now communicate seamlessly without performance degradation or infinite render loops:
+- _Grid to Map:_ Clicking a row in the data grid instantly highlights the corresponding "pin" (MappedZone) on the canvas above.
+- _Map to Grid:_ Clicking a pin on the canvas automatically triggers `@tanstack/react-virtual` to smooth-scroll the grid directly to the matching row.
+- _Store Architecture:_ The sync is powered by atomic cross-store communication between `useMapStore` (Zustand persistence) and `useUIStore`, with strict equality guards to prevent `Maximum call stack size exceeded` recursions.
+
+**Strictly Typed Visual Canvas Suite**
+The legacy `MarkupCanvas` has been completely retired. The new `FloorplanCanvas` suite is written in strict TypeScript, eliminating `any` usage and ensuring robust prop contracts for child components (`MappedZone`, `PendingPolygon`, `MapLegend`).
+
+**Grid Integration & Layout**
+- A new "Drawings" toggle button is available in the toolbar of both the Value Matrix (Grid V1 & V2) and the Design Coordination Board.
+- When toggled, the map mounts in a split horizontal view above the data table, maximizing vertical space while maintaining spatial context.
+- Hardened against React 18 event bubbling issues using `useRef` containment patterns for all click-outside detection (popovers, context menus), safely avoiding `e.stopPropagation()`.
+
+---
+
 ### v0.9 — Persistent Grid Pinning & Matrix Architecture
 **Released:** 2026-05-08
 

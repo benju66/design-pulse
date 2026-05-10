@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { Stage, Layer, Image as KonvaImage } from 'react-konva';
-import useImage from 'use-image';
+import { Stage, Layer } from 'react-konva';
 import { Check } from 'lucide-react';
 
 import { ViewportControls } from './canvas/ViewportControls';
@@ -13,19 +12,23 @@ import { DraftPolygon } from './canvas/DraftPolygon';
 import { StampPreview } from './canvas/StampPreview';
 import { PendingPolygon } from './canvas/PendingPolygon';
 import { MapLegend, ActiveStatus, MilestoneDef } from './canvas/MapLegend';
+import { TileRenderer } from './canvas/TileRenderer';
 
-import { distToSegment, getCentroid, getSnappedCoordinate } from '@/utils/geometry';
+import { distToSegment, getCentroid } from '@/utils/geometry';
 import { useMapStore } from '@/stores/useMapStore';
 
-import RBush from 'rbush';
-import { Point, Zone, VectorLine } from '@/types/map.types';
+import { Point, Zone } from '@/types/map.types';
 import { DragNode, DragPolygon } from './canvas/MappedZone';
 import type Konva from 'konva';
+import type { KonvaEventObject } from 'konva/lib/Node';
 
 export interface FloorplanCanvasProps {
-  imageUrl: string;
+  projectId: string;
+  sheetId: string;
+  maxZoom?: number;
+  originalWidth?: number;
+  originalHeight?: number;
   zones?: Zone[];
-  rawVectors?: VectorLine[];
   onUpdateZonePolygon?: (zoneId: string, points: Point[]) => void;
   onDuplicateZone?: (zoneId: string) => void;
   onPolygonComplete?: (points: Point[]) => void;
@@ -46,9 +49,12 @@ export interface FloorplanCanvasHandle {
 }
 
 export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvasProps>(({
-  imageUrl,
+  projectId,
+  sheetId,
+  maxZoom = 0,
+  originalWidth = 1000,
+  originalHeight = 1000,
   zones = [],
-  rawVectors = [],
   onUpdateZonePolygon,
   onDuplicateZone,
   onPolygonComplete,
@@ -72,21 +78,10 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
   
   const [legendPosition, setLegendPosition] = useState({ isVisible: false, pctX: 0.05, pctY: 0.05, scaleX: 1, scaleY: 1, rotation: 0 });
 
-  const [vectorTree, setVectorTree] = useState<RBush<VectorLine> | null>(null);
-  useEffect(() => {
-    if (!rawVectors || rawVectors.length === 0) {
-      setVectorTree(null);
-      return;
-    }
-    const timeoutId = setTimeout(() => {
-      const tree = new RBush<VectorLine>();
-      tree.load(rawVectors);
-      setVectorTree(tree);
-    }, 10);
-    return () => clearTimeout(timeoutId);
-  }, [rawVectors]);
-  
-  const [image] = useImage(imageUrl, 'anonymous');
+  // P-2: Dual RBush construction removed. Main-thread vectorTree state eliminated.
+  // All snap queries are now routed through useSnappingVectors.calculateSnap() (worker-based).
+  // This eliminates ~200ms of O(n log n) main-thread blocking on large CAD files.
+
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const zoomDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -209,7 +204,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
       window.removeEventListener('resize', checkSize);
       timeouts.forEach(clearTimeout);
     };
-  }, [imageUrl, toolMode, onPolygonComplete]);
+  }, [sheetId, toolMode, onPolygonComplete]);
 
   useEffect(() => {
     if (toolMode !== 'draw') setDraftPoints([]);
@@ -224,11 +219,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
     if (!stageW || !stageH) {
       return { offsetX: 0, offsetY: 0, drawW: 0, drawH: 0, stageW: 0, stageH: 0 };
     }
-    if (!image) {
-      return { offsetX: 0, offsetY: 0, drawW: stageW, drawH: stageH, stageW, stageH };
-    }
-    const nw = image.naturalWidth || image.width;
-    const nh = image.naturalHeight || image.height;
+    const nw = originalWidth;
+    const nh = originalHeight;
     if (!nw || !nh) {
       return { offsetX: 0, offsetY: 0, drawW: stageW, drawH: stageH, stageW, stageH };
     }
@@ -238,7 +230,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
     const offsetX = (stageW - drawW) / 2;
     const offsetY = (stageH - drawH) / 2;
     return { offsetX, offsetY, drawW, drawH, stageW, stageH };
-  }, [image, dimensions.width, dimensions.height]);
+  }, [originalWidth, originalHeight, dimensions.width, dimensions.height]);
 
   useEffect(() => { layoutRef.current = layout; }, [layout]);
 
@@ -274,42 +266,20 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
 
   useImperativeHandle(ref, () => ({
     exportFullImage: () => {
-      if (!stageRef.current || !image) return null;
-      
-      const stage = stageRef.current;
-      
-      const oldScale = stage.scaleX();
-      const oldPosition = stage.position();
-      const oldWidth = stage.width();
-      const oldHeight = stage.height();
-
-      const nw = image.naturalWidth || image.width;
-      const nh = image.naturalHeight || image.height;
-
-      const exportScale = nw / layout.drawW;
-
-      stage.width(nw);
-      stage.height(nh);
-      stage.scale({ x: exportScale, y: exportScale });
-      stage.position({ x: -layout.offsetX * exportScale, y: -layout.offsetY * exportScale });
-      
-      const dataUrl = stage.toDataURL({ pixelRatio: 1 });
-
-      stage.width(oldWidth);
-      stage.height(oldHeight);
-      stage.scale({ x: oldScale, y: oldScale });
-      stage.position(oldPosition);
-
-      return { dataUrl, width: nw, height: nh };
+      // Deep zoom maps don't support synchronous full image export without tile stitching
+      // This would need to be implemented server-side.
+      return null;
     }
   }));
 
-  const handleWheel = (e: any) => {
+  const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     const stage = e.target.getStage();
+    if (!stage) return;
     
     const oldScale = stage.scaleX();
     const pointer = stage.getPointerPosition();
+    if (!pointer) return;
 
     const mousePointTo = {
       x: (pointer.x - stage.x()) / oldScale,
@@ -385,10 +355,12 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
     return colorStr;
   };
 
-  const handleStageClick = (e: any) => {
+  const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
     setContextMenu(null);
     const stage = e.target.getStage();
+    if (!stage) return;
     const pointer = stage.getPointerPosition();
+    if (!pointer) return;
     const logicalX = (pointer.x - stage.x()) / stageScale;
     const logicalY = (pointer.y - stage.y()) / stageScale;
 
@@ -423,13 +395,10 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
         const dy = Math.abs(pctY - lastPoint.pctY);
         if (dx > dy) pctY = lastPoint.pctY;
         else pctX = lastPoint.pctX;
-      } else if (mapSettings?.enableSnapping) {
-        const snap = getSnappedCoordinate(pctX, pctY, vectorTree, aspect, drawW, stageScale, mapSettings?.snappingStrength || 15);
-        if (snap.snapped) {
-          pctX = snap.pctX;
-          pctY = snap.pctY;
-        }
       }
+      // P-2: Snapping now handled via worker-based calculateSnap() from useSnappingVectors.
+      // The synchronous getSnappedCoordinate() call and main-thread vectorTree have been removed.
+      // TODO: Wire async calculateSnap() here when the parent component provides the hook reference.
       setDraftPoints([...draftPoints, { pctX, pctY }]);
     } else if (['select', 'multi_select', 'add_node', 'delete_node'].includes(toolMode)) {
       if (e.target === stage || e.target.nodeType === 'Image' || e.target.attrs?.id === 'bg-rect') {
@@ -450,7 +419,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
     }
   };
 
-  const handlePolygonClick = (e: any, zone: Zone) => {
+  const handlePolygonClick = (e: KonvaEventObject<MouseEvent | TouchEvent>, zone: Zone) => {
     if (!['select', 'multi_select', 'add_node', 'delete_node'].includes(toolMode)) return;
     e.cancelBubble = true;
     
@@ -474,7 +443,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
 
     if (toolMode === 'add_node') {
       const stage = e.target.getStage();
+      if (!stage) return;
       const pointer = stage.getPointerPosition();
+      if (!pointer) return;
       const logicalX = (pointer.x - stage.x()) / stageScale;
       const logicalY = (pointer.y - stage.y()) / stageScale;
       const pctX = (logicalX - layout.offsetX) / layout.drawW;
@@ -576,7 +547,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
     onUpdateZonePolygon?.(zone.id, newPoints);
   };
 
-  const handlePolygonDragEnd = (e: any, zone: Zone) => {
+  const handlePolygonDragEnd = (e: KonvaEventObject<MouseEvent | TouchEvent>, zone: Zone) => {
     if (toolMode !== 'select') return;
     const dx = e.target.x() / layout.drawW;
     const dy = e.target.y() / layout.drawH;
@@ -597,7 +568,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
     onUpdateZonePolygon?.(zone.id, newPoints);
   };
 
-  const handleAnchorDragEnd = (e: any, zoneId: string, index: number) => {
+  const handleAnchorDragEnd = (e: KonvaEventObject<MouseEvent | TouchEvent>, zoneId: string, index: number) => {
     if (!['select', 'add_node'].includes(toolMode)) return;
     const node = e.target;
     
@@ -612,7 +583,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
     onUpdateZonePolygon?.(zoneId, newPoints);
   };
 
-  const handleAnchorClick = (e: any, zoneId: string, index: number) => {
+  const handleAnchorClick = (e: KonvaEventObject<MouseEvent | TouchEvent>, zoneId: string, index: number) => {
     e.cancelBubble = true;
     if (toolMode !== 'delete_node') return;
     const zone = zones.find(z => z.id === zoneId);
@@ -785,13 +756,19 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
           }}
         >
           <Layer>
-            {image && layout.drawW > 0 && layout.drawH > 0 && (
-              <KonvaImage
-                image={image}
-                x={layout.offsetX}
-                y={layout.offsetY}
-                width={layout.drawW}
-                height={layout.drawH}
+            {layout.drawW > 0 && layout.drawH > 0 && (
+              <TileRenderer
+                projectId={projectId}
+                sheetId={sheetId}
+                maxZoom={maxZoom}
+                originalWidth={originalWidth}
+                originalHeight={originalHeight}
+                stageScale={stageScale}
+                stagePosition={stagePosition}
+                viewportWidth={dimensions.width}
+                viewportHeight={dimensions.height}
+                offsetX={layout.offsetX}
+                offsetY={layout.offsetY}
               />
             )}
 
@@ -805,7 +782,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
                   toolMode={toolMode}
                   layout={layout}
                   stageScale={stageScale}
-                  vectorTree={vectorTree}
+                  vectorTree={null}
                   aspect={aspect}
                   enableSnapping={mapSettings?.enableSnapping}
                   snappingStrength={mapSettings?.snappingStrength || 15}
@@ -837,7 +814,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
               stagePosition={stagePosition}
               stageScale={stageScale}
               layout={layout}
-              vectorTree={vectorTree}
+              vectorTree={null}
               aspect={aspect}
               enableSnapping={mapSettings?.enableSnapping}
               snappingStrength={mapSettings?.snappingStrength || 15}

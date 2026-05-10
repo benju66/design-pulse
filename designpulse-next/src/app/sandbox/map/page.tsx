@@ -50,7 +50,11 @@ export default function MapSandbox() {
       
       <div className="flex-1 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 relative">
         <FloorplanCanvas 
-          imageUrl="https://upload.wikimedia.org/wikipedia/commons/4/41/Floor_plan_example.png"
+          projectId="sandbox-test"
+          sheetId=""
+          maxZoom={0}
+          originalWidth={1000}
+          originalHeight={1000}
           zones={dummyZones}
           onUpdateZonePolygon={(id, points) => console.log('Update Zone', id, points)}
           onPolygonComplete={(points) => console.log('Polygon Complete', points)}

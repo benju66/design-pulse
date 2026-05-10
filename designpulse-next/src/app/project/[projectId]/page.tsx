@@ -499,7 +499,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   {isMapVisible && (
                     <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
                       <FloorplanCanvas 
-                        imageUrl="https://upload.wikimedia.org/wikipedia/commons/4/41/Floor_plan_example.png"
+                        projectId={projectId}
+                        sheetId=""
+                        maxZoom={0}
+                        originalWidth={1000}
+                        originalHeight={1000}
                         zones={[]}
                       />
                     </div>
@@ -581,7 +585,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   {isMapVisible && (
                     <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
                       <FloorplanCanvas 
-                        imageUrl="https://upload.wikimedia.org/wikipedia/commons/4/41/Floor_plan_example.png"
+                        projectId={projectId}
+                        sheetId=""
+                        maxZoom={0}
+                        originalWidth={1000}
+                        originalHeight={1000}
                         zones={[]}
                       />
                     </div>
@@ -612,7 +620,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             <>
               <div className="w-full h-full relative bg-slate-50 dark:bg-slate-900 shrink-0">
                 <FloorplanCanvas 
-                  imageUrl="https://upload.wikimedia.org/wikipedia/commons/4/41/Floor_plan_example.png"
+                  projectId={projectId}
+                  sheetId=""
+                  maxZoom={0}
+                  originalWidth={1000}
+                  originalHeight={1000}
                   zones={[]}
                 />
               </div>
@@ -728,7 +740,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     {isMapVisible && (
                       <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
                         <FloorplanCanvas 
-                          imageUrl="https://upload.wikimedia.org/wikipedia/commons/4/41/Floor_plan_example.png"
+                          projectId={projectId}
+                          sheetId=""
+                          maxZoom={0}
+                          originalWidth={1000}
+                          originalHeight={1000}
                           zones={[]}
                         />
                       </div>

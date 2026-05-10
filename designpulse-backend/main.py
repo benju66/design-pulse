@@ -69,9 +69,15 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-async def verify_sheet_access(sheet_id: str, user_id: str):
+async def verify_project_sheet_access(sheet_id: str, user_id: str):
+    """Unified sheet access verification using the project_sheets table.
+    Returns the project_id for the sheet if the user has access.
+    
+    Note: verify_sheet_access (legacy, queried dead 'sheets' table) has been
+    removed. All endpoints now use this function exclusively.
+    """
     def check_access():
-        sheet_res = supabase.table("sheets").select("project_id").eq("id", sheet_id).execute()
+        sheet_res = supabase.table("project_sheets").select("project_id").eq("id", sheet_id).execute()
         if not sheet_res.data or len(sheet_res.data) == 0:
             return None, "Sheet not found"
         project_id = sheet_res.data[0]["project_id"]
@@ -131,7 +137,7 @@ async def upload_and_convert_floorplan(
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
     try:
-        await verify_sheet_access(sheet_id, user["sub"])
+        await verify_project_sheet_access(sheet_id, user["sub"])
         pdf_bytes = await file.read()
 
         def process_upload():
@@ -159,6 +165,7 @@ async def upload_and_convert_floorplan(
             single_page_doc = fitz.open()
             single_page_doc.insert_pdf(doc, from_page=page_number - 1, to_page=page_number - 1)
             single_page_pdf_bytes = single_page_doc.write()
+            single_page_doc.close()  # P-5: prevent file descriptor leak
 
             pdf_path = f"originals/{sheet_id}.pdf"
             supabase.storage.from_("floorplans").remove([pdf_path])
@@ -181,7 +188,59 @@ async def upload_and_convert_floorplan(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error processing upload: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+from services.tile_processor import TileProcessor
+from services.vector_extractor import VectorExtractor
+
+@app.post("/process-sheet/{sheet_id}")
+async def process_sheet(
+    sheet_id: str,
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Milestone 2 Endpoint:
+    Receives a PDF, slices it into Deep Zoom WebP tiles, extracts snapping vectors,
+    and updates the `project_sheets` row with completion metadata.
+    """
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+
+    try:
+        project_id = await verify_project_sheet_access(sheet_id, user["sub"])
+        pdf_bytes = await file.read()
+
+        def run_processing():
+            # 1. Process Tiles (project_id prefix for Storage RLS path_tokens[1])
+            max_zoom, width, height = TileProcessor.process_pdf_to_tiles(pdf_bytes, project_id, sheet_id, supabase)
+            
+            # 2. Extract Vectors (percentage-normalized, project_id prefix)
+            VectorExtractor.extract_and_upload(pdf_bytes, project_id, sheet_id, supabase)
+            
+            # 3. Update the database record
+            supabase.table("project_sheets").update({
+                "status": "ready",
+                "max_zoom": max_zoom,
+                "original_width": width,
+                "original_height": height
+            }).eq("id", sheet_id).execute()
+            
+            return {"status": "success", "max_zoom": max_zoom}
+
+        import asyncio
+        result = await asyncio.to_thread(run_processing)
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error processing sheet: {str(e)}")
+        # Mark as error in DB
+        try:
+            supabase.table("project_sheets").update({"status": "error"}).eq("id", sheet_id).execute()
+        except Exception as exc:
+            print(f"Failed to mark error status for sheet {sheet_id}: {exc}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/attach-original/{sheet_id}")
@@ -194,7 +253,7 @@ async def attach_original_pdf(
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
     
     try:
-        await verify_sheet_access(sheet_id, user["sub"])
+        await verify_project_sheet_access(sheet_id, user["sub"])
         pdf_bytes = await file.read()
         
         def process_attach():
@@ -309,7 +368,7 @@ async def extract_vectors(
     Returns the parsed JSON payload to the Next.js frontend (Rule B.5).
     """
     try:
-        await verify_sheet_access(sheet_id, user["sub"])
+        await verify_project_sheet_access(sheet_id, user["sub"])
         
         pdf_path = f"originals/{sheet_id}.pdf"
         try:
@@ -334,7 +393,7 @@ async def export_status_pdf(
     user: dict = Depends(get_current_user),
 ):
     try:
-        await verify_sheet_access(sheet_id, user["sub"])
+        await verify_project_sheet_access(sheet_id, user["sub"])
         def process_export():
             pdf_path = f"originals/{sheet_id}.pdf"
             # Download as raw bytes directly from Supabase

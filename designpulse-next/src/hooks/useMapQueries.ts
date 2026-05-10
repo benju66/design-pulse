@@ -1,58 +1,118 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { Zone } from '@/types/map.types';
 
-export function useUpdateDesignMarkups() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      opportunityId,
-      markups
-    }: {
-      opportunityId: string;
-      markups: Zone[];
-    }) => {
-      // Ensure all markups have client-side UUIDs to prevent optimistic data loss (Rule C.8)
-      const sanitizedMarkups = markups.map(m => ({
-        ...m,
-        id: m.id || crypto.randomUUID()
-      }));
-
+export function useProjectSheets(projectId: string | null) {
+  return useQuery({
+    queryKey: ['project_sheets', projectId],
+    queryFn: async () => {
+      if (!projectId) return [];
       const { data, error } = await supabase
-        .from('opportunities')
-        .update({ design_markups: sanitizedMarkups })
-        .eq('id', opportunityId)
-        .select()
-        .single();
-
+        .from('project_sheets')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true }); // MVCC Tie-breaker
       if (error) throw error;
       return data;
     },
-    onMutate: async ({ opportunityId, markups }) => {
-      // Optimistic Parent-Row Spreading (Rule C.9)
-      await queryClient.cancelQueries({ queryKey: ['opportunities'] });
+    enabled: !!projectId
+  });
+}
 
-      const previousOpportunities = queryClient.getQueryData(['opportunities']);
+export function useSheetMarkups(sheetId: string | null) {
+  return useQuery({
+    queryKey: ['sheet_markups', sheetId],
+    queryFn: async () => {
+      if (!sheetId) return [];
+      const { data, error } = await supabase
+        .from('sheet_markups')
+        .select('*')
+        .eq('sheet_id', sheetId)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true }); // MVCC Tie-breaker
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!sheetId
+  });
+}
 
-      queryClient.setQueryData(['opportunities'], (old: any) => {
-        if (!old) return old;
-        return old.map((opp: any) =>
-          opp.id === opportunityId
-            ? { ...opp, design_markups: markups }
-            : opp
-        );
+/** Shape of a sheet_markups row returned from Supabase queries. */
+interface SheetMarkupRow {
+  id: string;
+  sheet_id: string;
+  opportunity_id: string;
+  geometry: Record<string, unknown>;
+  style: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Typed rollback context for optimistic mutation recovery. */
+interface MarkupMutationContext {
+  previousMarkups: SheetMarkupRow[] | undefined;
+}
+
+export function useUpdateSheetMarkups() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    void,
+    Error,
+    { sheetId: string; opportunityId: string; markups: Zone[] },
+    MarkupMutationContext
+  >({
+    mutationFn: async ({ sheetId, opportunityId, markups }) => {
+      // Build the JSONB payload for the atomic RPC
+      const sanitizedMarkups = markups.map(m => ({
+        geometry: { ...m, id: m.id || crypto.randomUUID() },
+        style: {},
+        metadata: {}
+      }));
+
+      const { error } = await supabase.rpc('upsert_sheet_markups', {
+        p_sheet_id: sheetId,
+        p_opportunity_id: opportunityId,
+        p_markups: sanitizedMarkups as unknown as Record<string, unknown>
       });
 
-      return { previousOpportunities };
+      if (error) throw error;
     },
-    onError: (_err, _variables, context: any) => {
-      if (context?.previousOpportunities) {
-        queryClient.setQueryData(['opportunities'], context.previousOpportunities);
+    onMutate: async ({ sheetId, opportunityId, markups }) => {
+      await queryClient.cancelQueries({ queryKey: ['sheet_markups', sheetId] });
+
+      const previousMarkups = queryClient.getQueryData<SheetMarkupRow[]>(['sheet_markups', sheetId]);
+
+      // Optimistic update — strictly typed, no `any`
+      queryClient.setQueryData<SheetMarkupRow[]>(['sheet_markups', sheetId], (old) => {
+        if (!old) return old;
+        // Remove old markups for this opportunity
+        const filtered = old.filter((m) => m.opportunity_id !== opportunityId);
+        // Add new mock markups
+        const newMockMarkups: SheetMarkupRow[] = markups.map(m => ({
+          id: m.id || crypto.randomUUID(),
+          sheet_id: sheetId,
+          opportunity_id: opportunityId,
+          geometry: m as unknown as Record<string, unknown>,
+          style: {},
+          metadata: {},
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+        return [...filtered, ...newMockMarkups];
+      });
+
+      return { previousMarkups };
+    },
+    onError: (_err, { sheetId }, context) => {
+      if (context?.previousMarkups) {
+        queryClient.setQueryData(['sheet_markups', sheetId], context.previousMarkups);
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
+    onSettled: (_data, _err, { sheetId }) => {
+      queryClient.invalidateQueries({ queryKey: ['sheet_markups', sheetId] });
     }
   });
 }

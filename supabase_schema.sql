@@ -2195,3 +2195,173 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.bulk_map_project_standards(uuid, jsonb) FROM PUBLIC, anon;
 GRANT  EXECUTE ON FUNCTION public.bulk_map_project_standards(uuid, jsonb) TO authenticated;
+
+-- ==========================================
+-- DRAWINGS & MARKUPS (TILE ENGINE FOUNDATION)
+-- ==========================================
+
+-- 11. Project Sheets Table
+CREATE TABLE IF NOT EXISTS project_sheets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  sheet_name text NOT NULL,
+  status text DEFAULT 'processing' CHECK (status IN ('processing', 'ready', 'error')),
+  original_width numeric,
+  original_height numeric,
+  max_zoom integer,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 12. Sheet Markups Table
+CREATE TABLE IF NOT EXISTS sheet_markups (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  sheet_id uuid NOT NULL REFERENCES project_sheets(id) ON DELETE CASCADE,
+  opportunity_id uuid REFERENCES opportunities(id) ON DELETE CASCADE,
+  geometry jsonb DEFAULT '{}'::jsonb,
+  style jsonb DEFAULT '{}'::jsonb,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE project_sheets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sheet_markups ENABLE ROW LEVEL SECURITY;
+
+-- Project Sheets Policies
+DROP POLICY IF EXISTS "Members can view project_sheets" ON project_sheets;
+CREATE POLICY "Members can view project_sheets" 
+  ON project_sheets FOR SELECT USING (
+    public.is_platform_admin() OR public.get_user_project_role(project_id) IS NOT NULL
+  );
+
+DROP POLICY IF EXISTS "Members can insert project_sheets" ON project_sheets;
+CREATE POLICY "Members can insert project_sheets" 
+  ON project_sheets FOR INSERT WITH CHECK (
+    public.has_project_permission(project_id, 'can_edit_records')
+  );
+
+DROP POLICY IF EXISTS "Members can update project_sheets" ON project_sheets;
+CREATE POLICY "Members can update project_sheets" 
+  ON project_sheets FOR UPDATE USING (
+    public.has_project_permission(project_id, 'can_edit_records')
+  );
+
+DROP POLICY IF EXISTS "Admins can delete project_sheets" ON project_sheets;
+CREATE POLICY "Admins can delete project_sheets" 
+  ON project_sheets FOR DELETE USING (
+    public.has_project_permission(project_id, 'can_delete_records')
+  );
+
+-- Sheet Markups Policies
+DROP POLICY IF EXISTS "Members can view sheet_markups" ON sheet_markups;
+CREATE POLICY "Members can view sheet_markups" 
+  ON sheet_markups FOR SELECT USING (
+    public.is_platform_admin() OR EXISTS (
+      SELECT 1 FROM project_sheets WHERE project_sheets.id = sheet_id AND public.get_user_project_role(project_sheets.project_id) IS NOT NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "Members can insert sheet_markups" ON sheet_markups;
+CREATE POLICY "Members can insert sheet_markups" 
+  ON sheet_markups FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM project_sheets WHERE project_sheets.id = sheet_id AND public.has_project_permission(project_sheets.project_id, 'can_edit_records')
+    )
+  );
+
+DROP POLICY IF EXISTS "Members can update sheet_markups" ON sheet_markups;
+CREATE POLICY "Members can update sheet_markups" 
+  ON sheet_markups FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM project_sheets WHERE project_sheets.id = sheet_id AND public.has_project_permission(project_sheets.project_id, 'can_edit_records')
+    )
+  );
+
+DROP POLICY IF EXISTS "Members can delete sheet_markups" ON sheet_markups;
+CREATE POLICY "Members can delete sheet_markups" 
+  ON sheet_markups FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM project_sheets WHERE project_sheets.id = sheet_id AND public.has_project_permission(project_sheets.project_id, 'can_edit_records')
+    )
+  );
+
+-- 13. Storage Buckets & Policies
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('project_drawings', 'project_drawings', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage Policies for project_drawings
+DROP POLICY IF EXISTS "Members can view project_drawings" ON storage.objects;
+CREATE POLICY "Members can view project_drawings" 
+  ON storage.objects FOR SELECT USING (
+    bucket_id = 'project_drawings' AND (
+      public.is_platform_admin() OR public.get_user_project_role((path_tokens[1])::uuid) IS NOT NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "Members can insert project_drawings" ON storage.objects;
+CREATE POLICY "Members can insert project_drawings" 
+  ON storage.objects FOR INSERT WITH CHECK (
+    bucket_id = 'project_drawings' AND (
+      public.has_project_permission((path_tokens[1])::uuid, 'can_edit_records')
+    )
+  );
+
+DROP POLICY IF EXISTS "Members can update project_drawings" ON storage.objects;
+CREATE POLICY "Members can update project_drawings" 
+  ON storage.objects FOR UPDATE USING (
+    bucket_id = 'project_drawings' AND (
+      public.has_project_permission((path_tokens[1])::uuid, 'can_edit_records')
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can delete project_drawings" ON storage.objects;
+CREATE POLICY "Admins can delete project_drawings" 
+  ON storage.objects FOR DELETE USING (
+    bucket_id = 'project_drawings' AND (
+      public.has_project_permission((path_tokens[1])::uuid, 'can_delete_records')
+    )
+  );
+
+-- ── RPC: upsert_sheet_markups ───────────────────────────────────────────────
+-- Atomically replaces all sheet_markups for a given (sheet_id, opportunity_id)
+-- pair within a single transaction. Eliminates the non-atomic DELETE+INSERT
+-- pattern in the frontend that could lose data on mid-operation failures.
+-- Follows AGENTS.md: RBAC check (B.2), JSONB array safety (C21), set-based insert (C21).
+CREATE OR REPLACE FUNCTION upsert_sheet_markups(
+  p_sheet_id uuid,
+  p_opportunity_id uuid,
+  p_markups jsonb
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  -- RBAC check via existing permission helper
+  IF NOT EXISTS (
+    SELECT 1 FROM project_sheets
+    WHERE id = p_sheet_id
+    AND has_project_permission(project_id, 'can_edit_records')
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- JSONB array safety (AGENTS.md C21)
+  IF jsonb_typeof(COALESCE(p_markups, '[]'::jsonb)) != 'array' THEN
+    RAISE EXCEPTION 'p_markups must be a JSON array';
+  END IF;
+
+  -- Atomic delete + set-based insert in one transaction
+  DELETE FROM sheet_markups
+  WHERE sheet_id = p_sheet_id AND opportunity_id = p_opportunity_id;
+
+  INSERT INTO sheet_markups (sheet_id, opportunity_id, geometry, style, metadata)
+  SELECT
+    p_sheet_id,
+    p_opportunity_id,
+    elem->'geometry',
+    COALESCE(elem->'style', '{}'::jsonb),
+    COALESCE(elem->'metadata', '{}'::jsonb)
+  FROM jsonb_array_elements(p_markups) AS elem;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION upsert_sheet_markups(uuid, uuid, jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION upsert_sheet_markups(uuid, uuid, jsonb) TO authenticated;

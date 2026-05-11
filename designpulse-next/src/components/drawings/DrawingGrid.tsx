@@ -21,6 +21,7 @@ import { Image as ImageIcon, CheckCircle2, AlertCircle, Loader2, PanelRight, Lis
 import { useUpdateProjectSheet, useDeleteProjectSheet } from '@/hooks/useMapQueries';
 import { useUIStore } from '@/stores/useUIStore';
 import { DrawingColumnChooser } from './DrawingColumnChooser';
+import { useDrawingSets } from '@/hooks/useDrawingSetQueries';
 
 const columnHelper = createColumnHelper<ProjectSheet>();
 
@@ -92,14 +93,13 @@ interface GridRowProps {
   row: Row<ProjectSheet>;
   virtualRow: VirtualItem;
   measureElement: (el: Element | null) => void;
-  onOpenViewer: (id: string) => void;
   isSelected: boolean;
   isPanelOpen: boolean;
   visibleColumnIds: string;
   pinnedColumnOffsets: string;
 }
 
-const MemoizedGridRow = React.memo(({ row, virtualRow, measureElement, onOpenViewer, isSelected, isPanelOpen }: GridRowProps) => {
+const MemoizedGridRow = React.memo(({ row, virtualRow, measureElement, isSelected, isPanelOpen }: GridRowProps) => {
   return (
     <tbody
       ref={measureElement}
@@ -108,12 +108,12 @@ const MemoizedGridRow = React.memo(({ row, virtualRow, measureElement, onOpenVie
     >
       <tr 
         onClick={(e) => {
-          if ((e.target as Element).closest('button, input, select')) return;
-          if (row.original.status === 'ready') {
-            onOpenViewer(row.original.id);
-          }
+          if ((e.target as Element).closest('button, input, select, a, span.cursor-pointer')) return;
+          const { setSelectedDrawingId, setDrawingGridViewMode } = useUIStore.getState();
+          setSelectedDrawingId(row.original.id);
+          setDrawingGridViewMode('split');
         }}
-        className={`group transition-colors ${row.original.status === 'ready' ? 'cursor-pointer' : 'opacity-80'} ${
+        className={`group transition-colors cursor-pointer ${
           isSelected 
             ? 'bg-sky-50/80 dark:bg-sky-900/40 border-l-2 border-sky-500' 
             : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 border-l-2 border-transparent'
@@ -156,7 +156,6 @@ interface DrawingGridProps {
 
 export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: DrawingGridProps) {
   const selectedDrawingId = useUIStore(state => state.selectedDrawingId);
-  const setSelectedDrawingId = useUIStore(state => state.setSelectedDrawingId);
   const viewMode = useUIStore(state => state.drawingGridViewMode);
   const setViewMode = useUIStore(state => state.setDrawingGridViewMode);
 
@@ -165,6 +164,14 @@ export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: Dr
   const [grouping, setGrouping] = useState<GroupingState>(['discipline_id']);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  const { data: drawingSets = [] } = useDrawingSets(projectId);
+  const drawingSetsMap = useMemo(() => {
+    return drawingSets.reduce((acc, d) => {
+      acc[d.id] = d.set_name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [drawingSets]);
   
   const updateSheetMutation = useUpdateProjectSheet();
   const deleteSheetMutation = useDeleteProjectSheet();
@@ -250,11 +257,12 @@ export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: Dr
           <button
             onClick={(e) => {
               e.stopPropagation();
+              const { setSelectedDrawingId, setDrawingGridViewMode } = useUIStore.getState();
               if (isOpen) {
                 setSelectedDrawingId(null);
               } else {
                 setSelectedDrawingId(sheet.id);
-                setViewMode('split');
+                setDrawingGridViewMode('split');
               }
             }}
             className={`p-1.5 rounded-lg transition-colors flex items-center justify-center ${
@@ -271,8 +279,52 @@ export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: Dr
       size: 40,
     }),
     columnHelper.accessor('sheet_name', {
-      header: 'Sheet Name',
-      cell: (info) => <span className="font-semibold text-slate-900 dark:text-slate-100">{info.getValue() || 'Unnamed'}</span>,
+      header: 'Drawing Number',
+      cell: (info) => {
+        const sheet = info.row.original;
+        if (!sheet) return null;
+        return (
+          <span 
+            className={`font-semibold ${sheet.status === 'ready' ? 'text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 hover:underline cursor-pointer' : 'text-slate-500 dark:text-slate-400'}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (sheet.status === 'ready') {
+                onOpenViewer(sheet.id);
+              }
+            }}
+          >
+            {info.getValue() || 'Unnamed'}
+          </span>
+        );
+      },
+      size: 150,
+    }),
+    columnHelper.accessor('drawing_title', {
+      header: 'Drawing Title',
+      cell: (info) => <span className="text-slate-700 dark:text-slate-300">{info.getValue() || ''}</span>,
+    }),
+    columnHelper.accessor('revision', {
+      header: 'Revision',
+      cell: (info) => <span className="text-slate-700 dark:text-slate-300">{info.getValue() || ''}</span>,
+      size: 100,
+    }),
+    columnHelper.accessor('drawing_set_id', {
+      header: 'Drawing Set',
+      enableHiding: true,
+      cell: (info) => {
+        const setId = info.getValue();
+        return <span className="text-slate-700 dark:text-slate-300">{setId ? drawingSetsMap[setId] || 'Unknown Set' : ''}</span>;
+      }
+    }),
+    columnHelper.accessor('drawing_date', {
+      header: 'Drawing Date',
+      enableHiding: true,
+      cell: (info) => <span className="text-slate-700 dark:text-slate-300">{info.getValue() || ''}</span>,
+    }),
+    columnHelper.accessor('received_date', {
+      header: 'Received Date',
+      enableHiding: true,
+      cell: (info) => <span className="text-slate-700 dark:text-slate-300">{info.getValue() || ''}</span>,
     }),
     columnHelper.accessor('discipline_id', {
       header: 'Discipline',
@@ -316,7 +368,7 @@ export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: Dr
       header: 'Uploaded Date',
       cell: (info) => <span className="text-slate-500 text-sm">{info.getValue() ? format(new Date(info.getValue()), 'MMM d, yyyy') : ''}</span>,
     }),
-  ], [disciplines, projectId, updateSheetMutation, selectedDrawingId, setSelectedDrawingId]);
+  ], [disciplines, projectId, updateSheetMutation, drawingSetsMap, onOpenViewer]);
 
   const table = useReactTable({
     data: sheets,
@@ -325,7 +377,7 @@ export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: Dr
       rowSelection,
       globalFilter,
       grouping,
-      columnPinning: { left: ['selection', 'open_panel'] },
+      columnPinning: { left: ['selection', 'open_panel', 'sheet_name'] },
       columnVisibility: { discipline_id: false }
     },
     initialState: {
@@ -479,7 +531,6 @@ export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: Dr
                 row={row}
                 virtualRow={virtualRow}
                 measureElement={virtualizer.measureElement}
-                onOpenViewer={onOpenViewer}
                 isSelected={isSelected}
                 isPanelOpen={selectedDrawingId === row.original.id}
                 visibleColumnIds={visibleColumnIds}

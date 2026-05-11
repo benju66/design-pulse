@@ -30,10 +30,18 @@ export default function DrawingDetailPanel({ projectId, sheets, disciplines }: D
   const deleteSheetMutation = useDeleteProjectSheet();
 
   const [localName, setLocalName] = useState('');
+  const [localTitle, setLocalTitle] = useState('');
+  const [localRevision, setLocalRevision] = useState('');
+  const [localDrawingDate, setLocalDrawingDate] = useState('');
+  const [localReceivedDate, setLocalReceivedDate] = useState('');
 
   useEffect(() => {
     if (sheet) {
       setLocalName(sheet.sheet_name || '');
+      setLocalTitle(sheet.drawing_title || '');
+      setLocalRevision(sheet.revision || '');
+      setLocalDrawingDate(sheet.drawing_date || '');
+      setLocalReceivedDate(sheet.received_date || '');
     }
   }, [sheet]);
 
@@ -63,19 +71,39 @@ export default function DrawingDetailPanel({ projectId, sheets, disciplines }: D
 
   const handleNameSave = () => {
     if (localName !== sheet.sheet_name) {
-      updateSheetMutation.mutate({
-        projectId,
-        sheetId: sheet.id,
-        updates: { sheet_name: localName },
-      });
+      updateSheetMutation.mutate({ projectId, sheetId: sheet.id, updates: { sheet_name: localName } });
     }
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  const handleTitleSave = () => {
+    if (localTitle !== (sheet.drawing_title || '')) {
+      updateSheetMutation.mutate({ projectId, sheetId: sheet.id, updates: { drawing_title: localTitle || null } });
+    }
+  };
+
+  const handleRevisionSave = () => {
+    if (localRevision !== (sheet.revision || '')) {
+      updateSheetMutation.mutate({ projectId, sheetId: sheet.id, updates: { revision: localRevision || null } });
+    }
+  };
+
+  const handleDrawingDateSave = () => {
+    if (localDrawingDate !== (sheet.drawing_date || '')) {
+      updateSheetMutation.mutate({ projectId, sheetId: sheet.id, updates: { drawing_date: localDrawingDate || null } });
+    }
+  };
+
+  const handleReceivedDateSave = () => {
+    if (localReceivedDate !== (sheet.received_date || '')) {
+      updateSheetMutation.mutate({ projectId, sheetId: sheet.id, updates: { received_date: localReceivedDate || null } });
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>, originalValue: string, setter: (val: string) => void) => {
     if (e.key === 'Enter') {
       (e.target as HTMLInputElement).blur();
     } else if (e.key === 'Escape') {
-      setLocalName(sheet.sheet_name || '');
+      setter(originalValue);
       (e.target as HTMLInputElement).blur();
     }
   };
@@ -149,16 +177,67 @@ export default function DrawingDetailPanel({ projectId, sheets, disciplines }: D
           <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Details</h4>
           
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Sheet Name</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Drawing Number</label>
             <input
               type="text"
               value={localName}
               onChange={(e) => setLocalName(e.target.value)}
               onBlur={handleNameSave}
-              onKeyDown={handleKeyDown}
+              onKeyDown={(e) => handleKeyDown(e, sheet.sheet_name || '', setLocalName)}
               placeholder="e.g., A1.01"
               className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Drawing Title</label>
+            <input
+              type="text"
+              value={localTitle}
+              onChange={(e) => setLocalTitle(e.target.value)}
+              onBlur={handleTitleSave}
+              onKeyDown={(e) => handleKeyDown(e, sheet.drawing_title || '', setLocalTitle)}
+              placeholder="e.g., Floor Plan"
+              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Revision</label>
+            <input
+              type="text"
+              value={localRevision}
+              onChange={(e) => setLocalRevision(e.target.value)}
+              onBlur={handleRevisionSave}
+              onKeyDown={(e) => handleKeyDown(e, sheet.revision || '', setLocalRevision)}
+              placeholder="e.g., Rev 1"
+              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Drawing Date</label>
+              <input
+                type="date"
+                value={localDrawingDate}
+                onChange={(e) => setLocalDrawingDate(e.target.value)}
+                onBlur={handleDrawingDateSave}
+                onKeyDown={(e) => handleKeyDown(e, sheet.drawing_date || '', setLocalDrawingDate)}
+                className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Received Date</label>
+              <input
+                type="date"
+                value={localReceivedDate}
+                onChange={(e) => setLocalReceivedDate(e.target.value)}
+                onBlur={handleReceivedDateSave}
+                onKeyDown={(e) => handleKeyDown(e, sheet.received_date || '', setLocalReceivedDate)}
+                className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors"
+              />
+            </div>
           </div>
 
           <div>

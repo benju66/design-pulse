@@ -283,3 +283,60 @@ async def attach_original_pdf(
 
     await asyncio.to_thread(process_attach)
     return {"status": "success", "message": "Original PDF attached successfully!"}
+
+
+@router.get("/preview/{project_id}/{staged_key}/{page_index}")
+async def get_preview(
+    project_id: str,
+    staged_key: str,
+    page_index: int,
+    user: dict = Depends(get_current_user),
+):
+    """Generates a high-res (2000px) JPEG preview of a single page instantly for the manual review wizard."""
+    await verify_project_access(project_id, user["sub"])
+    
+    import tempfile
+    import fitz
+    from fastapi.responses import Response
+
+    local_path = os.path.join(tempfile.gettempdir(), f"preview_{staged_key}.pdf")
+    
+    def process_preview():
+        pdf_bytes = None
+        if os.path.exists(local_path):
+            with open(local_path, "rb") as f:
+                pdf_bytes = f.read()
+        else:
+            # Fallback to downloading from Supabase if cache was cleared
+            try:
+                pdf_bytes = supabase.storage.from_("project_drawings").download(f"{project_id}/staged/{staged_key}.pdf")
+            except Exception:
+                pass
+            if not pdf_bytes:
+                raise ValueError("PDF not found in local cache or Supabase storage")
+
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        if page_index < 0 or page_index >= len(doc):
+            doc.close()
+            raise ValueError(f"Invalid page index {page_index} for PDF with {len(doc)} pages")
+
+        page = doc[page_index]
+        rect = page.rect
+        
+        # Target 2000px longest axis for high-res reading preview
+        longest = max(rect.width, rect.height)
+        zoom = 2000 / longest if longest > 0 else 2.0
+        
+        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+        jpeg_bytes = pix.tobytes("jpeg", jpg_quality=85)
+        doc.close()
+        return jpeg_bytes
+
+    try:
+        jpeg_bytes = await asyncio.to_thread(process_preview)
+        return Response(content=jpeg_bytes, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        print(f"[preview] Error generating preview: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate high-res preview")

@@ -13,6 +13,7 @@ No dependency on tile_processor.py or worker.py — fully independent service.
 
 import base64
 import os
+import tempfile
 import uuid as uuid_lib
 from typing import Any
 
@@ -120,6 +121,15 @@ def inspect_and_stage_pdf(
         file=pdf_bytes,
         file_options={"content-type": "application/pdf", "upsert": "true"},
     )
+
+    # ── 5. Cache locally for instant high-res previews ───────────────────────
+    try:
+        temp_dir = tempfile.gettempdir()
+        local_path = os.path.join(temp_dir, f"preview_{staged_key}.pdf")
+        with open(local_path, "wb") as f:
+            f.write(pdf_bytes)
+    except Exception as e:
+        print(f"[pdf_inspector] Warning: failed to cache preview locally: {e}")
 
     return {
         "staged_key": staged_key,

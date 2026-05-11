@@ -47,6 +47,10 @@ export interface ProjectSheet {
   source_page_index: number | null;
   staged_key: string | null;     // internal — not shown in UI
   status_message: string | null; // surfaced in error tooltip (BUG-7)
+  drawing_title: string | null;
+  revision: string | null;
+  drawing_date: string | null;
+  received_date: string | null;
   created_at: string;
   updated_at: string;
 }

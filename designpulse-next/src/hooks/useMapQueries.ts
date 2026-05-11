@@ -207,6 +207,10 @@ export function useCreateProjectSheet() {
         source_page_index: null,
         staged_key: null,
         status_message: null,
+        drawing_title: null,
+        revision: null,
+        drawing_date: null,
+        received_date: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -356,7 +360,7 @@ export function useBulkImportSheets() {
       disciplineId: string | null;
       stagedKey: string;
       filename: string;
-      selections: Array<{ pageIndex: number; sheetName: string }>;
+      selections: Array<{ pageIndex: number; sheetName: string; drawingTitle: string | null; revision: string | null; drawingDate: string | null; receivedDate: string | null }>;
       token: string;
     },
     { previousSheets: ProjectSheet[] | undefined }
@@ -365,24 +369,34 @@ export function useBulkImportSheets() {
       const sheetIds = selections.map(() => crypto.randomUUID());
       const now = new Date().toISOString();
 
-      const { error: insertError } = await supabase
-        .from('project_sheets')
-        .insert(
-          selections.map((sel, i) => ({
-            id: sheetIds[i],
-            project_id: projectId,
-            sheet_name: sel.sheetName,
-            status: 'processing' as const,
-            progress_percent: 0,
-            drawing_set_id: drawingSetId,
-            discipline_id: disciplineId,
-            source_filename: filename,
-            source_page_index: sel.pageIndex,
-            created_at: now,
-            updated_at: now,
-          }))
-        );
-      if (insertError) throw insertError;
+
+      // Batch DB inserts (100 at a time) to prevent API Gateway timeouts
+      const DB_BATCH = 100;
+      for (let i = 0; i < selections.length; i += DB_BATCH) {
+        const dbBatch = selections.slice(i, i + DB_BATCH);
+        const { error: insertError } = await supabase
+          .from('project_sheets')
+          .insert(
+            dbBatch.map((sel, bi) => ({
+              id: sheetIds[i + bi],
+              project_id: projectId,
+              sheet_name: sel.sheetName,
+              status: 'processing' as const,
+              progress_percent: 0,
+              drawing_set_id: drawingSetId,
+              discipline_id: disciplineId,
+              source_filename: filename,
+              source_page_index: sel.pageIndex,
+              drawing_title: sel.drawingTitle || null,
+              revision: sel.revision || null,
+              drawing_date: sel.drawingDate || null,
+              received_date: sel.receivedDate || null,
+              created_at: now,
+              updated_at: now,
+            }))
+          );
+        if (insertError) throw insertError;
+      }
 
       const BATCH = 5;
       for (let i = 0; i < selections.length; i += BATCH) {
@@ -413,6 +427,10 @@ export function useBulkImportSheets() {
         source_page_index: sel.pageIndex,
         staged_key: null,
         status_message: null,
+        drawing_title: sel.drawingTitle || null,
+        revision: sel.revision || null,
+        drawing_date: sel.drawingDate || null,
+        received_date: sel.receivedDate || null,
         created_at: now,
         updated_at: now,
       }));

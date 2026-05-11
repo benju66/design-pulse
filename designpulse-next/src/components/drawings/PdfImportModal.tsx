@@ -48,7 +48,7 @@ interface SheetSelection {
   selected: boolean;
 }
 
-type ModalPhase = 'uploading' | 'global_assignment' | 'wizard' | 'dispatching' | 'done';
+type ModalPhase = 'uploading' | 'global_assignment' | 'title_block_training' | 'extracting' | 'wizard' | 'dispatching' | 'done';
 
 interface PdfImportModalProps {
   projectId: string;
@@ -448,16 +448,25 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
           </div>
         </div>
 
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end pt-2 gap-4">
            <button 
              onClick={() => {
                applyBulkDates();
                setPhase('wizard');
                setCurrentWizardIndex(0);
              }}
-             className="px-6 py-2.5 bg-sky-500 hover:bg-sky-400 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-sky-500/20"
+             className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-xl transition-colors"
            >
-             Start Manual Review
+             Skip & Review Manually
+           </button>
+           <button 
+             onClick={() => {
+               applyBulkDates();
+               setPhase('title_block_training');
+             }}
+             className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
+           >
+             Train Title Block (Auto-Extract)
            </button>
         </div>
       </div>
@@ -481,6 +490,8 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
           <h2 className="text-base font-semibold text-slate-200">
             {phase === 'uploading' && 'Import Drawings'}
             {(phase === 'global_assignment' || phase === 'wizard') && `Select Pages — ${inspectResult?.filename ?? ''}`}
+            {phase === 'title_block_training' && `Train Extractor — ${inspectResult?.filename ?? ''}`}
+            {phase === 'extracting' && 'Extracting Text…'}
             {phase === 'dispatching' && 'Processing Sheets…'}
             {phase === 'done' && 'Import Complete'}
           </h2>
@@ -509,6 +520,31 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
           {/* Global Assignment phase */}
           {phase === 'global_assignment' && (
              renderGlobalAssignmentView()
+          )}
+
+          {/* Title Block Training phase */}
+          {(phase === 'title_block_training' || phase === 'extracting') && (
+            <div className="relative">
+              {phase === 'extracting' && (
+                <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl border border-white/10">
+                  <Loader2 className="h-10 w-10 text-indigo-500 animate-spin mb-4" />
+                  <h3 className="text-lg font-semibold text-white">Extracting Data...</h3>
+                  <p className="text-sm text-slate-400 mt-2">Processing {selections.filter(s => s.selected).length} sheets via PyMuPDF</p>
+                </div>
+              )}
+              <TitleBlockTrainingView 
+                projectId={projectId}
+                token={token}
+                inspectResult={inspectResult}
+                selections={selections}
+                setSelections={setSelections}
+                setPhase={setPhase}
+                onComplete={() => {
+                  setPhase('wizard');
+                  setCurrentWizardIndex(0);
+                }}
+              />
+            </div>
           )}
 
           {/* Wizard phase */}
@@ -779,6 +815,303 @@ export function WizardView({
               {currentWizardIndex !== selections.length - 1 && <ChevronRight size={18} />}
            </button>
          </div>
+      </div>
+    </div>
+  );
+}
+
+interface ZoneDefinition {
+  field: string;
+  rect: [number, number, number, number]; // x, y, w, h
+}
+
+interface TitleBlockTrainingViewProps {
+  projectId: string;
+  token: string;
+  inspectResult: InspectPdfResponse | null;
+  selections: SheetSelection[];
+  setSelections: React.Dispatch<React.SetStateAction<SheetSelection[]>>;
+  onComplete: () => void;
+  setPhase: (phase: ModalPhase) => void;
+}
+
+export function TitleBlockTrainingView({
+  projectId,
+  token,
+  inspectResult,
+  selections,
+  setSelections,
+  onComplete,
+  setPhase
+}: TitleBlockTrainingViewProps) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loadingImg, setLoadingImg] = useState(true);
+  
+  const [zones, setZones] = useState<ZoneDefinition[]>([]);
+  const [activeField, setActiveField] = useState<'sheetName' | 'drawingTitle'>('sheetName');
+  
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [currentPos, setCurrentPos] = useState({ x: 0, y: 0 });
+  
+  const imageRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    let localBlobUrl: string | null = null;
+    const fetchPreview = async () => {
+      if (!inspectResult?.staged_key) return;
+      setLoadingImg(true);
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+        const url = `${apiUrl}/drawings/preview/${projectId}/${inspectResult.staged_key}/0`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Failed to load preview');
+        const blob = await res.blob();
+        if (isMounted) {
+          localBlobUrl = URL.createObjectURL(blob);
+          setBlobUrl(localBlobUrl);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (isMounted) setLoadingImg(false);
+      }
+    };
+    fetchPreview();
+    return () => {
+      isMounted = false;
+      if (localBlobUrl) URL.revokeObjectURL(localBlobUrl);
+    };
+  }, [inspectResult?.staged_key, projectId, token]);
+
+  // Auto-scroll to bottom right once image is loaded
+  useEffect(() => {
+    if (blobUrl && !loadingImg && containerRef.current) {
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = containerRef.current.scrollHeight;
+          containerRef.current.scrollLeft = containerRef.current.scrollWidth;
+        }
+      }, 100);
+    }
+  }, [blobUrl, loadingImg]);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!imageRef.current) return;
+    const rect = imageRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    
+    const clampedX = Math.max(0, Math.min(1, x));
+    const clampedY = Math.max(0, Math.min(1, y));
+    
+    setIsDrawing(true);
+    setStartPos({ x: clampedX, y: clampedY });
+    setCurrentPos({ x: clampedX, y: clampedY });
+  };
+  
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDrawing || !imageRef.current) return;
+    const rect = imageRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    setCurrentPos({ 
+      x: Math.max(0, Math.min(1, x)), 
+      y: Math.max(0, Math.min(1, y)) 
+    });
+  };
+  
+  const handlePointerUp = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+    
+    const x = Math.min(startPos.x, currentPos.x);
+    const y = Math.min(startPos.y, currentPos.y);
+    const w = Math.abs(currentPos.x - startPos.x);
+    const h = Math.abs(currentPos.y - startPos.y);
+    
+    if (w > 0.01 && h > 0.01) {
+      setZones(prev => {
+        const filtered = prev.filter(z => z.field !== activeField);
+        return [...filtered, { field: activeField, rect: [x, y, w, h] }];
+      });
+      if (activeField === 'sheetName') setActiveField('drawingTitle');
+    }
+  };
+
+  const executeExtraction = async () => {
+    if (zones.length === 0 || !inspectResult) return;
+    setPhase('extracting');
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+      const pageIndices = selections.filter(s => s.selected).map(s => s.pageIndex);
+      
+      const res = await fetch(`${apiUrl}/drawings/extract/${projectId}/${inspectResult.staged_key}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          zones,
+          page_indices: pageIndices
+        })
+      });
+      
+      if (!res.ok) throw new Error('Extraction failed');
+      const data = await res.json();
+      
+      setSelections(prev => {
+        const newSel = [...prev];
+        data.forEach((extracted: any) => {
+          const idx = newSel.findIndex(s => s.pageIndex === extracted.pageIndex);
+          if (idx !== -1) {
+             if (extracted.sheetName) newSel[idx].sheetName = extracted.sheetName;
+             if (extracted.drawingTitle) newSel[idx].drawingTitle = extracted.drawingTitle;
+          }
+        });
+        return newSel;
+      });
+      
+      onComplete(); // move to wizard phase
+    } catch (e) {
+      console.error(e);
+      onComplete(); // Fallback to wizard even if extraction fails
+    }
+  };
+
+  return (
+    <div className="flex gap-6 h-[600px] min-h-0 w-full pt-4">
+      {/* Main Preview Pane */}
+      <div 
+        ref={containerRef}
+        className="flex-1 bg-slate-900 rounded-2xl border border-white/10 overflow-auto relative touch-none select-none scroll-smooth"
+      >
+        {loadingImg ? (
+          <div className="flex h-full items-center justify-center">
+            <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+          </div>
+        ) : blobUrl ? (
+          <div 
+            className="relative min-w-[250%] w-max cursor-crosshair"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerLeave={handlePointerUp}
+          >
+            <img 
+              ref={imageRef}
+              src={blobUrl} 
+              alt="Training Preview" 
+              className="w-full h-auto pointer-events-none"
+              draggable={false}
+            />
+            {/* Render Saved Zones */}
+            {zones.map((z, i) => (
+              <div
+                key={i}
+                className={`absolute border-2 transition-colors ${z.field === 'sheetName' ? 'border-sky-400 bg-sky-400/20' : 'border-emerald-400 bg-emerald-400/20'}`}
+                style={{
+                  left: `${z.rect[0] * 100}%`,
+                  top: `${z.rect[1] * 100}%`,
+                  width: `${z.rect[2] * 100}%`,
+                  height: `${z.rect[3] * 100}%`,
+                  pointerEvents: 'none'
+                }}
+              >
+                <span className="absolute -top-6 left-0 bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded whitespace-nowrap border border-white/10">
+                  {z.field === 'sheetName' ? 'Drawing Number' : 'Drawing Title'}
+                </span>
+              </div>
+            ))}
+            {/* Render Active Drawing Box */}
+            {isDrawing && imageRef.current && (
+              <div
+                className={`absolute border-2 border-dashed ${activeField === 'sheetName' ? 'border-sky-400 bg-sky-400/20' : 'border-emerald-400 bg-emerald-400/20'}`}
+                style={{
+                  left: `${Math.min(startPos.x, currentPos.x) * 100}%`,
+                  top: `${Math.min(startPos.y, currentPos.y) * 100}%`,
+                  width: `${Math.abs(currentPos.x - startPos.x) * 100}%`,
+                  height: `${Math.abs(currentPos.y - startPos.y) * 100}%`,
+                  pointerEvents: 'none'
+                }}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <span className="text-slate-500 text-sm">Failed to load preview.</span>
+          </div>
+        )}
+      </div>
+
+      {/* Sidebar Editor */}
+      <div className="w-[320px] shrink-0 bg-slate-900/50 p-5 rounded-2xl border border-white/5 flex flex-col gap-6">
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-slate-100">Train Extractor</h3>
+          <p className="text-sm text-slate-400 leading-relaxed">
+            Drag a box over the Drawing Number and Title regions on this sheet.
+          </p>
+        </div>
+
+        <div className="space-y-4 flex-1">
+           <button
+             onClick={() => setActiveField('sheetName')}
+             className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all flex flex-col gap-1 ${
+               activeField === 'sheetName' 
+                 ? 'border-sky-500 bg-sky-500/10' 
+                 : 'border-white/5 bg-slate-950 hover:border-white/20'
+             }`}
+           >
+             <div className="flex items-center justify-between">
+               <span className={`text-sm font-semibold ${activeField === 'sheetName' ? 'text-sky-400' : 'text-slate-300'}`}>
+                 1. Drawing Number
+               </span>
+               {zones.find(z => z.field === 'sheetName') && (
+                 <CheckCircle className="w-4 h-4 text-sky-400" />
+               )}
+             </div>
+             <span className="text-xs text-slate-500">Click and drag over the sheet number.</span>
+           </button>
+
+           <button
+             onClick={() => setActiveField('drawingTitle')}
+             className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all flex flex-col gap-1 ${
+               activeField === 'drawingTitle' 
+                 ? 'border-emerald-500 bg-emerald-500/10' 
+                 : 'border-white/5 bg-slate-950 hover:border-white/20'
+             }`}
+           >
+             <div className="flex items-center justify-between">
+               <span className={`text-sm font-semibold ${activeField === 'drawingTitle' ? 'text-emerald-400' : 'text-slate-300'}`}>
+                 2. Drawing Title
+               </span>
+               {zones.find(z => z.field === 'drawingTitle') && (
+                 <CheckCircle className="w-4 h-4 text-emerald-400" />
+               )}
+             </div>
+             <span className="text-xs text-slate-500">Click and drag over the sheet title.</span>
+           </button>
+        </div>
+
+        <div className="pt-4 border-t border-white/10 flex flex-col gap-3">
+          <button 
+            onClick={executeExtraction}
+            disabled={zones.length === 0}
+            className="w-full py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
+          >
+            Extract {selections.filter(s => s.selected).length} Sheets
+            <ChevronRight size={18} />
+          </button>
+          <button 
+            onClick={onComplete}
+            className="w-full py-2.5 text-slate-400 hover:text-slate-200 text-sm font-medium transition-colors"
+          >
+            Skip & Review Manually
+          </button>
+        </div>
       </div>
     </div>
   );

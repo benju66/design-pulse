@@ -56,6 +56,19 @@ class InspectPdfResponse(BaseModel):
     filename: str
     pages: List[StagedPageMeta]
 
+class ZoneDefinition(BaseModel):
+    field: str
+    rect: List[float]
+
+class ExtractionRequest(BaseModel):
+    zones: List[ZoneDefinition]
+    page_indices: List[int]
+
+class ExtractionResult(BaseModel):
+    pageIndex: int
+    sheetName: str
+    drawingTitle: str
+
 
 # ── Authorization helpers ─────────────────────────────────────────────────────
 
@@ -340,3 +353,32 @@ async def get_preview(
     except Exception as e:
         print(f"[preview] Error generating preview: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate high-res preview")
+@router.post("/extract/{project_id}/{staged_key}", response_model=List[ExtractionResult])
+async def extract_title_blocks(
+    project_id: str,
+    staged_key: str,
+    req: ExtractionRequest,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Extracts embedded vector text for specific zones on specific pages.
+    """
+    await verify_project_access(project_id, user["sub"])
+    
+    zones_list = [z.model_dump() if hasattr(z, 'model_dump') else z.dict() for z in req.zones]
+    
+    from fastapi.concurrency import run_in_threadpool
+    from services.pdf_inspector import extract_title_block_zones
+    
+    try:
+        results = await run_in_threadpool(
+            extract_title_block_zones,
+            staged_key,
+            zones_list,
+            req.page_indices
+        )
+        return results
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {e}")

@@ -138,3 +138,72 @@ def inspect_and_stage_pdf(
         "filename": original_filename,
         "pages": pages,
     }
+
+def extract_title_block_zones(staged_key: str, zones: list[dict], page_indices: list[int]) -> list[dict]:
+    """
+    Extracts text from specified coordinate zones across multiple pages using PyMuPDF.
+    CPU-bound: MUST be called via run_in_threadpool.
+    """
+    temp_dir = tempfile.gettempdir()
+    local_path = os.path.join(temp_dir, f"preview_{staged_key}.pdf")
+    
+    if not os.path.exists(local_path):
+        raise ValueError("Cached PDF not found. It may have expired or was not staged correctly.")
+        
+    results = []
+    
+    try:
+        doc = fitz.open(local_path)
+    except Exception as e:
+        raise PdfProcessingError(f"Failed to open cached PDF for extraction: {e}")
+        
+    try:
+        for idx in page_indices:
+            if idx < 0 or idx >= len(doc):
+                continue
+                
+            page = doc[idx]
+            page_rect = page.rect
+            width = page_rect.width
+            height = page_rect.height
+            
+            result = {
+                "pageIndex": idx,
+                "sheetName": "",
+                "drawingTitle": ""
+            }
+            
+            for zone in zones:
+                field = zone.get("field")
+                rect_pct = zone.get("rect") # [x, y, w, h] in percentages
+                
+                if not field or not rect_pct or len(rect_pct) != 4:
+                    continue
+                    
+                x, y, w, h = rect_pct
+                
+                # Convert relative percentages to absolute coordinates
+                x0 = x * width
+                y0 = y * height
+                x1 = (x + w) * width
+                y1 = (y + h) * height
+                
+                clip_rect = fitz.Rect(x0, y0, x1, y1)
+                raw_text = page.get_text("text", clip=clip_rect)
+                
+                # Sanitize text based on field
+                if field == "sheetName":
+                    # Remove all whitespace/newlines, convert to uppercase
+                    clean_text = "".join(raw_text.split()).upper()
+                    result["sheetName"] = clean_text
+                elif field == "drawingTitle":
+                    # Replace newlines with spaces, strip trailing/leading
+                    clean_text = " ".join(raw_text.split())
+                    result["drawingTitle"] = clean_text
+                    
+            results.append(result)
+            
+    finally:
+        doc.close()
+        
+    return results

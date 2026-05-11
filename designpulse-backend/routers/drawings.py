@@ -31,6 +31,9 @@ from services.auth import get_current_user
 router = APIRouter(prefix="/drawings", tags=["drawings"])
 
 # ── Supabase client (shared, read-only ops only — writes use thread-local clients) ──
+from dotenv import load_dotenv
+load_dotenv()
+
 supabase_url = os.environ.get("SUPABASE_URL", "")
 supabase_key = os.environ.get("SUPABASE_KEY", "")
 supabase: Client = create_client(supabase_url, supabase_key)

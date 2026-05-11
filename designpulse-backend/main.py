@@ -17,11 +17,11 @@ from jose import jwt, JWTError, ExpiredSignatureError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 
+load_dotenv()
+
 from services.PDFMapService import PDFMapService
 from routers import drawings as drawings_router
 from services.auth import get_current_user, security  # noqa: F401 — re-exported for legacy endpoints
-
-load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

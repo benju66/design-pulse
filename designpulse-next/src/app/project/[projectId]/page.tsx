@@ -645,18 +645,6 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           {currentView === 'map' && (() => {
             const activeSheet = sheets.find((s) => s.id === activeSheetId) ?? null;
             const zones = markupsToZones(rawMarkups);
-
-            // Auto-select first ready sheet when none is active.
-            // Uses a derived check instead of useEffect (IIFE context — hooks not allowed).
-            // The Zustand write is idempotent so no re-render loop.
-            if (!activeSheetId && sheets.length > 0) {
-              const firstReady = sheets.find((s) => s.status === 'ready') ?? sheets[0];
-              if (firstReady) {
-                // Defer to avoid setState-during-render warning
-                queueMicrotask(() => useMapStore.getState().setActiveSheetId(firstReady.id));
-              }
-            }
-
             // Determine if the sheet is ready for canvas rendering.
             // During processing, max_zoom/original_width/original_height are null.
             // Rendering FloorplanCanvas with maxZoom=0 causes TileRenderer to request

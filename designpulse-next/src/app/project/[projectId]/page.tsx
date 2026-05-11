@@ -1,6 +1,6 @@
 "use client";
 import React, { use } from 'react';
-import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid, UploadCloud } from 'lucide-react';
+import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid, UploadCloud, Upload } from 'lucide-react';
 import FloorplanCanvas from '@/components/FloorplanCanvas';
 import { SheetTabStrip } from '@/components/canvas/SheetTabStrip';
 import OpportunityGrid from '@/components/OpportunityGrid';
@@ -31,6 +31,7 @@ import { useProjectSheets, useSheetMarkups, markupsToZones, useUpdateSheetMarkup
 
 import { ProjectSidebar } from '@/components/layout/ProjectSidebar';
 import { ProjectSettings } from '@/components/project/ProjectSettings';
+import { PdfImportModal } from '@/components/drawings/PdfImportModal';
 
 // ── Module-level navigation type guards ─────────────────────────────────────────
 const VALID_PROJECT_VIEWS = new Set<ProjectView>([
@@ -106,6 +107,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [coordActiveDisciplines, setCoordActiveDisciplines] = React.useState<string[]>([]);
   const [isCompareModalOpen, setIsCompareModalOpen] = React.useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = React.useState(false);
+  const [isPdfImportOpen, setIsPdfImportOpen] = React.useState(false);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
@@ -391,6 +393,18 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                   Bulk Import
                 </button>
               </>
+            )}
+
+            {currentView === 'map' && (
+              <button
+                id="drawings-import-btn"
+                onClick={() => setIsPdfImportOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-teal-500 hover:bg-teal-400
+                           text-white text-sm font-bold rounded-xl shadow-sm transition-colors"
+              >
+                <Upload size={16} />
+                Import Drawings
+              </button>
             )}
 
             {currentView === 'permits' && (
@@ -869,6 +883,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         projectSettings={settings || null}
         costCodes={globalCostCodeStrings}
       />
+
+      {isPdfImportOpen && (
+        <PdfImportModal
+          projectId={projectId}
+          onClose={() => setIsPdfImportOpen(false)}
+        />
+      )}
     </div>
   );
 }

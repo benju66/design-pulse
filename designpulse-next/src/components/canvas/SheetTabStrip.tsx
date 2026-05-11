@@ -12,6 +12,7 @@ import {
 } from '@/hooks/useMapQueries';
 import { useSheetRealtime } from '@/hooks/useSheetRealtime';
 import { processSheetService } from '@/services/api';
+import { DrawingSetSelector } from '@/components/drawings/DrawingSetSelector';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -213,7 +214,15 @@ export const SheetTabStrip: React.FC<SheetTabStripProps> = ({ projectId, sheets 
   }, [projectId, deleteSheet, activeSheetId, sheets, setActiveSheetId]);
 
   return (
-    <div className="flex-shrink-0 h-12 flex items-stretch border-t border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
+    <div className="flex-shrink-0 flex flex-col border-t border-slate-200 dark:border-slate-700
+                    bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
+      {/* Drawing Set Selector — sits above the tab row */}
+      <div className="px-2 pt-1.5 pb-1 border-b border-slate-200/60 dark:border-slate-700/60">
+        <DrawingSetSelector projectId={projectId} />
+      </div>
+
+      {/* Tab row — 48px */}
+      <div className="h-12 flex items-stretch overflow-hidden relative">
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
@@ -392,6 +401,7 @@ export const SheetTabStrip: React.FC<SheetTabStripProps> = ({ projectId, sheets 
           ))}
         </div>
       )}
+      </div>{/* end tab row */}
     </div>
   );
 };

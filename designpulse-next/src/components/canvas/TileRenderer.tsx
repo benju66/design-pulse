@@ -49,6 +49,19 @@ export const TileRenderer: React.FC<TileRendererProps> = ({
   const activeControllers = useRef<Record<string, AbortController>>({});
   const [renderEpoch, setRenderEpoch] = useState(0);
 
+  // Clear tile cache when sheet changes — prevents stale tiles from a previous
+  // sheet (or the processing phase with maxZoom=0) from persisting in refs.
+  useEffect(() => {
+    // Abort all in-flight fetches for the previous sheet
+    for (const controller of Object.values(activeControllers.current)) {
+      controller.abort();
+    }
+    tileCache.current = {};
+    inflight.current = new Set();
+    activeControllers.current = {};
+    setRenderEpoch(0);
+  }, [sheetId, maxZoom]);
+
   // Supabase Storage URL for authenticated tile fetches
   const storageBaseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/authenticated/project_drawings`;
 

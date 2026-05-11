@@ -16,8 +16,9 @@ import { TileRenderer } from './canvas/TileRenderer';
 
 import { distToSegment, getCentroid } from '@/utils/geometry';
 import { useMapStore } from '@/stores/useMapStore';
+import { useSnappingVectors } from '@/hooks/useSnappingVectors';
 
-import { Point, Zone } from '@/types/map.types';
+import { Point, Zone, SnapCallback } from '@/types/map.types';
 import { DragNode, DragPolygon } from './canvas/MappedZone';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
@@ -78,10 +79,29 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
   
   const [legendPosition, setLegendPosition] = useState({ isVisible: false, pctX: 0.05, pctY: 0.05, scaleX: 1, scaleY: 1, rotation: 0 });
 
-  // P-2: Dual RBush construction removed. Main-thread vectorTree state eliminated.
-  // All snap queries are now routed through useSnappingVectors.calculateSnap() (worker-based).
-  // This eliminates ~200ms of O(n log n) main-thread blocking on large CAD files.
+  // ── Snapping worker setup ──────────────────────────────────────────────────
+  // useSnappingVectors downloads vectors.json and loads them into the off-thread
+  // RBush spatial index. calculateSnap returns a Promise<Point | null>.
+  // snapCallbackRef is a stable ref (AGENTS.md C10: never mutate table.options.meta
+  // inline on render — same principle applies here for stable async references).
+  const { calculateSnap } = useSnappingVectors(projectId, sheetId || null);
+  const snapCallbackRef = useRef<SnapCallback | null>(null);
+  useEffect(() => {
+    // Wrap calculateSnap so we always call the latest version without stale closure.
+    snapCallbackRef.current = (point: Point, thresholdPct: number) =>
+      calculateSnap(point, thresholdPct);
+  }, [calculateSnap]);
 
+  // snapPreviewPoint: resolved snap candidate for the DraftPolygon cursor ghost.
+  // Updated async via a 16ms debounce on pointer move to keep the main thread free.
+  const [snapPreviewPoint, setSnapPreviewPoint] = useState<Point | null>(null);
+  const snapDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  // Cleanup snap debounce on unmount (AGENTS.md C15 — animation/timer cleanup)
+  useEffect(() => {
+    return () => {
+      if (snapDebounceRef.current) clearTimeout(snapDebounceRef.current);
+    };
+  }, []);
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const zoomDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -356,60 +376,73 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
   };
 
   const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
-    setContextMenu(null);
-    const stage = e.target.getStage();
-    if (!stage) return;
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-    const logicalX = (pointer.x - stage.x()) / stageScale;
-    const logicalY = (pointer.y - stage.y()) / stageScale;
+    // Synchronous void wrapper — makes return type void (not Promise<void>) so Konva's
+    // event system receives the correct type. All rejections are caught explicitly.
+    void (async () => {
+      setContextMenu(null);
+      const stage = e.target.getStage();
+      if (!stage) return;
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+      const logicalX = (pointer.x - stage.x()) / stageScale;
+      const logicalY = (pointer.y - stage.y()) / stageScale;
 
-    const { offsetX, offsetY, drawW, drawH } = layout;
-    if (drawW <= 0 || drawH <= 0) return;
+      const { offsetX, offsetY, drawW, drawH } = layout;
+      if (drawW <= 0 || drawH <= 0) return;
 
-    let pctX = (logicalX - offsetX) / drawW;
-    let pctY = (logicalY - offsetY) / drawH;
+      let pctX = (logicalX - offsetX) / drawW;
+      let pctY = (logicalY - offsetY) / drawH;
 
-    if (toolMode === 'stamp' && selectedZoneIds?.length === 1) {
-      const sourceZone = zones.find(z => z.id === selectedZoneIds[0]);
-      if (sourceZone && sourceZone.coordinates && sourceZone.coordinates.length > 0) {
-        let sumX = 0, sumY = 0;
-        sourceZone.coordinates.forEach(pt => { sumX += pt.pctX; sumY += pt.pctY; });
-        const cx = sumX / sourceZone.coordinates.length;
-        const cy = sumY / sourceZone.coordinates.length;
-        const dx = pctX - cx;
-        const dy = pctY - cy;
-        
-        const translatedPoints = sourceZone.coordinates.map(pt => ({
-          pctX: pt.pctX + dx,
-          pctY: pt.pctY + dy
-        }));
-        
-        onInstantStamp?.(selectedZoneIds[0], translatedPoints);
+      if (toolMode === 'stamp' && selectedZoneIds?.length === 1) {
+        const sourceZone = zones.find(z => z.id === selectedZoneIds[0]);
+        if (sourceZone && sourceZone.coordinates && sourceZone.coordinates.length > 0) {
+          let sumX = 0, sumY = 0;
+          sourceZone.coordinates.forEach(pt => { sumX += pt.pctX; sumY += pt.pctY; });
+          const cx = sumX / sourceZone.coordinates.length;
+          const cy = sumY / sourceZone.coordinates.length;
+          const dx = pctX - cx;
+          const dy = pctY - cy;
+
+          const translatedPoints = sourceZone.coordinates.map(pt => ({
+            pctX: pt.pctX + dx,
+            pctY: pt.pctY + dy
+          }));
+
+          onInstantStamp?.(selectedZoneIds[0], translatedPoints);
+        }
+      } else if (toolMode === 'draw') {
+        if (Date.now() - lastBoxEndRef.current < 200) return;
+        // Read from ref — not closure-captured draftPoints — prevents stale read
+        // when two rapid clicks both fire before the first await resolves.
+        const currentDraftPoints = draftPointsRef.current;
+        if (e.evt.shiftKey && currentDraftPoints.length > 0) {
+          const lastPoint = currentDraftPoints[currentDraftPoints.length - 1];
+          const dx = Math.abs(pctX - lastPoint.pctX);
+          const dy = Math.abs(pctY - lastPoint.pctY);
+          if (dx > dy) pctY = lastPoint.pctY;
+          else pctX = lastPoint.pctX;
+        }
+        let finalPctX = pctX;
+        let finalPctY = pctY;
+        if (mapSettings.enableSnapping && snapCallbackRef.current) {
+          const thresholdPct = (mapSettings.snappingStrength || 15) / Math.max(1, layoutRef.current.drawW * stageScale);
+          const snapped = await snapCallbackRef.current({ pctX, pctY }, thresholdPct);
+          if (snapped) { finalPctX = snapped.pctX; finalPctY = snapped.pctY; }
+        }
+        setDraftPoints([...currentDraftPoints, { pctX: finalPctX, pctY: finalPctY }]);
+      } else if (['select', 'multi_select', 'add_node', 'delete_node'].includes(toolMode)) {
+        if (e.target === stage || e.target.nodeType === 'Image' || e.target.attrs?.id === 'bg-rect') {
+          onClearSelection();
+          setIsLegendSelected(false);
+        }
+      } else {
+        if (e.target === stage || e.target.nodeType === 'Image' || e.target.attrs?.id === 'bg-rect') {
+          setIsLegendSelected(false);
+        }
       }
-    } else if (toolMode === 'draw') {
-      if (Date.now() - lastBoxEndRef.current < 200) return;
-      if (e.evt.shiftKey && draftPoints.length > 0) {
-        const lastPoint = draftPoints[draftPoints.length - 1];
-        const dx = Math.abs(pctX - lastPoint.pctX);
-        const dy = Math.abs(pctY - lastPoint.pctY);
-        if (dx > dy) pctY = lastPoint.pctY;
-        else pctX = lastPoint.pctX;
-      }
-      // P-2: Snapping now handled via worker-based calculateSnap() from useSnappingVectors.
-      // The synchronous getSnappedCoordinate() call and main-thread vectorTree have been removed.
-      // TODO: Wire async calculateSnap() here when the parent component provides the hook reference.
-      setDraftPoints([...draftPoints, { pctX, pctY }]);
-    } else if (['select', 'multi_select', 'add_node', 'delete_node'].includes(toolMode)) {
-      if (e.target === stage || e.target.nodeType === 'Image' || e.target.attrs?.id === 'bg-rect') {
-        onClearSelection();
-        setIsLegendSelected(false);
-      }
-    } else {
-      if (e.target === stage || e.target.nodeType === 'Image' || e.target.attrs?.id === 'bg-rect') {
-        setIsLegendSelected(false);
-      }
-    }
+    })().catch((err: unknown) => {
+      console.error('[FloorplanCanvas] handleStageClick error:', err);
+    });
   };
 
   const finishDrawing = () => {
@@ -735,6 +768,24 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
             const stage = e.target.getStage();
             const pos = stage?.getPointerPosition();
             if (stage && pos) setPointerPos(pos);
+
+            // Debounced async snap preview for DraftPolygon cursor ghost (AGENTS.md C15)
+            if (toolMode === 'draw' && mapSettings.enableSnapping && snapCallbackRef.current && pos && stage) {
+              if (snapDebounceRef.current) clearTimeout(snapDebounceRef.current);
+              snapDebounceRef.current = setTimeout(async () => {
+                const logX = (pos.x - stage.x()) / stageScale;
+                const logY = (pos.y - stage.y()) / stageScale;
+                const layout = layoutRef.current;
+                if (layout.drawW <= 0 || layout.drawH <= 0) return;
+                const pctX = (logX - layout.offsetX) / layout.drawW;
+                const pctY = (logY - layout.offsetY) / layout.drawH;
+                const thresholdPct = (mapSettings.snappingStrength || 15) / Math.max(1, layout.drawW * stageScale);
+                const snapped = await snapCallbackRef.current!({ pctX, pctY }, thresholdPct);
+                setSnapPreviewPoint(snapped);
+              }, 16);
+            } else if (toolMode !== 'draw') {
+              setSnapPreviewPoint(null);
+            }
           }}
           x={stagePosition.x}
           y={stagePosition.y}
@@ -782,8 +833,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
                   toolMode={toolMode}
                   layout={layout}
                   stageScale={stageScale}
-                  vectorTree={null}
-                  aspect={aspect}
+                  snapCallback={snapCallbackRef.current}
                   enableSnapping={mapSettings?.enableSnapping}
                   snappingStrength={mapSettings?.snappingStrength || 15}
                   settings={settings}
@@ -814,7 +864,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
               stagePosition={stagePosition}
               stageScale={stageScale}
               layout={layout}
-              vectorTree={null}
+              snapPreviewPoint={snapPreviewPoint}
+              snapCallback={snapCallbackRef.current}
               aspect={aspect}
               enableSnapping={mapSettings?.enableSnapping}
               snappingStrength={mapSettings?.snappingStrength || 15}

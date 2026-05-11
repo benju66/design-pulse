@@ -1,7 +1,6 @@
 import React from 'react';
 import { Line, Circle } from 'react-konva';
-import { getSnappedCoordinate } from '@/utils/geometry';
-import { Point, LayoutConfig, VectorLine, RBush } from '@/types/map.types';
+import { Point, LayoutConfig, SnapCallback } from '@/types/map.types';
 
 export interface DraftPolygonProps {
   toolMode: string;
@@ -11,7 +10,12 @@ export interface DraftPolygonProps {
   stagePosition: { x: number; y: number };
   stageScale: number;
   layout: LayoutConfig;
-  vectorTree: RBush<VectorLine> | null;
+  // snapPreviewPoint: the already-resolved snap candidate for cursor preview.
+  // Computed async in the parent via a debounced calculateSnap call and passed
+  // down as resolved state — DraftPolygon itself stays synchronous.
+  snapPreviewPoint: Point | null;
+  // snapCallback retained for the parent's async click handler wiring
+  snapCallback: SnapCallback | null;
   aspect: number;
   enableSnapping: boolean;
   snappingStrength?: number;
@@ -27,10 +31,8 @@ export const DraftPolygon: React.FC<DraftPolygonProps> = ({
   stagePosition,
   stageScale,
   layout,
-  vectorTree,
-  aspect,
+  snapPreviewPoint,
   enableSnapping,
-  snappingStrength,
   isShiftDown,
   toPixels
 }) => {
@@ -45,20 +47,18 @@ export const DraftPolygon: React.FC<DraftPolygonProps> = ({
         let pctX = (logicalX - layout.offsetX) / layout.drawW;
         let pctY = (logicalY - layout.offsetY) / layout.drawH;
         let isSnapped = false;
-        
+
         if (isShiftDown && draftPoints.length > 0) {
           const last = draftPoints[draftPoints.length - 1];
           const dx = Math.abs(pctX - last.pctX);
           const dy = Math.abs(pctY - last.pctY);
           if (dx > dy) pctY = last.pctY;
           else pctX = last.pctX;
-        } else if (enableSnapping) {
-          const snap = getSnappedCoordinate(pctX, pctY, vectorTree, aspect, layout.drawW, stageScale, snappingStrength || 15);
-          if (snap.snapped) {
-            pctX = snap.pctX;
-            pctY = snap.pctY;
-            isSnapped = true;
-          }
+        } else if (enableSnapping && snapPreviewPoint) {
+          // snapPreviewPoint is resolved async by the parent — use it directly
+          pctX = snapPreviewPoint.pctX;
+          pctY = snapPreviewPoint.pctY;
+          isSnapped = true;
         }
         
         return (

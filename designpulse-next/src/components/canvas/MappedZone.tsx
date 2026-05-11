@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Group, Line, Circle } from 'react-konva';
-import { getSnappedCoordinate } from '@/utils/geometry';
-import { Point, Zone, ToolMode, LayoutConfig, VectorLine, RBush, CanvasRenderSettings } from '@/types/map.types';
+import { Point, Zone, ToolMode, LayoutConfig, SnapCallback, CanvasRenderSettings } from '@/types/map.types';
 import type { KonvaEventObject } from 'konva/lib/Node';
 
 export interface DragNode {
@@ -28,8 +27,9 @@ export interface MappedZoneProps {
   toolMode: ToolMode | 'select' | 'delete_node' | 'add_node' | 'stamp';
   layout: LayoutConfig;
   stageScale: number;
-  vectorTree: RBush<VectorLine> | null;
-  aspect: number;
+  // snapCallback: async worker-based snap, called on anchor dragEnd (not dragBoundFunc
+  // which is synchronous and cannot await). Pass null when snapping is disabled.
+  snapCallback: SnapCallback | null;
   enableSnapping: boolean;
   snappingStrength?: number;
   settings?: CanvasRenderSettings;
@@ -58,10 +58,9 @@ export const MappedZoneComponent: React.FC<MappedZoneProps> = ({
   toolMode,
   layout,
   stageScale,
-  vectorTree,
-  aspect,
-  enableSnapping,
-  snappingStrength = 15,
+  snapCallback: _snapCallback,
+  enableSnapping: _enableSnapping,
+  snappingStrength: _snappingStrength = 15,
   settings,
   activeDragNode,
   activeDragPolygon,
@@ -195,6 +194,7 @@ export const MappedZoneComponent: React.FC<MappedZoneProps> = ({
            strokeWidth={2 / stageScale}
            draggable={toolMode === 'select' || toolMode === 'add_node'}
            dragBoundFunc={(pos) => {
+             // Shift-key orthogonal constraint (sync — stays in dragBoundFunc)
              if (isShiftDown) {
                const origX = layout.offsetX + (pt.pctX + (activeDragPolygon?.zoneId === zone.id ? activeDragPolygon.dx : 0)) * layout.drawW;
                const origY = layout.offsetY + (pt.pctY + (activeDragPolygon?.zoneId === zone.id ? activeDragPolygon.dy : 0)) * layout.drawH;
@@ -204,29 +204,16 @@ export const MappedZoneComponent: React.FC<MappedZoneProps> = ({
                  return { x: origX, y: pos.y };
                }
              }
-             if (enableSnapping) {
-               let pctX = (pos.x - layout.offsetX) / layout.drawW;
-               let pctY = (pos.y - layout.offsetY) / layout.drawH;
-               const snap = getSnappedCoordinate(pctX, pctY, vectorTree, aspect, layout.drawW, stageScale, snappingStrength);
-               if (snap.snapped) {
-                 return {
-                   x: layout.offsetX + snap.pctX * layout.drawW,
-                   y: layout.offsetY + snap.pctY * layout.drawH
-                 };
-               }
-             }
+             // Vector snapping is async (Web Worker). dragBoundFunc is synchronous
+             // and cannot await. Snap is applied on dragEnd via snapCallback instead.
              return pos;
            }}
            onDragMove={(e) => {
              const node = e.target;
-             let pctX = (node.x() - layout.offsetX) / layout.drawW;
-             let pctY = (node.y() - layout.offsetY) / layout.drawH;
-             let isSnapped = false;
-             if (enableSnapping && !isShiftDown) {
-               const snap = getSnappedCoordinate(pctX, pctY, vectorTree, aspect, layout.drawW, stageScale, snappingStrength);
-               isSnapped = snap.snapped;
-             }
-             setActiveDragNode({ zoneId: zone.id, index: i, pctX, pctY, isSnapped });
+             const pctX = (node.x() - layout.offsetX) / layout.drawW;
+             const pctY = (node.y() - layout.offsetY) / layout.drawH;
+             // Async snap applied on dragEnd via snapCallback — cannot await in onDragMove
+             setActiveDragNode({ zoneId: zone.id, index: i, pctX, pctY, isSnapped: false });
            }}
            onDragEnd={(e) => {
              const node = e.target;

@@ -26,5 +26,5 @@ Write-Host "Updating Current Session PATH..."
 $env:Path += ";$binPath"
 
 Write-Host "Running Verification Test..."
-cd "c:\Users\BUrness\Dev\design-pulse\designpulse-backend"
+Set-Location "c:\Users\BUrness\Dev\design-pulse\designpulse-backend"
 .\venv\Scripts\python.exe test_milestone_2.py

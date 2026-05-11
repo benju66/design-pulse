@@ -2,6 +2,7 @@
 import React, { use } from 'react';
 import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid, UploadCloud } from 'lucide-react';
 import FloorplanCanvas from '@/components/FloorplanCanvas';
+import { SheetTabStrip } from '@/components/canvas/SheetTabStrip';
 import OpportunityGrid from '@/components/OpportunityGrid';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import CompareModal from '@/components/CompareModal';
@@ -23,8 +24,10 @@ import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import DetailPanel from '@/components/DetailPanel';
 import { useUIStore, ProjectView, SettingsTab } from '@/stores/useUIStore';
+import { useMapStore } from '@/stores/useMapStore';
 import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
 import { useProjectRealtime } from '@/hooks/useProjectRealtime';
+import { useProjectSheets, useSheetMarkups, markupsToZones, useUpdateSheetMarkups } from '@/hooks/useMapQueries';
 
 import { ProjectSidebar } from '@/components/layout/ProjectSidebar';
 import { ProjectSettings } from '@/components/project/ProjectSettings';
@@ -59,6 +62,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const { data: globalCostCodes = [] } = useCostCodes();
   const createMutation = useCreateOpportunity(projectId);
   const createPermitMutation = useCreatePermit(projectId);
+
+  // ── Drawings / Map hooks (called unconditionally per Rules of Hooks) ─────────
+  const activeSheetId = useMapStore((s) => s.activeSheetId);
+  const { data: sheets = [] } = useProjectSheets(projectId);
+  const { data: rawMarkups = [] } = useSheetMarkups(activeSheetId || null);
+  const updateMarkups = useUpdateSheetMarkups();
   
   // ── Navigation state (persisted in Zustand, replaces useState) ────────────────
   const _rawView        = useUIStore(state => state.activeView[projectId]);
@@ -616,25 +625,97 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             </>
           )}
 
-          {currentView === 'map' && (
-            <>
-              <div className="w-full h-full relative bg-slate-50 dark:bg-slate-900 shrink-0">
-                <FloorplanCanvas 
-                  projectId={projectId}
-                  sheetId=""
-                  maxZoom={0}
-                  originalWidth={1000}
-                  originalHeight={1000}
-                  zones={[]}
-                />
+          {currentView === 'map' && (() => {
+            const activeSheet = sheets.find((s) => s.id === activeSheetId) ?? null;
+            const zones = markupsToZones(rawMarkups);
+
+            // Auto-select first ready sheet when none is active.
+            // Uses a derived check instead of useEffect (IIFE context — hooks not allowed).
+            // The Zustand write is idempotent so no re-render loop.
+            if (!activeSheetId && sheets.length > 0) {
+              const firstReady = sheets.find((s) => s.status === 'ready') ?? sheets[0];
+              if (firstReady) {
+                // Defer to avoid setState-during-render warning
+                queueMicrotask(() => useMapStore.getState().setActiveSheetId(firstReady.id));
+              }
+            }
+
+            // Determine if the sheet is ready for canvas rendering.
+            // During processing, max_zoom/original_width/original_height are null.
+            // Rendering FloorplanCanvas with maxZoom=0 causes TileRenderer to request
+            // non-existent tiles (400 errors from Supabase Storage).
+            const isSheetReady = activeSheet?.status === 'ready'
+              && activeSheet.max_zoom != null
+              && activeSheet.original_width != null
+              && activeSheet.original_height != null;
+
+            // Zone persistence — all unlinked (opportunityId: null, AGENTS.md C11)
+            const saveZones = (updatedZones: typeof zones) => {
+              if (!activeSheetId) return;
+              updateMarkups.mutate({
+                sheetId: activeSheetId,
+                opportunityId: null,
+                markups: updatedZones,
+              });
+            };
+
+            return (
+              <div className="flex flex-col w-full h-full overflow-hidden">
+                <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 overflow-hidden">
+                  {activeSheetId && isSheetReady ? (
+                    <FloorplanCanvas
+                      projectId={projectId}
+                      sheetId={activeSheetId}
+                      maxZoom={activeSheet.max_zoom}
+                      originalWidth={activeSheet.original_width}
+                      originalHeight={activeSheet.original_height}
+                      zones={zones}
+                      onPolygonComplete={(points) => {
+                        const newZone = {
+                          id: crypto.randomUUID(),
+                          label: '',
+                          coordinates: points,
+                          color: '#3b82f6',
+                          opacity: 0.35,
+                        };
+                        saveZones([...zones, newZone]);
+                      }}
+                      onUpdateZonePolygon={(zoneId, points) => {
+                        saveZones(
+                          zones.map((z) => (z.id === zoneId ? { ...z, coordinates: points } : z))
+                        );
+                      }}
+                      onDeleteZone={(zoneId) => {
+                        const ids = Array.isArray(zoneId) ? zoneId : [zoneId];
+                        saveZones(zones.filter((z) => !ids.includes(z.id)));
+                      }}
+                    />
+                  ) : activeSheetId && activeSheet?.status === 'processing' ? (
+                    <div className="flex flex-col h-full items-center justify-center gap-4 text-slate-400 dark:text-slate-500">
+                      <div className="animate-spin rounded-full h-8 w-8 border-2 border-sky-500 border-t-transparent" />
+                      <p className="text-sm font-medium">Processing sheet&hellip;</p>
+                      <p className="text-xs text-slate-400">
+                        {activeSheet.progress_percent != null && activeSheet.progress_percent > 0
+                          ? `${activeSheet.progress_percent}% complete`
+                          : 'Generating tile pyramid'}
+                      </p>
+                    </div>
+                  ) : activeSheetId && activeSheet?.status === 'error' ? (
+                    <div className="flex flex-col h-full items-center justify-center gap-3 text-slate-400 dark:text-slate-500">
+                      <p className="text-sm text-red-400">Processing failed.</p>
+                      <p className="text-xs">Right-click the tab below and choose <span className="font-semibold text-sky-400">Re-upload PDF</span>.</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col h-full items-center justify-center gap-3 text-slate-400 dark:text-slate-500">
+                      <p className="text-sm">No sheets yet.</p>
+                      <p className="text-xs">Click <span className="font-semibold text-sky-500">+ Add Sheet</span> below to upload a PDF.</p>
+                    </div>
+                  )}
+                </div>
+                <SheetTabStrip projectId={projectId} sheets={sheets} />
               </div>
-              <DetailPanel 
-                projectId={projectId} 
-                opportunities={opportunities} 
-                viewMode={'split'} 
-              />
-            </>
-          )}
+            );
+          })()}
 
           {currentView === 'settings' && (
             <ProjectSettings

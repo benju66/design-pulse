@@ -9,6 +9,76 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      project_sheets: {
+        Row: {
+          id: string
+          project_id: string
+          sheet_name: string
+          status: 'processing' | 'ready' | 'error'
+          progress_percent: number
+          original_width: number | null
+          original_height: number | null
+          max_zoom: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          sheet_name: string
+          status?: 'processing' | 'ready' | 'error'
+          progress_percent?: number
+          original_width?: number | null
+          original_height?: number | null
+          max_zoom?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          sheet_name?: string
+          status?: 'processing' | 'ready' | 'error'
+          progress_percent?: number
+          original_width?: number | null
+          original_height?: number | null
+          max_zoom?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      sheet_markups: {
+        Row: {
+          id: string
+          sheet_id: string
+          opportunity_id: string | null
+          geometry: Json
+          style: Json
+          metadata: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          sheet_id: string
+          opportunity_id?: string | null
+          geometry?: Json
+          style?: Json
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          sheet_id?: string
+          opportunity_id?: string | null
+          geometry?: Json
+          style?: Json
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+      }
       projects: {
         Row: {
           id: string

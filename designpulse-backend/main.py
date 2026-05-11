@@ -1,11 +1,15 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from supabase import create_client, Client
 from pydantic import BaseModel
 from typing import List, Optional, Dict
+import asyncio
+import glob
 import os
 import io
+import shutil
 import fitz  # PyMuPDF for fast PDF to Image conversion
 import math
 from jose import jwt, JWTError, ExpiredSignatureError
@@ -13,16 +17,55 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 
 from services.PDFMapService import PDFMapService
+from services.worker import process_sheet_job
 
 load_dotenv()
 
-app = FastAPI(title="SitePulse Backend API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── STARTUP ──────────────────────────────────────────────────────────────
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+    # 1. Clean up orphaned temp tile directories from previous crashed runs.
+    #    asyncio.create_task() jobs are in-memory — any temp dir present at
+    #    startup is guaranteed to be from a crashed process and safe to delete.
+    for stale_dir in glob.glob("temp_*_tiles"):
+        shutil.rmtree(stale_dir, ignore_errors=True)
+        print(f"[startup] Cleaned orphaned temp dir: {stale_dir}")
 
-# Split by comma if the env var contains multiple domains, and natively support production
+    # 2. Zombie State Sweep: rows stuck in status='processing' at startup belong
+    #    to tasks that were killed mid-flight (OOM, SIGKILL, etc.). Reset to
+    #    'error' so users see a recoverable state and can right-click → Re-upload.
+    #    Safe invariant: with asyncio.create_task(), no job can survive a restart.
+    try:
+        zombie_res = (
+            supabase.table("project_sheets")
+            .update({"status": "error", "progress_percent": 0})
+            .eq("status", "processing")
+            .execute()
+        )
+        swept = len(zombie_res.data) if zombie_res.data else 0
+        if swept:
+            print(f"[startup] Zombie sweep: reverted {swept} orphaned processing row(s) to 'error'.")
+    except Exception as e:
+        # Non-fatal: log and continue — a sweep failure must not block startup.
+        print(f"[startup] WARNING: Zombie sweep failed (non-fatal): {e}")
+
+    yield
+    # ── SHUTDOWN (nothing to teardown) ───────────────────────────────────────
+
+
+app = FastAPI(title="SitePulse Backend API", lifespan=lifespan)
+
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:8000")
+
+# Split by comma to support multiple origins in one env var (e.g. staging + prod).
+# Always include the known dev ports and production domain as a safety net.
 allowed_origins = [url.strip() for url in FRONTEND_URL.split(",")]
-for default_url in ["http://localhost:3000", "https://designpulse.build"]:
+for default_url in [
+    "http://localhost:3000",   # Next.js default port
+    "http://localhost:8000",   # Next.js custom port (next dev -p 8000)
+    "https://designpulse.build",
+]:
     if default_url not in allowed_origins:
         allowed_origins.append(default_url)
 
@@ -193,16 +236,27 @@ async def upload_and_convert_floorplan(
 from services.tile_processor import TileProcessor
 from services.vector_extractor import VectorExtractor
 
-@app.post("/process-sheet/{sheet_id}")
+@app.post("/process-sheet/{sheet_id}", status_code=202)
 async def process_sheet(
     sheet_id: str,
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
 ):
     """
-    Milestone 2 Endpoint:
-    Receives a PDF, slices it into Deep Zoom WebP tiles, extracts snapping vectors,
-    and updates the `project_sheets` row with completion metadata.
+    202 Accepted ingestion endpoint.
+
+    Fast path (completes in < 2s regardless of PDF size):
+      1. Validate file type and auth.
+      2. Stage the raw PDF to Storage at {project_id}/pending/{sheet_id}.pdf.
+         (Synchronous upload happens HERE so the background task has the file
+          guaranteed when it starts — eliminates the race condition where
+          create_task fires before the PDF is in Storage.)
+      3. Reset DB row to status='processing', progress_percent=0.
+      4. Fire asyncio.create_task() — returns immediately.
+      5. Return 202 Accepted.
+
+    Heavy work (tile slicing, vector extraction, DB finalization) runs in
+    services/worker.py via asyncio.to_thread(), fully decoupled from this request.
     """
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
@@ -211,36 +265,40 @@ async def process_sheet(
         project_id = await verify_project_sheet_access(sheet_id, user["sub"])
         pdf_bytes = await file.read()
 
-        def run_processing():
-            # 1. Process Tiles (project_id prefix for Storage RLS path_tokens[1])
-            max_zoom, width, height = TileProcessor.process_pdf_to_tiles(pdf_bytes, project_id, sheet_id, supabase)
-            
-            # 2. Extract Vectors (percentage-normalized, project_id prefix)
-            VectorExtractor.extract_and_upload(pdf_bytes, project_id, sheet_id, supabase)
-            
-            # 3. Update the database record
-            supabase.table("project_sheets").update({
-                "status": "ready",
-                "max_zoom": max_zoom,
-                "original_width": width,
-                "original_height": height
-            }).eq("id", sheet_id).execute()
-            
-            return {"status": "success", "max_zoom": max_zoom}
+        # Stage PDF BEFORE firing the background task.
+        # RLS: path_tokens[1] must be a project_id UUID — never 'pending/{id}'.
+        pending_path = f"{project_id}/pending/{sheet_id}.pdf"
 
-        import asyncio
-        result = await asyncio.to_thread(run_processing)
-        return result
+        def stage_pdf() -> None:
+            # Remove any previous failed-attempt file for this sheet_id.
+            supabase.storage.from_("project_drawings").remove([pending_path])
+            supabase.storage.from_("project_drawings").upload(
+                path=pending_path,
+                file=pdf_bytes,
+                file_options={"content-type": "application/pdf", "upsert": "true"},
+            )
+
+        await asyncio.to_thread(stage_pdf)
+
+        # Reset status (handles re-upload case where row already exists)
+        supabase.table("project_sheets").update({
+            "status": "processing",
+            "progress_percent": 0,
+        }).eq("id", sheet_id).execute()
+
+        # Dispatch background job — non-blocking.
+        # worker.py handles its own exceptions and always writes a terminal DB state.
+        asyncio.create_task(process_sheet_job(sheet_id, project_id))
+
+        return JSONResponse(
+            status_code=202,
+            content={"status": "accepted", "sheet_id": sheet_id},
+        )
 
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error processing sheet: {str(e)}")
-        # Mark as error in DB
-        try:
-            supabase.table("project_sheets").update({"status": "error"}).eq("id", sheet_id).execute()
-        except Exception as exc:
-            print(f"Failed to mark error status for sheet {sheet_id}: {exc}")
+        print(f"[process-sheet] Dispatch failed for sheet {sheet_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/attach-original/{sheet_id}")

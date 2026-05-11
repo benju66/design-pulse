@@ -2329,10 +2329,13 @@ CREATE POLICY "Admins can delete project_drawings"
 -- pair within a single transaction. Eliminates the non-atomic DELETE+INSERT
 -- pattern in the frontend that could lose data on mid-operation failures.
 -- Follows AGENTS.md: RBAC check (B.2), JSONB array safety (C21), set-based insert (C21).
+-- NULL safety: p_opportunity_id uses DEFAULT NULL + IS NOT DISTINCT FROM (not =)
+-- because NULL = NULL evaluates to NULL in SQL, silently matching zero rows.
+DROP FUNCTION IF EXISTS upsert_sheet_markups(uuid, uuid, jsonb);
 CREATE OR REPLACE FUNCTION upsert_sheet_markups(
   p_sheet_id uuid,
-  p_opportunity_id uuid,
-  p_markups jsonb
+  p_opportunity_id uuid DEFAULT NULL,
+  p_markups jsonb DEFAULT '[]'::jsonb
 ) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   -- RBAC check via existing permission helper
@@ -2349,9 +2352,13 @@ BEGIN
     RAISE EXCEPTION 'p_markups must be a JSON array';
   END IF;
 
-  -- Atomic delete + set-based insert in one transaction
+  -- Atomic delete + set-based insert in one transaction.
+  -- IS NOT DISTINCT FROM is the NULL-safe equality operator:
+  -- NULL IS NOT DISTINCT FROM NULL → TRUE (correct for unlinked zones)
+  -- 'uuid' IS NOT DISTINCT FROM 'uuid' → TRUE (correct for linked zones)
   DELETE FROM sheet_markups
-  WHERE sheet_id = p_sheet_id AND opportunity_id = p_opportunity_id;
+  WHERE sheet_id = p_sheet_id
+    AND opportunity_id IS NOT DISTINCT FROM p_opportunity_id;
 
   INSERT INTO sheet_markups (sheet_id, opportunity_id, geometry, style, metadata)
   SELECT

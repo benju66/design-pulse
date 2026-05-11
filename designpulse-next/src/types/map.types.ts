@@ -1,6 +1,23 @@
 
 
+// ── Domain type for a project_sheets row ─────────────────────────────────────
+// Typed view of database.types.ts project_sheets.Row — used throughout the
+// Drawings module without importing the raw Database type.
+export interface ProjectSheet {
+  id: string;
+  project_id: string;
+  sheet_name: string;
+  status: 'processing' | 'ready' | 'error';
+  progress_percent: number;
+  original_width: number | null;
+  original_height: number | null;
+  max_zoom: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Point {
+
   pctX: number;
   pctY: number;
 }
@@ -98,3 +115,12 @@ export interface LegendTransform {
   scaleY: number;
   rotation: number;
 }
+
+// ── Async snap callback type ──────────────────────────────────────────────────
+// Replaces the legacy synchronous RBush<VectorLine> prop pattern.
+// Wraps the snapping Web Worker promise API. Returns the snapped Point if
+// a snap candidate is found within thresholdPct, or null if not.
+export type SnapCallback = (
+  point: Point,
+  thresholdPct: number
+) => Promise<Point | null>;

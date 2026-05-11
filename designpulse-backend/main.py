@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 
 from services.PDFMapService import PDFMapService
 from routers import drawings as drawings_router
+from services.auth import get_current_user, security  # noqa: F401 — re-exported for legacy endpoints
 
 load_dotenv()
 
@@ -136,27 +137,8 @@ supabase: Client = create_client(supabase_url, supabase_key)
 def health_check():
     return {"status": "success", "message": "Backend is online!"}
 
-security = HTTPBearer()
-
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    try:
-        user_response = supabase.auth.get_user(token)
-        
-        if not user_response or not user_response.user:
-            raise HTTPException(status_code=401, detail="Invalid token structure")
-            
-        if user_response.user.role != "authenticated":
-            raise HTTPException(status_code=401, detail="Not authorized")
-            
-        return {"sub": user_response.user.id, "role": user_response.user.role}
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+# get_current_user is imported from services.auth (shared with routers/drawings.py)
+# to avoid circular imports. The definition lives in services/auth.py.
 
 async def verify_project_sheet_access(sheet_id: str, user_id: str):
     """Unified sheet access verification using the project_sheets table.

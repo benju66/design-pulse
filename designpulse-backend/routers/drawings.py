@@ -26,6 +26,7 @@ from typing import List, Optional
 from services.pdf_inspector import inspect_and_stage_pdf, MAX_PDF_BYTES
 from services.tile_processor import PdfProcessingError
 from services.worker import process_sheet_job
+from services.auth import get_current_user
 
 router = APIRouter(prefix="/drawings", tags=["drawings"])
 
@@ -115,19 +116,11 @@ async def verify_sheet_project_access(sheet_id: str, user_id: str) -> str:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-# Import get_current_user at function call time to avoid circular imports.
-# It lives in main.py which imports this router — use a lazy import inside
-# the dependency to break the circular reference.
-def _get_auth():
-    from main import get_current_user  # noqa: PLC0415
-    return Depends(get_current_user)
-
-
 @router.post("/inspect-and-stage-pdf", response_model=InspectPdfResponse)
 async def inspect_and_stage(
     project_id: str = Form(...),
     file: UploadFile = File(...),
-    user: dict = Depends(__import__("main", fromlist=["get_current_user"]).get_current_user),
+    user: dict = Depends(get_current_user),
 ):
     """
     Step 1 of the UOPM pipeline.
@@ -180,7 +173,7 @@ async def process_sheet(
     staged_key: Optional[str] = Form(None),
     page_index: int = Form(0),
     file: Optional[UploadFile] = File(None),
-    user: dict = Depends(__import__("main", fromlist=["get_current_user"]).get_current_user),
+    user: dict = Depends(get_current_user),
 ):
     """
     Step 2 of the UOPM pipeline — dual-mode dispatch.
@@ -261,7 +254,7 @@ async def process_sheet(
 async def attach_original_pdf(
     sheet_id: str,
     file: UploadFile = File(...),
-    user: dict = Depends(__import__("main", fromlist=["get_current_user"]).get_current_user),
+    user: dict = Depends(get_current_user),
 ):
     """Attaches a source PDF to an existing sheet for vector extraction and export."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):

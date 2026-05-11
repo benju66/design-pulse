@@ -5,6 +5,17 @@ from supabase import create_client
 
 from services.tile_processor import TileProcessor, PdfProcessingError
 from services.vector_extractor import VectorExtractor
+import threading
+
+_worker_local = threading.local()
+
+def get_supabase():
+    if not hasattr(_worker_local, "client"):
+        _worker_local.client = create_client(
+            os.environ["SUPABASE_URL"],
+            os.environ["SUPABASE_KEY"],
+        )
+    return _worker_local.client
 
 
 async def process_sheet_job(
@@ -33,14 +44,11 @@ async def process_sheet_job(
       95–100% → DB row finalized
     """
     # Thread-local client — isolated httpx connection pool, never shared.
-    local_supabase = create_client(
-        os.environ["SUPABASE_URL"],
-        os.environ["SUPABASE_KEY"],
-    )
+    # Note: we don't instantiate here anymore, we use get_supabase() so each thread gets its own.
 
     def write_progress(percent: int) -> None:
         """Synchronous DB write — called from asyncio.to_thread contexts."""
-        local_supabase.table("project_sheets").update(
+        get_supabase().table("project_sheets").update(
             {"progress_percent": percent}
         ).eq("id", sheet_id).execute()
 
@@ -50,7 +58,7 @@ async def process_sheet_job(
     try:
         # ── Step 1: Download staged PDF from Storage ──────────────────────────
         pdf_bytes: bytes = await asyncio.to_thread(
-            local_supabase.storage.from_("project_drawings").download,
+            get_supabase().storage.from_("project_drawings").download,
             staged_path,
         )
 
@@ -62,14 +70,14 @@ async def process_sheet_job(
                 pdf_bytes,
                 project_id,
                 sheet_id,
-                local_supabase,
+                get_supabase(),
                 page_index=page_index,
                 on_progress=write_progress,
             )
 
         def run_vectors() -> None:
             VectorExtractor.extract_and_upload(
-                pdf_bytes, project_id, sheet_id, local_supabase
+                pdf_bytes, project_id, sheet_id, get_supabase(), page_index=page_index
             )
 
         (max_zoom, width, height), _ = await asyncio.gather(
@@ -80,7 +88,7 @@ async def process_sheet_job(
         write_progress(95)
 
         # ── Step 3: Finalize DB row with provenance data ──────────────────────
-        local_supabase.table("project_sheets").update({
+        get_supabase().table("project_sheets").update({
             "status": "ready",
             "progress_percent": 100,
             "max_zoom": max_zoom,
@@ -95,7 +103,7 @@ async def process_sheet_job(
         # Staged PDF is removed after the job that consumed it succeeds.
         # TTL sweep in main.py handles staged files orphaned by crashes.
         try:
-            local_supabase.storage.from_("project_drawings").remove([staged_path])
+            get_supabase().storage.from_("project_drawings").remove([staged_path])
         except Exception as cleanup_err:
             print(f"[worker] WARNING: Could not clean staged file {staged_path}: {cleanup_err}")
 
@@ -115,7 +123,7 @@ async def process_sheet_job(
 
         # Sub-block 1: Write error status + human-readable message to DB.
         try:
-            local_supabase.table("project_sheets").update({
+            get_supabase().table("project_sheets").update({
                 "status": "error",
                 "progress_percent": 0,
                 "status_message": user_message,
@@ -125,6 +133,6 @@ async def process_sheet_job(
 
         # Sub-block 2: Clean up staged file.
         try:
-            local_supabase.storage.from_("project_drawings").remove([staged_path])
+            get_supabase().storage.from_("project_drawings").remove([staged_path])
         except Exception as storage_err:
             print(f"[worker] WARNING: Could not clean staged file {staged_path}: {storage_err}")

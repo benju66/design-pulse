@@ -6,11 +6,23 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tenacity import retry, stop_after_attempt, wait_exponential
 from typing import Callable, Optional
+from supabase import create_client
+import threading
 
+_tile_worker_local = threading.local()
+
+def get_tile_supabase():
+    if not hasattr(_tile_worker_local, "client"):
+        _tile_worker_local.client = create_client(
+            os.environ["SUPABASE_URL"],
+            os.environ["SUPABASE_KEY"],
+        )
+    return _tile_worker_local.client
 
 # Step 2a: MAX_WORKERS and PDF_RENDER_ZOOM now env-configurable (OPT-2, OPT-4).
 # Raising MAX_WORKERS from 10 → 50 gives ~5x tile-upload throughput on large sheets.
 MAX_TILE_WORKERS = int(os.environ.get("MAX_TILE_WORKERS", "50"))
+
 PDF_RENDER_ZOOM  = float(os.environ.get("PDF_RENDER_ZOOM", "3.0"))
 
 
@@ -109,7 +121,8 @@ class TileProcessor:
                 reraise=True,
             )
             def upload_single_tile(path: str, data: bytes) -> None:
-                supabase_client.storage.from_("project_drawings").upload(
+                client = get_tile_supabase()
+                client.storage.from_("project_drawings").upload(
                     path=path,
                     file=data,
                     file_options={"content-type": "image/webp", "upsert": "true"},

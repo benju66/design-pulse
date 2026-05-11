@@ -10,6 +10,7 @@ class VectorExtractor:
         project_id: str,
         sheet_id: str,
         supabase_client,
+        page_index: int = 0,
     ) -> None:
         """
         Extracts structural vector lines from a PDF page, normalizes them to
@@ -26,7 +27,12 @@ class VectorExtractor:
         - upsert: "true" handles both first-upload and re-upload atomically.
         """
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        page = doc[0]
+        
+        if page_index < 0 or page_index >= len(doc):
+            doc.close()
+            raise ValueError(f"page_index {page_index} out of range")
+            
+        page = doc[page_index]
 
         page_width: float = page.rect.width
         page_height: float = page.rect.height

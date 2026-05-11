@@ -1,4 +1,32 @@
 
+// ── Drawing Sets ──────────────────────────────────────────────────────────────
+export interface DrawingSet {
+  id: string;
+  project_id: string;
+  set_name: string;
+  issue_date: string | null;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── PDF Inspection (UOPM pipeline step 1) ────────────────────────────────────
+export interface StagedPageMeta {
+  page_index: number;
+  suggested_label: string;
+  width: number;
+  height: number;
+  thumbnail_b64: string;
+}
+
+export interface InspectPdfResponse {
+  staged_key: string;
+  page_count: number;
+  truncated: boolean;
+  filename: string;
+  pages: StagedPageMeta[];
+}
 
 // ── Domain type for a project_sheets row ─────────────────────────────────────
 // Typed view of database.types.ts project_sheets.Row — used throughout the
@@ -12,12 +40,17 @@ export interface ProjectSheet {
   original_width: number | null;
   original_height: number | null;
   max_zoom: number | null;
+  // ── UOPM provenance columns (Step 4a) ────────────────────────────────────
+  drawing_set_id: string | null;
+  source_filename: string | null;
+  source_page_index: number | null;
+  staged_key: string | null;     // internal — not shown in UI
+  status_message: string | null; // surfaced in error tooltip (BUG-7)
   created_at: string;
   updated_at: string;
 }
 
 export interface Point {
-
   pctX: number;
   pctY: number;
 }
@@ -41,9 +74,7 @@ export interface MapState {
   activeSheetId: string;
   savingZoneId: string | null;
   pendingPolygonPoints: Point[] | null;
-  selectedFile: File | null;
-  pdfPageNumber: number;
-  isUploading: boolean;
+  // NOTE: selectedFile, pdfPageNumber, isUploading removed in v2 (AGENTS.md C34)
 
   setToolMode: (mode: ToolMode | ((prev: ToolMode) => ToolMode)) => void;
   setSelectedZoneIds: (ids: string[] | ((prev: string[]) => string[])) => void;
@@ -53,9 +84,6 @@ export interface MapState {
   setActiveSheetId: (id: string | ((prev: string) => string)) => void;
   setSavingZoneId: (val: string | null | ((prev: string | null) => string | null)) => void;
   setPendingPolygonPoints: (val: Point[] | null | ((prev: Point[] | null) => Point[] | null)) => void;
-  setSelectedFile: (val: File | null | ((prev: File | null) => File | null)) => void;
-  setPdfPageNumber: (val: number | ((prev: number) => number)) => void;
-  setIsUploading: (val: boolean | ((prev: boolean) => boolean)) => void;
 }
 
 // Minimal RBush generic interface to ensure spatial indexing operations are typed

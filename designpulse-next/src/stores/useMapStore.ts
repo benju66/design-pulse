@@ -27,9 +27,9 @@ export const useMapStore = create<MapState>()(
         // Shallow array equality — avoids O(n) JSON.stringify on every call
         if (nextIds.length === state.selectedZoneIds.length &&
             nextIds.every((id, i) => id === state.selectedZoneIds[i])) return;
-        
+
         set({ selectedZoneIds: nextIds });
-        
+
         if (nextIds.length === 1) {
           useUIStore.getState().setSelectedOpportunityId(nextIds[0]);
         } else if (nextIds.length === 0) {
@@ -42,9 +42,9 @@ export const useMapStore = create<MapState>()(
         const nextIds = isSelected
           ? state.selectedZoneIds.filter(zid => zid !== id)
           : [...state.selectedZoneIds, id];
-        
+
         set({ selectedZoneIds: nextIds });
-        
+
         if (nextIds.length === 1) {
           useUIStore.getState().setSelectedOpportunityId(nextIds[0]);
         } else if (nextIds.length === 0) {
@@ -54,7 +54,7 @@ export const useMapStore = create<MapState>()(
       clearSelectedZones: () => {
         const state = useMapStore.getState();
         if (state.selectedZoneIds.length === 0) return;
-        
+
         set({ selectedZoneIds: [] });
         useUIStore.getState().setSelectedOpportunityId(null);
       },
@@ -71,35 +71,27 @@ export const useMapStore = create<MapState>()(
 
       pendingPolygonPoints: null,
       setPendingPolygonPoints: (val: Point[] | null | ((prev: Point[] | null) => Point[] | null)) => set((state) => ({ pendingPolygonPoints: typeof val === 'function' ? val(state.pendingPolygonPoints) : val })),
-
-      selectedFile: null,
-      setSelectedFile: (val: File | null | ((prev: File | null) => File | null)) => set((state) => ({ selectedFile: typeof val === 'function' ? val(state.selectedFile) : val })),
-
-      pdfPageNumber: 1,
-      setPdfPageNumber: (val: number | ((prev: number) => number)) => set((state) => ({ pdfPageNumber: typeof val === 'function' ? val(state.pdfPageNumber) : val })),
-
-      isUploading: false,
-      setIsUploading: (val: boolean | ((prev: boolean) => boolean)) => set((state) => ({ isUploading: typeof val === 'function' ? val(state.isUploading) : val })),
     }),
     {
       name: 'designpulse-map-session',
       storage: createJSONStorage(() => sessionStorage),
-      version: 1,
-      // Rule C.34: Zustand Persist Version Contract
+      version: 2,  // Bumped from 1 (AGENTS.md C34) — removes selectedFile, pdfPageNumber, isUploading
       migrate: (persistedState: unknown, version: number) => {
-        const state = persistedState as Partial<MapState>;
-        if (version < 1) {
-          // Initialize defaults for v1 schema if coming from old or v0
+        const state = persistedState as Record<string, unknown>;
+        if (version < 2) {
+          // Strip dead fields from v1 stored state to prevent undefined reads
+          const { selectedFile: _sf, pdfPageNumber: _pn, isUploading: _iu, ...rest } = state;
+          void _sf; void _pn; void _iu; // suppress unused-var lint
           return {
-            ...state,
-            activeSheetId: state.activeSheetId || '',
-            toolMode: isToolMode(state.toolMode) ? state.toolMode : 'pan',
+            ...rest,
+            activeSheetId: (rest.activeSheetId as string) || '',
+            toolMode: isToolMode(rest.toolMode as string) ? (rest.toolMode as ToolMode) : 'pan',
           };
         }
         return {
           ...state,
           // Re-validate toolMode even if version matches to prevent corrupt session storage
-          toolMode: isToolMode(state.toolMode) ? state.toolMode : 'pan',
+          toolMode: isToolMode(state.toolMode as string) ? (state.toolMode as ToolMode) : 'pan',
         } as MapState;
       },
       partialize: (state) => ({

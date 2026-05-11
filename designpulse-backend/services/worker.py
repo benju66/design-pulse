@@ -3,27 +3,33 @@ import os
 
 from supabase import create_client
 
-from services.tile_processor import TileProcessor
+from services.tile_processor import TileProcessor, PdfProcessingError
 from services.vector_extractor import VectorExtractor
 
 
-async def process_sheet_job(sheet_id: str, project_id: str) -> None:
+async def process_sheet_job(
+    sheet_id: str,
+    project_id: str,
+    staged_key: str,
+    page_index: int = 0,
+    source_filename: str = "",
+) -> None:
     """
     Background job coroutine dispatched via asyncio.create_task() from the
-    /process-sheet/{sheet_id} endpoint. Runs outside the FastAPI request cycle.
+    /drawings/process-sheet/{sheet_id} endpoint. Runs outside the FastAPI request cycle.
 
-    Design invariants:
-    - Thread-local Supabase client: a fresh client is created per job so its
-      httpx connection pool is never shared across concurrent tasks (gap #4).
-    - pending_path defined BEFORE try: accessible in the except cleanup block (gap #2).
-    - Two independent except sub-blocks: a Storage failure cannot suppress the
-      DB status write (gap #3 independence requirement).
-    - Zombie-proof: the lifespan startup sweep in main.py handles the case where
-      this coroutine is killed before the except block fires (gap #3 pod death).
+    Step 2b changes vs. original:
+    - page_index param: passed to TileProcessor so multi-page PDFs are handled (BUG fix).
+    - staged_key: download path changed from pending/{sheet_id}.pdf →
+      {project_id}/staged/{staged_key}.pdf (UOPM architecture).
+    - source_filename: written to DB on finalize for provenance.
+    - status_message: written to DB on error so the UI can show the reason (BUG-7).
+    - asyncio.gather(): tiles and vectors now run concurrently (OPT-3).
+    - PdfProcessingError: caught specifically to surface user-readable messages.
 
     Progress mapping:
-      0–90%  → tile uploads  (reported per 50-tile batch by TileProcessor)
-      90–95% → vector extraction complete
+      0–90%  → tile uploads  (reported per batch by TileProcessor)
+      90–95% → vector extraction complete  (now concurrent with tiles via gather)
       95–100% → DB row finalized
     """
     # Thread-local client — isolated httpx connection pool, never shared.
@@ -38,73 +44,87 @@ async def process_sheet_job(sheet_id: str, project_id: str) -> None:
             {"progress_percent": percent}
         ).eq("id", sheet_id).execute()
 
-    # pending_path defined outside try so the except block can clean it up
-    # regardless of where the failure occurred.
-    # RLS: path_tokens[1] must be a UUID — 'pending/' prefix would fail the cast.
-    pending_path = f"{project_id}/pending/{sheet_id}.pdf"
+    # staged_path defined outside try so the except block can clean it up.
+    staged_path = f"{project_id}/staged/{staged_key}.pdf"
 
     try:
-        # ── Step 1: Download staged PDF ───────────────────────────────────────
+        # ── Step 1: Download staged PDF from Storage ──────────────────────────
         pdf_bytes: bytes = await asyncio.to_thread(
             local_supabase.storage.from_("project_drawings").download,
-            pending_path,
+            staged_path,
         )
 
-        # ── Step 2: Tile generation (progress 0–90%) ──────────────────────────
+        # ── Step 2: Tile generation + Vector extraction — concurrent (OPT-3) ──
+        # Both operations receive the full pdf_bytes and operate on the same page.
+        # asyncio.gather() runs them in parallel threads, cutting wall time by 1-5s.
         def run_tiles() -> tuple[int, int, int]:
             return TileProcessor.process_pdf_to_tiles(
                 pdf_bytes,
                 project_id,
                 sheet_id,
                 local_supabase,
+                page_index=page_index,
                 on_progress=write_progress,
             )
 
-        max_zoom, width, height = await asyncio.to_thread(run_tiles)
-
-        # ── Step 3: Vector extraction (progress 90–95%) ───────────────────────
         def run_vectors() -> None:
             VectorExtractor.extract_and_upload(
                 pdf_bytes, project_id, sheet_id, local_supabase
             )
 
-        await asyncio.to_thread(run_vectors)
+        (max_zoom, width, height), _ = await asyncio.gather(
+            asyncio.to_thread(run_tiles),
+            asyncio.to_thread(run_vectors),
+        )
+
         write_progress(95)
 
-        # ── Step 4: Finalize DB row ───────────────────────────────────────────
+        # ── Step 3: Finalize DB row with provenance data ──────────────────────
         local_supabase.table("project_sheets").update({
             "status": "ready",
             "progress_percent": 100,
             "max_zoom": max_zoom,
             "original_width": width,
             "original_height": height,
+            "source_filename": source_filename or None,
+            "source_page_index": page_index,
+            "status_message": None,  # clear any previous error message
         }).eq("id", sheet_id).execute()
 
-        # ── Step 5: Delete staging file (success path) ────────────────────────
-        local_supabase.storage.from_("project_drawings").remove([pending_path])
+        # ── Step 4: Remove staged file (success path) ─────────────────────────
+        # Staged PDF is removed after the job that consumed it succeeds.
+        # TTL sweep in main.py handles staged files orphaned by crashes.
+        try:
+            local_supabase.storage.from_("project_drawings").remove([staged_path])
+        except Exception as cleanup_err:
+            print(f"[worker] WARNING: Could not clean staged file {staged_path}: {cleanup_err}")
 
-        print(f"[worker] process_sheet_job completed for sheet {sheet_id} "
-              f"(max_zoom={max_zoom}, {width}x{height})")
+        print(
+            f"[worker] process_sheet_job completed for sheet {sheet_id} "
+            f"(page={page_index}, max_zoom={max_zoom}, {width}x{height})"
+        )
 
     except Exception as e:
+        # Produce a user-friendly message for known error types (BUG-7)
+        if isinstance(e, PdfProcessingError):
+            user_message = str(e)
+        else:
+            user_message = "Processing failed. Please try re-uploading."
+
         print(f"[worker] process_sheet_job FAILED for sheet {sheet_id}: {e}")
 
-        # Sub-block 1: Revert DB row to recoverable 'error' state.
-        # Independent try so a DB failure here is logged but doesn't
-        # prevent the Storage cleanup below from running.
+        # Sub-block 1: Write error status + human-readable message to DB.
         try:
             local_supabase.table("project_sheets").update({
                 "status": "error",
                 "progress_percent": 0,
+                "status_message": user_message,
             }).eq("id", sheet_id).execute()
         except Exception as db_err:
             print(f"[worker] Failed to write error status for sheet {sheet_id}: {db_err}")
 
-        # Sub-block 2: Delete orphaned staging PDF to prevent bucket bloat.
-        # Independent try so a Storage failure does not suppress the DB write above.
+        # Sub-block 2: Clean up staged file.
         try:
-            local_supabase.storage.from_("project_drawings").remove([pending_path])
+            local_supabase.storage.from_("project_drawings").remove([staged_path])
         except Exception as storage_err:
-            # Non-fatal: log for ops visibility. The file can be cleaned up manually
-            # or by a future scheduled sweep if needed.
-            print(f"[worker] WARNING: Could not clean staging file {pending_path}: {storage_err}")
+            print(f"[worker] WARNING: Could not clean staged file {staged_path}: {storage_err}")

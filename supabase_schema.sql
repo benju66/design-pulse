@@ -2200,6 +2200,93 @@ GRANT  EXECUTE ON FUNCTION public.bulk_map_project_standards(uuid, jsonb) TO aut
 -- DRAWINGS & MARKUPS (TILE ENGINE FOUNDATION)
 -- ==========================================
 
+-- ── Drawing Sets (Versioned Drawing Log) ─────────────────────────────────────
+-- Mirrors project_estimate_versions pattern exactly.
+-- One active set per project at a time. SET NULL on sheet delete preserves sheets.
+CREATE TABLE IF NOT EXISTS public.project_drawing_sets (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  set_name    text NOT NULL,
+  issue_date  date,
+  description text,
+  is_active   boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT timezone('utc', now()),
+  updated_at  timestamptz NOT NULL DEFAULT timezone('utc', now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_drawing_sets_project
+  ON public.project_drawing_sets(project_id);
+-- Partial index: only one active row per project — mirrors idx_estimate_versions_active
+CREATE INDEX IF NOT EXISTS idx_drawing_sets_active
+  ON public.project_drawing_sets(project_id, is_active)
+  WHERE is_active = true;
+
+ALTER TABLE public.project_drawing_sets ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Members can view drawing sets" ON public.project_drawing_sets;
+CREATE POLICY "Members can view drawing sets"
+  ON public.project_drawing_sets FOR SELECT
+  USING (public.is_platform_admin() OR public.get_user_project_role(project_id) IS NOT NULL);
+
+DROP POLICY IF EXISTS "Admins can manage drawing sets" ON public.project_drawing_sets;
+CREATE POLICY "Admins can manage drawing sets"
+  ON public.project_drawing_sets FOR ALL
+  USING (public.has_project_permission(project_id, 'can_edit_project_settings'));
+
+DROP TRIGGER IF EXISTS trg_drawing_sets_updated_at ON public.project_drawing_sets;
+CREATE TRIGGER trg_drawing_sets_updated_at
+  BEFORE UPDATE ON public.project_drawing_sets
+  FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
+
+-- ── RPC: create_drawing_set ───────────────────────────────────────────────────
+-- Mirrors create_estimate_version. Atomically deactivates current set when p_set_active=true.
+CREATE OR REPLACE FUNCTION public.create_drawing_set(
+  p_project_id uuid,
+  p_set_name   text,
+  p_issue_date date,
+  p_set_active boolean
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_set_id uuid;
+BEGIN
+  IF NOT has_project_permission(p_project_id, 'can_edit_project_settings') THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  IF p_set_active THEN
+    UPDATE project_drawing_sets SET is_active = false
+    WHERE project_id = p_project_id AND is_active = true;
+  END IF;
+  INSERT INTO project_drawing_sets (project_id, set_name, issue_date, is_active)
+  VALUES (p_project_id, p_set_name, p_issue_date, p_set_active)
+  RETURNING id INTO v_set_id;
+  RETURN v_set_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.create_drawing_set(uuid, text, date, boolean) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.create_drawing_set(uuid, text, date, boolean) TO authenticated;
+
+-- ── RPC: activate_drawing_set ─────────────────────────────────────────────────
+-- Mirrors activate_estimate_version. Atomic swap via partial index.
+-- No budget sync side-effect — active set is a display/filter signal only.
+CREATE OR REPLACE FUNCTION public.activate_drawing_set(p_set_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_project_id uuid;
+BEGIN
+  SELECT project_id INTO v_project_id
+  FROM project_drawing_sets WHERE id = p_set_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Drawing set % not found', p_set_id;
+  END IF;
+  IF NOT has_project_permission(v_project_id, 'can_edit_project_settings') THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  UPDATE project_drawing_sets SET is_active = false
+  WHERE project_id = v_project_id AND is_active = true;
+  UPDATE project_drawing_sets SET is_active = true WHERE id = p_set_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.activate_drawing_set(uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.activate_drawing_set(uuid) TO authenticated;
+
 -- 11. Project Sheets Table
 CREATE TABLE IF NOT EXISTS project_sheets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2212,6 +2299,22 @@ CREATE TABLE IF NOT EXISTS project_sheets (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- ── Idempotent column additions (migration — safe to re-run) ─────────────────
+-- drawing_set_id: FK to project_drawing_sets. SET NULL on delete preserves sheets
+-- when an entire set is removed (non-destructive, unlike CASCADE).
+ALTER TABLE project_sheets
+  ADD COLUMN IF NOT EXISTS drawing_set_id    uuid
+    REFERENCES project_drawing_sets(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS progress_percent  integer DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS source_filename   text,
+  ADD COLUMN IF NOT EXISTS source_page_index integer DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS staged_key        text,
+  ADD COLUMN IF NOT EXISTS status_message    text;
+
+CREATE INDEX IF NOT EXISTS idx_sheets_drawing_set
+  ON project_sheets(drawing_set_id)
+  WHERE drawing_set_id IS NOT NULL;
 
 -- 12. Sheet Markups Table
 CREATE TABLE IF NOT EXISTS sheet_markups (

@@ -6,6 +6,7 @@ from supabase import create_client, Client
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 import asyncio
+import datetime
 import glob
 import os
 import io
@@ -17,7 +18,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 
 from services.PDFMapService import PDFMapService
-from services.worker import process_sheet_job
+from routers import drawings as drawings_router
 
 load_dotenv()
 
@@ -26,20 +27,17 @@ async def lifespan(app: FastAPI):
     # ── STARTUP ──────────────────────────────────────────────────────────────
 
     # 1. Clean up orphaned temp tile directories from previous crashed runs.
-    #    asyncio.create_task() jobs are in-memory — any temp dir present at
-    #    startup is guaranteed to be from a crashed process and safe to delete.
     for stale_dir in glob.glob("temp_*_tiles"):
         shutil.rmtree(stale_dir, ignore_errors=True)
         print(f"[startup] Cleaned orphaned temp dir: {stale_dir}")
 
     # 2. Zombie State Sweep: rows stuck in status='processing' at startup belong
-    #    to tasks that were killed mid-flight (OOM, SIGKILL, etc.). Reset to
-    #    'error' so users see a recoverable state and can right-click → Re-upload.
-    #    Safe invariant: with asyncio.create_task(), no job can survive a restart.
+    #    to tasks killed mid-flight. Reset to 'error' so users can right-click → Re-upload.
     try:
         zombie_res = (
             supabase.table("project_sheets")
-            .update({"status": "error", "progress_percent": 0})
+            .update({"status": "error", "progress_percent": 0,
+                     "status_message": "Processing interrupted — please re-upload."})
             .eq("status", "processing")
             .execute()
         )
@@ -47,14 +45,62 @@ async def lifespan(app: FastAPI):
         if swept:
             print(f"[startup] Zombie sweep: reverted {swept} orphaned processing row(s) to 'error'.")
     except Exception as e:
-        # Non-fatal: log and continue — a sweep failure must not block startup.
         print(f"[startup] WARNING: Zombie sweep failed (non-fatal): {e}")
+
+    # 3. Staged PDF TTL sweep — delete staged/ files older than 72 hours (Q3).
+    #    Staged PDFs are written by /drawings/inspect-and-stage-pdf and consumed
+    #    by /drawings/process-sheet. If a session is abandoned or crashed, these
+    #    files accumulate. The 72h TTL balances enterprise workflow gaps vs. cost.
+    try:
+        cutoff = datetime.datetime.utcnow() - datetime.timedelta(hours=72)
+        # List all objects in staged/ prefixes across all projects.
+        # Supabase Storage list() returns objects with created_at metadata.
+        staged_list_res = supabase.storage.from_("project_drawings").list(
+            path="",
+            options={"limit": 1000},
+        )
+        # Storage list at root returns project_id folders; we need to recurse.
+        # Iterate known project folders and list their staged/ subdirectory.
+        if staged_list_res:
+            for folder in staged_list_res:
+                folder_name = folder.get("name", "")
+                if not folder_name:
+                    continue
+                try:
+                    staged_items = supabase.storage.from_("project_drawings").list(
+                        path=f"{folder_name}/staged",
+                        options={"limit": 500},
+                    )
+                    stale_paths = []
+                    for item in (staged_items or []):
+                        created_raw = item.get("created_at") or item.get("updated_at")
+                        if not created_raw:
+                            continue
+                        # Parse ISO timestamp (Supabase returns UTC strings)
+                        try:
+                            created_at = datetime.datetime.fromisoformat(
+                                created_raw.replace("Z", "+00:00")
+                            ).replace(tzinfo=None)
+                        except ValueError:
+                            continue
+                        if created_at < cutoff:
+                            stale_paths.append(f"{folder_name}/staged/{item['name']}")
+                    if stale_paths:
+                        supabase.storage.from_("project_drawings").remove(stale_paths)
+                        print(f"[startup] TTL sweep: removed {len(stale_paths)} stale staged PDF(s) from {folder_name}/staged/")
+                except Exception:
+                    pass  # Non-fatal per-folder failure; continue to next folder
+    except Exception as e:
+        print(f"[startup] WARNING: Staged PDF TTL sweep failed (non-fatal): {e}")
 
     yield
     # ── SHUTDOWN (nothing to teardown) ───────────────────────────────────────
 
 
 app = FastAPI(title="SitePulse Backend API", lifespan=lifespan)
+
+# Register domain routers (AGENTS.md D.4)
+app.include_router(drawings_router.router)
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:8000")
 
@@ -233,104 +279,10 @@ async def upload_and_convert_floorplan(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-from services.tile_processor import TileProcessor
-from services.vector_extractor import VectorExtractor
 
-@app.post("/process-sheet/{sheet_id}", status_code=202)
-async def process_sheet(
-    sheet_id: str,
-    file: UploadFile = File(...),
-    user: dict = Depends(get_current_user),
-):
-    """
-    202 Accepted ingestion endpoint.
-
-    Fast path (completes in < 2s regardless of PDF size):
-      1. Validate file type and auth.
-      2. Stage the raw PDF to Storage at {project_id}/pending/{sheet_id}.pdf.
-         (Synchronous upload happens HERE so the background task has the file
-          guaranteed when it starts — eliminates the race condition where
-          create_task fires before the PDF is in Storage.)
-      3. Reset DB row to status='processing', progress_percent=0.
-      4. Fire asyncio.create_task() — returns immediately.
-      5. Return 202 Accepted.
-
-    Heavy work (tile slicing, vector extraction, DB finalization) runs in
-    services/worker.py via asyncio.to_thread(), fully decoupled from this request.
-    """
-    if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-
-    try:
-        project_id = await verify_project_sheet_access(sheet_id, user["sub"])
-        pdf_bytes = await file.read()
-
-        # Stage PDF BEFORE firing the background task.
-        # RLS: path_tokens[1] must be a project_id UUID — never 'pending/{id}'.
-        pending_path = f"{project_id}/pending/{sheet_id}.pdf"
-
-        def stage_pdf() -> None:
-            # Remove any previous failed-attempt file for this sheet_id.
-            supabase.storage.from_("project_drawings").remove([pending_path])
-            supabase.storage.from_("project_drawings").upload(
-                path=pending_path,
-                file=pdf_bytes,
-                file_options={"content-type": "application/pdf", "upsert": "true"},
-            )
-
-        await asyncio.to_thread(stage_pdf)
-
-        # Reset status (handles re-upload case where row already exists)
-        supabase.table("project_sheets").update({
-            "status": "processing",
-            "progress_percent": 0,
-        }).eq("id", sheet_id).execute()
-
-        # Dispatch background job — non-blocking.
-        # worker.py handles its own exceptions and always writes a terminal DB state.
-        asyncio.create_task(process_sheet_job(sheet_id, project_id))
-
-        return JSONResponse(
-            status_code=202,
-            content={"status": "accepted", "sheet_id": sheet_id},
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[process-sheet] Dispatch failed for sheet {sheet_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/attach-original/{sheet_id}")
-async def attach_original_pdf(
-    sheet_id: str, 
-    file: UploadFile = File(...),
-    user: dict = Depends(get_current_user),
-):
-    if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-    
-    try:
-        await verify_project_sheet_access(sheet_id, user["sub"])
-        pdf_bytes = await file.read()
-        
-        def process_attach():
-            pdf_path = f"originals/{sheet_id}.pdf"
-            supabase.storage.from_("floorplans").remove([pdf_path])
-            supabase.storage.from_("floorplans").upload(
-                path=pdf_path,
-                file=pdf_bytes,
-                file_options={"content-type": "application/pdf"},
-            )
-            
-        import asyncio
-        await asyncio.to_thread(process_attach)
-        return {"status": "success", "message": "Original PDF attached successfully!"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error attaching pdf: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+# NOTE: /process-sheet, /attach-original, and /inspect-and-stage-pdf
+# have been moved to routers/drawings.py (AGENTS.md D.4).
+# The legacy /process-sheet endpoint below is REMOVED — use /drawings/process-sheet.
 
 
 @app.post("/extract-csi-toc", response_model=List[CsiSpecItem])

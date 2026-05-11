@@ -666,9 +666,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <FloorplanCanvas
                       projectId={projectId}
                       sheetId={activeSheetId}
-                      maxZoom={activeSheet.max_zoom}
-                      originalWidth={activeSheet.original_width}
-                      originalHeight={activeSheet.original_height}
+                      maxZoom={activeSheet.max_zoom ?? undefined}
+                      originalWidth={activeSheet.original_width ?? undefined}
+                      originalHeight={activeSheet.original_height ?? undefined}
                       zones={zones}
                       onPolygonComplete={(points) => {
                         const newZone = {

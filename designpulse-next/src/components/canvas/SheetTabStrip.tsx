@@ -182,7 +182,8 @@ export const SheetTabStrip: React.FC<SheetTabStripProps> = ({ projectId, sheets 
     pendingSheetIdRef.current = null;
 
     try {
-      await processSheetService(sheetId, file, token);
+      // Direct mode: pass file + pageIndex=0 (single-page sheet via re-upload)
+      await processSheetService(sheetId, file, 0, token);
     } catch (err) {
       console.error('[SheetTabStrip] processSheetService failed:', err);
     }

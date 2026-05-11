@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { Zone, ProjectSheet } from '@/types/map.types';
+import { processSheetService } from '@/services/api';
 
 // ── useProjectSheets ──────────────────────────────────────────────────────────
 // Fetches all sheets for a project.
@@ -190,6 +191,7 @@ export function useCreateProjectSheet() {
       const previousSheets = queryClient.getQueryData<ProjectSheet[]>(['project_sheets', projectId]);
 
       // Optimistic insert — same UUID as DB insert, no remount on onSettled (C8)
+      // All new UOPM fields must be included to prevent undefined reads (C9, C10)
       const optimisticSheet: ProjectSheet = {
         id,
         project_id: projectId,
@@ -199,6 +201,11 @@ export function useCreateProjectSheet() {
         original_width: null,
         original_height: null,
         max_zoom: null,
+        drawing_set_id: null,
+        source_filename: null,
+        source_page_index: null,
+        staged_key: null,
+        status_message: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -280,6 +287,95 @@ export function useRenameProjectSheet() {
         old
           ? old.map((s) => (s.id === sheetId ? { ...s, sheet_name: newName } : s))
           : []
+      );
+      return { previousSheets };
+    },
+    onError: (_err, { projectId }, context) => {
+      if (context?.previousSheets) {
+        queryClient.setQueryData(['project_sheets', projectId], context.previousSheets);
+      }
+    },
+    onSettled: (_data, _err, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ['project_sheets', projectId] });
+    },
+  });
+}
+
+// -- useBulkImportSheets -------------------------------------------------------
+// Step 2 of the UOPM pipeline. Inserts N sheet rows then dispatches N
+// process-sheet jobs, batched in groups of 5 (AGENTS.md C20).
+export function useBulkImportSheets() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    void,
+    Error,
+    {
+      projectId: string;
+      drawingSetId: string | null;
+      stagedKey: string;
+      filename: string;
+      selections: Array<{ pageIndex: number; sheetName: string }>;
+      token: string;
+    },
+    { previousSheets: ProjectSheet[] | undefined }
+  >({
+    mutationFn: async ({ projectId, drawingSetId, stagedKey, filename, selections, token }) => {
+      const sheetIds = selections.map(() => crypto.randomUUID());
+      const now = new Date().toISOString();
+
+      const { error: insertError } = await supabase
+        .from('project_sheets')
+        .insert(
+          selections.map((sel, i) => ({
+            id: sheetIds[i],
+            project_id: projectId,
+            sheet_name: sel.sheetName,
+            status: 'processing' as const,
+            progress_percent: 0,
+            drawing_set_id: drawingSetId,
+            source_filename: filename,
+            source_page_index: sel.pageIndex,
+            created_at: now,
+            updated_at: now,
+          }))
+        );
+      if (insertError) throw insertError;
+
+      const BATCH = 5;
+      for (let i = 0; i < selections.length; i += BATCH) {
+        const batch = selections.slice(i, i + BATCH);
+        await Promise.all(
+          batch.map((sel, bi) =>
+            processSheetService(sheetIds[i + bi], stagedKey, sel.pageIndex, token)
+          )
+        );
+      }
+    },
+    onMutate: async ({ projectId, drawingSetId, filename, selections }) => {
+      await queryClient.cancelQueries({ queryKey: ['project_sheets', projectId] });
+      const previousSheets = queryClient.getQueryData<ProjectSheet[]>(['project_sheets', projectId]);
+      const now = new Date().toISOString();
+      const optimisticSheets: ProjectSheet[] = selections.map((sel) => ({
+        id: crypto.randomUUID(),
+        project_id: projectId,
+        sheet_name: sel.sheetName,
+        status: 'processing' as const,
+        progress_percent: 0,
+        original_width: null,
+        original_height: null,
+        max_zoom: null,
+        drawing_set_id: drawingSetId,
+        source_filename: filename,
+        source_page_index: sel.pageIndex,
+        staged_key: null,
+        status_message: null,
+        created_at: now,
+        updated_at: now,
+      }));
+      queryClient.setQueryData<ProjectSheet[]>(
+        ['project_sheets', projectId],
+        (old) => [...(old ?? []), ...optimisticSheets]
       );
       return { previousSheets };
     },

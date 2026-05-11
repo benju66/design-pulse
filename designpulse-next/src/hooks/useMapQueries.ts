@@ -202,6 +202,7 @@ export function useCreateProjectSheet() {
         original_height: null,
         max_zoom: null,
         drawing_set_id: null,
+        discipline_id: null,
         source_filename: null,
         source_page_index: null,
         staged_key: null,
@@ -301,6 +302,45 @@ export function useRenameProjectSheet() {
   });
 }
 
+// ── useUpdateProjectSheet ─────────────────────────────────────────────────────
+// Optimistically updates generic sheet fields in cache; rolls back on error.
+export function useUpdateProjectSheet() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    void,
+    Error,
+    { projectId: string; sheetId: string; updates: Partial<ProjectSheet> },
+    SheetMutationContext
+  >({
+    mutationFn: async ({ sheetId, updates }) => {
+      const { error } = await supabase
+        .from('project_sheets')
+        .update(updates)
+        .eq('id', sheetId);
+      if (error) throw error;
+    },
+    onMutate: async ({ projectId, sheetId, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['project_sheets', projectId] });
+      const previousSheets = queryClient.getQueryData<ProjectSheet[]>(['project_sheets', projectId]);
+      queryClient.setQueryData<ProjectSheet[]>(['project_sheets', projectId], (old) =>
+        old
+          ? old.map((s) => (s.id === sheetId ? { ...s, ...updates } : s))
+          : []
+      );
+      return { previousSheets };
+    },
+    onError: (_err, { projectId }, context) => {
+      if (context?.previousSheets) {
+        queryClient.setQueryData(['project_sheets', projectId], context.previousSheets);
+      }
+    },
+    onSettled: (_data, _err, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ['project_sheets', projectId] });
+    },
+  });
+}
+
 // -- useBulkImportSheets -------------------------------------------------------
 // Step 2 of the UOPM pipeline. Inserts N sheet rows then dispatches N
 // process-sheet jobs, batched in groups of 5 (AGENTS.md C20).
@@ -366,6 +406,7 @@ export function useBulkImportSheets() {
         original_height: null,
         max_zoom: null,
         drawing_set_id: drawingSetId,
+        discipline_id: null,
         source_filename: filename,
         source_page_index: sel.pageIndex,
         staged_key: null,

@@ -71,6 +71,9 @@ export const useMapStore = create<MapState>()(
 
       pendingPolygonPoints: null,
       setPendingPolygonPoints: (val: Point[] | null | ((prev: Point[] | null) => Point[] | null)) => set((state) => ({ pendingPolygonPoints: typeof val === 'function' ? val(state.pendingPolygonPoints) : val })),
+
+      isViewerOpen: false,
+      setIsViewerOpen: (val: boolean) => set({ isViewerOpen: val }),
     }),
     {
       name: 'designpulse-map-session',

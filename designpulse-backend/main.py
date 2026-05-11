@@ -22,13 +22,16 @@ load_dotenv()
 from services.PDFMapService import PDFMapService
 from routers import drawings as drawings_router
 from services.auth import get_current_user, security  # noqa: F401 — re-exported for legacy endpoints
+from services.tile_processor import MAX_SAFE_PIXELS
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ──────────────────────────────────────────────────────────────
 
+    import tempfile
     # 1. Clean up orphaned temp tile directories from previous crashed runs.
-    for stale_dir in glob.glob("temp_*_tiles"):
+    temp_base = os.environ.get("TILES_TEMP_DIR", tempfile.gettempdir())
+    for stale_dir in glob.glob(os.path.join(temp_base, "dp_tiles_*")):
         shutil.rmtree(stale_dir, ignore_errors=True)
         print(f"[startup] Cleaned orphaned temp dir: {stale_dir}")
 
@@ -221,6 +224,12 @@ async def upload_and_convert_floorplan(
 
             # Upgrade the zoom from 2.0 to 4.0 for high-fidelity rendering
             zoom = 4.0
+            
+            target_pixels = page.rect.width * page.rect.height * (zoom ** 2)
+            if target_pixels > MAX_SAFE_PIXELS:
+                doc.close()
+                raise ValueError(f"PDF dimensions too large to process safely (Exceeds 200MP)")
+                
             mat = fitz.Matrix(zoom, zoom)
             pix = page.get_pixmap(matrix=mat, alpha=False)
             img_bytes = pix.tobytes("png")

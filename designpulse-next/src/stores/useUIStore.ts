@@ -19,7 +19,7 @@ export type SettingsTab =
   | 'team'
   | 'building_areas'
   | 'categories'
-  | 'disciplines'
+  | 'drawings'
   | 'csi_specs'
   | 'estimate'
   | 'sidebar'

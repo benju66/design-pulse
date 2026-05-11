@@ -3,6 +3,7 @@ import React, { use } from 'react';
 import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid, UploadCloud, Upload } from 'lucide-react';
 import FloorplanCanvas from '@/components/FloorplanCanvas';
 import { SheetTabStrip } from '@/components/canvas/SheetTabStrip';
+import { DrawingGrid } from '@/components/drawings/DrawingGrid';
 import OpportunityGrid from '@/components/OpportunityGrid';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import CompareModal from '@/components/CompareModal';
@@ -43,7 +44,7 @@ function isProjectView(v: string | undefined): v is ProjectView {
 }
 
 const VALID_SETTINGS_TABS = new Set<SettingsTab>([
-  'info', 'team', 'building_areas', 'categories', 'disciplines',
+  'info', 'team', 'building_areas', 'categories', 'drawings',
   'csi_specs', 'estimate', 'sidebar', 've_matrix', 'coord_matrix', 'brand_standards', 'permits',
 ]);
 function isSettingsTab(v: string | undefined): v is SettingsTab {
@@ -66,6 +67,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   // ── Drawings / Map hooks (called unconditionally per Rules of Hooks) ─────────
   const activeSheetId = useMapStore((s) => s.activeSheetId);
+  const isViewerOpen = useMapStore((s) => s.isViewerOpen);
+  const setIsViewerOpen = useMapStore((s) => s.setIsViewerOpen);
   const { data: sheets = [] } = useProjectSheets(projectId);
   const { data: rawMarkups = [] } = useSheetMarkups(activeSheetId || null);
   const updateMarkups = useUpdateSheetMarkups();
@@ -676,34 +679,52 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             return (
               <div className="flex flex-col w-full h-full overflow-hidden">
                 <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 overflow-hidden">
-                  {activeSheetId && isSheetReady ? (
-                    <FloorplanCanvas
+                  {!isViewerOpen ? (
+                    <DrawingGrid
                       projectId={projectId}
-                      sheetId={activeSheetId}
-                      maxZoom={activeSheet.max_zoom ?? undefined}
-                      originalWidth={activeSheet.original_width ?? undefined}
-                      originalHeight={activeSheet.original_height ?? undefined}
-                      zones={zones}
-                      onPolygonComplete={(points) => {
-                        const newZone = {
-                          id: crypto.randomUUID(),
-                          label: '',
-                          coordinates: points,
-                          color: '#3b82f6',
-                          opacity: 0.35,
-                        };
-                        saveZones([...zones, newZone]);
-                      }}
-                      onUpdateZonePolygon={(zoneId, points) => {
-                        saveZones(
-                          zones.map((z) => (z.id === zoneId ? { ...z, coordinates: points } : z))
-                        );
-                      }}
-                      onDeleteZone={(zoneId) => {
-                        const ids = Array.isArray(zoneId) ? zoneId : [zoneId];
-                        saveZones(zones.filter((z) => !ids.includes(z.id)));
+                      sheets={sheets}
+                      disciplines={settings?.disciplines || []}
+                      onOpenViewer={(sheetId) => {
+                        useMapStore.getState().setActiveSheetId(sheetId);
+                        setIsViewerOpen(true);
                       }}
                     />
+                  ) : activeSheetId && isSheetReady ? (
+                    <>
+                      <button
+                        onClick={() => setIsViewerOpen(false)}
+                        className="absolute top-4 left-4 z-10 bg-slate-900/80 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg backdrop-blur-sm transition-colors"
+                      >
+                        <List size={16} /> Back to Grid
+                      </button>
+                      <FloorplanCanvas
+                        projectId={projectId}
+                        sheetId={activeSheetId}
+                        maxZoom={activeSheet.max_zoom ?? undefined}
+                        originalWidth={activeSheet.original_width ?? undefined}
+                        originalHeight={activeSheet.original_height ?? undefined}
+                        zones={zones}
+                        onPolygonComplete={(points) => {
+                          const newZone = {
+                            id: crypto.randomUUID(),
+                            label: '',
+                            coordinates: points,
+                            color: '#3b82f6',
+                            opacity: 0.35,
+                          };
+                          saveZones([...zones, newZone]);
+                        }}
+                        onUpdateZonePolygon={(zoneId, points) => {
+                          saveZones(
+                            zones.map((z) => (z.id === zoneId ? { ...z, coordinates: points } : z))
+                          );
+                        }}
+                        onDeleteZone={(zoneId) => {
+                          const ids = Array.isArray(zoneId) ? zoneId : [zoneId];
+                          saveZones(zones.filter((z) => !ids.includes(z.id)));
+                        }}
+                      />
+                    </>
                   ) : activeSheetId && activeSheet?.status === 'processing' ? (
                     <div className="flex flex-col h-full items-center justify-center gap-4 text-slate-400 dark:text-slate-500">
                       <div className="animate-spin rounded-full h-8 w-8 border-2 border-sky-500 border-t-transparent" />
@@ -726,7 +747,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     </div>
                   )}
                 </div>
-                <SheetTabStrip projectId={projectId} sheets={sheets} />
+                {isViewerOpen && <SheetTabStrip projectId={projectId} sheets={sheets} />}
               </div>
             );
           })()}

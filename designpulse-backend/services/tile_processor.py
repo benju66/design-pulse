@@ -25,6 +25,8 @@ MAX_TILE_WORKERS = int(os.environ.get("MAX_TILE_WORKERS", "50"))
 
 PDF_RENDER_ZOOM  = float(os.environ.get("PDF_RENDER_ZOOM", "3.0"))
 
+# Circuit Breaker Constant
+MAX_SAFE_PIXELS = 200_000_000
 
 class PdfProcessingError(Exception):
     """Structured exception for user-displayable PDF errors (encrypted, corrupted)."""
@@ -75,6 +77,12 @@ class TileProcessor:
         # PDF_RENDER_ZOOM default 3.0: balances quality vs tile count.
         # 4x produced ~2000 tiles and took 10+ minutes; 3x cuts count ~44%.
         page = doc[page_index]
+        
+        target_pixels = page.rect.width * page.rect.height * (PDF_RENDER_ZOOM ** 2)
+        if target_pixels > MAX_SAFE_PIXELS:
+            doc.close()
+            raise PdfProcessingError(f"Dimensions too large to process safely (Exceeds 200MP)")
+            
         pix = page.get_pixmap(matrix=fitz.Matrix(PDF_RENDER_ZOOM, PDF_RENDER_ZOOM), alpha=False)
         img_bytes = pix.tobytes("png")
         doc.close()
@@ -85,7 +93,10 @@ class TileProcessor:
         original_height: int = image.height
 
         # ── 5. Generate tile pyramid to an OS-managed absolute temp dir ───────
-        temp_dir = tempfile.mkdtemp(prefix=f"dp_tiles_{sheet_id}_")
+        temp_base = os.environ.get("TILES_TEMP_DIR")
+        if temp_base:
+            os.makedirs(temp_base, exist_ok=True)
+        temp_dir = tempfile.mkdtemp(prefix=f"dp_tiles_{sheet_id}_", dir=temp_base)
 
         try:
             image.dzsave(os.path.join(temp_dir, "tiles"), suffix=".webp")

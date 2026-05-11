@@ -63,9 +63,8 @@ const DEFAULT_COORD_COLUMNS = [
   { id: 'discipline_status', label: 'Disciplines' }
 ];
 
-// ── Valid settings tabs — module-level guard used by the controlled component ───────
 const VALID_SETTINGS_TABS = new Set<SettingsTab>([
-  'info', 'team', 'building_areas', 'categories', 'disciplines',
+  'info', 'team', 'building_areas', 'categories', 'drawings',
   'csi_specs', 'estimate', 'sidebar', 've_matrix', 'coord_matrix', 'brand_standards', 'permits',
 ]);
 
@@ -525,14 +524,14 @@ export const ProjectSettings = ({
                 <Layers size={16} className={activeTab === 'categories' ? 'text-sky-500' : 'text-slate-400'} /> Categories
               </button>
               <button
-                onClick={() => onTabChange('disciplines')}
+                onClick={() => onTabChange('drawings')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
-                  activeTab === 'disciplines' 
+                  activeTab === 'drawings' 
                     ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
                     : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
                 }`}
               >
-                <Tags size={16} className={activeTab === 'disciplines' ? 'text-sky-500' : 'text-slate-400'} /> Disciplines
+                <Tags size={16} className={activeTab === 'drawings' ? 'text-sky-500' : 'text-slate-400'} /> Drawings
               </button>
               <button
                 onClick={() => onTabChange('csi_specs')}
@@ -959,11 +958,11 @@ export const ProjectSettings = ({
         </div>
       )}
 
-      {displayTab === 'disciplines' && (
+      {displayTab === 'drawings' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Disciplines</h3>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Drawing Disciplines</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Define the engineering and design disciplines to track in the Coordination Board. Drag to reorder.
+            Define the engineering and design disciplines to organize project drawings and track in the Coordination Board. Drag to reorder.
           </p>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndDisciplines}>

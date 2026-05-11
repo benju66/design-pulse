@@ -42,6 +42,7 @@ export interface ProjectSheet {
   max_zoom: number | null;
   // ── UOPM provenance columns (Step 4a) ────────────────────────────────────
   drawing_set_id: string | null;
+  discipline_id: string | null;
   source_filename: string | null;
   source_page_index: number | null;
   staged_key: string | null;     // internal — not shown in UI
@@ -74,6 +75,7 @@ export interface MapState {
   activeSheetId: string;
   savingZoneId: string | null;
   pendingPolygonPoints: Point[] | null;
+  isViewerOpen: boolean;
   // NOTE: selectedFile, pdfPageNumber, isUploading removed in v2 (AGENTS.md C34)
 
   setToolMode: (mode: ToolMode | ((prev: ToolMode) => ToolMode)) => void;
@@ -84,6 +86,7 @@ export interface MapState {
   setActiveSheetId: (id: string | ((prev: string) => string)) => void;
   setSavingZoneId: (val: string | null | ((prev: string | null) => string | null)) => void;
   setPendingPolygonPoints: (val: Point[] | null | ((prev: Point[] | null) => Point[] | null)) => void;
+  setIsViewerOpen: (val: boolean) => void;
 }
 
 // Minimal RBush generic interface to ensure spatial indexing operations are typed

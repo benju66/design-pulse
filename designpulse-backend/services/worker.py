@@ -8,6 +8,14 @@ from services.vector_extractor import VectorExtractor
 import threading
 
 _worker_local = threading.local()
+_semaphore = None
+
+def get_semaphore():
+    global _semaphore
+    if _semaphore is None:
+        _semaphore = asyncio.Semaphore(int(os.environ.get("MAX_CONCURRENT_JOBS", "3")))
+    return _semaphore
+
 
 def get_supabase():
     if not hasattr(_worker_local, "client"):
@@ -56,48 +64,50 @@ async def process_sheet_job(
     staged_path = f"{project_id}/staged/{staged_key}.pdf"
 
     try:
-        # ── Step 1: Download staged PDF from Storage ──────────────────────────
-        pdf_bytes: bytes = await asyncio.to_thread(
-            get_supabase().storage.from_("project_drawings").download,
-            staged_path,
-        )
-
-        # ── Step 2: Tile generation + Vector extraction — concurrent (OPT-3) ──
-        # Both operations receive the full pdf_bytes and operate on the same page.
-        # asyncio.gather() runs them in parallel threads, cutting wall time by 1-5s.
-        def run_tiles() -> tuple[int, int, int]:
-            return TileProcessor.process_pdf_to_tiles(
-                pdf_bytes,
-                project_id,
-                sheet_id,
-                get_supabase(),
-                page_index=page_index,
-                on_progress=write_progress,
+        async with get_semaphore():
+            # ── Step 1: Download staged PDF from Storage ──────────────────────────
+            pdf_bytes: bytes = await asyncio.to_thread(
+                get_supabase().storage.from_("project_drawings").download,
+                staged_path,
             )
 
-        def run_vectors() -> None:
-            VectorExtractor.extract_and_upload(
-                pdf_bytes, project_id, sheet_id, get_supabase(), page_index=page_index
+            # ── Step 2: Tile generation + Vector extraction — concurrent (OPT-3) ──
+            # Both operations receive the full pdf_bytes and operate on the same page.
+            # asyncio.gather() runs them in parallel threads, cutting wall time by 1-5s.
+            def run_tiles() -> tuple[int, int, int]:
+                return TileProcessor.process_pdf_to_tiles(
+                    pdf_bytes,
+                    project_id,
+                    sheet_id,
+                    get_supabase(),
+                    page_index=page_index,
+                    on_progress=write_progress,
+                )
+
+            def run_vectors() -> None:
+                VectorExtractor.extract_and_upload(
+                    pdf_bytes, project_id, sheet_id, get_supabase(), page_index=page_index
+                )
+
+            (max_zoom, width, height), _ = await asyncio.gather(
+                asyncio.to_thread(run_tiles),
+                asyncio.to_thread(run_vectors),
             )
 
-        (max_zoom, width, height), _ = await asyncio.gather(
-            asyncio.to_thread(run_tiles),
-            asyncio.to_thread(run_vectors),
-        )
+            write_progress(95)
 
-        write_progress(95)
+            # ── Step 3: Finalize DB row with provenance data ──────────────────────
+            get_supabase().table("project_sheets").update({
+                "status": "ready",
+                "progress_percent": 100,
+                "max_zoom": max_zoom,
+                "original_width": width,
+                "original_height": height,
+                "source_filename": source_filename or None,
+                "source_page_index": page_index,
+                "status_message": None,  # clear any previous error message
+            }).eq("id", sheet_id).execute()
 
-        # ── Step 3: Finalize DB row with provenance data ──────────────────────
-        get_supabase().table("project_sheets").update({
-            "status": "ready",
-            "progress_percent": 100,
-            "max_zoom": max_zoom,
-            "original_width": width,
-            "original_height": height,
-            "source_filename": source_filename or None,
-            "source_page_index": page_index,
-            "status_message": None,  # clear any previous error message
-        }).eq("id", sheet_id).execute()
 
         # ── Step 4: Remove staged file (success path) ─────────────────────────
         # Staged PDF is removed after the job that consumed it succeeds.

@@ -18,7 +18,7 @@ from typing import Any
 
 import fitz
 
-from services.tile_processor import PdfProcessingError
+from services.tile_processor import PdfProcessingError, MAX_SAFE_PIXELS, PDF_RENDER_ZOOM
 
 MAX_INSPECT_PAGES = int(os.environ.get("MAX_INSPECT_PAGES", "200"))
 # Thumbnail target: longest axis ≤ 150px regardless of page orientation/size (BUG-11).
@@ -67,6 +67,11 @@ def inspect_and_stage_pdf(
     for i in range(pages_to_process):
         page = doc[i]
         rect = page.rect
+
+        target_pixels = rect.width * rect.height * (PDF_RENDER_ZOOM ** 2)
+        if target_pixels > MAX_SAFE_PIXELS:
+            doc.close()
+            raise ValueError(f"PDF page {i+1} dimensions too large to process safely (Exceeds 200MP)")
 
         # Compute zoom so longest axis → THUMB_MAX_PX
         longest = max(rect.width, rect.height)

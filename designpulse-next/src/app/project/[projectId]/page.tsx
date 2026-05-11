@@ -24,6 +24,7 @@ import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import DetailPanel from '@/components/DetailPanel';
+import DrawingDetailPanel from '@/components/drawings/DrawingDetailPanel';
 import { useUIStore, ProjectView, SettingsTab } from '@/stores/useUIStore';
 import { useMapStore } from '@/stores/useMapStore';
 import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
@@ -112,6 +113,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [isBulkImportOpen, setIsBulkImportOpen] = React.useState(false);
   const [isPdfImportOpen, setIsPdfImportOpen] = React.useState(false);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const selectedDrawingId = useUIStore(state => state.selectedDrawingId);
+  const drawingGridViewMode = useUIStore(state => state.drawingGridViewMode);
   const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
   const permitViewMode = useUIStore(state => state.permitViewMode);
@@ -399,15 +402,25 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             )}
 
             {currentView === 'map' && (
-              <button
-                id="drawings-import-btn"
-                onClick={() => setIsPdfImportOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-teal-500 hover:bg-teal-400
-                           text-white text-sm font-bold rounded-xl shadow-sm transition-colors"
-              >
-                <Upload size={16} />
-                Import Drawings
-              </button>
+              isViewerOpen ? (
+                <button
+                  onClick={() => setIsViewerOpen(false)}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-xl shadow-sm transition-colors"
+                >
+                  <List size={16} />
+                  Close Drawing
+                </button>
+              ) : (
+                <button
+                  id="drawings-import-btn"
+                  onClick={() => setIsPdfImportOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-teal-500 hover:bg-teal-400
+                             text-white text-sm font-bold rounded-xl shadow-sm transition-colors"
+                >
+                  <Upload size={16} />
+                  Import Drawings
+                </button>
+              )
             )}
 
             {currentView === 'permits' && (
@@ -666,25 +679,33 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
             return (
               <div className="flex flex-col w-full h-full overflow-hidden">
-                <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 overflow-hidden">
+                <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 overflow-hidden flex flex-row">
                   {!isViewerOpen ? (
-                    <DrawingGrid
-                      projectId={projectId}
-                      sheets={sheets}
-                      disciplines={settings?.disciplines || []}
-                      onOpenViewer={(sheetId) => {
-                        useMapStore.getState().setActiveSheetId(sheetId);
-                        setIsViewerOpen(true);
-                      }}
-                    />
+                    <>
+                      <div className={`flex flex-col flex-1 min-w-0 h-full @container ${
+                        (drawingGridViewMode === 'split' && selectedDrawingId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
+                      }`}>
+                        <DrawingGrid
+                          projectId={projectId}
+                          sheets={sheets}
+                          disciplines={settings?.disciplines || []}
+                          onOpenViewer={(sheetId) => {
+                            const store = useMapStore.getState();
+                            store.setActiveSheetId(sheetId);
+                            store.addOpenSheetId(sheetId);
+                            setIsViewerOpen(true);
+                          }}
+                        />
+                      </div>
+                      
+                      <DrawingDetailPanel
+                        projectId={projectId}
+                        sheets={sheets}
+                        disciplines={settings?.disciplines || []}
+                      />
+                    </>
                   ) : activeSheetId && isSheetReady ? (
                     <>
-                      <button
-                        onClick={() => setIsViewerOpen(false)}
-                        className="absolute top-4 left-4 z-10 bg-slate-900/80 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg backdrop-blur-sm transition-colors"
-                      >
-                        <List size={16} /> Back to Grid
-                      </button>
                       <FloorplanCanvas
                         projectId={projectId}
                         sheetId={activeSheetId}

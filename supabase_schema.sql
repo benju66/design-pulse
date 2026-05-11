@@ -2310,6 +2310,7 @@ ALTER TABLE project_sheets
   ADD COLUMN IF NOT EXISTS source_filename   text,
   ADD COLUMN IF NOT EXISTS source_page_index integer DEFAULT 0,
   ADD COLUMN IF NOT EXISTS staged_key        text,
+  ADD COLUMN IF NOT EXISTS discipline_id     text,
   ADD COLUMN IF NOT EXISTS status_message    text;
 
 CREATE INDEX IF NOT EXISTS idx_sheets_drawing_set

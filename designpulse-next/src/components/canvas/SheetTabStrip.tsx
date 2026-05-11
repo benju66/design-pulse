@@ -36,6 +36,10 @@ interface ContextMenuState {
 export const SheetTabStrip: React.FC<SheetTabStripProps> = ({ projectId, sheets }) => {
   const activeSheetId = useMapStore((s) => s.activeSheetId);
   const setActiveSheetId = useMapStore((s) => s.setActiveSheetId);
+  const setIsViewerOpen = useMapStore((s) => s.setIsViewerOpen);
+  const openSheetIds = useMapStore((s) => s.openSheetIds);
+  const addOpenSheetId = useMapStore((s) => s.addOpenSheetId);
+  const removeOpenSheetId = useMapStore((s) => s.removeOpenSheetId);
 
   // Get bearer token via supabase.auth.getSession() — consistent with
   // TileRenderer.tsx and useCsiQueries.ts patterns in this codebase.
@@ -166,11 +170,12 @@ export const SheetTabStrip: React.FC<SheetTabStripProps> = ({ projectId, sheets 
         onSuccess: (newSheet) => {
           pendingSheetIdRef.current = newSheet.id;
           setActiveSheetId(newSheet.id);
+          addOpenSheetId(newSheet.id);
           fileInputRef.current?.click();
         },
       }
     );
-  }, [accessToken, sheets.length, projectId, createSheet, setActiveSheetId]);
+  }, [accessToken, sheets.length, projectId, createSheet, setActiveSheetId, addOpenSheetId]);
 
   // Step 2: File selected → call FastAPI → sheet status transitions to 'ready' via polling
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, targetSheetId?: string) => {
@@ -203,15 +208,25 @@ export const SheetTabStrip: React.FC<SheetTabStripProps> = ({ projectId, sheets 
     reuploadSheetIdRef.current = null;
   }, [handleFileChange]);
 
+  const handleCloseTab = useCallback((sheetId: string) => {
+    const nextIds = openSheetIds.filter(id => id !== sheetId);
+    removeOpenSheetId(sheetId);
+    if (activeSheetId === sheetId) {
+      if (nextIds.length > 0) {
+        setActiveSheetId(nextIds[nextIds.length - 1]);
+      } else {
+        setActiveSheetId('');
+        setIsViewerOpen(false);
+      }
+    }
+  }, [openSheetIds, removeOpenSheetId, activeSheetId, setActiveSheetId, setIsViewerOpen]);
+
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = useCallback((sheetId: string) => {
     setContextMenu(null);
     deleteSheet.mutate({ projectId, sheetId });
-    if (activeSheetId === sheetId) {
-      const next = sheets.find((s) => s.id !== sheetId);
-      setActiveSheetId(next?.id ?? '');
-    }
-  }, [projectId, deleteSheet, activeSheetId, sheets, setActiveSheetId]);
+    handleCloseTab(sheetId);
+  }, [projectId, deleteSheet, handleCloseTab]);
 
   return (
     <div className="flex-shrink-0 flex flex-col border-t border-slate-200 dark:border-slate-700
@@ -241,7 +256,7 @@ export const SheetTabStrip: React.FC<SheetTabStripProps> = ({ projectId, sheets 
 
       {/* Scrollable tab list */}
       <div className="flex items-stretch overflow-x-auto flex-1 scrollbar-none">
-        {sheets.map((sheet) => {
+        {sheets.filter(s => openSheetIds.includes(s.id)).map((sheet) => {
           const isActive = sheet.id === activeSheetId;
           const isRenaming = renamingId === sheet.id;
 
@@ -328,12 +343,12 @@ export const SheetTabStrip: React.FC<SheetTabStripProps> = ({ projectId, sheets 
                 </span>
               )}
 
-              {/* Close / delete button — visible on hover of active tab */}
+              {/* Close button — visible on hover of active tab */}
               {isActive && !isRenaming && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(sheet.id); }}
-                  className="flex-shrink-0 rounded p-0.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-                  title="Delete sheet"
+                  onClick={(e) => { e.stopPropagation(); handleCloseTab(sheet.id); }}
+                  className="flex-shrink-0 rounded p-0.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 dark:hover:text-slate-200 transition-colors"
+                  title="Close tab"
                 >
                   <X size={11} />
                 </button>

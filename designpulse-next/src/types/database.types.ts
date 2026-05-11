@@ -19,6 +19,12 @@ export interface Database {
           original_width: number | null
           original_height: number | null
           max_zoom: number | null
+          drawing_set_id: string | null
+          discipline_id: string | null
+          source_filename: string | null
+          source_page_index: number | null
+          staged_key: string | null
+          status_message: string | null
           created_at: string
           updated_at: string
         }
@@ -31,6 +37,12 @@ export interface Database {
           original_width?: number | null
           original_height?: number | null
           max_zoom?: number | null
+          drawing_set_id?: string | null
+          discipline_id?: string | null
+          source_filename?: string | null
+          source_page_index?: number | null
+          staged_key?: string | null
+          status_message?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -43,6 +55,12 @@ export interface Database {
           original_width?: number | null
           original_height?: number | null
           max_zoom?: number | null
+          drawing_set_id?: string | null
+          discipline_id?: string | null
+          source_filename?: string | null
+          source_page_index?: number | null
+          staged_key?: string | null
+          status_message?: string | null
           created_at?: string
           updated_at?: string
         }

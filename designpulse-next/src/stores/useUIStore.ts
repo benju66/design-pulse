@@ -38,6 +38,9 @@ export interface UIState {
   selectedOpportunityId: string | null;
   setSelectedOpportunityId: (id: string | null) => void;
   
+  selectedDrawingId: string | null;
+  setSelectedDrawingId: (id: string | null) => void;
+  
   cardOrder: string[];
   setCardOrder: (newOrder: string[]) => void;
   
@@ -77,6 +80,9 @@ export interface UIState {
   // VE grid view mode — flat, matching coordinationViewMode / permitViewMode pattern
   veGridViewMode: VEGridViewMode;
   setVeGridViewMode: (mode: VEGridViewMode) => void;
+
+  drawingGridViewMode: 'split' | 'flat';
+  setDrawingGridViewMode: (mode: 'split' | 'flat') => void;
 
   // Dashboard view mode
   dashboardViewMode: DashboardViewMode;
@@ -129,6 +135,13 @@ export const useUIStore = create<UIState>()(
         } else {
           useMapStore.getState().clearSelectedZones();
         }
+      },
+      
+      selectedDrawingId: null,
+      setSelectedDrawingId: (id) => {
+        const currentId = useUIStore.getState().selectedDrawingId;
+        if (currentId === id) return;
+        set({ selectedDrawingId: id });
       },
       
       cardOrder: ['priority', 'status', 'cost_impact', 'days_impact', 'assignee', 'arch_plans_spec', 'bok_standard', 'existing_conditions', 'mep_impact', 'owner_goals', 'final_direction', 'backing_required', 'coordination_required', 'design_lock_phase'],
@@ -239,6 +252,9 @@ export const useUIStore = create<UIState>()(
       veGridViewMode: 'split',
       setVeGridViewMode: (mode) => set({ veGridViewMode: mode }),
 
+      drawingGridViewMode: 'split',
+      setDrawingGridViewMode: (mode) => set({ drawingGridViewMode: mode }),
+
       dashboardViewMode: 'card',
       setDashboardViewMode: (mode) => set({ dashboardViewMode: mode }),
 
@@ -317,6 +333,7 @@ export const useUIStore = create<UIState>()(
         activeView: state.activeView ?? {},
         activeSettingsTab: state.activeSettingsTab ?? {},
         veGridViewMode: state.veGridViewMode ?? 'split',
+        drawingGridViewMode: state.drawingGridViewMode ?? 'split',
         gridColumnPinningOverrides: state.gridColumnPinningOverrides ?? {},
         dashboardViewMode: state.dashboardViewMode ?? 'card',
       }),

@@ -17,10 +17,6 @@
  *     - Each sheet transitions to 'processing' → 'ready'/'error' via Realtime.
  *     - Modal auto-closes when all sheets reach a terminal state (or user clicks Done).
  *
- * Single-page shortcut (BUG-12):
- *   When page_count === 1 we skip the picker phase entirely and immediately
- *   enter Phase 2 with the sole page pre-selected.
- *
  * AGENTS.md guardrails:
  *   - C8: client-minted UUIDs (in useBulkImportSheets)
  *   - C16: click-outside uses pointerdown + ref.contains
@@ -32,13 +28,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X, Upload, FileText, CheckSquare, Square, AlertCircle,
-  Loader2, CheckCircle, ChevronRight, Info,
+  Loader2, CheckCircle, ChevronRight, Info, Calendar
 } from 'lucide-react';
 import { supabase } from '@/supabaseClient';
 import { InspectPdfResponse, StagedPageMeta } from '@/types/map.types';
 import { inspectAndStagePdfService } from '@/services/api';
 import { useBulkImportSheets } from '@/hooks/useMapQueries';
 import { useDrawingSets, useCreateDrawingSet } from '@/hooks/useDrawingSetQueries';
+import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 
 interface SheetSelection {
   pageIndex: number;
@@ -73,6 +70,11 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
   const [newSetName, setNewSetName] = useState('');
   const [newSetDate, setNewSetDate] = useState('');
   const [createNewSet, setCreateNewSet] = useState(false);
+
+  // ── Discipline state ───────────────────────────────────────────────────────
+  const { data: settings } = useProjectSettings(projectId);
+  const disciplines = settings?.disciplines || [];
+  const [selectedDisciplineId, setSelectedDisciplineId] = useState<string>('');
 
   // ── Inspection state ───────────────────────────────────────────────────────
   const [phase, setPhase] = useState<ModalPhase>('uploading');
@@ -125,23 +127,7 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
       const result = await inspectAndStagePdfService(projectId, file, token);
       setInspectResult(result);
 
-      // Single-page shortcut (BUG-12): skip picker
-      if (result.page_count === 1) {
-        setSelections([{
-          pageIndex: 0,
-          sheetName: result.pages[0]?.suggested_label ?? 'Sheet 1',
-          selected: true,
-        }]);
-        setPhase('dispatching');
-        // Immediately dispatch
-        await dispatchImport(result.staged_key, result.filename, [{
-          pageIndex: 0,
-          sheetName: result.pages[0]?.suggested_label ?? 'Sheet 1',
-        }]);
-        return;
-      }
-
-      // Multi-page: enter picker
+      // Enter picker phase for all uploads (single or multi-page)
       setSelections(
         result.pages.map((p) => ({
           pageIndex: p.page_index,
@@ -185,6 +171,7 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
       await bulkImport.mutateAsync({
         projectId,
         drawingSetId,
+        disciplineId: selectedDisciplineId || null,
         stagedKey,
         filename,
         selections: pageSelections,
@@ -288,60 +275,114 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
     );
   }
 
-  function DrawingSetRow() {
+  function ImportSettingsSection() {
     return (
-      <div className="space-y-3">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-          Drawing Set
-        </p>
-        <div className="flex gap-2 flex-wrap">
-          {existingSets.map((s) => (
+      <div className="space-y-6">
+        {/* Drawing Set */}
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+            Drawing Set
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            {existingSets.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => { setSelectedSetId(s.id); setCreateNewSet(false); }}
+                className={`px-3 py-1.5 rounded-lg text-sm transition-colors
+                            ${!createNewSet && selectedSetId === s.id
+                              ? 'bg-teal-500 text-white'
+                              : 'bg-white/5 text-slate-300 hover:bg-white/10'}`}
+              >
+                {s.set_name}
+                {s.is_active && (
+                  <span className="ml-1.5 text-xs opacity-70">(active)</span>
+                )}
+              </button>
+            ))}
             <button
-              key={s.id}
-              onClick={() => { setSelectedSetId(s.id); setCreateNewSet(false); }}
+              onClick={() => setCreateNewSet(true)}
               className={`px-3 py-1.5 rounded-lg text-sm transition-colors
-                          ${!createNewSet && selectedSetId === s.id
+                          ${createNewSet
                             ? 'bg-teal-500 text-white'
                             : 'bg-white/5 text-slate-300 hover:bg-white/10'}`}
             >
-              {s.set_name}
-              {s.is_active && (
-                <span className="ml-1.5 text-xs opacity-70">(active)</span>
-              )}
+              + New Set
             </button>
-          ))}
-          <button
-            onClick={() => setCreateNewSet(true)}
-            className={`px-3 py-1.5 rounded-lg text-sm transition-colors
-                        ${createNewSet
-                          ? 'bg-teal-500 text-white'
-                          : 'bg-white/5 text-slate-300 hover:bg-white/10'}`}
-          >
-            + New Set
-          </button>
+          </div>
+
+          {createNewSet && (
+            <div className="flex gap-2">
+              <input
+                id="new-set-name-inline"
+                autoFocus
+                value={newSetName}
+                onChange={(e) => setNewSetName(e.target.value)}
+                placeholder="Set name (e.g. IFC – May 2026)"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10
+                           text-sm text-slate-200 placeholder:text-slate-500
+                           focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+              />
+              <div className="relative flex items-center w-36 shrink-0">
+                <input
+                  id="new-set-date-inline"
+                  type="text"
+                  placeholder="YYYY-MM-DD"
+                  maxLength={10}
+                  value={newSetDate}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val.length > 4) val = val.slice(0, 4) + '-' + val.slice(4);
+                    if (val.length > 6) val = val.slice(0, 7) + '-' + val.slice(7, 9);
+                    setNewSetDate(val);
+                  }}
+                  className="w-full pl-3 pr-8 py-2 rounded-lg bg-white/5 border border-white/10
+                             text-sm text-slate-300 focus:outline-none focus:ring-1
+                             focus:ring-teal-500/50"
+                />
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('new-set-date-hidden');
+                    if (el && 'showPicker' in el) {
+                      try { (el as HTMLInputElement).showPicker(); } catch (e) { /* ignore */ }
+                    }
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                  title="Pick date"
+                >
+                  <Calendar className="h-4 w-4" />
+                </button>
+                <input
+                  id="new-set-date-hidden"
+                  type="date"
+                  value={newSetDate.length === 10 ? newSetDate : ''}
+                  onChange={(e) => setNewSetDate(e.target.value)}
+                  className="absolute bottom-0 right-0 w-0 h-0 opacity-0 pointer-events-none"
+                  tabIndex={-1}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        {createNewSet && (
-          <div className="flex gap-2">
-            <input
-              id="new-set-name-inline"
-              autoFocus
-              value={newSetName}
-              onChange={(e) => setNewSetName(e.target.value)}
-              placeholder="Set name (e.g. IFC – May 2026)"
-              className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10
-                         text-sm text-slate-200 placeholder:text-slate-500
-                         focus:outline-none focus:ring-2 focus:ring-teal-500/50"
-            />
-            <input
-              id="new-set-date-inline"
-              type="date"
-              value={newSetDate}
-              onChange={(e) => setNewSetDate(e.target.value)}
-              className="w-36 px-2 py-2 rounded-lg bg-white/5 border border-white/10
-                         text-sm text-slate-300 focus:outline-none focus:ring-1
-                         focus:ring-teal-500/50"
-            />
+        {/* Discipline Selection */}
+        {disciplines.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+              Discipline (Optional)
+            </p>
+            <select
+              value={selectedDisciplineId}
+              onChange={(e) => setSelectedDisciplineId(e.target.value)}
+              className="w-full sm:w-64 px-3 py-2 rounded-lg bg-white/5 border border-white/10
+                         text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/50
+                         appearance-none cursor-pointer"
+            >
+              <option value="" className="bg-slate-900">Uncategorized</option>
+              {disciplines.map((d: any) => (
+                <option key={d.id} value={d.id} className="bg-slate-900">{d.label}</option>
+              ))}
+            </select>
           </div>
         )}
       </div>
@@ -476,14 +517,14 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
           {phase === 'uploading' && (
             <>
               <DropZone />
-              {existingSets.length > 0 && <DrawingSetRow />}
+              {(existingSets.length > 0 || disciplines.length > 0) && <ImportSettingsSection />}
             </>
           )}
 
           {/* Selecting phase */}
           {phase === 'selecting' && (
             <>
-              <DrawingSetRow />
+              <ImportSettingsSection />
               <div className="border-t border-white/5 pt-4 flex-1 min-h-0 flex flex-col">
                 <ThumbnailGrid />
               </div>

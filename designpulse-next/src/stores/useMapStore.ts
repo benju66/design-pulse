@@ -66,6 +66,16 @@ export const useMapStore = create<MapState>()(
       activeSheetId: '',
       setActiveSheetId: (id: string | ((prev: string) => string)) => set((state) => ({ activeSheetId: typeof id === 'function' ? id(state.activeSheetId) : id })),
 
+      openSheetIds: [],
+      addOpenSheetId: (id: string) => set((state) => ({
+        openSheetIds: state.openSheetIds.includes(id) ? state.openSheetIds : [...state.openSheetIds, id]
+      })),
+      removeOpenSheetId: (id: string) => set((state) => {
+        const nextIds = state.openSheetIds.filter(sid => sid !== id);
+        return { openSheetIds: nextIds };
+      }),
+      clearOpenSheets: () => set({ openSheetIds: [] }),
+
       savingZoneId: null,
       setSavingZoneId: (val: string | null | ((prev: string | null) => string | null)) => set((state) => ({ savingZoneId: typeof val === 'function' ? val(state.savingZoneId) : val })),
 
@@ -99,6 +109,7 @@ export const useMapStore = create<MapState>()(
       },
       partialize: (state) => ({
         activeSheetId: state.activeSheetId,
+        openSheetIds: state.openSheetIds,
         toolMode: state.toolMode
       })
     }

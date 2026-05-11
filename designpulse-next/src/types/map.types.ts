@@ -73,6 +73,7 @@ export interface MapState {
   selectedZoneIds: string[];
   editingZoneId: string | null;
   activeSheetId: string;
+  openSheetIds: string[];
   savingZoneId: string | null;
   pendingPolygonPoints: Point[] | null;
   isViewerOpen: boolean;
@@ -84,6 +85,9 @@ export interface MapState {
   clearSelectedZones: () => void;
   setEditingZoneId: (id: string | null | ((prev: string | null) => string | null)) => void;
   setActiveSheetId: (id: string | ((prev: string) => string)) => void;
+  addOpenSheetId: (id: string) => void;
+  removeOpenSheetId: (id: string) => void;
+  clearOpenSheets: () => void;
   setSavingZoneId: (val: string | null | ((prev: string | null) => string | null)) => void;
   setPendingPolygonPoints: (val: Point[] | null | ((prev: Point[] | null) => Point[] | null)) => void;
   setIsViewerOpen: (val: boolean) => void;

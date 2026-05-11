@@ -353,6 +353,7 @@ export function useBulkImportSheets() {
     {
       projectId: string;
       drawingSetId: string | null;
+      disciplineId: string | null;
       stagedKey: string;
       filename: string;
       selections: Array<{ pageIndex: number; sheetName: string }>;
@@ -360,7 +361,7 @@ export function useBulkImportSheets() {
     },
     { previousSheets: ProjectSheet[] | undefined }
   >({
-    mutationFn: async ({ projectId, drawingSetId, stagedKey, filename, selections, token }) => {
+    mutationFn: async ({ projectId, drawingSetId, disciplineId, stagedKey, filename, selections, token }) => {
       const sheetIds = selections.map(() => crypto.randomUUID());
       const now = new Date().toISOString();
 
@@ -374,6 +375,7 @@ export function useBulkImportSheets() {
             status: 'processing' as const,
             progress_percent: 0,
             drawing_set_id: drawingSetId,
+            discipline_id: disciplineId,
             source_filename: filename,
             source_page_index: sel.pageIndex,
             created_at: now,
@@ -392,7 +394,7 @@ export function useBulkImportSheets() {
         );
       }
     },
-    onMutate: async ({ projectId, drawingSetId, filename, selections }) => {
+    onMutate: async ({ projectId, drawingSetId, disciplineId, filename, selections }) => {
       await queryClient.cancelQueries({ queryKey: ['project_sheets', projectId] });
       const previousSheets = queryClient.getQueryData<ProjectSheet[]>(['project_sheets', projectId]);
       const now = new Date().toISOString();
@@ -406,7 +408,7 @@ export function useBulkImportSheets() {
         original_height: null,
         max_zoom: null,
         drawing_set_id: drawingSetId,
-        discipline_id: null,
+        discipline_id: disciplineId,
         source_filename: filename,
         source_page_index: sel.pageIndex,
         staged_key: null,

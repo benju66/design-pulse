@@ -29,6 +29,7 @@ import type {
   ProjectEstimateLine,
   EstimateStagingRow,
   BudgetWaterfallRow,
+  EstimateComparisonRow,
 } from '@/types/models';
 
 const CHUNK_SIZE = 50; // AGENTS.md C20 — Kong gateway protection
@@ -272,6 +273,28 @@ export function useProjectBudgetWaterfall(projectId: string | null, versionId: s
       });
       if (error) throw error;
       return (data ?? []) as BudgetWaterfallRow[];
+    },
+  });
+}
+
+// ── useCompareEstimateVersions ───────────────────────────────────────────────
+// Fetches the variance delta between two estimate versions.
+// Returns null if either version is missing to prevent unnecessary network requests (AGENTS.md C24).
+export function useCompareEstimateVersions(projectId: string | null, versionA: string | null, versionB: string | null) {
+  return useQuery<EstimateComparisonRow[]>({
+    queryKey: ['compare-estimates', projectId, versionA, versionB],
+    enabled: !!projectId && !!versionA && !!versionB,
+    queryFn: async () => {
+      if (!projectId || !versionA || !versionB) return []; // Fallback, shouldn't happen due to enabled
+
+      const { data, error } = await supabase.rpc('compare_estimate_versions', {
+        p_project_id: projectId,
+        p_version_a_id: versionA,
+        p_version_b_id: versionB,
+      });
+
+      if (error) throw error;
+      return (data ?? []) as EstimateComparisonRow[];
     },
   });
 }

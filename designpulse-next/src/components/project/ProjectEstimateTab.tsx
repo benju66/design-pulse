@@ -11,6 +11,8 @@ import { useProjectEstimateVersions, useImportEstimateMutation, useActivateEstim
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { parseProcoreBudgetExcel } from '@/lib/excel/procoreBudgetParser';
 import { SmartCostCodeCombobox } from '@/components/ui/SmartCostCodeCombobox';
+import { VersionComparisonViewer } from './VersionComparisonViewer';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { EstimateStagingRow, EstimateCostType, ProjectEstimateVersion } from '@/types/models';
 import type { CostType } from '@/types/models';
 
@@ -34,6 +36,8 @@ function VersionRow({
   onActivate,
   onDelete,
   onView,
+  isSelected,
+  onToggleSelect,
   isActivating,
   isDeleting,
 }: {
@@ -41,6 +45,8 @@ function VersionRow({
   onActivate: (id: string) => void;
   onDelete: (id: string) => void;
   onView: (id: string) => void;
+  isSelected: boolean;
+  onToggleSelect: (id: string, selected: boolean) => void;
   isActivating: boolean;
   isDeleting: boolean;
 }) {
@@ -52,7 +58,17 @@ function VersionRow({
         ? 'border-sky-300 dark:border-sky-700 bg-sky-50/60 dark:bg-sky-900/20 hover:border-sky-400 dark:hover:border-sky-500'
         : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-sky-300 dark:hover:border-sky-700 hover:bg-slate-50 dark:hover:bg-slate-800/50'
     }`}>
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-4 min-w-0">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => {
+            e.stopPropagation();
+            onToggleSelect(version.id, e.target.checked);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+        />
         {version.is_active && (
           <span className="flex items-center gap-1 text-xs font-bold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 px-2 py-0.5 rounded-full shrink-0">
             <Star size={10} fill="currentColor" /> ACTIVE
@@ -248,12 +264,17 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
   const [parseError, setParseError]   = useState<string | null>(null);
   const [stagingRows, setStagingRows] = useState<EstimateStagingRow[]>([]);
   const [versionName, setVersionName] = useState('');
-  const [versionDate, setVersionDate] = useState(new Date().toISOString().slice(0, 10));
+  const [versionDate, setVersionDate] = useState('');
   const [setAsActive, setSetAsActive] = useState(true);
+
+  // Version viewer/compare state
+  const [viewingVersionId, setViewingVersionId] = useState<string | null>(null);
+  const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([]);
+  const [comparingVersionIds, setComparingVersionIds] = useState<[string, string] | null>(null);
+
   const [isDragging, setIsDragging]   = useState(false);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [stagingSearch, setStagingSearch] = useState('');
-  const [viewingVersionId, setViewingVersionId] = useState<string | null>(null);
 
   // Column picker: populated after parse with available numeric column headers.
   // activeBudgetCol tracks which column the user has selected for budget amounts.
@@ -435,6 +456,16 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
                 onActivate={id => activateMutation.mutate(id)}
                 onDelete={id => deleteMutation.mutate(id)}
                 onView={id => setViewingVersionId(id)}
+                isSelected={selectedVersionIds.includes(v.id)}
+                onToggleSelect={(id, selected) => {
+                  if (selected) {
+                    if (selectedVersionIds.length < 2) {
+                      setSelectedVersionIds([...selectedVersionIds, id]);
+                    }
+                  } else {
+                    setSelectedVersionIds(selectedVersionIds.filter((sid) => sid !== id));
+                  }
+                }}
                 isActivating={activateMutation.isPending}
                 isDeleting={deleteMutation.isPending}
               />
@@ -447,6 +478,73 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
       {viewingVersionId && (
         <VersionLinesViewer versionId={viewingVersionId} onClose={() => setViewingVersionId(null)} />
       )}
+
+      {/* Compare Modal */}
+      {comparingVersionIds && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Compare Estimate Versions</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Comparing variances between two budget snapshots.</p>
+              </div>
+              <button
+                onClick={() => setComparingVersionIds(null)}
+                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-auto">
+              <VersionComparisonViewer
+                projectId={projectId}
+                versionAId={comparingVersionIds[0]}
+                versionBId={comparingVersionIds[1]}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compare Tray */}
+      <AnimatePresence>
+        {selectedVersionIds.length > 0 && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40"
+          >
+            <div className="bg-slate-900 dark:bg-slate-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-sky-500/20 flex items-center justify-center text-sky-400 font-bold">
+                  {selectedVersionIds.length}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Versions Selected</p>
+                  <p className="text-xs text-slate-400">Select exactly 2 to compare</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 border-l border-slate-700 pl-6">
+                <button
+                  onClick={() => setSelectedVersionIds([])}
+                  className="text-sm font-semibold text-slate-300 hover:text-white px-4 py-2 transition-colors"
+                >
+                  Clear
+                </button>
+                <button
+                  disabled={selectedVersionIds.length !== 2}
+                  onClick={() => setComparingVersionIds([selectedVersionIds[0], selectedVersionIds[1]])}
+                  className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold px-6 py-2 rounded-xl transition-colors"
+                >
+                  Compare
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Drop Zone — shown when idle or parsing */}
       {(importState === 'idle' || importState === 'parsing') && (

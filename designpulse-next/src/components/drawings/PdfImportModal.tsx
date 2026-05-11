@@ -36,19 +36,9 @@ import { inspectAndStagePdfService } from '@/services/api';
 import { useBulkImportSheets } from '@/hooks/useMapQueries';
 import { useDrawingSets, useCreateDrawingSet } from '@/hooks/useDrawingSetQueries';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-
-interface SheetSelection {
-  pageIndex: number;
-  sheetName: string;
-  drawingTitle: string;
-  revision: string;
-  drawingDate: string;
-  receivedDate: string;
-  selected: boolean;
-}
-
-type ModalPhase = 'uploading' | 'global_assignment' | 'title_block_training' | 'extracting' | 'wizard' | 'dispatching' | 'done';
+import { SheetSelection, ModalPhase } from './PdfImportModal.types';
+import { WizardView } from './WizardView';
+import { TitleBlockTrainingView } from './TitleBlockTrainingView';
 
 interface PdfImportModalProps {
   projectId: string;
@@ -85,6 +75,7 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
   const [phase, setPhase] = useState<ModalPhase>('uploading');
   const [inspectResult, setInspectResult] = useState<InspectPdfResponse | null>(null);
   const [inspectError, setInspectError] = useState<string | null>(null);
+  const [isInspecting, setIsInspecting] = useState(false);
   const [selections, setSelections] = useState<SheetSelection[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [currentWizardIndex, setCurrentWizardIndex] = useState(0);
@@ -131,6 +122,7 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
 
     setPhase('uploading');
     setInspectError(null);
+    setIsInspecting(true);
 
     try {
       const result = await inspectAndStagePdfService(projectId, file, token);
@@ -152,6 +144,8 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
     } catch (err) {
       setInspectError(err instanceof Error ? err.message : 'Failed to inspect PDF');
       setPhase('uploading');
+    } finally {
+      setIsInspecting(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, token]);
@@ -280,16 +274,21 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
             if (f) handleFile(f);
             e.target.value = '';
           }}
+          disabled={isInspecting}
         />
-        <div className="p-4 rounded-2xl bg-teal-400/10">
-          <Upload className="h-8 w-8 text-teal-400" />
+        <div className={`p-4 rounded-2xl ${isInspecting ? 'bg-indigo-400/10' : 'bg-teal-400/10'}`}>
+          {isInspecting ? (
+            <Loader2 className="h-8 w-8 text-indigo-400 animate-spin" />
+          ) : (
+            <Upload className="h-8 w-8 text-teal-400" />
+          )}
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-slate-200">
-            Drop a drawing PDF here
+            {isInspecting ? 'Processing Document...' : 'Drop a drawing PDF here'}
           </p>
           <p className="text-xs text-slate-500 mt-1">
-            Multi-page PDFs supported · Up to 500 MB
+            {isInspecting ? 'Extracting pages and generating thumbnails' : 'Multi-page PDFs supported · Up to 500 MB'}
           </p>
         </div>
         {inspectError && (
@@ -638,481 +637,4 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
   );
 }
 
-interface WizardViewProps {
-  projectId: string;
-  token: string;
-  inspectResult: InspectPdfResponse | null;
-  selections: SheetSelection[];
-  currentWizardIndex: number;
-  setCurrentWizardIndex: React.Dispatch<React.SetStateAction<number>>;
-  toggleOne: (pageIndex: number) => void;
-  updateField: (pageIndex: number, field: keyof SheetSelection, value: string | boolean) => void;
-}
 
-export function WizardView({
-  projectId,
-  token,
-  inspectResult,
-  selections,
-  currentWizardIndex,
-  setCurrentWizardIndex,
-  toggleOne,
-  updateField
-}: WizardViewProps) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(true);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-
-  const currentSel = selections[currentWizardIndex];
-  const pageIndex = currentSel?.pageIndex;
-  const stagedKey = inspectResult?.staged_key;
-
-  useEffect(() => {
-    let isMounted = true;
-    let localBlobUrl: string | null = null;
-
-    const fetchPreview = async () => {
-      if (!stagedKey || pageIndex === undefined) return;
-      setPreviewLoading(true);
-      setPreviewError(null);
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-        const url = `${apiUrl}/drawings/preview/${projectId}/${stagedKey}/${pageIndex}`;
-        const res = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        if (!res.ok) throw new Error('Failed to load preview');
-        const blob = await res.blob();
-        if (isMounted) {
-          localBlobUrl = URL.createObjectURL(blob);
-          setBlobUrl(localBlobUrl);
-        }
-      } catch (err) {
-        if (isMounted) setPreviewError('Failed to load preview image');
-      } finally {
-        if (isMounted) setPreviewLoading(false);
-      }
-    };
-    
-    fetchPreview();
-    
-    return () => {
-      isMounted = false;
-      if (localBlobUrl) URL.revokeObjectURL(localBlobUrl);
-    };
-  }, [pageIndex, stagedKey, projectId, token]);
-
-  if (!inspectResult || selections.length === 0) return null;
-  if (!currentSel) return null;
-
-  const handleNext = () => {
-    if (currentWizardIndex < selections.length - 1) {
-      setCurrentWizardIndex(i => i + 1);
-    }
-  };
-  const handlePrev = () => {
-    if (currentWizardIndex > 0) {
-      setCurrentWizardIndex(i => i - 1);
-    }
-  };
-  
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-       e.preventDefault();
-       handleNext();
-    }
-  };
-
-  return (
-    <div className="flex gap-6 h-[600px] min-h-0 w-full pt-4">
-      {/* Main Preview Pane */}
-      <div className="flex-1 bg-slate-900 rounded-2xl border border-white/10 overflow-hidden relative group">
-        {previewLoading ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <Loader2 className="h-8 w-8 text-sky-500 animate-spin" />
-          </div>
-        ) : previewError ? (
-          <div className="w-full h-full flex flex-col gap-2 items-center justify-center text-slate-400">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <p className="text-sm">{previewError}</p>
-          </div>
-        ) : blobUrl ? (
-          <TransformWrapper initialScale={1} minScale={0.5} maxScale={5} centerOnInit>
-            <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full flex items-center justify-center">
-              <img 
-                 src={blobUrl} 
-                 className="max-w-full max-h-full object-contain"
-                 alt="Sheet Preview"
-                 loading="lazy"
-              />
-            </TransformComponent>
-          </TransformWrapper>
-        ) : null}
-        
-        {/* Navigation Overlay */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-slate-950/90 backdrop-blur px-2 py-2 rounded-2xl border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity shadow-2xl">
-           <button onClick={handlePrev} disabled={currentWizardIndex === 0} className="px-4 py-2 rounded-xl text-slate-300 hover:bg-white/10 disabled:opacity-30 transition-colors font-medium text-sm">Previous</button>
-           <span className="text-white text-sm font-semibold px-2">Page {currentWizardIndex + 1} of {selections.length}</span>
-           <button onClick={handleNext} disabled={currentWizardIndex === selections.length - 1} className="px-4 py-2 rounded-xl bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 disabled:opacity-30 transition-colors font-medium text-sm">Next</button>
-        </div>
-      </div>
-      
-      {/* Sidebar Editor */}
-      <div className="w-[320px] shrink-0 bg-slate-900/50 p-5 rounded-2xl border border-white/5 flex flex-col gap-6">
-         <div className="flex justify-between items-center pb-4 border-b border-white/10">
-            <h3 className="font-semibold text-slate-200">Sheet Metadata</h3>
-            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors">
-               <input 
-                 type="checkbox" 
-                 checked={currentSel.selected} 
-                 onChange={() => toggleOne(currentSel.pageIndex)} 
-                 className="w-4 h-4 rounded border-white/20 text-sky-500 focus:ring-sky-500/50 bg-slate-950"
-               />
-               Import Sheet
-            </label>
-         </div>
-         
-         <div className="flex-1 space-y-5 overflow-y-auto pr-1" onKeyDown={handleKeyDown}>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Drawing Number</label>
-              <input 
-                value={currentSel.sheetName} 
-                onChange={e => updateField(currentSel.pageIndex, 'sheetName', e.target.value)} 
-                className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all shadow-inner" 
-                placeholder="e.g. A101"
-                autoFocus 
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Drawing Title</label>
-              <input 
-                value={currentSel.drawingTitle} 
-                onChange={e => updateField(currentSel.pageIndex, 'drawingTitle', e.target.value)} 
-                className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all shadow-inner" 
-                placeholder="e.g. Floor Plan"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Revision</label>
-              <input 
-                value={currentSel.revision} 
-                onChange={e => updateField(currentSel.pageIndex, 'revision', e.target.value)} 
-                className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all shadow-inner" 
-                placeholder="e.g. 1"
-              />
-            </div>
-         </div>
-         
-         <div className="pt-4 border-t border-white/10">
-           <button 
-              onClick={handleNext} 
-              disabled={currentWizardIndex === selections.length - 1}
-              className="w-full py-3 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded-xl shadow-lg shadow-sky-500/20 transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
-           >
-              {currentWizardIndex === selections.length - 1 ? 'Last Sheet' : 'Next Sheet'}
-              {currentWizardIndex !== selections.length - 1 && <ChevronRight size={18} />}
-           </button>
-         </div>
-      </div>
-    </div>
-  );
-}
-
-interface ZoneDefinition {
-  field: string;
-  rect: [number, number, number, number]; // x, y, w, h
-}
-
-interface TitleBlockTrainingViewProps {
-  projectId: string;
-  token: string;
-  inspectResult: InspectPdfResponse | null;
-  selections: SheetSelection[];
-  setSelections: React.Dispatch<React.SetStateAction<SheetSelection[]>>;
-  onComplete: () => void;
-  setPhase: (phase: ModalPhase) => void;
-}
-
-export function TitleBlockTrainingView({
-  projectId,
-  token,
-  inspectResult,
-  selections,
-  setSelections,
-  onComplete,
-  setPhase
-}: TitleBlockTrainingViewProps) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [loadingImg, setLoadingImg] = useState(true);
-  
-  const [zones, setZones] = useState<ZoneDefinition[]>([]);
-  const [activeField, setActiveField] = useState<'sheetName' | 'drawingTitle'>('sheetName');
-  
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [startPos, setStartPos] = useState({ x: 0, y: 0 });
-  const [currentPos, setCurrentPos] = useState({ x: 0, y: 0 });
-  
-  const imageRef = useRef<HTMLImageElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    let localBlobUrl: string | null = null;
-    const fetchPreview = async () => {
-      if (!inspectResult?.staged_key) return;
-      setLoadingImg(true);
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-        const url = `${apiUrl}/drawings/preview/${projectId}/${inspectResult.staged_key}/0`;
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) throw new Error('Failed to load preview');
-        const blob = await res.blob();
-        if (isMounted) {
-          localBlobUrl = URL.createObjectURL(blob);
-          setBlobUrl(localBlobUrl);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        if (isMounted) setLoadingImg(false);
-      }
-    };
-    fetchPreview();
-    return () => {
-      isMounted = false;
-      if (localBlobUrl) URL.revokeObjectURL(localBlobUrl);
-    };
-  }, [inspectResult?.staged_key, projectId, token]);
-
-  // Auto-scroll to bottom right once image is loaded
-  useEffect(() => {
-    if (blobUrl && !loadingImg && containerRef.current) {
-      setTimeout(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTop = containerRef.current.scrollHeight;
-          containerRef.current.scrollLeft = containerRef.current.scrollWidth;
-        }
-      }, 100);
-    }
-  }, [blobUrl, loadingImg]);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (!imageRef.current) return;
-    const rect = imageRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    
-    const clampedX = Math.max(0, Math.min(1, x));
-    const clampedY = Math.max(0, Math.min(1, y));
-    
-    setIsDrawing(true);
-    setStartPos({ x: clampedX, y: clampedY });
-    setCurrentPos({ x: clampedX, y: clampedY });
-  };
-  
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDrawing || !imageRef.current) return;
-    const rect = imageRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    setCurrentPos({ 
-      x: Math.max(0, Math.min(1, x)), 
-      y: Math.max(0, Math.min(1, y)) 
-    });
-  };
-  
-  const handlePointerUp = () => {
-    if (!isDrawing) return;
-    setIsDrawing(false);
-    
-    const x = Math.min(startPos.x, currentPos.x);
-    const y = Math.min(startPos.y, currentPos.y);
-    const w = Math.abs(currentPos.x - startPos.x);
-    const h = Math.abs(currentPos.y - startPos.y);
-    
-    if (w > 0.01 && h > 0.01) {
-      setZones(prev => {
-        const filtered = prev.filter(z => z.field !== activeField);
-        return [...filtered, { field: activeField, rect: [x, y, w, h] }];
-      });
-      if (activeField === 'sheetName') setActiveField('drawingTitle');
-    }
-  };
-
-  const executeExtraction = async () => {
-    if (zones.length === 0 || !inspectResult) return;
-    setPhase('extracting');
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-      const pageIndices = selections.filter(s => s.selected).map(s => s.pageIndex);
-      
-      const res = await fetch(`${apiUrl}/drawings/extract/${projectId}/${inspectResult.staged_key}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          zones,
-          page_indices: pageIndices
-        })
-      });
-      
-      if (!res.ok) throw new Error('Extraction failed');
-      const data = await res.json();
-      
-      setSelections(prev => {
-        const newSel = [...prev];
-        data.forEach((extracted: any) => {
-          const idx = newSel.findIndex(s => s.pageIndex === extracted.pageIndex);
-          if (idx !== -1) {
-             if (extracted.sheetName) newSel[idx].sheetName = extracted.sheetName;
-             if (extracted.drawingTitle) newSel[idx].drawingTitle = extracted.drawingTitle;
-          }
-        });
-        return newSel;
-      });
-      
-      onComplete(); // move to wizard phase
-    } catch (e) {
-      console.error(e);
-      onComplete(); // Fallback to wizard even if extraction fails
-    }
-  };
-
-  return (
-    <div className="flex gap-6 h-[600px] min-h-0 w-full pt-4">
-      {/* Main Preview Pane */}
-      <div 
-        ref={containerRef}
-        className="flex-1 bg-slate-900 rounded-2xl border border-white/10 overflow-auto relative touch-none select-none scroll-smooth"
-      >
-        {loadingImg ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
-          </div>
-        ) : blobUrl ? (
-          <div 
-            className="relative min-w-[250%] w-max cursor-crosshair"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerLeave={handlePointerUp}
-          >
-            <img 
-              ref={imageRef}
-              src={blobUrl} 
-              alt="Training Preview" 
-              className="w-full h-auto pointer-events-none"
-              draggable={false}
-            />
-            {/* Render Saved Zones */}
-            {zones.map((z, i) => (
-              <div
-                key={i}
-                className={`absolute border-2 transition-colors ${z.field === 'sheetName' ? 'border-sky-400 bg-sky-400/20' : 'border-emerald-400 bg-emerald-400/20'}`}
-                style={{
-                  left: `${z.rect[0] * 100}%`,
-                  top: `${z.rect[1] * 100}%`,
-                  width: `${z.rect[2] * 100}%`,
-                  height: `${z.rect[3] * 100}%`,
-                  pointerEvents: 'none'
-                }}
-              >
-                <span className="absolute -top-6 left-0 bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded whitespace-nowrap border border-white/10">
-                  {z.field === 'sheetName' ? 'Drawing Number' : 'Drawing Title'}
-                </span>
-              </div>
-            ))}
-            {/* Render Active Drawing Box */}
-            {isDrawing && imageRef.current && (
-              <div
-                className={`absolute border-2 border-dashed ${activeField === 'sheetName' ? 'border-sky-400 bg-sky-400/20' : 'border-emerald-400 bg-emerald-400/20'}`}
-                style={{
-                  left: `${Math.min(startPos.x, currentPos.x) * 100}%`,
-                  top: `${Math.min(startPos.y, currentPos.y) * 100}%`,
-                  width: `${Math.abs(currentPos.x - startPos.x) * 100}%`,
-                  height: `${Math.abs(currentPos.y - startPos.y) * 100}%`,
-                  pointerEvents: 'none'
-                }}
-              />
-            )}
-          </div>
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <span className="text-slate-500 text-sm">Failed to load preview.</span>
-          </div>
-        )}
-      </div>
-
-      {/* Sidebar Editor */}
-      <div className="w-[320px] shrink-0 bg-slate-900/50 p-5 rounded-2xl border border-white/5 flex flex-col gap-6">
-        <div className="space-y-2">
-          <h3 className="text-lg font-semibold text-slate-100">Train Extractor</h3>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Drag a box over the Drawing Number and Title regions on this sheet.
-          </p>
-        </div>
-
-        <div className="space-y-4 flex-1">
-           <button
-             onClick={() => setActiveField('sheetName')}
-             className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all flex flex-col gap-1 ${
-               activeField === 'sheetName' 
-                 ? 'border-sky-500 bg-sky-500/10' 
-                 : 'border-white/5 bg-slate-950 hover:border-white/20'
-             }`}
-           >
-             <div className="flex items-center justify-between">
-               <span className={`text-sm font-semibold ${activeField === 'sheetName' ? 'text-sky-400' : 'text-slate-300'}`}>
-                 1. Drawing Number
-               </span>
-               {zones.find(z => z.field === 'sheetName') && (
-                 <CheckCircle className="w-4 h-4 text-sky-400" />
-               )}
-             </div>
-             <span className="text-xs text-slate-500">Click and drag over the sheet number.</span>
-           </button>
-
-           <button
-             onClick={() => setActiveField('drawingTitle')}
-             className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all flex flex-col gap-1 ${
-               activeField === 'drawingTitle' 
-                 ? 'border-emerald-500 bg-emerald-500/10' 
-                 : 'border-white/5 bg-slate-950 hover:border-white/20'
-             }`}
-           >
-             <div className="flex items-center justify-between">
-               <span className={`text-sm font-semibold ${activeField === 'drawingTitle' ? 'text-emerald-400' : 'text-slate-300'}`}>
-                 2. Drawing Title
-               </span>
-               {zones.find(z => z.field === 'drawingTitle') && (
-                 <CheckCircle className="w-4 h-4 text-emerald-400" />
-               )}
-             </div>
-             <span className="text-xs text-slate-500">Click and drag over the sheet title.</span>
-           </button>
-        </div>
-
-        <div className="pt-4 border-t border-white/10 flex flex-col gap-3">
-          <button 
-            onClick={executeExtraction}
-            disabled={zones.length === 0}
-            className="w-full py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
-          >
-            Extract {selections.filter(s => s.selected).length} Sheets
-            <ChevronRight size={18} />
-          </button>
-          <button 
-            onClick={onComplete}
-            className="w-full py-2.5 text-slate-400 hover:text-slate-200 text-sm font-medium transition-colors"
-          >
-            Skip & Review Manually
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

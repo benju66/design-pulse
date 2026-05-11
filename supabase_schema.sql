@@ -2480,3 +2480,55 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION upsert_sheet_markups(uuid, uuid, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION upsert_sheet_markups(uuid, uuid, jsonb) TO authenticated;
+
+-- ============================================================================
+-- 15. ESTIMATE COMPARISON
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.compare_estimate_versions(
+  p_project_id uuid,
+  p_version_a_id uuid,
+  p_version_b_id uuid
+) RETURNS TABLE (
+  cost_code text,
+  cost_type text,
+  description text,
+  old_amount numeric,
+  new_amount numeric,
+  delta_amount numeric
+) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT has_project_permission(p_project_id, 'can_view_project') THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- SECURITY FIX: Prevent Cross-Tenant Data Leaks (IDOR)
+  -- Must verify that both requested versions actually belong to the authorized project.
+  IF NOT EXISTS (SELECT 1 FROM project_estimate_versions WHERE id = p_version_a_id AND project_id = p_project_id) OR
+     NOT EXISTS (SELECT 1 FROM project_estimate_versions WHERE id = p_version_b_id AND project_id = p_project_id) THEN
+    RAISE EXCEPTION 'One or both versions do not belong to the specified project.';
+  END IF;
+
+  RETURN QUERY
+  SELECT 
+    COALESCE(a.cost_code, b.cost_code) as cost_code,
+    COALESCE(a.cost_type, b.cost_type) as cost_type,
+    COALESCE(b.description, a.description) as description,
+    COALESCE(a.budget_amount, 0) as old_amount,
+    COALESCE(b.budget_amount, 0) as new_amount,
+    COALESCE(b.budget_amount, 0) - COALESCE(a.budget_amount, 0) as delta_amount
+  FROM 
+    (SELECT e.cost_code, e.cost_type, MAX(e.description) as description, SUM(e.budget_amount) as budget_amount 
+     FROM project_estimates e WHERE e.version_id = p_version_a_id 
+     GROUP BY e.cost_code, e.cost_type) a
+  FULL OUTER JOIN 
+    (SELECT e.cost_code, e.cost_type, MAX(e.description) as description, SUM(e.budget_amount) as budget_amount 
+     FROM project_estimates e WHERE e.version_id = p_version_b_id 
+     GROUP BY e.cost_code, e.cost_type) b
+  ON a.cost_code = b.cost_code AND a.cost_type = b.cost_type
+  ORDER BY cost_code ASC, cost_type ASC;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.compare_estimate_versions(uuid, uuid, uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.compare_estimate_versions(uuid, uuid, uuid) TO authenticated;
+

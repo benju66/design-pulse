@@ -277,3 +277,12 @@ export interface ProjectMember {
   role: RolePermission['role'];
   joined_at: string;
 }
+
+export interface EstimateComparisonRow {
+  cost_code: string;
+  cost_type: EstimateCostType;
+  description: string;
+  old_amount: number;
+  new_amount: number;
+  delta_amount: number;
+}

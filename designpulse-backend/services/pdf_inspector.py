@@ -188,7 +188,13 @@ def extract_title_block_zones(staged_key: str, zones: list[dict], page_indices: 
                 x1 = (x + w) * width
                 y1 = (y + h) * height
                 
-                clip_rect = fitz.Rect(x0, y0, x1, y1)
+                # The user drew the box on the visually-upright (rotated) image.
+                # page.rect represents the rotated dimensions.
+                # However, PyMuPDF's get_text expects coordinates in the UNROTATED space.
+                # We must apply the derotation matrix to transform the box back to raw PDF space.
+                visual_clip = fitz.Rect(x0, y0, x1, y1)
+                clip_rect = visual_clip * page.derotation_matrix
+                
                 raw_text = page.get_text("text", clip=clip_rect)
                 
                 # Sanitize text based on field

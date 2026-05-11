@@ -17,7 +17,22 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 - **Role-Based Access Control (RBAC):** Dynamic, granular permissions (Owner, GC Admin, Design Team, Viewer) controlled securely at the database level via PostgreSQL Row Level Security (RLS).
 - **Financial Immutability & Audit Trails:** A robust soft-delete architecture paired with strict database triggers to lock approved budgets, ensure financial calculation accuracy, and track comprehensive historical changes.
 
-## 3. Tech Stack Glossary
+## 3. Interactive Drawings & Extraction Engine
+
+The Drawings module provides deep spatial context for Value Engineering and Design Coordination items, paired with a robust, automated ingestion pipeline for architectural drawing sets.
+
+### Overview
+Instead of viewing disconnected line items, teams can upload multi-page architectural sets and map specific financial decisions or coordination tasks directly to physical locations on the floorplan, ensuring total clarity on where decisions impact the project.
+
+### Functions and Features
+- **Automated Title Block Extraction:** Upload massive multi-page architectural PDFs. Users can drag "training zones" over the Drawing Number and Title block on a single preview sheet to train the extractor.
+- **Precision Derotation Matrix:** The backend extraction engine utilizes exact 1:1 coordinate mapping and derotation matrices via `PyMuPDF` to accurately extract metadata even from internally rotated architectural source files.
+- **Debounced Live Preview:** The training interface provides instant, debounced visual validation of the text the engine is capturing, preventing misaligned extraction runs.
+- **Batch Review Wizard:** After executing a batch extraction across the document set, users are dropped into an interactive Master-Detail review wizard featuring inline pan/zoom controls to manually verify or edit the metadata sheet-by-sheet before committing to the database.
+- **DeepZoom Tile Processing:** Heavy vector PDFs are processed asynchronously via a FastAPI worker into hierarchical DeepZoom web tiles, guaranteeing smooth 60fps pan and zoom performance on the frontend regardless of the original file complexity.
+- **Bi-Directional State Synchronization:** Clicking a row in the Value Matrix data grid instantly highlights the corresponding markup pin on the canvas. Conversely, clicking a pin on the canvas auto-scrolls the virtualized data grid to the exact row, utilizing atomic cross-store Zustand updates to prevent render loops.
+
+## 4. Tech Stack Glossary
 
 ### Frontend
 - **Framework:** Next.js (App Router, React 19)
@@ -36,7 +51,7 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 - **Storage:** Supabase Storage
 - **Microservices:** Python/FastAPI (Heavy PDF processing)
 
-## 4. Local Setup & Installation
+## 5. Local Setup & Installation
 
 Follow these steps to run the Next.js development server locally.
 
@@ -64,7 +79,7 @@ Follow these steps to run the Next.js development server locally.
    ```
    The application will be accessible at `http://localhost:3000`.
 
-## 5. Environment Variables
+## 6. Environment Variables
 
 Create a `.env.local` file inside the `designpulse-next` directory. Below is the required template (do not commit actual secret values):
 
@@ -77,7 +92,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
 
-## 6. Release Notes
+## 7. Release Notes
 
 ---
 

@@ -118,6 +118,7 @@ export default function DesignDashboard({ projectId, opportunities }: Props) {
                   dataKey="count"
                   cornerRadius={10}
                 />
+                {/* eslint-disable-next-line react-hooks/static-components */}
                 <Tooltip content={<CustomRadialTooltip />} />
                 <Legend iconSize={10} content={renderLegend} />
               </RadialBarChart>

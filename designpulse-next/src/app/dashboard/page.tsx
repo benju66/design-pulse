@@ -58,6 +58,7 @@ export default function DashboardPage() {
       const companyId = params.get('link_procore_company');
       
       if (projectId && companyId) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setProcoreLinkData({ projectId, companyId });
         window.history.replaceState({}, '', window.location.pathname);
       }
@@ -130,6 +131,7 @@ export default function DashboardPage() {
               Procore Account Linked
             </h3>
             <p className="text-sky-600 dark:text-sky-400 text-sm mt-1">
+              {/* eslint-disable-next-line react/no-unescaped-entities */}
               Your Procore login was successful. To complete the setup, either create a <strong>New Project</strong> below, or open an existing project's settings to manually apply the link.
             </p>
           </div>

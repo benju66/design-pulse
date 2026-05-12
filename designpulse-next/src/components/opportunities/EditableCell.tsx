@@ -83,6 +83,7 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
   const isSubmitting = useRef(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setValue(initialValue);
   }, [initialValue]);
 
@@ -137,6 +138,7 @@ export const TextCell = React.memo(({ getValue, row, column, table }: CellContex
   );
 }, (prev, next) => commonComparator(prev, next, false));
 
+{/* eslint-disable-next-line react/display-name */}
 export const StatusCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const initialValue = getValue() as string;
   const updateMutation = table.options.meta?.updateData;
@@ -174,6 +176,7 @@ export const StatusCell = React.memo(({ getValue, row, column, table }: CellCont
   );
 }, (prev, next) => commonComparator(prev, next, false));
 
+{/* eslint-disable-next-line react/display-name */}
 export const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const initialValue = getValue() as string | null | undefined;
   const updateMutation = table.options.meta?.updateData;
@@ -211,6 +214,7 @@ export const CoordinationStatusCell = React.memo(({ getValue, row, column, table
   );
 }, (prev, next) => commonComparator(prev, next, false));
 
+{/* eslint-disable-next-line react/display-name */}
 export const BuildingAreaCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const params = useParams();
   const projectId = params?.projectId as string | null;
@@ -255,6 +259,7 @@ export const BuildingAreaCell = React.memo(({ getValue, row, column, table }: Ce
   );
 }, (prev, next) => commonComparator(prev, next, false));
 
+{/* eslint-disable-next-line react/display-name */}
 export const PriorityCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const initialValue = getValue() as string | null | undefined;
   const updateMutation = table.options.meta?.updateData;
@@ -316,6 +321,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   const isSubmitting = useRef(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setValue(initialValue ?? '');
   }, [initialValue]);
 
@@ -412,6 +418,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
 //   C1  — no any casts; rawCostCodes from typed global TableMeta
 //   C10 — memo comparator only compares row.original fields, never meta
 //   C23 — no onBlur pattern; this cell never fires a mutation
+// eslint-disable-next-line react/display-name
 export const DivisionCell = React.memo(
   ({ row, table }: CellContext<Opportunity, unknown>) => {
     // Typed access via global TableMeta — Rule C1
@@ -470,6 +477,7 @@ export const DivisionCell = React.memo(
 
 import { SmartCostCodeCombobox } from '@/components/ui/SmartCostCodeCombobox';
 
+{/* eslint-disable-next-line react/display-name */}
 export const CostCodeCell = React.memo(({ getValue, row, table }: CellContext<Opportunity, unknown>) => {
   const initialCode    = getValue() as string | null | undefined;
   const initialCostType = row.original.cost_type as CostType | null | undefined;
@@ -504,6 +512,7 @@ export const CostCodeCell = React.memo(({ getValue, row, table }: CellContext<Op
   );
 }, (prev, next) => prev.row.original === next.row.original);
 
+{/* eslint-disable-next-line react/display-name */}
 export const CsiSpecCell = React.memo(({ row, table }: CellContext<Opportunity, unknown>) => {
   const initialCode    = row.original.cost_code as string | null | undefined;
   const initialSpecNumberId = row.original.spec_number_id as string | null | undefined;

@@ -37,6 +37,7 @@ export default function DrawingDetailPanel({ projectId, sheets, disciplines }: D
 
   useEffect(() => {
     if (sheet) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalName(sheet.sheet_name || '');
       setLocalTitle(sheet.drawing_title || '');
       setLocalRevision(sheet.revision || '');

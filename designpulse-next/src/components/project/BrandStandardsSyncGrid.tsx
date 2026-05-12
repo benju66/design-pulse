@@ -111,7 +111,7 @@ export function BrandStandardsSyncGrid({ projectId }: { projectId: string }) {
             Brand Standards Sync
           </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Map {client?.name}'s global brand standards to specific project requirements.
+            Map {client?.name}&apos;s global brand standards to specific project requirements.
           </p>
         </div>
         <button

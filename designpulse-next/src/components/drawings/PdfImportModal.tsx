@@ -110,6 +110,7 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
   // ── Pre-select active drawing set ─────────────────────────────────────────
   useEffect(() => {
     const active = existingSets.find((s) => s.is_active);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (active && !selectedSetId) setSelectedSetId(active.id);
   }, [existingSets, selectedSetId]);
 

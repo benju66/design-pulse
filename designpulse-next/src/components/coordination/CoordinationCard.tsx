@@ -42,6 +42,7 @@ export const CoordinationCard = ({ opportunity, updateMutation, settings, member
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    {/* eslint-disable-next-line react-hooks/set-state-in-effect */}
     setLocalDetails(opportunity.coordination_details as Record<string, any> || {});
   }, [opportunity.coordination_details]);
 

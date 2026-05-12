@@ -82,6 +82,7 @@ export const MappedZoneComponent: React.FC<MappedZoneProps> = ({
   const [optimisticCoords, setOptimisticCoords] = useState<Point[] | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOptimisticCoords(null);
   }, [zone.coordinates]);
 

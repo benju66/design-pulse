@@ -6,6 +6,7 @@ interface InlineOptionCellProps {
   context: CellContext<Opportunity, unknown>;
 }
 
+// eslint-disable-next-line react/display-name
 export const InlineOptionCell = React.memo(({ context }: InlineOptionCellProps) => {
   const { row, column, table } = context;
   const meta = table.options.meta;

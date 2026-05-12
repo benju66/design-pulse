@@ -25,6 +25,7 @@ export function AssigneeSelect({ value, onChange, onClose, members, autoFocus }:
 
   useEffect(() => {
     if (autoFocus && !isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsOpen(true);
     }
   }, [autoFocus]);

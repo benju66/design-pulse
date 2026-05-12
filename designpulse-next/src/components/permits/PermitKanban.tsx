@@ -27,6 +27,7 @@ const COLUMNS = [
   { id: 'Approved', label: 'Approved', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' }
 ];
 
+// eslint-disable-next-line react/display-name
 const SortablePermitCard = React.memo(({ permit }: { permit: Permit }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: permit.id,

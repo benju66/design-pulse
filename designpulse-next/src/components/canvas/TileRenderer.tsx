@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/refs */
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Group, Image as KonvaImage } from 'react-konva';
 import { supabase } from '@/supabaseClient';
@@ -59,6 +60,7 @@ export const TileRenderer: React.FC<TileRendererProps> = ({
     tileCache.current = {};
     inflight.current = new Set();
     activeControllers.current = {};
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRenderEpoch(0);
   }, [sheetId, maxZoom]);
 
@@ -200,6 +202,7 @@ export const TileRenderer: React.FC<TileRendererProps> = ({
 
   return (
     <Group>
+
       {visibleTiles.map(tile => {
         const img = tileCache.current[tile.id];
         if (!img) return null;

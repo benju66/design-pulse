@@ -61,6 +61,7 @@ interface GridRowProps {
   isExpanded: boolean;
 }
 
+// eslint-disable-next-line react/display-name
 const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement, isExpanded }: GridRowProps) => {
   return (
     <tbody 

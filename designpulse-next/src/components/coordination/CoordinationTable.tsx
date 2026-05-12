@@ -40,6 +40,7 @@ interface Props {
 }
 
 // Custom Discipline Status Cell
+{/* eslint-disable-next-line react/display-name */}
 const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity, unknown>) => {
   // [C-6 FIX] Read from meta (derived once in parent) instead of calling
   // useProjectSettings inside every virtualized row — prevents N subscriber registrations.
@@ -85,6 +86,7 @@ const DisciplineStatusCell = React.memo(({ row, table }: CellContext<Opportunity
   );
 });
 
+{/* eslint-disable-next-line react/display-name */}
 const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: CellContext<Opportunity, unknown>) => {
   const initialValue = getValue() as string;
   const updateData = table.options.meta?.updateData;
@@ -182,6 +184,7 @@ const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
   );
 };
 
+// eslint-disable-next-line react/display-name
 const MemoizedCoordinationRow = React.memo(({ 
   row, 
   virtualRow, 

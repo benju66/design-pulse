@@ -39,6 +39,7 @@ export default function UserProfileModal({ isOpen, onClose, currentMeta }: UserP
 
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({
         display_name: currentMeta.display_name || '',
         company_name: currentMeta.company_name || '',

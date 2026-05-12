@@ -89,7 +89,7 @@ interface GroupedRowProps {
   divisionDeltaMap?: Record<string, number>; // Bug #9: passed as explicit prop, not via table.options.meta
 }
 
-const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded, isLedgerView, divisionDeltaMap }: GroupedRowProps) => {
+const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded, isLedgerView, divisionDeltaMap }: GroupedRowProps) {
   const divisionVal = row.getValue('division') as string;
   let divisionLabel = divisionVal ? `${divisionVal}` : 'Uncategorized';
   
@@ -261,7 +261,7 @@ interface GridRowV2Props {
   isExpanded: boolean;
 }
 
-const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement, isExpanded }: GridRowV2Props) => {
+const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRow, isSelected, viewMode, measureElement, isExpanded }: GridRowV2Props) {
   const isSubRow = row.original && !('project_id' in row.original) && 'opportunity_id' in row.original;
 
   return (

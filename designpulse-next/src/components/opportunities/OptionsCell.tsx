@@ -8,6 +8,7 @@ interface OptionsCellProps {
   table: Table<Opportunity>;
 }
 
+// eslint-disable-next-line react/display-name
 export const OptionsCell = React.memo(({ row, table }: OptionsCellProps) => {
   const optionsMap = table.options.meta?.optionsMap || {};
   const options = optionsMap[row.original.id] || [];

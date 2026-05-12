@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/refs */
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
@@ -382,6 +383,7 @@ export const SheetTabStrip: React.FC<SheetTabStripProps> = ({ projectId, sheets 
           style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 9999 }}
           className="bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-1 min-w-[140px]"
         >
+
           {[
             {
               label: 'Rename',

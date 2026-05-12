@@ -54,6 +54,7 @@ interface GroupedRowProps {
   pinnedColumnOffsets: string;
 }
 
+// eslint-disable-next-line react/display-name
 const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, disciplinesMap }: GroupedRowProps) => {
   const disciplineId = row.getValue('discipline_id') as string | null;
   const label = disciplineId && disciplinesMap[disciplineId] ? disciplinesMap[disciplineId] : 'Uncategorized';
@@ -99,6 +100,7 @@ interface GridRowProps {
   pinnedColumnOffsets: string;
 }
 
+// eslint-disable-next-line react/display-name
 const MemoizedGridRow = React.memo(({ row, virtualRow, measureElement, isSelected, isPanelOpen }: GridRowProps) => {
   return (
     <tbody
@@ -554,6 +556,7 @@ export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: Dr
                   <div className="flex flex-col items-center justify-center text-slate-500">
                     <ImageIcon size={48} strokeWidth={1} className="mb-4 text-slate-300 dark:text-slate-700" />
                     <p className="text-lg font-semibold text-slate-700 dark:text-slate-300">No drawings uploaded yet</p>
+                    {/* eslint-disable-next-line react/no-unescaped-entities */}
                     <p className="text-sm mt-1">Click "Import Drawings" to upload a PDF set.</p>
                   </div>
                 </td>

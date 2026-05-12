@@ -26,6 +26,7 @@ interface PermitTableMeta {
 const cellClass = "w-full h-full px-2 py-1.5 text-xs bg-transparent outline-none focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-sky-500 rounded border border-transparent focus:border-sky-500 text-slate-900 dark:text-slate-100 transition-all";
 const headerClass = "flex items-center gap-2 p-2 text-xs font-semibold text-slate-500 dark:text-slate-400 select-none whitespace-nowrap";
 
+{/* eslint-disable-next-line react/display-name */}
 const TextCell = React.memo(({ getValue, row, column, table }: CellContext<Permit, unknown>) => {
   const initialValue = getValue() as string;
   const meta = table.options.meta as PermitTableMeta | undefined;
@@ -73,6 +74,7 @@ const TextCell = React.memo(({ getValue, row, column, table }: CellContext<Permi
   );
 });
 
+{/* eslint-disable-next-line react/display-name */}
 const DateCell = React.memo(({ getValue, row, column, table }: CellContext<Permit, unknown>) => {
   const initialValue = getValue() as string;
   const meta = table.options.meta as PermitTableMeta | undefined;
@@ -94,6 +96,7 @@ const DateCell = React.memo(({ getValue, row, column, table }: CellContext<Permi
   );
 });
 
+{/* eslint-disable-next-line react/display-name */}
 const StatusCell = React.memo(({ getValue, row, column, table }: CellContext<Permit, unknown>) => {
   const initialValue = getValue() as string;
   const meta = table.options.meta as PermitTableMeta | undefined;
@@ -145,6 +148,7 @@ const StatusCell = React.memo(({ getValue, row, column, table }: CellContext<Per
   );
 });
 
+{/* eslint-disable-next-line react/display-name */}
 const DropdownCell = React.memo(({ getValue, row, column, table, options }: CellContext<Permit, unknown> & { options: {id: string, label: string}[] }) => {
   const initialValue = getValue() as string;
   const meta = table.options.meta as PermitTableMeta | undefined;
@@ -220,6 +224,7 @@ const OpenPanelCell = ({ row }: { row: Row<Permit> }) => {
   );
 };
 
+// eslint-disable-next-line react/display-name
 const MemoizedPermitRow = React.memo(({ 
   row, 
   virtualRow, 

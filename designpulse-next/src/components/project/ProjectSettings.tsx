@@ -258,6 +258,7 @@ export const ProjectSettings = ({
   }, [settings, currentProject, projectId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     resetSettings();
   }, [resetSettings]);
 

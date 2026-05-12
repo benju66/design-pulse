@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Upload, RefreshCw, Save, Download, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CsiStagingGrid } from '@/components/project/CsiStagingGrid';
-import { useUploadCsiTOC, useBulkUpsertProjectCsiSpecs } from '@/hooks/useCsiQueries';
+import { useUploadCsiTOC, useBulkUpsertProjectCsiSpecs, useProjectCsiSpecs } from '@/hooks/useCsiQueries';
 import { CsiSpecItem } from '@/types/models';
 import { useCostCodes, useCsiTrainingSuggestions } from '@/hooks/useGlobalQueries';
 import { toast } from 'sonner';
@@ -17,6 +17,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
   const uploadMutation = useUploadCsiTOC();
   const upsertMutation = useBulkUpsertProjectCsiSpecs(projectId);
   const { data: costCodes = [] } = useCostCodes();
+  const { data: projectSpecs = [] } = useProjectCsiSpecs(projectId);
 
   // Extract just the CSI numbers to fetch suggestions
   const extractedNumbers = stagingData.map(d => d.csi_number.toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -25,6 +26,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
   // Apply suggestions automatically when they load
   useEffect(() => {
     if (suggestions.length > 0 && stagingData.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStagingData(current => {
         let hasChanges = false;
         const next = current.map(item => {
@@ -171,7 +173,16 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
         }
       }
 
-      sheet.addRow(['09 65 16', 'Resilient Flooring', '']);
+      if (projectSpecs.length > 0) {
+        projectSpecs.forEach((spec) => {
+          let costCodeVal = '';
+          if (spec.cost_code) {
+            const cc = costCodes.find((c) => c.code === spec.cost_code);
+            if (cc) costCodeVal = `${cc.code} - ${cc.description}`;
+          }
+          sheet.addRow([spec.csi_number, spec.description || '', costCodeVal]);
+        });
+      }
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -203,7 +214,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
     }
   }, []);
 
-  const handleUpload = (selectedFile: File) => {
+  function handleUpload(selectedFile: File) {
     if (selectedFile.name.endsWith('.xlsx')) {
       handleExcelUpload(selectedFile);
       return;
@@ -214,7 +225,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
         setStagingData(data);
       }
     });
-  };
+  }
 
   const handleSave = () => {
     const payload = stagingData.map(d => ({
@@ -238,7 +249,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
         <div>
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">CSI Spec Book Extractor</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Upload your project's PDF Table of Contents or `.xlsx` template to extract CSI divisions and map them to base Cost Codes using our ML Flywheel.
+            Upload your project&apos;s PDF Table of Contents or `.xlsx` template to extract CSI divisions and map them to base Cost Codes using our ML Flywheel.
           </p>
         </div>
         

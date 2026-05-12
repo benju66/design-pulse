@@ -65,6 +65,7 @@ export default function OwnerDashboard({ projectId, opportunities }: Props) {
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm flex flex-col justify-center items-center h-80">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-2">Avg Age of Pending Items</h3>
         <div className="text-6xl font-black text-slate-800 dark:text-slate-100 mb-2">{avgPendingDays}</div>
+        {/* eslint-disable-next-line react/no-unescaped-entities */}
         <p className="text-sm text-slate-400 mt-2">Days spent in 'Pending Review'</p>
       </div>
 
@@ -94,6 +95,7 @@ export default function OwnerDashboard({ projectId, opportunities }: Props) {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
+                {/* eslint-disable-next-line react-hooks/static-components */}
                 <Tooltip content={<CustomTooltip />} />
                 <Legend verticalAlign="bottom" height={36} />
               </PieChart>

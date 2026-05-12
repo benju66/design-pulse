@@ -6,7 +6,6 @@ import {
   useReactTable,
   getCoreRowModel,
   flexRender,
-  ColumnDef,
   createColumnHelper,
   type CellContext,
 } from '@tanstack/react-table';
@@ -73,6 +72,7 @@ const EditableTitleCell = ({ getValue, row }: CellContext<DraftCoordinationTask,
   };
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setValue(initialValue);
   }, [initialValue]);
 
@@ -127,7 +127,7 @@ export function BulkImportModal({ isOpen, onClose, projectId, projectSettings, c
 
   const columnHelper = createColumnHelper<DraftCoordinationTask>();
 
-  const columns = useMemo<ColumnDef<DraftCoordinationTask, unknown>[]>(() => [
+  const columns = useMemo(() => [
     columnHelper.accessor('title', {
       header: 'Title',
       cell: EditableTitleCell,
@@ -293,7 +293,7 @@ export function BulkImportModal({ isOpen, onClose, projectId, projectSettings, c
             <div className="flex flex-col">
               <h3 className="text-sm font-medium text-gray-900 dark:text-white">Step 1: Download Template</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Get the dynamically generated .xlsx file with your project's settings and data validations.
+                Get the dynamically generated .xlsx file with your project&apos;s settings and data validations.
               </p>
             </div>
             <button

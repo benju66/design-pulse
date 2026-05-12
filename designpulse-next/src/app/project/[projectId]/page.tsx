@@ -214,6 +214,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   React.useEffect(() => {
     if (estimateVersions.length > 0 && compareVersionA === null) {
       const active = estimateVersions.find(v => v.is_active);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (active) setCompareVersionA(active.id);
     }
   }, [estimateVersions]); // eslint-disable-line react-hooks/exhaustive-deps

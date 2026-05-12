@@ -142,7 +142,7 @@ export function CsiStagingGrid({ data, setData, costCodes }: CsiStagingGridProps
 import { Row } from '@tanstack/react-table';
 
 const MemoizedRow = React.memo(
-  ({ row }: { row: Row<CsiSpecItem> }) => {
+  function MemoizedRow({ row }: { row: Row<CsiSpecItem> }) {
     return (
       <tr className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
         {row.getVisibleCells().map((cell) => (

@@ -283,7 +283,7 @@ export const LedgerDeltaAggregatedCell = React.memo(({ getValue }: CellContext<O
 }, commonComparator);
 
 /** Projected final — shows variance chip vs baseline on hover */
-export const LedgerProjectedCell = React.memo(({ getValue, row }: CellContext<Opportunity, unknown>) => {
+export const LedgerProjectedCell = React.memo(function LedgerProjectedCell({ getValue, row }: CellContext<Opportunity, unknown>) {
   if (!row.original.is_budget_line) {
     return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
   }

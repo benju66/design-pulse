@@ -71,6 +71,7 @@ export function TitleBlockTrainingView({
   // Debounced Live Preview
   useEffect(() => {
     if (zones.length === 0 || !inspectResult) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLivePreview({});
       setPreviewError(false);
       return;
@@ -291,6 +292,7 @@ export function TitleBlockTrainingView({
               </div>
             ))}
             {/* Render Active Drawing Box */}
+            {/* eslint-disable-next-line react-hooks/refs */}
             {isDrawing && imageRef.current && (
               <div
                 className={`absolute border-2 border-dashed ${activeField === 'sheetName' ? 'border-sky-400 bg-sky-400/20' : 'border-emerald-400 bg-emerald-400/20'}`}

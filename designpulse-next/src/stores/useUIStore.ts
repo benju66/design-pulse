@@ -55,6 +55,10 @@ export interface UIState {
   gridColumnVisibility: Record<string, Record<string, boolean>>;
   setGridColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
   
+  // Isolated visibility for OpportunityGridV2 (Budget Ledger) — prevents cross-pollution with V1 Matrix
+  gridV2ColumnVisibility: Record<string, Record<string, boolean>>;
+  setGridV2ColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
+  
   gridColumnOrder: Record<string, string[]>;
   setGridColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
   
@@ -172,6 +176,18 @@ export const useUIStore = create<UIState>()(
         return {
           gridColumnVisibility: {
             ...state.gridColumnVisibility,
+            [projectId]: newState
+          }
+        };
+      }),
+      
+      gridV2ColumnVisibility: {},
+      setGridV2ColumnVisibility: (projectId, updater) => set((state) => {
+        const oldState = state.gridV2ColumnVisibility[projectId] || {};
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          gridV2ColumnVisibility: {
+            ...state.gridV2ColumnVisibility,
             [projectId]: newState
           }
         };
@@ -335,9 +351,10 @@ export const useUIStore = create<UIState>()(
         veGridViewMode: state.veGridViewMode ?? 'split',
         drawingGridViewMode: state.drawingGridViewMode ?? 'split',
         gridColumnPinningOverrides: state.gridColumnPinningOverrides ?? {},
+        gridV2ColumnVisibility: state.gridV2ColumnVisibility ?? {},
         dashboardViewMode: state.dashboardViewMode ?? 'card',
       }),
-      version: 4,
+      version: 5,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -376,6 +393,13 @@ export const useUIStore = create<UIState>()(
           return {
             ...state,
             dashboardViewMode: 'card' as DashboardViewMode,
+          } as UIState;
+        }
+        if (version < 5) {
+          // v4 → v5: isolate V2 grid visibility from V1 to prevent cross-pollution
+          return {
+            ...state,
+            gridV2ColumnVisibility: {},
           } as UIState;
         }
         return state as UIState;

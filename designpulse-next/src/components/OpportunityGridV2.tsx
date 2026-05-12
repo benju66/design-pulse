@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import {
   useReactTable,
@@ -48,8 +48,11 @@ const COMPARE_COLUMN_IDS = ['compare_version_a', 'compare_version_b', 'compare_d
 // Excluded from ve_column_order persistence — ledger column order is fixed by design.
 const LEDGER_COLUMN_IDS = ['baseline_budget', 'approved_changes', 'revised_budget', 'pending_changes', 'projected_final'] as const;
 
+// Phase 2: Compound cells (ledger-only, hidden in matrix)
+const COMPOUND_COLUMN_IDS = ['item_definition', 'cost_classification', 'management'] as const;
+
 // Combined set for all non-persistable column IDs
-const EXCLUDED_COLUMN_IDS = [...COMPARE_COLUMN_IDS, ...LEDGER_COLUMN_IDS] as const;
+const EXCLUDED_COLUMN_IDS = [...COMPARE_COLUMN_IDS, ...LEDGER_COLUMN_IDS, ...COMPOUND_COLUMN_IDS] as const;
 
 
 interface OpportunityGridProps {
@@ -76,6 +79,8 @@ interface OpportunityGridProps {
   onSetCompareVersionA?: (id: string | null) => void;
   onSetCompareVersionB?: (id: string | null) => void;
   onSetIsCompareActive?: React.Dispatch<React.SetStateAction<boolean>>;
+  // Phase 2: pre-computed variance note lookup (cost_code → note text)
+  varianceNoteMap?: Record<string, string>;
 }
 
 interface GroupedRowProps {
@@ -361,7 +366,7 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
   );
 });
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, comparisonMap = {}, divisionDeltaMap = {}, estimateVersions = [], compareVersionA = null, compareVersionB = null, isCompareActive = false, onSetCompareVersionA, onSetCompareVersionB, onSetIsCompareActive }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, comparisonMap = {}, divisionDeltaMap = {}, estimateVersions = [], compareVersionA = null, compareVersionB = null, isCompareActive = false, onSetCompareVersionA, onSetCompareVersionB, onSetIsCompareActive, varianceNoteMap = {} }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -442,8 +447,8 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   
 const EMPTY_VISIBILITY: VisibilityState = {};
 
-  const globalColumnVisibility = useUIStore(state => state.gridColumnVisibility[projectId] || EMPTY_VISIBILITY) as VisibilityState;
-  const _setGridColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
+  const globalColumnVisibility = useUIStore(state => state.gridV2ColumnVisibility[projectId] || EMPTY_VISIBILITY) as VisibilityState;
+  const _setGridColumnVisibility = useUIStore(state => state.setGridV2ColumnVisibility);
   
   const [localColumnVisibility, setLocalColumnVisibility] = useState<VisibilityState>({});
   
@@ -484,8 +489,10 @@ const EMPTY_VISIBILITY: VisibilityState = {};
         .map(c => ('accessorKey' in c ? c.accessorKey : c.id) as string | undefined)
         .filter((id): id is string => !!id && !(EXCLUDED_COLUMN_IDS as readonly string[]).includes(id));
       
-      // Explicitly pin UI columns to the front
-      const pinnedFront = ['select', 'open_panel', 'display_id', 'title'].filter(id => allColIds.includes(id));
+      // Explicitly pin UI columns to the front — mode-aware (Bug #7 + #10)
+      const pinnedFront = isLedgerView
+        ? ['select', 'open_panel', 'item_definition', 'cost_classification', 'management'].filter(id => allColIds.includes(id))
+        : ['select', 'open_panel', 'display_id', 'title'].filter(id => allColIds.includes(id));
       
       // Dynamic Matrix columns should be placed immediately after the pinned columns
       const dynamicOptionIds = allColIds.filter(id => typeof id === 'string' && id.startsWith('opt_'));
@@ -519,13 +526,17 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   }, [settings?.ve_column_order, activeColumns, isolateState]);
 
   const userPinningOverrides = useUIStore(state => state.gridColumnPinningOverrides[projectId]) || { pinned: [], unpinned: [] };
+  // Bug #4: column pinning must swap based on isLedgerView
   const columnPinning = useMemo(() => {
     const defaultPinned = ['select', 'open_panel'];
-    const globalPinned = settings?.ve_column_order?.filter((c: any) => c.pinned).map((c: any) => c.id) || ['display_id', 'title'];
+    if (isLedgerView) {
+      return { left: [...defaultPinned, 'item_definition'] };
+    }
+    const globalPinned = settings?.ve_column_order?.filter((c: { pinned?: boolean }) => c.pinned).map((c: { id: string }) => c.id) || ['display_id', 'title'];
     const allPinned = new Set([...defaultPinned, ...globalPinned, ...userPinningOverrides.pinned]);
     userPinningOverrides.unpinned.forEach(id => allPinned.delete(id));
     return { left: Array.from(allPinned) };
-  }, [settings?.ve_column_order, userPinningOverrides]);
+  }, [settings?.ve_column_order, userPinningOverrides, isLedgerView]);
 
   const table = useReactTable<Opportunity>({
     data,
@@ -572,6 +583,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       // Bug #3: route through meta, never prop-drill into cell renderers
       comparisonMap,
       divisionDeltaMap,
+      // Phase 2: variance note lookup for LedgerDeltaCell icon
+      varianceNoteMap,
     },
   });
 
@@ -587,7 +600,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       compare_version_b: isActive,
       compare_delta: isActive,
     }));
-  }, [comparisonMap]); // comparisonMap is a stable useMemo reference from page.tsx
+  }, [comparisonMap, setColumnVisibility]);
 
   // Ledger columns: visible only in Budget Ledger view, hidden in Value Matrix.
   // Also hide columns that are redundant in the grouped hierarchy:
@@ -603,13 +616,41 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       revised_budget: isLedgerView,
       pending_changes: isLedgerView,
       projected_final: isLedgerView,
-      // Hide columns redundant in grouped hierarchy
+      // Phase 2: Compound cells ON in ledger, OFF in matrix
+      item_definition: isLedgerView,
+      cost_classification: isLedgerView,
+      management: isLedgerView,
+      // Individual columns replaced by compounds — OFF in ledger, ON in matrix
+      display_id: !isLedgerView,
+      title: !isLedgerView,
+      building_area: !isLedgerView,
+      spec_number_id: !isLedgerView,
+      assignee: !isLedgerView,
+      priority: !isLedgerView,
+      due_date: !isLedgerView,
+      // Already hidden in ledger (grouping columns)
       division: !isLedgerView,
       cost_code: !isLedgerView,
       expander: !isLedgerView,
       options: !isLedgerView,
     }));
-  }, [isLedgerView]);
+  }, [isLedgerView, setColumnVisibility]);
+
+  // Bug #8: ColumnChooser reset handler that re-applies ledger/matrix visibility defaults
+  const handleColumnReset = useCallback(() => {
+    table.setColumnVisibility({});
+    table.setColumnOrder([]);
+    // Re-apply the ledger/matrix visibility defaults since isLedgerView hasn't changed
+    setColumnVisibility({
+      baseline_budget: isLedgerView, approved_changes: isLedgerView,
+      revised_budget: isLedgerView, pending_changes: isLedgerView, projected_final: isLedgerView,
+      item_definition: isLedgerView, cost_classification: isLedgerView, management: isLedgerView,
+      display_id: !isLedgerView, title: !isLedgerView, building_area: !isLedgerView,
+      spec_number_id: !isLedgerView, assignee: !isLedgerView, priority: !isLedgerView,
+      due_date: !isLedgerView, division: !isLedgerView, cost_code: !isLedgerView,
+      expander: !isLedgerView, options: !isLedgerView,
+    });
+  }, [isLedgerView, table]);
 
 
   const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
@@ -779,7 +820,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
           >
             <MapIcon size={16} /> Drawings
           </button>
-          <ColumnChooser table={table} projectId={projectId} />
+          <ColumnChooser table={table} projectId={projectId} onReset={handleColumnReset} />
         </div>
       </div>
 

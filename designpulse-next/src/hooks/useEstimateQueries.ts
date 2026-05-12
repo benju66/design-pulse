@@ -30,6 +30,7 @@ import type {
   EstimateStagingRow,
   BudgetWaterfallRow,
   EstimateComparisonRow,
+  EstimateVarianceNote,
 } from '@/types/models';
 
 const CHUNK_SIZE = 50; // AGENTS.md C20 — Kong gateway protection
@@ -346,6 +347,27 @@ export function useEstimateLineDetails(projectId: string | null, costCode: strin
         
       if (error) throw error;
       return data || [];
+    },
+  });
+}
+
+// ── useEstimateVarianceNotes ─────────────────────────────────────────────────
+// Fetches variance notes for a specific estimate version.
+// Scoped to active version only (Phase 2 decision: active-only).
+// 5-minute staleTime mirrors useProjectBudgetWaterfall — immutable once finalized.
+export function useEstimateVarianceNotes(projectId: string | null, versionId: string | null) {
+  return useQuery<EstimateVarianceNote[]>({
+    queryKey: ['estimate-variance-notes', projectId, versionId],
+    enabled: !!projectId && !!versionId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('estimate_variance_notes')
+        .select('*')
+        .eq('project_id', projectId!)
+        .eq('estimate_version_id', versionId!);
+      if (error) throw error;
+      return (data ?? []) as EstimateVarianceNote[];
     },
   });
 }

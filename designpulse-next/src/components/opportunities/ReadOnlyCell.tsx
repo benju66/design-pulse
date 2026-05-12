@@ -1,6 +1,7 @@
 "use client";
 import React from 'react';
 import { CellContext } from '@tanstack/react-table';
+import { FileText, MessageSquare } from 'lucide-react';
 import { Opportunity } from '@/types/models';
 import { formatCostCode } from '@/lib/formatCostCode';
 
@@ -105,7 +106,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
     ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(numValue) 
     : numValue.toString();
 
-  return <ReadOnlyWrapper className={`${colorClass} justify-end`}>{displayValue}</ReadOnlyWrapper>;
+  return <ReadOnlyWrapper className={`${colorClass} justify-end tabular-nums`}>{displayValue}</ReadOnlyWrapper>;
 }, (prev, next) => {
   if (prev.row.original !== next.row.original) return false;
   return true;
@@ -258,7 +259,7 @@ export const LedgerFinancialAggregatedCell = React.memo(({ getValue }: CellConte
 }, commonComparator);
 
 /** Delta cell — green for savings (negative), red for overruns (positive) */
-export const LedgerDeltaCell = React.memo(({ getValue, row }: CellContext<Opportunity, unknown>) => {
+export const LedgerDeltaCell = React.memo(({ getValue, row, table }: CellContext<Opportunity, unknown>) => {
   if (!row.original.is_budget_line) {
     return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
   }
@@ -268,7 +269,26 @@ export const LedgerDeltaCell = React.memo(({ getValue, row }: CellContext<Opport
     : val > 0
     ? 'text-rose-600 dark:text-rose-400 font-medium'
     : 'text-slate-500 dark:text-slate-400';
-  return <ReadOnlyWrapper className={`justify-end tabular-nums ${colorClass}`}>{(val >= 0 ? '+' : '') + currencyFmt.format(val)}</ReadOnlyWrapper>;
+  // Phase 2: variance note icon (display-only — click-to-open is Phase 3 scope)
+  const varianceNoteMap = table.options.meta?.varianceNoteMap;
+  const noteText = varianceNoteMap
+    ? varianceNoteMap[row.original.cost_code ?? ''] ?? null
+    : null;
+  return (
+    <ReadOnlyWrapper className={`justify-end tabular-nums ${colorClass}`}>
+      <span className="flex items-center gap-1">
+        {(val >= 0 ? '+' : '') + currencyFmt.format(val)}
+        {noteText && (
+          <span title={noteText.length > 120 ? noteText.substring(0, 120) + '…' : noteText}>
+            <MessageSquare
+              size={12}
+              className="shrink-0 text-sky-500 dark:text-sky-400"
+            />
+          </span>
+        )}
+      </span>
+    </ReadOnlyWrapper>
+  );
 }, commonComparator);
 
 /** Bold aggregated delta for group rows */
@@ -311,4 +331,101 @@ export const LedgerProjectedCell = React.memo(function LedgerProjectedCell({ get
 export const LedgerProjectedAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
   const val = Number(getValue()) || 0;
   return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-800 dark:text-slate-100">{currencyFmt.format(val)}</ReadOnlyWrapper>;
+}, commonComparator);
+
+// ── Phase 2: Compound Cells (Ledger-only) ────────────────────────────────────
+
+/** Item Definition — merges display_id + title + building_area + assumption icon */
+export const ItemDefinitionCell = React.memo(({ row }: CellContext<Opportunity, unknown>) => {
+  const title = row.original.title || '';
+  const displayId = row.original.display_id || '';
+  const area = row.original.building_area || '';
+  const assumptions = row.original.item_assumptions;
+  return (
+    <div className="w-full h-full px-3 py-2 min-h-[36px] flex flex-col justify-center gap-0.5">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{title}</span>
+        {assumptions && assumptions.trim().length > 0 && (
+          <span title={assumptions.length > 120 ? assumptions.substring(0, 120) + '…' : assumptions}>
+            <FileText
+              size={13}
+              className="shrink-0 text-amber-500 dark:text-amber-400"
+            />
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5">
+        {displayId && (
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">{displayId}</span>
+        )}
+        {area && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400">{area}</span>
+        )}
+      </div>
+    </div>
+  );
+}, commonComparator);
+
+/** Cost Classification — merges cost_code + division + spec_number_id */
+export const CostClassificationCell = React.memo(({ row, table }: CellContext<Opportunity, unknown>) => {
+  const code = row.original.cost_code;
+  const specId = row.original.spec_number_id;
+  const rawCostCodes = table.options.meta?.rawCostCodes ?? [];
+  const csiSpecs = table.options.meta?.csiSpecs ?? [];
+  const codeDisplay = code ? formatCostCode(code) : null;
+  const matched = code ? (rawCostCodes as Array<{ code: string; description?: string; is_division?: boolean | null; parent_division?: string | null }>).find(c => c.code === code) : null;
+  const codeLabel = matched?.description ? `${codeDisplay} – ${matched.description}` : codeDisplay;
+  const divisionLabel = (() => {
+    if (!matched) return null;
+    if (matched.parent_division) {
+      const div = (rawCostCodes as Array<{ code: string; description?: string; is_division?: boolean | null }>).find(c => c.code === matched.parent_division && c.is_division);
+      return div ? `Div ${div.code.substring(0, 2)} – ${div.description}` : null;
+    }
+    return matched.is_division ? `Div ${matched.code.substring(0, 2)} – ${matched.description}` : null;
+  })();
+  const specMatch = specId ? (csiSpecs as Array<{ id: string; csi_number: string }>).find(c => c.id === specId) : null;
+  return (
+    <div className="w-full h-full px-3 py-2 min-h-[36px] flex flex-col justify-center gap-0.5" title={codeLabel || ''}>
+      <span className="text-sm font-medium text-slate-800 dark:text-slate-200 tabular-nums truncate">
+        {codeLabel || <span className="text-slate-400 italic">Unassigned</span>}
+      </span>
+      {(divisionLabel || specMatch) && (
+        <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+          {divisionLabel}{divisionLabel && specMatch ? ' • ' : ''}{specMatch ? specMatch.csi_number : ''}
+        </span>
+      )}
+    </div>
+  );
+}, commonComparator);
+
+/** Management — merges assignee + priority + due_date */
+export const ManagementCell = React.memo(({ row, table }: CellContext<Opportunity, unknown>) => {
+  const assigneeRaw = row.original.assignee;
+  const priority = row.original.priority;
+  const dueDate = row.original.due_date;
+  const projectMembers = (table.options.meta?.projectMembers ?? []) as Array<{ email: string; name: string | null }>;
+  const priorityDot: Record<string, string> = { Critical: 'bg-rose-500', High: 'bg-amber-500', Medium: 'bg-sky-500', Low: 'bg-slate-400' };
+  const avatars = assigneeRaw ? assigneeRaw.split(',').map(e => e.trim()).filter(Boolean).slice(0, 2) : [];
+  return (
+    <div className="w-full h-full px-3 py-2 min-h-[36px] flex items-center gap-2">
+      <div className="flex -space-x-1.5 shrink-0">
+        {avatars.map((email, i) => {
+          const m = projectMembers.find(pm => pm.email === email);
+          const initials = (m?.name || email).substring(0, 2).toUpperCase();
+          return (
+            <div key={i} className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400 flex items-center justify-center text-[10px] font-bold shrink-0 shadow-sm border border-white dark:border-slate-800">
+              {initials}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <div className="flex items-center gap-1">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${priorityDot[priority || ''] || 'bg-slate-300'}`} />
+          <span className="text-[11px] text-slate-600 dark:text-slate-400">{priority || '—'}</span>
+        </div>
+        {dueDate && <span className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">{dueDate}</span>}
+      </div>
+    </div>
+  );
 }, commonComparator);

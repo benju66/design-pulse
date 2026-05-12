@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell, CostImpactAggregatedCell, DaysImpactAggregatedCell, LedgerFinancialCell, LedgerFinancialAggregatedCell, LedgerDeltaCell, LedgerDeltaAggregatedCell, LedgerProjectedCell, LedgerProjectedAggregatedCell } from './ReadOnlyCell';
+import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell, CostImpactAggregatedCell, DaysImpactAggregatedCell, LedgerFinancialCell, LedgerFinancialAggregatedCell, LedgerDeltaCell, LedgerDeltaAggregatedCell, LedgerProjectedCell, LedgerProjectedAggregatedCell, ItemDefinitionCell, CostClassificationCell, ManagementCell } from './ReadOnlyCell';
 import { OptionsCell } from './OptionsCell';
 import { InlineOptionCell } from './InlineOptionCell';
 import { ColumnDef, Row, CellContext } from '@tanstack/react-table';
@@ -120,6 +120,10 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
     () => [
       checkboxColumn,
       ...(viewMode === 'split' ? [openPanelColumn] : []),
+      // Phase 2: Compound cells (ledger-only, hidden in matrix via columnVisibility)
+      { id: 'item_definition', header: 'Item / Description', cell: ItemDefinitionCell, size: 280, enableSorting: false },
+      { id: 'cost_classification', header: 'Cost Classification', cell: CostClassificationCell, size: 200, enableSorting: false },
+      { id: 'management', header: 'Owner / Schedule', cell: ManagementCell, size: 180, enableSorting: false },
       { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
       { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
       ...dynamicOptionColumns,
@@ -164,6 +168,10 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
       { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
       { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
+      // Phase 2: Compound cells (ledger-only, hidden in matrix via columnVisibility)
+      { id: 'item_definition', header: 'Item / Description', cell: ItemDefinitionCell, size: 280, enableSorting: false },
+      { id: 'cost_classification', header: 'Cost Classification', cell: CostClassificationCell, size: 200, enableSorting: false },
+      { id: 'management', header: 'Owner / Schedule', cell: ManagementCell, size: 180, enableSorting: false },
       { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell, aggregatedCell: CostImpactAggregatedCell, aggregationFn: 'sum' },
       { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell, aggregatedCell: DaysImpactAggregatedCell, aggregationFn: 'sum' },
       // ── Ledger Financial Narrative Columns ──────────────────────────────────────

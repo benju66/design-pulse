@@ -69,7 +69,7 @@ export default function GhostRow({ table, createMutation }: GhostRowProps) {
         if (column.id === 'expander') {
           return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-slate-400 text-center text-xs font-bold">+</td>;
         }
-        if (column.id === 'title') {
+        if (column.id === 'title' || column.id === 'item_definition') {
           return (
             <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top">
               <input

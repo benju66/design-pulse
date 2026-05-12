@@ -39,5 +39,7 @@ declare module '@tanstack/react-table' {
     comparisonMap?: Record<string, EstimateComparisonRow[]>;
     // Bug #9: pre-computed in page.tsx, passed as explicit prop to MemoizedGroupedRow
     divisionDeltaMap?: Record<string, number>;
+    // Phase 2: pre-computed variance note lookup (cost_code → note text) for active estimate version
+    varianceNoteMap?: Record<string, string>;
   }
 }

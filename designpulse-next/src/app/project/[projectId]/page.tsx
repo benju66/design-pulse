@@ -1,35 +1,31 @@
 "use client";
 import React, { use } from 'react';
 import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid, UploadCloud, Upload } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import FloorplanCanvas from '@/components/FloorplanCanvas';
 import { SheetTabStrip } from '@/components/canvas/SheetTabStrip';
 import { DrawingGrid } from '@/components/drawings/DrawingGrid';
-import OpportunityGrid from '@/components/OpportunityGrid';
-import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import CompareModal from '@/components/CompareModal';
-import BudgetSummary from '@/components/BudgetSummary';
-// BudgetSummaryV2 removed from Budget Ledger view — Waterfall belongs on Analytics/Dashboard
-import CoordinationBoard from '@/components/coordination/CoordinationBoard';
-import CoordinationTable from '@/components/coordination/CoordinationTable';
-import { CoordinationDetailPanel } from '@/components/coordination/CoordinationDetailPanel';
-import { CoordinationSummary } from '@/components/coordination/CoordinationSummary';
 import { BulkImportModal } from '@/components/coordination/BulkImportModal';
-import AnalyticsDashboard from '@/components/analytics/AnalyticsDashboard';
-import MyDeskDashboard from '@/components/mydesk/MyDeskDashboard';
+// View components — extracted to reduce monolithic re-renders on sidebar navigation
+import { ValueMatrixView } from '@/components/views/ValueMatrixView';
+import { BudgetLedgerView } from '@/components/views/BudgetLedgerView';
+import { CoordinationView } from '@/components/views/CoordinationView';
+// Lazy-loaded views — only loaded when the user navigates to them
+const AnalyticsDashboard = dynamic(() => import('@/components/analytics/AnalyticsDashboard'));
+const MyDeskDashboard = dynamic(() => import('@/components/mydesk/MyDeskDashboard'));
 import PermitBoard from '@/components/permits/PermitBoard';
 import { useOpportunities, useCreateOpportunity } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { useCreatePermit } from '@/hooks/usePermitQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
-import { useMasterLedgerGrid, useProjectEstimateVersions, useCompareEstimateVersions } from '@/hooks/useEstimateQueries';
+import { useMasterLedgerGrid, useProjectEstimateVersions, useCompareEstimateVersions, useEstimateVarianceNotes } from '@/hooks/useEstimateQueries';
 import type { EstimateComparisonRow } from '@/types/models';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
-import DetailPanel from '@/components/DetailPanel';
 import DrawingDetailPanel from '@/components/drawings/DrawingDetailPanel';
 import { useUIStore, ProjectView, SettingsTab } from '@/stores/useUIStore';
 import { useMapStore } from '@/stores/useMapStore';
-import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
 import { useProjectRealtime } from '@/hooks/useProjectRealtime';
 import { useProjectSheets, useSheetMarkups, markupsToZones, useUpdateSheetMarkups } from '@/hooks/useMapQueries';
 
@@ -118,6 +114,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [activeBuildingAreas, setActiveBuildingAreas] = React.useState<string[]>([]);
   const [activeCostCodes, setActiveCostCodes] = React.useState<string[]>([]);
   const [activeStatus, setActiveStatus] = React.useState('All');
+  const [varianceThreshold, setVarianceThreshold] = React.useState<number>(0);
   const [coordActiveBuildingAreas, setCoordActiveBuildingAreas] = React.useState<string[]>([]);
   const [coordActiveCostCodes, setCoordActiveCostCodes] = React.useState<string[]>([]);
   const [coordActiveType, setCoordActiveType] = React.useState('All');
@@ -126,14 +123,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [isCompareModalOpen, setIsCompareModalOpen] = React.useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = React.useState(false);
   const [isPdfImportOpen, setIsPdfImportOpen] = React.useState(false);
-  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
-  const selectedDrawingId = useUIStore(state => state.selectedDrawingId);
   const drawingGridViewMode = useUIStore(state => state.drawingGridViewMode);
+  const selectedDrawingId = useUIStore(state => state.selectedDrawingId);
   const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
   const permitViewMode = useUIStore(state => state.permitViewMode);
   const setPermitViewMode = useUIStore(state => state.setPermitViewMode);
-  const isMapVisible = useUIStore(state => state.isMapVisible);
 
   const handleExport = async () => {
     try {
@@ -250,6 +245,23 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     [estimateVersions, compareVersionB]
   );
 
+  // Phase 2: derive active version ID and fetch variance notes (active-only scope)
+  const activeVersionId = React.useMemo(
+    () => estimateVersions.find(v => v.is_active)?.id ?? null,
+    [estimateVersions]
+  );
+  const { data: varianceNotes = [] } = useEstimateVarianceNotes(
+    activeVersionId ? projectId : null,  // AGENTS.md C11: null, never undefined
+    activeVersionId
+  );
+  const varianceNoteMap = React.useMemo((): Record<string, string> => {
+    const map: Record<string, string> = {};
+    for (const n of varianceNotes) {
+      if (n.cost_code) map[n.cost_code] = n.variance_note;
+    }
+    return map;
+  }, [varianceNotes]);
+
 
   const mergedOpportunities = React.useMemo(() => {
     const budgetOpps: Opportunity[] = ledgerRows.map((row: MasterLedgerRow) => ({
@@ -279,26 +291,44 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     return [...opportunities, ...budgetOpps];
   }, [opportunities, ledgerRows, projectId]);
 
-  const filteredOpportunities = React.useMemo(() => {
-    const sourceData = currentView === 'dashboard-v2' ? mergedOpportunities : opportunities;
-    
-    const baseMatrixItems = sourceData.filter(opp => {
+  // Shared base filter — no currentView dependency, so sidebar switches don't trigger recomputation
+  const applyBaseFilters = React.useCallback((items: Opportunity[]) => {
+    return items.filter(opp => {
       if (opp.record_type === 'VE') return true;
       if (opp.record_type === 'Coordination') {
         const cost = Number(opp.cost_impact) || 0;
         const days = Number(opp.days_impact) || 0;
-        const isEscalated = (opp.coordination_details as Record<string, any>)?.is_escalated === true;
+        const isEscalated = (opp.coordination_details as Record<string, unknown>)?.is_escalated === true;
         return cost !== 0 || days !== 0 || isEscalated;
       }
       return false;
-    });
-    return baseMatrixItems.filter(opp => {
+    }).filter(opp => {
       if (activeBuildingAreas.length > 0 && !activeBuildingAreas.includes(opp.building_area || '')) return false;
       if (activeCostCodes.length > 0 && !activeCostCodes.includes(opp.cost_code || '')) return false;
       if (activeStatus !== 'All' && opp.status !== activeStatus) return false;
       return true;
     });
-  }, [mergedOpportunities, opportunities, currentView, activeBuildingAreas, activeCostCodes, activeStatus]);
+  }, [activeBuildingAreas, activeCostCodes, activeStatus]);
+
+  // Value Matrix filtered items (from raw opportunities only)
+  const filteredOpportunities = React.useMemo(
+    () => applyBaseFilters(opportunities),
+    [opportunities, applyBaseFilters]
+  );
+
+  // Budget Ledger filtered items (from merged dataset, with variance threshold)
+  const filteredLedgerItems = React.useMemo(() => {
+    const base = applyBaseFilters(mergedOpportunities);
+    if (varianceThreshold <= 0) return base;
+    // Phase 2: Variance threshold filter — ONLY applies to budget lines (Bug #1 fix)
+    return base.filter(opp => {
+      if (!opp.is_budget_line) return true;
+      const totalVariance = Math.abs(
+        (Number(opp.pending_changes) || 0) + (Number(opp.approved_changes) || 0)
+      );
+      return totalVariance >= varianceThreshold;
+    });
+  }, [mergedOpportunities, applyBaseFilters, varianceThreshold]);
 
   const uniqueCostCodes = React.useMemo(() => {
     const codes = mergedOpportunities.map(o => o.cost_code).filter(Boolean) as string[];
@@ -550,157 +580,55 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         <div className="flex flex-1 overflow-hidden relative">
           
           {currentView === 'dashboard' && (
-            <>
-              {/* Main Grid Area */}
-              <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${
-                (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
-              }`}>
-                <div className="shrink-0">
-                  <BudgetSummary 
-                    projectId={projectId} 
-                    opportunities={opportunities} 
-                    forceCollapse={viewMode === 'split' && !!selectedOpportunityId} 
-                  />
-                  
-                  {/* Filter Toolbar removed — filters are now inline in the grid toolbar via filterSlot */}
-                </div>
-
-                <div className="flex-1 overflow-hidden flex flex-col relative">
-                  {isMapVisible && (
-                    <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
-                      <FloorplanCanvas 
-                        projectId={projectId}
-                        sheetId=""
-                        maxZoom={0}
-                        originalWidth={1000}
-                        originalHeight={1000}
-                        zones={[]}
-                      />
-                    </div>
-                  )}
-                  {isLoading ? (
-                    <div className="h-full flex items-center justify-center text-slate-500">Loading log...</div>
-                  ) : (
-                    <OpportunityGrid 
-                      projectId={projectId} 
-                      data={filteredOpportunities} 
-                      viewMode={viewMode} 
-                      onOpenCompare={() => setIsCompareModalOpen(true)}
-                      filterActiveCount={(activeStatus !== 'All' ? 1 : 0) + activeBuildingAreas.length + activeCostCodes.length}
-                      onClearFilters={() => { setActiveStatus('All'); setActiveBuildingAreas([]); setActiveCostCodes([]); }}
-                      filterSlot={
-                        <>
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">VE Status</label>
-                            <select
-                              value={activeStatus}
-                              onChange={(e) => setActiveStatus(e.target.value)}
-                              className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 cursor-pointer"
-                            >
-                              <option value="All">All</option>
-                              {uniqueStatuses.map(status => (
-                                <option key={status} value={status}>{status}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Building Area</label>
-                              <button onClick={() => navigateToSettings('building_areas')} className="text-slate-400 hover:text-sky-500 transition-colors" title="Manage Building Areas"><Plus size={13} /></button>
-                            </div>
-                            <MultiSelectFilter fullWidth label="Building Area" options={dynamicBuildingAreas} selected={activeBuildingAreas} onChange={setActiveBuildingAreas} placeholder="Search areas..." />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cost Code</label>
-                            <MultiSelectFilter fullWidth label="Cost Code" options={uniqueCostCodes} selected={activeCostCodes} onChange={setActiveCostCodes} placeholder="Search codes..." />
-                          </div>
-                        </>
-                      }
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Detail Panel */}
-              <DetailPanel 
-                projectId={projectId} 
-                opportunities={opportunities} 
-                viewMode={viewMode} 
-              />
-            </>
+            <ValueMatrixView
+              projectId={projectId}
+              opportunities={opportunities}
+              filteredOpportunities={filteredOpportunities}
+              viewMode={viewMode}
+              isLoading={isLoading}
+              onOpenCompare={() => setIsCompareModalOpen(true)}
+              activeStatus={activeStatus}
+              setActiveStatus={setActiveStatus}
+              activeBuildingAreas={activeBuildingAreas}
+              setActiveBuildingAreas={setActiveBuildingAreas}
+              activeCostCodes={activeCostCodes}
+              setActiveCostCodes={setActiveCostCodes}
+              uniqueStatuses={uniqueStatuses}
+              dynamicBuildingAreas={dynamicBuildingAreas}
+              uniqueCostCodes={uniqueCostCodes}
+              navigateToSettings={navigateToSettings}
+            />
           )}
 
           {currentView === 'dashboard-v2' && (
-            <>
-              {/* Main Grid Area */}
-              <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${
-                (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
-              }`}>
-                {/* Phase 4: BudgetSummaryV2 removed — Waterfall belongs on Analytics/Dashboard */}
-
-                <div className="flex-1 overflow-hidden flex flex-col relative">
-                  {isMapVisible && (
-                    <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
-                      <FloorplanCanvas 
-                        projectId={projectId}
-                        sheetId=""
-                        maxZoom={0}
-                        originalWidth={1000}
-                        originalHeight={1000}
-                        zones={[]}
-                      />
-                    </div>
-                  )}
-                  {isLoading || isLedgerLoading ? (
-                    <div className="h-full flex items-center justify-center text-slate-500">Loading log...</div>
-                  ) : (
-                    <OpportunityGridV2 
-                      projectId={projectId} 
-                      data={filteredOpportunities} 
-                      viewMode={viewMode} 
-                      isLedgerView
-                      hideGhostRow
-                      onOpenCompare={() => setIsCompareModalOpen(true)}
-                      filterActiveCount={activeBuildingAreas.length + activeCostCodes.length}
-                      onClearFilters={() => { setActiveBuildingAreas([]); setActiveCostCodes([]); }}
-                      comparisonMap={comparisonMap}
-                      divisionDeltaMap={divisionDeltaMap}
-                      compareVersionALabel={compareVersionALabel}
-                      compareVersionBLabel={compareVersionBLabel}
-                      estimateVersions={estimateVersions}
-                      compareVersionA={compareVersionA}
-                      compareVersionB={compareVersionB}
-                      isCompareActive={isCompareActive}
-                      onSetCompareVersionA={setCompareVersionA}
-                      onSetCompareVersionB={setCompareVersionB}
-                      onSetIsCompareActive={setIsCompareActive}
-                      filterSlot={
-                        <>
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Building Area</label>
-                              <button onClick={() => navigateToSettings('building_areas')} className="text-slate-400 hover:text-sky-500 transition-colors" title="Manage Building Areas"><Plus size={13} /></button>
-                            </div>
-                            <MultiSelectFilter fullWidth label="Building Area" options={dynamicBuildingAreas} selected={activeBuildingAreas} onChange={setActiveBuildingAreas} placeholder="Search areas..." />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cost Code</label>
-                            <MultiSelectFilter fullWidth label="Cost Code" options={uniqueCostCodes} selected={activeCostCodes} onChange={setActiveCostCodes} placeholder="Search codes..." />
-                          </div>
-                        </>
-                      }
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Detail Panel */}
-              <DetailPanel 
-                projectId={projectId} 
-                opportunities={opportunities} 
-                viewMode={viewMode} 
-              />
-            </>
+            <BudgetLedgerView
+              projectId={projectId}
+              filteredOpportunities={filteredLedgerItems}
+              viewMode={viewMode}
+              isLoading={isLoading || isLedgerLoading}
+              onOpenCompare={() => setIsCompareModalOpen(true)}
+              activeBuildingAreas={activeBuildingAreas}
+              setActiveBuildingAreas={setActiveBuildingAreas}
+              activeCostCodes={activeCostCodes}
+              setActiveCostCodes={setActiveCostCodes}
+              varianceThreshold={varianceThreshold}
+              setVarianceThreshold={setVarianceThreshold}
+              dynamicBuildingAreas={dynamicBuildingAreas}
+              uniqueCostCodes={uniqueCostCodes}
+              navigateToSettings={navigateToSettings}
+              comparisonMap={comparisonMap}
+              divisionDeltaMap={divisionDeltaMap}
+              compareVersionALabel={compareVersionALabel}
+              compareVersionBLabel={compareVersionBLabel}
+              estimateVersions={estimateVersions}
+              compareVersionA={compareVersionA}
+              compareVersionB={compareVersionB}
+              isCompareActive={isCompareActive}
+              onSetCompareVersionA={setCompareVersionA}
+              onSetCompareVersionB={setCompareVersionB}
+              onSetIsCompareActive={setIsCompareActive}
+              varianceNoteMap={varianceNoteMap}
+            />
           )}
 
           {currentView === 'map' && (() => {
@@ -826,84 +754,26 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           )}
 
           {currentView === 'coordination' && (
-            <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-950">
-              <div className="flex flex-1 overflow-hidden">
-                <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
-                  
-                  <div className="shrink-0">
-                    <CoordinationSummary 
-                      opportunities={filteredCoordinationOpportunities} 
-                      forceCollapse={coordinationViewMode === 'table-split' && !!selectedOpportunityId} 
-                    />
-                  </div>
-                  
-                  {/* Filter Toolbar removed — filters are now inline in the grid toolbar via filterSlot */}
-
-                  <div className="flex-1 overflow-hidden flex flex-col relative">
-                    {isMapVisible && (
-                      <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
-                        <FloorplanCanvas 
-                          projectId={projectId}
-                          sheetId=""
-                          maxZoom={0}
-                          originalWidth={1000}
-                          originalHeight={1000}
-                          zones={[]}
-                        />
-                      </div>
-                    )}
-                    {coordinationViewMode.startsWith('table') ? (
-                      <CoordinationTable
-                        projectId={projectId}
-                        opportunities={filteredCoordinationOpportunities}
-                        viewMode={coordinationViewMode.replace('table-', '')}
-                        filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + (coordActiveStatus !== 'All' ? 1 : 0) + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length}
-                        onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatus('All'); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); }}
-                        filterSlot={
-                          <>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Type</label>
-                              <select value={coordActiveType} onChange={(e) => setCoordActiveType(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 cursor-pointer">
-                                <option value="All">All</option>
-                                {uniqueCoordTypes.map(type => <option key={type} value={type}>{type}</option>)}
-                              </select>
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</label>
-                              <select value={coordActiveStatus} onChange={(e) => setCoordActiveStatus(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 cursor-pointer">
-                                <option value="All">All</option>
-                                {uniqueCoordStatuses.map(status => <option key={status} value={status}>{status}</option>)}
-                              </select>
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Building Area</label>
-                              <MultiSelectFilter fullWidth label="Building Area" options={dynamicBuildingAreas} selected={coordActiveBuildingAreas} onChange={setCoordActiveBuildingAreas} placeholder="Search areas..." />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Discipline</label>
-                              <MultiSelectFilter fullWidth label="Discipline" options={disciplineLabels} selected={coordActiveDisciplines} onChange={setCoordActiveDisciplines} placeholder="Search disciplines..." />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cost Code</label>
-                              <MultiSelectFilter fullWidth label="Cost Code" options={uniqueCoordCostCodes} selected={coordActiveCostCodes} onChange={setCoordActiveCostCodes} placeholder="Search codes..." />
-                            </div>
-                          </>
-                        }
-                      />
-                    ) : (
-                      <CoordinationBoard projectId={projectId} opportunities={filteredCoordinationOpportunities} />
-                    )}
-                  </div>
-                </div>
-
-                {coordinationViewMode === 'table-split' && selectedOpportunityId && filteredCoordinationOpportunities.find(o => o.id === selectedOpportunityId) && (
-                  <CoordinationDetailPanel 
-                    projectId={projectId} 
-                    opportunity={filteredCoordinationOpportunities.find(o => o.id === selectedOpportunityId)!} 
-                  />
-                )}
-              </div>
-            </div>
+            <CoordinationView
+              projectId={projectId}
+              filteredOpportunities={filteredCoordinationOpportunities}
+              coordinationViewMode={coordinationViewMode}
+              coordActiveType={coordActiveType}
+              setCoordActiveType={setCoordActiveType}
+              coordActiveStatus={coordActiveStatus}
+              setCoordActiveStatus={setCoordActiveStatus}
+              coordActiveBuildingAreas={coordActiveBuildingAreas}
+              setCoordActiveBuildingAreas={setCoordActiveBuildingAreas}
+              coordActiveDisciplines={coordActiveDisciplines}
+              setCoordActiveDisciplines={setCoordActiveDisciplines}
+              coordActiveCostCodes={coordActiveCostCodes}
+              setCoordActiveCostCodes={setCoordActiveCostCodes}
+              uniqueCoordTypes={uniqueCoordTypes}
+              uniqueCoordStatuses={uniqueCoordStatuses}
+              uniqueCoordCostCodes={uniqueCoordCostCodes}
+              dynamicBuildingAreas={dynamicBuildingAreas}
+              disciplineLabels={disciplineLabels}
+            />
           )}
 
           {currentView === 'permits' && (

@@ -71,9 +71,10 @@ const SortableColumnItem = ({ column, onTogglePin }: SortableColumnItemProps) =>
 interface ColumnChooserProps {
   table: Table<Opportunity>;
   projectId: string;
+  onReset?: () => void;
 }
 
-export const ColumnChooser = ({ table, projectId }: ColumnChooserProps) => {
+export const ColumnChooser = ({ table, projectId, onReset }: ColumnChooserProps) => {
   const toggleUserColumnPin = useUIStore(state => state.toggleUserColumnPin);
   const clearUserColumnPinOverrides = useUIStore(state => state.clearUserColumnPinOverrides);
   const [isOpen, setIsOpen] = useState(false);
@@ -171,8 +172,12 @@ export const ColumnChooser = ({ table, projectId }: ColumnChooserProps) => {
           <div className="p-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 rounded-b-xl flex gap-2 justify-end">
             <button 
               onClick={() => {
-                table.setColumnVisibility({});
-                table.setColumnOrder([]);
+                if (onReset) {
+                  onReset();
+                } else {
+                  table.setColumnVisibility({});
+                  table.setColumnOrder([]);
+                }
                 clearUserColumnPinOverrides(projectId);
               }}
               className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2 py-1 transition-colors"

@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.git/
+*.md
+test_*.py
+debug_*.py
+fix_*.py
+rename_*.py
+temp*.py
+inspect_excel.mjs
+legend_debug.txt
+dummy.pdf
+*.xlsx

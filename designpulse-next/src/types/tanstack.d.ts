@@ -1,6 +1,6 @@
 import '@tanstack/react-table';
 import { UseMutationResult } from '@tanstack/react-query';
-import { Opportunity, OpportunityOption, CostCode, ProjectCsiSpec, RemapCsiEntryParams, EstimateCostType, UserPermissions, ProjectMember, DisciplineConfig } from './models';
+import { Opportunity, OpportunityOption, CostCode, ProjectCsiSpec, RemapCsiEntryParams, EstimateCostType, UserPermissions, ProjectMember, DisciplineConfig, EstimateComparisonRow } from './models';
 import { MutableRefObject } from 'react';
 
 declare module '@tanstack/react-table' {
@@ -34,5 +34,10 @@ declare module '@tanstack/react-table' {
     projectId?: string;
     disciplines?: DisciplineConfig[];
     buildingAreas?: string[];
+    // Version Compare Overlay (Budget Ledger compare mode)
+    // Bug #8: array per cost_code — RPC groups by (cost_code, cost_type), not cost_code alone
+    comparisonMap?: Record<string, EstimateComparisonRow[]>;
+    // Bug #9: pre-computed in page.tsx, passed as explicit prop to MemoizedGroupedRow
+    divisionDeltaMap?: Record<string, number>;
   }
 }

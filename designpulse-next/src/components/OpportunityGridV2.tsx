@@ -18,7 +18,7 @@ import {
   Cell,
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
-import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon, SlidersHorizontal, GitCompare } from 'lucide-react';
 import {
   useUpdateOpportunity,
   useCreateOpportunity,
@@ -38,7 +38,12 @@ import { ColumnChooser } from './opportunities/ColumnChooser';
 import { useOpportunityColumnsV2 } from './opportunities/columns-v2';
 import GhostRow from './opportunities/GhostRow';
 import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
-import { Opportunity, OpportunityOption } from '@/types/models';
+import { Opportunity, OpportunityOption, EstimateComparisonRow, ProjectEstimateVersion } from '@/types/models';
+
+// IDs of the three version-compare overlay columns.
+// Used to exclude them from ve_column_order persistence and column ordering logic (Bug #5).
+const COMPARE_COLUMN_IDS = ['compare_version_a', 'compare_version_b', 'compare_delta'] as const;
+
 
 interface OpportunityGridProps {
   projectId: string;
@@ -50,6 +55,19 @@ interface OpportunityGridProps {
   filterSlot?: ReactNode;
   filterActiveCount?: number;
   onClearFilters?: () => void;
+  // Version Compare Overlay props (data)
+  comparisonMap?: Record<string, EstimateComparisonRow[]>;  // Bug #8: array per cost_code
+  divisionDeltaMap?: Record<string, number>;
+  compareVersionALabel?: string;
+  compareVersionBLabel?: string;
+  // Version Compare Overlay props (controls — lifted to grid toolbar)
+  estimateVersions?: ProjectEstimateVersion[];
+  compareVersionA?: string | null;
+  compareVersionB?: string | null;
+  isCompareActive?: boolean;
+  onSetCompareVersionA?: (id: string | null) => void;
+  onSetCompareVersionB?: (id: string | null) => void;
+  onSetIsCompareActive?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 interface GroupedRowProps {
@@ -59,9 +77,10 @@ interface GroupedRowProps {
   visibleColumnIds: string;
   rawCostCodes?: any[];
   isExpanded: boolean;
+  divisionDeltaMap?: Record<string, number>; // Bug #9: passed as explicit prop, not via table.options.meta
 }
 
-const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded }: GroupedRowProps) => {
+const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded, divisionDeltaMap }: GroupedRowProps) => {
   const divisionVal = row.getValue('division') as string;
   let divisionLabel = divisionVal ? `${divisionVal}` : 'Uncategorized';
   
@@ -76,6 +95,12 @@ const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCos
       divisionLabel = `DIVISION ${divNum}`;
     }
   }
+
+  // Bug #4 + #9: divisionDeltaMap is pre-computed in page.tsx (O(1) lookup per division)
+  const divisionPrefix = divisionVal?.substring(0, 2);
+  const divisionDelta = (divisionPrefix && divisionDeltaMap)
+    ? (divisionDeltaMap[divisionPrefix] ?? null)
+    : null;
 
   return (
     <tbody 
@@ -117,6 +142,18 @@ const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCos
                 <span className="text-xs text-slate-500 font-normal uppercase">Days Impact</span>
                 <span className="text-sm">{row.getValue('days_impact') || 0}</span>
               </div>
+              {divisionDelta !== null && (
+                <div className="flex flex-col items-end border-l border-amber-300 dark:border-amber-700 pl-4">
+                  <span className="text-xs text-amber-500 dark:text-amber-400 font-normal uppercase tracking-wide">Δ Version Delta</span>
+                  <span className={`text-sm font-semibold ${
+                    divisionDelta < 0 ? 'text-emerald-600 dark:text-emerald-400'
+                    : divisionDelta > 0 ? 'text-rose-600 dark:text-rose-400'
+                    : 'text-slate-500'
+                  }`}>
+                    {(divisionDelta >= 0 ? '+' : '') + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(divisionDelta)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </td>
@@ -129,9 +166,11 @@ const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCos
     prev.row.getValue('cost_impact') === next.row.getValue('cost_impact') &&
     prev.row.getValue('days_impact') === next.row.getValue('days_impact') &&
     prev.visibleColumnIds === next.visibleColumnIds &&
-    prev.virtualRow.index === next.virtualRow.index
+    prev.virtualRow.index === next.virtualRow.index &&
+    prev.divisionDeltaMap === next.divisionDeltaMap  // stable reference comparison (Bug #9)
   );
 });
+
 
 interface GridRowV2Props {
   row: Row<Opportunity>;
@@ -244,7 +283,7 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
   );
 });
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, filterSlot, filterActiveCount = 0, onClearFilters }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, filterSlot, filterActiveCount = 0, onClearFilters, comparisonMap = {}, divisionDeltaMap = {}, estimateVersions = [], compareVersionA = null, compareVersionB = null, isCompareActive = false, onSetCompareVersionA, onSetCompareVersionB, onSetIsCompareActive }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -343,6 +382,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     const hiddenIds = settings.ve_column_order.filter((c: any) => c.visible === false).map((c: any) => c.id);
     return columns.filter((c: any) => {
       const id = c.accessorKey || c.id;
+      // Bug #5: always keep compare overlay cols in the active set regardless of ve_column_order
+      if ((COMPARE_COLUMN_IDS as readonly string[]).includes(id)) return true;
       return !hiddenIds.includes(id);
     });
   }, [columns, settings?.ve_column_order]);
@@ -352,7 +393,11 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       const savedOrder = settings.ve_column_order;
       const configuredIds = typeof savedOrder[0] === 'string' ? savedOrder : savedOrder.map((c: any) => c.id);
       
-      const allColIds = activeColumns.map(c => (c as any).accessorKey || c.id).filter(Boolean);
+      // Bug #5: exclude overlay column IDs from the order-managed set so they never
+      // enter ve_column_order persistence and cause stale visibility on page reload.
+      const allColIds = activeColumns
+        .map(c => (c as any).accessorKey || c.id)
+        .filter((id): id is string => !!id && !(COMPARE_COLUMN_IDS as readonly string[]).includes(id));
       
       // Explicitly pin UI columns to the front
       const pinnedFront = ['select', 'open_panel', 'display_id', 'title'].filter(id => allColIds.includes(id));
@@ -423,11 +468,26 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       csiSpecs,
       projectMembers,
       permissions,
+      // Bug #3: route through meta, never prop-drill into cell renderers
+      comparisonMap,
+      divisionDeltaMap,
     },
   });
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const { rows } = table.getRowModel();
+
+  // Bug #1: activate/deactivate overlay columns via TanStack visibility API (no structural change)
+  useEffect(() => {
+    const isActive = Object.keys(comparisonMap).length > 0;
+    setColumnVisibility(prev => ({
+      ...prev,
+      compare_version_a: isActive,
+      compare_version_b: isActive,
+      compare_delta: isActive,
+    }));
+  }, [comparisonMap]); // comparisonMap is a stable useMemo reference from page.tsx
+
 
   const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
   const isMapVisible = useUIStore(state => state.isMapVisible);
@@ -461,23 +521,113 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   const paddingBottom = virtualItems.length > 0
     ? virtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end || 0)
     : 0;
+  // Budget Ledger metric pills - computed from the data prop
+  const budgetMetrics = useMemo(() => {
+    const budgetLines = data.filter(r => r.is_budget_line);
+    const veRows = data.filter(r => !r.is_budget_line);
+    const totalBudget = budgetLines.reduce((s, r) => s + (Number(r.cost_impact) || 0), 0);
+    const netVeImpact = veRows.reduce((s, r) => s + (Number(r.cost_impact) || 0), 0);
+    const potentialExposure = veRows
+      .filter(r => r.status !== 'Approved' && r.status !== 'Rejected')
+      .reduce((s, r) => s + Math.max(0, Number(r.cost_impact) || 0), 0);
+    return { totalBudget, netVeImpact, potentialExposure };
+  }, [data]);
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 
   return (
     <div className="w-full h-full flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
       {/* no overflow-hidden: MultiSelectFilter popover is z-[100] and must escape this container */}
-      <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
+      <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20 flex-wrap">
+        {/* Left: label + search + metric pills */}
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Grid V2 View</span>
+          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-2">Budget Ledger</span>
           <input 
             type="text"
             placeholder="Search items..."
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
+            className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-48"
           />
         </div>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
+        {/* Metric pills */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-col items-start px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">Budget Total</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 tabular-nums leading-tight mt-0.5">{fmt(budgetMetrics.totalBudget)}</span>
+          </div>
+          <div className="flex flex-col items-start px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">VE Impact</span>
+            <span className={`text-sm font-bold tabular-nums leading-tight mt-0.5 ${
+              budgetMetrics.netVeImpact < 0 ? 'text-emerald-600 dark:text-emerald-400'
+              : budgetMetrics.netVeImpact > 0 ? 'text-rose-600 dark:text-rose-400'
+              : 'text-slate-700 dark:text-slate-200'
+            }`}>{budgetMetrics.netVeImpact >= 0 ? '+' : ''}{fmt(budgetMetrics.netVeImpact)}</span>
+          </div>
+          <div className="flex flex-col items-start px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800">
+            <span className="text-[10px] font-semibold text-amber-500 dark:text-amber-400 uppercase tracking-wider leading-none">Exposure</span>
+            <span className="text-sm font-bold text-amber-600 dark:text-amber-400 tabular-nums leading-tight mt-0.5">{fmt(budgetMetrics.potentialExposure)}</span>
+          </div>
+        </div>
+        {/* Right: actions + compare strip */}
         <div className="flex items-center gap-2 ml-auto shrink-0">
+          {/* Compare strip */}
+          {onSetIsCompareActive && (
+            isCompareActive ? (
+              <>
+                <select
+                  value={compareVersionA ?? ''}
+                  onChange={e => onSetCompareVersionA?.(e.target.value || null)}
+                  className="text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                >
+                  <option value="">Version A…</option>
+                  {estimateVersions.map(v => (
+                    <option key={v.id} value={v.id}>{v.version_name}{v.is_active ? ' ★' : ''}</option>
+                  ))}
+                </select>
+                <span className="text-xs text-slate-400 select-none px-0.5">vs</span>
+                <select
+                  value={compareVersionB ?? ''}
+                  onChange={e => onSetCompareVersionB?.(e.target.value || null)}
+                  className="text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                >
+                  <option value="">Version B…</option>
+                  {estimateVersions.map(v => (
+                    <option key={v.id} value={v.id}>{v.version_name}{v.is_active ? ' ★' : ''}</option>
+                  ))}
+                </select>
+                <button
+                  disabled={!compareVersionA || !compareVersionB || compareVersionA === compareVersionB}
+                  onClick={() => onSetIsCompareActive(true)}
+                  title={compareVersionA === compareVersionB ? 'Select two different versions to compare' : 'Activate comparison'}
+                  className="px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Compare
+                </button>
+                <button
+                  onClick={() => { onSetIsCompareActive(false); onSetCompareVersionB?.(null); }}
+                  className="text-xs text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 px-1 transition-colors"
+                  title="Exit Compare Mode"
+                >
+                  ✕ Exit
+                </button>
+                <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => onSetIsCompareActive(prev => !prev)}
+                  disabled={estimateVersions.length < 2}
+                  title={estimateVersions.length < 2 ? 'Import at least two estimate versions to compare' : 'Compare estimate versions'}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-slate-600 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-400 border border-slate-200 dark:border-slate-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <GitCompare size={13} /> Compare Versions
+                </button>
+                <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
+              </>
+            )
+          )}
           {filterSlot && (
             <button
               onClick={() => setIsFilterOpen(o => !o)}
@@ -596,6 +746,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                   visibleColumnIds={visibleColumnIds}
                   rawCostCodes={(table.options.meta as any)?.rawCostCodes || []}
                   isExpanded={row.getIsExpanded()}
+                  divisionDeltaMap={divisionDeltaMap}
                 />
               );
             }

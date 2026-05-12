@@ -8,7 +8,7 @@ import OpportunityGrid from '@/components/OpportunityGrid';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import CompareModal from '@/components/CompareModal';
 import BudgetSummary from '@/components/BudgetSummary';
-import BudgetSummaryV2 from '@/components/BudgetSummaryV2';
+// BudgetSummaryV2 removed from Budget Ledger view — Waterfall belongs on Analytics/Dashboard
 import CoordinationBoard from '@/components/coordination/CoordinationBoard';
 import CoordinationTable from '@/components/coordination/CoordinationTable';
 import { CoordinationDetailPanel } from '@/components/coordination/CoordinationDetailPanel';
@@ -21,7 +21,8 @@ import { useOpportunities, useCreateOpportunity } from '@/hooks/useOpportunityQu
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { useCreatePermit } from '@/hooks/usePermitQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
-import { useMasterLedgerGrid } from '@/hooks/useEstimateQueries';
+import { useMasterLedgerGrid, useProjectEstimateVersions, useCompareEstimateVersions } from '@/hooks/useEstimateQueries';
+import type { EstimateComparisonRow } from '@/types/models';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import DetailPanel from '@/components/DetailPanel';
@@ -68,6 +69,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const { data: globalCostCodes = [] } = useCostCodes();
   const createMutation = useCreateOpportunity(projectId);
   const createPermitMutation = useCreatePermit(projectId);
+  // ── Version compare state — declared before hooks that depend on them ─────────
+  const [compareVersionA, setCompareVersionA] = React.useState<string | null>(null);
+  const [compareVersionB, setCompareVersionB] = React.useState<string | null>(null);
+  const [isCompareActive, setIsCompareActive] = React.useState(false);
+  const { data: estimateVersions = [] } = useProjectEstimateVersions(projectId);
+  const { data: comparisonRows = [] } = useCompareEstimateVersions(
+    isCompareActive ? projectId : null,   // AGENTS.md C11: null, never undefined
+    isCompareActive ? compareVersionA : null,
+    isCompareActive ? compareVersionB : null
+  );
 
   // ── Drawings / Map hooks (called unconditionally per Rules of Hooks) ─────────
   const activeSheetId = useMapStore((s) => s.activeSheetId);
@@ -198,6 +209,46 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const dynamicBuildingAreas = (settings?.building_areas && Array.isArray(settings.building_areas) && settings.building_areas.length > 0) 
     ? (settings.building_areas as string[]) 
     : ['Corridor / Common', 'Unit Interiors', 'Back of House'];
+
+  // Bug #7: auto-select the active version as Version A on first load
+  React.useEffect(() => {
+    if (estimateVersions.length > 0 && compareVersionA === null) {
+      const active = estimateVersions.find(v => v.is_active);
+      if (active) setCompareVersionA(active.id);
+    }
+  }, [estimateVersions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bug #8: RPC groups by (cost_code, cost_type) — aggregate into arrays to avoid key collisions
+  const comparisonMap = React.useMemo((): Record<string, EstimateComparisonRow[]> => {
+    if (!isCompareActive || comparisonRows.length === 0) return {};
+    const map: Record<string, EstimateComparisonRow[]> = {};
+    for (const r of comparisonRows) {
+      if (!map[r.cost_code]) map[r.cost_code] = [];
+      map[r.cost_code].push(r);
+    }
+    return map;
+  }, [isCompareActive, comparisonRows]);
+
+  // Bug #4: pre-compute division deltas once in O(n) — grouped row does O(1) lookup
+  const divisionDeltaMap = React.useMemo((): Record<string, number> => {
+    if (!isCompareActive || comparisonRows.length === 0) return {};
+    const map: Record<string, number> = {};
+    for (const r of comparisonRows) {
+      const prefix = r.cost_code?.substring(0, 2) ?? 'XX';
+      map[prefix] = (map[prefix] ?? 0) + (Number(r.delta_amount) || 0);
+    }
+    return map;
+  }, [isCompareActive, comparisonRows]);
+
+  const compareVersionALabel = React.useMemo(
+    () => estimateVersions.find(v => v.id === compareVersionA)?.version_name ?? 'Version A',
+    [estimateVersions, compareVersionA]
+  );
+  const compareVersionBLabel = React.useMemo(
+    () => estimateVersions.find(v => v.id === compareVersionB)?.version_name ?? 'Version B',
+    [estimateVersions, compareVersionB]
+  );
+
 
   const mergedOpportunities = React.useMemo(() => {
     const budgetOpps: Opportunity[] = ledgerRows.map((row: MasterLedgerRow) => ({
@@ -578,11 +629,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${
                 (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
               }`}>
-                <div className="shrink-0">
-                  <BudgetSummaryV2 projectId={projectId} />
-                  
-                  {/* Filter Toolbar removed — filters are now inline in the grid toolbar via filterSlot */}
-                </div>
+                {/* Phase 4: BudgetSummaryV2 removed — Waterfall belongs on Analytics/Dashboard */}
 
                 <div className="flex-1 overflow-hidden flex flex-col relative">
                   {isMapVisible && (
@@ -607,6 +654,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                       onOpenCompare={() => setIsCompareModalOpen(true)}
                       filterActiveCount={activeBuildingAreas.length + activeCostCodes.length}
                       onClearFilters={() => { setActiveBuildingAreas([]); setActiveCostCodes([]); }}
+                      comparisonMap={comparisonMap}
+                      divisionDeltaMap={divisionDeltaMap}
+                      compareVersionALabel={compareVersionALabel}
+                      compareVersionBLabel={compareVersionBLabel}
+                      estimateVersions={estimateVersions}
+                      compareVersionA={compareVersionA}
+                      compareVersionB={compareVersionB}
+                      isCompareActive={isCompareActive}
+                      onSetCompareVersionA={setCompareVersionA}
+                      onSetCompareVersionB={setCompareVersionB}
+                      onSetIsCompareActive={setIsCompareActive}
                       filterSlot={
                         <>
                           <div className="flex flex-col gap-1.5">

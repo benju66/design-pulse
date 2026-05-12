@@ -15,6 +15,8 @@ FROM python:3.12-slim
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libvips-dev \
+        build-essential \
+        pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # ── 2. Python dependencies ──────────────────────────────────────────

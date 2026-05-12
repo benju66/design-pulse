@@ -10,6 +10,7 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 
 - **Tri-State Master-Detail Grid:** A high-performance Value Engineering matrix featuring an Excel-like keyboard navigation experience. Supports flat dense tables, split detail panels, and pop-out isolated views for rapid data entry and evaluation.
 - **Persistent Grid Pinning:** Enterprise-grade column pinning that merges global admin-defined default layouts with local, user-specific browser overrides, utilizing high-performance CSS and zero-JS tooltips.
+- **Enterprise Budget Ledger:** A management-by-exception view that merges VE opportunities with imported estimate line items into a unified financial grid. Features dense compound cells, variance threshold filtering ($0–$500k slider), visual context icons for assumptions and variance notes, and isolated column visibility persistence.
 - **Design Coordination Tracker:** A drag-and-drop Kanban pipeline for managing architectural and MEP drawing updates directly downstream from locked financial decisions.
 - **Permits Tracker:** A specialized workspace for managing complex permit lifecycles, featuring both a high-fidelity Board view for status tracking and a Table view for granular detail management.
 - **Bulk Import Engine:** A high-performance Excel/CSV processing pipeline that utilizes client-side chunking and set-based PostgreSQL operations to import hundreds of records instantly.
@@ -93,6 +94,57 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
 
 ## 7. Release Notes
+
+---
+
+### v0.11 — Enterprise Budget Ledger & Management by Exception
+**Released:** 2026-05-12
+
+This release transforms the existing Opportunity Grid V2 into a Tier-1 Enterprise Budget Ledger with dense compound cells, visual context icons, and variance threshold filtering — enabling executives to focus on material budget deviations rather than scanning hundreds of line items.
+
+#### New Features
+
+**Phase 1: Data Architecture & Ingestion**
+The database and ingestion pipeline were extended to support rich textual context alongside financial data:
+- _`item_assumptions` column:_ Added to `project_estimates` — stores free-text assumptions captured during Procore budget imports (e.g., "Assumes 3/4\" thick throughout").
+- _`estimate_variance_notes` table:_ Stores user-provided explanations for cost swings detected during estimate upload, scoped per `(estimate_version_id, cost_code)`. Protected by an `enforce_variance_note_immutability` trigger that locks notes once the parent version is finalized.
+- _`useEstimateVarianceNotes` hook:_ TanStack Query hook fetching variance notes for the active version only, consumed by the grid via `TableMeta.varianceNoteMap`.
+
+**Phase 2: Compound Cells & Grid Consolidation**
+Budget Ledger mode (`isLedgerView`) now collapses 9 granular columns into 2 dense compound cells, dramatically reducing horizontal sprawl:
+- _`ItemDefinitionCell`:_ Merges `display_id`, `title`, and `building_area` into a single cell. Displays a `FileText` icon with native tooltip when `item_assumptions` data exists for the row.
+- _`CostClassificationCell`:_ Merges `cost_code`, `division`, and `spec_number_id` into a single cell, using `formatCostCode()` for human-readable display with CSI spec cross-reference.
+- _`ManagementCell`:_ Merges `assignee`, `priority`, and `due_date` — hidden by default since these workflow fields are irrelevant for budget line items. Users can opt-in via the Column Chooser.
+- _`LedgerDeltaCell` variance icon:_ Displays a `MessageSquare` icon with tooltip preview when an `estimate_variance_note` exists for the row's cost code. Only renders on `is_budget_line` rows (VE items are immune).
+- _`tabular-nums` typography:_ Applied across all financial columns for precise vertical decimal alignment.
+
+**Variance Threshold Filtering ("Management by Exception")**
+A slider filter ($0–$500k, $5k steps) in the Grid Filter Drawer hides budget lines whose total variance falls below the selected threshold:
+- _Budget-line-only scope:_ VE opportunity rows are immune to threshold filtering — they always remain visible regardless of slider position.
+- _Ephemeral state:_ Threshold is maintained as `useState` (not persisted) — resetting on page navigation by design.
+- _Badge integration:_ Active threshold appears in the `[Filters N]` badge count. "Clear All" resets the slider to zero.
+
+**View Extraction & Performance Optimization**
+The monolithic project page (992 lines) was refactored into a state-management shell with extracted view components to eliminate sidebar navigation lag:
+- _`ValueMatrixView`, `BudgetLedgerView`, `CoordinationView`:_ Extracted into `src/components/views/`, each owning its own JSX tree. Sidebar switches no longer trigger full-tree re-renders.
+- _Decoupled filter pipeline:_ `filteredOpportunities` no longer depends on `currentView`. A shared `applyBaseFilters` callback feeds two independent memos (`filteredOpportunities` for Value Matrix, `filteredLedgerItems` for Budget Ledger), preventing cross-view recomputation.
+- _Lazy loading:_ `AnalyticsDashboard` and `MyDeskDashboard` use `next/dynamic` — their JavaScript is only loaded when the user navigates to those views.
+
+**Zustand Column Visibility Isolation**
+Resolved a critical cross-grid state pollution bug where toggling columns in the Budget Ledger would overwrite user-persisted column preferences in the Value Matrix:
+- _Root cause:_ Both grids shared the same `gridColumnVisibility[projectId]` Zustand key.
+- _Fix:_ Added a dedicated `gridV2ColumnVisibility` key with automated v4→v5 migration for existing users.
+- _`ColumnChooser` reset:_ The reset handler now re-applies mode-specific visibility defaults instead of clearing to `{}`.
+
+#### Internal / Architecture
+
+| Item | Detail |
+|------|--------|
+| `TableMeta.varianceNoteMap` | `tanstack.d.ts` — `Record<string, string>` mapping cost codes to variance note text |
+| `gridV2ColumnVisibility` | `useUIStore.ts` — Isolated Zustand key for Budget Ledger column visibility (v5 migration) |
+| `applyBaseFilters` | `page.tsx` — Shared `useCallback` eliminating `currentView` from filter dependencies |
+| `src/components/views/` | New directory for extracted view components (`ValueMatrixView`, `BudgetLedgerView`, `CoordinationView`) |
+| AGENTS.md §4 | Updated: Compound Cell bullet (ManagementCell hidden by default), new View Extraction Architecture bullet |
 
 ---
 

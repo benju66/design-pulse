@@ -619,7 +619,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       // Phase 2: Compound cells ON in ledger, OFF in matrix
       item_definition: isLedgerView,
       cost_classification: isLedgerView,
-      management: isLedgerView,
+      management: false, // hidden by default — opt-in via Column Chooser
       // Individual columns replaced by compounds — OFF in ledger, ON in matrix
       display_id: !isLedgerView,
       title: !isLedgerView,
@@ -644,7 +644,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     setColumnVisibility({
       baseline_budget: isLedgerView, approved_changes: isLedgerView,
       revised_budget: isLedgerView, pending_changes: isLedgerView, projected_final: isLedgerView,
-      item_definition: isLedgerView, cost_classification: isLedgerView, management: isLedgerView,
+      item_definition: isLedgerView, cost_classification: isLedgerView, management: false,
       display_id: !isLedgerView, title: !isLedgerView, building_area: !isLedgerView,
       spec_number_id: !isLedgerView, assignee: !isLedgerView, priority: !isLedgerView,
       due_date: !isLedgerView, division: !isLedgerView, cost_code: !isLedgerView,

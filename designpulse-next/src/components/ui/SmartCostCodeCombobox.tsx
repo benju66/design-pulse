@@ -163,9 +163,9 @@ export function SmartCostCodeCombobox({
     if (matched) {
       if (matched.parent_division) {
         const parentDiv = rawCostCodes.find((c) => c.code === matched.parent_division && c.is_division);
-        if (parentDiv) updates.division = `${parentDiv.code} - ${parentDiv.description}`;
+        if (parentDiv) updates.division = parentDiv.code;
       } else if (matched.is_division) {
-        updates.division = `${matched.code} - ${matched.description}`;
+        updates.division = matched.code;
       }
     }
     onChange(updates);
@@ -183,9 +183,9 @@ export function SmartCostCodeCombobox({
     if (matched) {
       if (matched.parent_division) {
         const parentDiv = rawCostCodes.find((c) => c.code === matched.parent_division && c.is_division);
-        if (parentDiv) updates.division = `${parentDiv.code} - ${parentDiv.description}`;
+        if (parentDiv) updates.division = parentDiv.code;
       } else if (matched.is_division) {
-        updates.division = `${matched.code} - ${matched.description}`;
+        updates.division = matched.code;
       }
     }
     onChange(updates);

@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import type { ReactNode } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -15,7 +16,7 @@ import {
   Cell,
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
-import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon, SlidersHorizontal } from 'lucide-react';
 import {
   useUpdateOpportunity,
   useCreateOpportunity,
@@ -35,6 +36,7 @@ import { ColumnChooser } from './opportunities/ColumnChooser';
 import { useOpportunityColumns } from './opportunities/columns';
 import GhostRow from './opportunities/GhostRow';
 import { Opportunity, OpportunityOption } from '@/types/models';
+import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 
 interface OpportunityGridProps {
   projectId: string;
@@ -43,6 +45,9 @@ interface OpportunityGridProps {
   onOpenCompare: () => void;
   isolateState?: boolean;
   hideGhostRow?: boolean;
+  filterSlot?: ReactNode;
+  filterActiveCount?: number;
+  onClearFilters?: () => void;
 }
 
 interface GridRowProps {
@@ -53,9 +58,10 @@ interface GridRowProps {
   measureElement: (el: Element | null) => void;
   visibleColumnIds: string;
   pinnedColumnOffsets: string;
+  isExpanded: boolean;
 }
 
-const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement }: GridRowProps) => {
+const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement, isExpanded }: GridRowProps) => {
   return (
     <tbody 
       ref={measureElement}
@@ -92,7 +98,7 @@ const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, mea
           );
         })}
       </tr>
-      {viewMode === 'card' && row.getIsExpanded() && (
+      {viewMode === 'card' && isExpanded && (
         <tr>
           <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
             <ExpandedCard row={row as Row<Opportunity>} />
@@ -106,14 +112,14 @@ const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, mea
     prev.row.original === next.row.original &&
     prev.isSelected === next.isSelected &&
     prev.viewMode === next.viewMode &&
-    prev.row.getIsExpanded() === next.row.getIsExpanded() &&
+    prev.isExpanded === next.isExpanded &&
     prev.virtualRow.index === next.virtualRow.index &&
     prev.visibleColumnIds === next.visibleColumnIds &&
     prev.pinnedColumnOffsets === next.pinnedColumnOffsets
   );
 });
 
-export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false }: OpportunityGridProps) {
+export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, filterSlot, filterActiveCount = 0, onClearFilters }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -138,6 +144,7 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const handleBulkDelete = async () => {
     setIsDeleting(true);
@@ -274,6 +281,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
+    getRowCanExpand: () => true,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     columnResizeMode: 'onChange',
@@ -321,8 +329,9 @@ const EMPTY_VISIBILITY: VisibilityState = {};
 
   return (
     <div className="w-full h-full flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
-      <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
-        <div className="flex items-center gap-2">
+      {/* no overflow-hidden: MultiSelectFilter popover is z-[100] and must escape this container */}
+      <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Matrix View</span>
           <input 
             type="text"
@@ -332,7 +341,26 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
+        <div className="flex items-center gap-2 ml-auto shrink-0">
+          {filterSlot && (
+            <button
+              onClick={() => setIsFilterOpen(o => !o)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isFilterOpen || filterActiveCount > 0
+                  ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              <SlidersHorizontal size={15} />
+              <span>Filters</span>
+              {filterActiveCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[1rem] h-4 px-1 text-xs font-bold text-white bg-sky-500 rounded-full">
+                  {filterActiveCount}
+                </span>
+              )}
+            </button>
+          )}
           <button
             onClick={toggleMapVisibility}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -346,6 +374,17 @@ const EMPTY_VISIBILITY: VisibilityState = {};
           <ColumnChooser table={table} projectId={projectId} />
         </div>
       </div>
+
+      {filterSlot && (
+        <GridFilterDrawer
+          isOpen={isFilterOpen}
+          onClose={() => setIsFilterOpen(false)}
+          activeCount={filterActiveCount}
+          onClearAll={() => onClearFilters?.()}
+        >
+          {filterSlot}
+        </GridFilterDrawer>
+      )}
 
       <div 
         ref={tableContainerRef} 
@@ -425,6 +464,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                 measureElement={virtualizer.measureElement}
                 visibleColumnIds={visibleColumnIds}
                 pinnedColumnOffsets={pinnedColumnOffsets}
+                isExpanded={row.getIsExpanded()}
               />
             );
           })}

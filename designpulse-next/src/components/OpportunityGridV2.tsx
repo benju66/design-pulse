@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import type { ReactNode } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -17,7 +18,7 @@ import {
   Cell,
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
-import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon, SlidersHorizontal } from 'lucide-react';
 import {
   useUpdateOpportunity,
   useCreateOpportunity,
@@ -36,6 +37,7 @@ import { ExpandedCard } from './opportunities/ExpandedCard';
 import { ColumnChooser } from './opportunities/ColumnChooser';
 import { useOpportunityColumnsV2 } from './opportunities/columns-v2';
 import GhostRow from './opportunities/GhostRow';
+import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { Opportunity, OpportunityOption } from '@/types/models';
 
 interface OpportunityGridProps {
@@ -45,6 +47,9 @@ interface OpportunityGridProps {
   onOpenCompare?: () => void;
   isolateState?: boolean;
   hideGhostRow?: boolean;
+  filterSlot?: ReactNode;
+  filterActiveCount?: number;
+  onClearFilters?: () => void;
 }
 
 interface GroupedRowProps {
@@ -52,9 +57,26 @@ interface GroupedRowProps {
   virtualRow: VirtualItem;
   measureElement: (el: Element | null) => void;
   visibleColumnIds: string;
+  rawCostCodes?: any[];
+  isExpanded: boolean;
 }
 
-const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement }: GroupedRowProps) => {
+const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded }: GroupedRowProps) => {
+  const divisionVal = row.getValue('division') as string;
+  let divisionLabel = divisionVal ? `${divisionVal}` : 'Uncategorized';
+  
+  if (divisionVal === 'Uncategorized') {
+    divisionLabel = 'Uncategorized';
+  } else if (divisionVal && rawCostCodes.length > 0) {
+    const match = rawCostCodes.find(c => c.code === divisionVal || c.code.startsWith(divisionVal));
+    const divNum = divisionVal.substring(0, 2);
+    if (match && match.description) {
+      divisionLabel = `DIVISION ${divNum} — ${match.description.toUpperCase()}`;
+    } else {
+      divisionLabel = `DIVISION ${divNum}`;
+    }
+  }
+
   return (
     <tbody 
       ref={measureElement}
@@ -69,9 +91,19 @@ const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement }: Grou
         >
           <div className="flex justify-between items-center w-full">
             <span className="flex items-center">
-              <span className="mr-2">{row.getIsExpanded() ? '▼' : '▶'}</span>
-              {row.getValue('division') ? `${row.getValue('division')}` : 'Uncategorized / No Division'}
-              <span className="ml-2 text-sm text-slate-500 font-normal">({row.subRows.length} items)</span>
+              <span className="mr-2">{isExpanded ? '▼' : '▶'}</span>
+              {divisionLabel}
+              <span className="ml-2 text-sm text-slate-500 font-normal group relative cursor-help">
+                ({row.subRows.length} items)
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-max bg-slate-900 dark:bg-slate-800 text-white text-xs px-3 py-1.5 rounded-lg shadow-xl z-[100] pointer-events-none font-medium tracking-wide">
+                  {(() => {
+                    const veCount = row.subRows.filter((r) => !r.original.is_budget_line).length;
+                    const budgetCount = row.subRows.filter((r) => r.original.is_budget_line).length;
+                    return `${veCount} VE Opportunities • ${budgetCount} Budget Lines`;
+                  })()}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
+                </div>
+              </span>
             </span>
             
             <div className="flex items-center gap-6">
@@ -93,7 +125,7 @@ const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement }: Grou
   );
 }, (prev: GroupedRowProps, next: GroupedRowProps) => {
   return (
-    prev.row.getIsExpanded() === next.row.getIsExpanded() &&
+    prev.isExpanded === next.isExpanded &&
     prev.row.getValue('cost_impact') === next.row.getValue('cost_impact') &&
     prev.row.getValue('days_impact') === next.row.getValue('days_impact') &&
     prev.visibleColumnIds === next.visibleColumnIds &&
@@ -109,9 +141,10 @@ interface GridRowV2Props {
   measureElement: (el: Element | null) => void;
   visibleColumnIds: string;
   pinnedColumnOffsets: string;
+  isExpanded: boolean;
 }
 
-const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement }: GridRowV2Props) => {
+const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, measureElement, isExpanded }: GridRowV2Props) => {
   const isSubRow = row.original && !('project_id' in row.original) && 'opportunity_id' in row.original;
 
   return (
@@ -129,7 +162,9 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
                 : 'bg-sky-50/80 dark:bg-sky-900/40 border-l-2 border-sky-500')
             : (isSubRow 
                 ? 'border-l border-sky-200 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-900/20' 
-                : 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
+                : row.original.is_budget_line
+                   ? 'bg-amber-50/30 dark:bg-amber-900/10 hover:bg-amber-50/60 dark:hover:bg-amber-900/20 border-l-[3px] border-amber-400' 
+                   : 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
         }`}
       >
         {row.getVisibleCells().map((cell: Cell<Opportunity, unknown>) => {
@@ -188,7 +223,7 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
           );
         })}
       </tr>
-      {viewMode === 'card' && row.getIsExpanded() && !isSubRow && (
+      {viewMode === 'card' && isExpanded && !isSubRow && (
         <tr>
           <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
             <ExpandedCard row={row as Row<Opportunity>} />
@@ -202,14 +237,14 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
     prev.row.original === next.row.original &&
     prev.isSelected === next.isSelected &&
     prev.viewMode === next.viewMode &&
-    prev.row.getIsExpanded() === next.row.getIsExpanded() &&
+    prev.isExpanded === next.isExpanded &&
     prev.virtualRow.index === next.virtualRow.index &&
     prev.visibleColumnIds === next.visibleColumnIds &&
     prev.pinnedColumnOffsets === next.pinnedColumnOffsets
   );
 });
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, filterSlot, filterActiveCount = 0, onClearFilters }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -232,6 +267,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const handleBulkDelete = async () => {
     setIsDeleting(true);
@@ -276,7 +312,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
 
 
   const [expanded, setExpanded] = useState<ExpandedState>({});
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'division', desc: false }]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
   const [grouping, setGrouping] = useState<GroupingState>(['division']);
   
@@ -371,10 +407,12 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     onGroupingChange: setGrouping,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
+    getRowCanExpand: () => true,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     columnResizeMode: 'onChange',
+    enableRowSelection: (row) => !row.original.is_budget_line,
     getRowId: (row) => row.id,
     meta: {
       updateData: updateMutation,
@@ -426,8 +464,9 @@ const EMPTY_VISIBILITY: VisibilityState = {};
 
   return (
     <div className="w-full h-full flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
-      <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
-        <div className="flex items-center gap-2">
+      {/* no overflow-hidden: MultiSelectFilter popover is z-[100] and must escape this container */}
+      <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Grid V2 View</span>
           <input 
             type="text"
@@ -437,7 +476,26 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
+        <div className="flex items-center gap-2 ml-auto shrink-0">
+          {filterSlot && (
+            <button
+              onClick={() => setIsFilterOpen(o => !o)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isFilterOpen || filterActiveCount > 0
+                  ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              <SlidersHorizontal size={15} />
+              <span>Filters</span>
+              {filterActiveCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[1rem] h-4 px-1 text-xs font-bold text-white bg-sky-500 rounded-full">
+                  {filterActiveCount}
+                </span>
+              )}
+            </button>
+          )}
           <button
             onClick={toggleMapVisibility}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -451,6 +509,17 @@ const EMPTY_VISIBILITY: VisibilityState = {};
           <ColumnChooser table={table} projectId={projectId} />
         </div>
       </div>
+
+      {filterSlot && (
+        <GridFilterDrawer
+          isOpen={isFilterOpen}
+          onClose={() => setIsFilterOpen(false)}
+          activeCount={filterActiveCount}
+          onClearAll={() => onClearFilters?.()}
+        >
+          {filterSlot}
+        </GridFilterDrawer>
+      )}
 
       <div 
         ref={tableContainerRef} 
@@ -525,6 +594,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                   virtualRow={virtualRow}
                   measureElement={virtualizer.measureElement}
                   visibleColumnIds={visibleColumnIds}
+                  rawCostCodes={(table.options.meta as any)?.rawCostCodes || []}
+                  isExpanded={row.getIsExpanded()}
                 />
               );
             }
@@ -539,6 +610,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                 measureElement={virtualizer.measureElement}
                 visibleColumnIds={visibleColumnIds}
                 pinnedColumnOffsets={pinnedColumnOffsets}
+                isExpanded={row.getIsExpanded()}
               />
             );
           })}

@@ -18,6 +18,10 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   description?: string | null;
   cost_type?: CostType | null;
   spec_number_id?: string | null;
+  estimate_sync_status?: 'Draft' | 'Pending Estimate Update' | 'Incorporated';
+  incorporated_version_id?: string | null;
+  estimator_assignee?: string | null;
+  is_budget_line?: boolean;
 };
 
 export interface DisciplineDetails {
@@ -254,6 +258,15 @@ export interface BudgetWaterfallRow {
   pending_impact: number;
   net_position: number;
   projected_position: number;
+}
+
+export interface MasterLedgerRow {
+  cost_code: string;
+  description: string;
+  old_budget: number;
+  new_budget: number;
+  locked_ve: number;
+  pending_ve: number;
 }
 
 export interface RolePermission {

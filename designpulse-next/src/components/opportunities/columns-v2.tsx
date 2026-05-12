@@ -10,6 +10,11 @@ import { Opportunity } from '@/types/models';
 const CheckboxCell = ({ row }: { row: Row<Opportunity> }) => {
   const isSelected = useUIStore(state => state.compareQueue.includes(row.original.id));
   const toggleCompareItem = useUIStore(state => state.toggleCompareItem);
+  
+  if (row.original.is_budget_line) {
+    return <div className="flex items-center justify-center py-2 px-1 text-slate-300 dark:text-slate-600">-</div>;
+  }
+
   return (
     <div className="flex items-center justify-center py-2 px-1">
       <input 
@@ -73,6 +78,16 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
     return a - b;
   };
 
+  const divisionSort = (rowA: Row<Opportunity>, rowB: Row<Opportunity>, columnId: string) => {
+    const aVal = (rowA.getValue(columnId) as string) || 'Uncategorized';
+    const bVal = (rowB.getValue(columnId) as string) || 'Uncategorized';
+    
+    if (aVal === 'Uncategorized' && bVal !== 'Uncategorized') return -1;
+    if (aVal !== 'Uncategorized' && bVal === 'Uncategorized') return 1;
+    
+    return aVal.localeCompare(bVal);
+  };
+
   const dynamicOptionColumns: ColumnDef<Opportunity, unknown>[] = useMemo(() => {
     if (viewMode !== 'flat') return [];
     
@@ -114,7 +129,7 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
       { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
       { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
-      { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
+      { id: 'division', accessorFn: (row: Opportunity) => row.division ? row.division.substring(0, 6) : 'Uncategorized', header: 'Division', cell: DivisionCell, size: 120, sortingFn: divisionSort },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 150 },
       { accessorKey: 'spec_number_id', header: 'CSI Spec', cell: CsiSpecCell, size: 150 },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
@@ -146,7 +161,7 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell, aggregationFn: 'sum' },
       { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell, aggregationFn: 'sum' },
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
-      { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
+      { id: 'division', accessorFn: (row: Opportunity) => row.division ? row.division.substring(0, 6) : 'Uncategorized', header: 'Division', cell: DivisionCell, size: 120, sortingFn: divisionSort },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 150 },
       { accessorKey: 'spec_number_id', header: 'CSI Spec', cell: CsiSpecCell, size: 150 },
       { accessorKey: 'status', header: 'VE Status', cell: StatusCell },

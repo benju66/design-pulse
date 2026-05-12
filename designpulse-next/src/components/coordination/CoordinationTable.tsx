@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -14,7 +15,7 @@ import {
   getExpandedRowModel
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
-import { ChevronUp, ChevronDown, PanelRight, AlertTriangle, Map as MapIcon } from 'lucide-react';
+import { Map as MapIcon, ChevronDown, ChevronUp, AlertTriangle, SlidersHorizontal, PanelRight } from 'lucide-react';
 import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity } from '@/hooks/useOpportunityQueries';
@@ -24,6 +25,7 @@ import { TextCell, PriorityCell, BuildingAreaCell, CostCodeCell, CsiSpecCell, Di
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useProjectCsiSpecs } from '@/hooks/useCsiQueries';
 import { useUIStore } from '@/stores/useUIStore';
+import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
 import { DEFAULT_DISCIPLINES, DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
@@ -32,6 +34,9 @@ interface Props {
   projectId: string;
   opportunities: Opportunity[];
   viewMode?: string;
+  filterSlot?: ReactNode;
+  filterActiveCount?: number;
+  onClearFilters?: () => void;
 }
 
 // Custom Discipline Status Cell
@@ -231,7 +236,7 @@ const MemoizedCoordinationRow = React.memo(({
   return true;
 });
 
-export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat' }: Props) {
+export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat', filterSlot, filterActiveCount = 0, onClearFilters }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
   const isMapVisible = useUIStore(state => state.isMapVisible);
@@ -291,6 +296,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   
 const EMPTY_VISIBILITY: VisibilityState = {};
 
@@ -513,10 +519,11 @@ const EMPTY_VISIBILITY: VisibilityState = {};
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
-      <div className="flex-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative overflow-hidden flex flex-col">
+      <div className="flex-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative flex flex-col">
         
-        <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
-          <div className="flex items-center gap-2">
+        {/* no overflow-hidden: MultiSelectFilter popover is z-[100] and must escape this container */}
+        <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
+          <div className="flex items-center gap-2 shrink-0">
             <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Coordination List</span>
             <input 
               type="text"
@@ -526,7 +533,26 @@ const EMPTY_VISIBILITY: VisibilityState = {};
               className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
+          <div className="flex items-center gap-2 ml-auto shrink-0">
+            {filterSlot && (
+              <button
+                onClick={() => setIsFilterOpen(o => !o)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isFilterOpen || filterActiveCount > 0
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <SlidersHorizontal size={15} />
+                <span>Filters</span>
+                {filterActiveCount > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[1rem] h-4 px-1 text-xs font-bold text-white bg-sky-500 rounded-full">
+                    {filterActiveCount}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               onClick={toggleMapVisibility}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -540,6 +566,17 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             <ColumnChooser table={table} projectId={projectId} />
           </div>
         </div>
+
+        {filterSlot && (
+          <GridFilterDrawer
+            isOpen={isFilterOpen}
+            onClose={() => setIsFilterOpen(false)}
+            activeCount={filterActiveCount}
+            onClearAll={() => onClearFilters?.()}
+          >
+            {filterSlot}
+          </GridFilterDrawer>
+        )}
 
         <div 
           ref={tableContainerRef} 

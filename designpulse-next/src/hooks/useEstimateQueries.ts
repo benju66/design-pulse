@@ -107,9 +107,10 @@ export function useImportEstimateMutation(projectId: string) {
       versionDate: string;   // ISO date "YYYY-MM-DD"
       setActive: boolean;
       rows: EstimateStagingRow[];
+      incorporated_ve_ids?: string[];
     }
   >({
-    mutationFn: async ({ versionName, versionDate, setActive, rows }) => {
+    mutationFn: async ({ versionName, versionDate, setActive, rows, incorporated_ve_ids }) => {
       // Reset any previous pending version from a prior failed attempt
       pendingVersionIdRef.current = null;
 
@@ -177,7 +178,7 @@ export function useImportEstimateMutation(projectId: string) {
       // ── Step 3: Finalize — compute total_budget, mark is_finalized = true ─
       const { error: finalErr } = await supabase.rpc('finalize_estimate_version', {
         p_version_id: versionId as string,
-        p_project_id: projectId,
+        p_incorporated_ve_ids: incorporated_ve_ids || null,
       });
       if (finalErr) throw new Error(`Finalization failed: ${finalErr.message}`);
 
@@ -295,6 +296,52 @@ export function useCompareEstimateVersions(projectId: string | null, versionA: s
 
       if (error) throw error;
       return (data ?? []) as EstimateComparisonRow[];
+    },
+  });
+}
+// -- useMasterLedgerGrid ------------------------------------------------------
+// Calls get_master_ledger_grid RPC to return fully aggregated ledger rows.
+export function useMasterLedgerGrid(projectId: string | null) {
+  return useQuery({
+    queryKey: ['master-ledger-grid', projectId],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_master_ledger_grid', {
+        p_project_id: projectId!,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
+
+// -- useEstimateLineDetails ---------------------------------------------------
+// Fetches detailed estimate lines (Labor, Material, etc.) for a specific cost code.
+export function useEstimateLineDetails(projectId: string | null, costCode: string | null) {
+  return useQuery({
+    queryKey: ['estimate-line-details', projectId, costCode],
+    enabled: !!projectId && !!costCode,
+    queryFn: async () => {
+      // Find the active version ID
+      const { data: versions, error: vErr } = await supabase
+        .from('project_estimate_versions')
+        .select('id')
+        .eq('project_id', projectId!)
+        .eq('is_active', true)
+        .limit(1);
+      
+      if (vErr) throw vErr;
+      if (!versions || versions.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from('project_estimates')
+        .select('*')
+        .eq('version_id', versions[0].id)
+        .eq('cost_code', costCode!)
+        .order('display_order', { ascending: true });
+        
+      if (error) throw error;
+      return data || [];
     },
   });
 }

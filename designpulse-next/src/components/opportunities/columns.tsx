@@ -73,6 +73,16 @@ export const useOpportunityColumns = (viewMode: string, maxOptionCount: number =
     return a - b;
   };
 
+  const divisionSort = (rowA: Row<Opportunity>, rowB: Row<Opportunity>, columnId: string) => {
+    const aVal = (rowA.getValue(columnId) as string) || 'Uncategorized';
+    const bVal = (rowB.getValue(columnId) as string) || 'Uncategorized';
+    
+    if (aVal === 'Uncategorized' && bVal !== 'Uncategorized') return -1;
+    if (aVal !== 'Uncategorized' && bVal === 'Uncategorized') return 1;
+    
+    return aVal.localeCompare(bVal);
+  };
+
   const dynamicOptionColumns: ColumnDef<Opportunity, unknown>[] = useMemo(() => {
     if (viewMode !== 'flat') return [];
     
@@ -114,7 +124,7 @@ export const useOpportunityColumns = (viewMode: string, maxOptionCount: number =
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
       { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
       { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
-      { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
+      { id: 'division', accessorFn: (row: Opportunity) => row.division ? row.division.substring(0, 6) : 'Uncategorized', header: 'Division', cell: DivisionCell, size: 120, sortingFn: divisionSort },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 150 },
       { accessorKey: 'spec_number_id', header: 'CSI Spec', cell: CsiSpecCell, size: 150 },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
@@ -146,7 +156,7 @@ export const useOpportunityColumns = (viewMode: string, maxOptionCount: number =
       { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell },
       { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell },
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
-      { accessorKey: 'division', header: 'Division', cell: DivisionCell, size: 120 },
+      { id: 'division', accessorFn: (row: Opportunity) => row.division ? row.division.substring(0, 6) : 'Uncategorized', header: 'Division', cell: DivisionCell, size: 120, sortingFn: divisionSort },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 150 },
       { accessorKey: 'spec_number_id', header: 'CSI Spec', cell: CsiSpecCell, size: 150 },
       { accessorKey: 'status', header: 'VE Status', cell: StatusCell },

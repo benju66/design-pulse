@@ -3,6 +3,7 @@ import { useState, useRef } from 'react';
 import { ExternalLink, Maximize, Minimize, X } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { ExpandedCard } from './opportunities/ExpandedCard';
+import { BudgetDetailView } from './opportunities/BudgetDetailView';
 import { Opportunity } from '@/types/models';
 import { Row } from '@tanstack/react-table';
 
@@ -22,10 +23,12 @@ export default function DetailPanel({ projectId, opportunities, viewMode }: Deta
 
   if (viewMode !== 'split' || !selectedOpportunityId) return null;
 
+  const isBudgetRow = selectedOpportunityId.startsWith('budget-');
   const opportunity = opportunities.find(o => o.id === selectedOpportunityId);
-  if (!opportunity) return null;
+  
+  if (!isBudgetRow && !opportunity) return null;
 
-  const mockRow = { original: opportunity } as Row<Opportunity>;
+  const mockRow = opportunity ? ({ original: opportunity } as Row<Opportunity>) : null;
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -65,7 +68,7 @@ export default function DetailPanel({ projectId, opportunities, viewMode }: Deta
       )}
       <div className="flex items-center p-4 border-b border-slate-200 dark:border-slate-800 relative w-full h-16 shrink-0">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate pr-28 min-w-0 flex-1">
-          {opportunity.title || 'Untitled Opportunity'}
+          {isBudgetRow ? `Budget Detail: ${selectedOpportunityId.replace('budget-', '')}` : (opportunity?.title || 'Untitled Opportunity')}
         </h3>
         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white dark:bg-slate-900 pl-2">
           <button 
@@ -95,8 +98,14 @@ export default function DetailPanel({ projectId, opportunities, viewMode }: Deta
         </div>
       </div>
       <div className="flex-1 overflow-auto p-4 bg-slate-50 dark:bg-slate-900/50 min-w-0 w-full">
-        <div className="-m-4 border-none shadow-none bg-transparent">
-          <ExpandedCard row={mockRow} />
+        <div className="-m-4 border-none shadow-none bg-transparent h-full">
+          {isBudgetRow ? (
+            <div className="p-4 h-[calc(100vh-4rem)]">
+              <BudgetDetailView projectId={projectId} costCode={selectedOpportunityId.replace('budget-', '')} />
+            </div>
+          ) : (
+            mockRow && <ExpandedCard row={mockRow} />
+          )}
         </div>
       </div>
     </div>

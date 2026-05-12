@@ -21,6 +21,7 @@ import { useOpportunities, useCreateOpportunity } from '@/hooks/useOpportunityQu
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { useCreatePermit } from '@/hooks/usePermitQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
+import { useMasterLedgerGrid } from '@/hooks/useEstimateQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import DetailPanel from '@/components/DetailPanel';
@@ -34,6 +35,7 @@ import { useProjectSheets, useSheetMarkups, markupsToZones, useUpdateSheetMarkup
 import { ProjectSidebar } from '@/components/layout/ProjectSidebar';
 import { ProjectSettings } from '@/components/project/ProjectSettings';
 import { PdfImportModal } from '@/components/drawings/PdfImportModal';
+import { Opportunity, MasterLedgerRow } from '@/types/models';
 
 // ── Module-level navigation type guards ─────────────────────────────────────────
 const VALID_PROJECT_VIEWS = new Set<ProjectView>([
@@ -61,6 +63,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const projectId = resolvedParams.projectId;
   useProjectRealtime(projectId);
   const { data: opportunities = [], isLoading } = useOpportunities(projectId);
+  const { data: ledgerRows = [], isLoading: isLedgerLoading } = useMasterLedgerGrid(projectId);
   const { data: settings } = useProjectSettings(projectId);
   const { data: globalCostCodes = [] } = useCostCodes();
   const createMutation = useCreateOpportunity(projectId);
@@ -196,8 +199,32 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     ? (settings.building_areas as string[]) 
     : ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
+  const mergedOpportunities = React.useMemo(() => {
+    const budgetOpps: Opportunity[] = ledgerRows.map((row: MasterLedgerRow) => ({
+      id: `budget-${row.cost_code}`,
+      project_id: projectId,
+      title: row.description || `Budget: ${row.cost_code}`,
+      cost_code: row.cost_code,
+      division: row.cost_code ? row.cost_code.substring(0, 2) + '0000' : 'Uncategorized',
+      status: 'Approved',
+      cost_impact: row.new_budget,
+      days_impact: 0,
+      is_budget_line: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      priority: 'Low',
+      location: '',
+      building_area: '',
+      record_type: 'VE',
+    } as unknown as Opportunity));
+
+    return [...opportunities, ...budgetOpps];
+  }, [opportunities, ledgerRows, projectId]);
+
   const filteredOpportunities = React.useMemo(() => {
-    const baseMatrixItems = opportunities.filter(opp => {
+    const sourceData = currentView === 'dashboard-v2' ? mergedOpportunities : opportunities;
+    
+    const baseMatrixItems = sourceData.filter(opp => {
       if (opp.record_type === 'VE') return true;
       if (opp.record_type === 'Coordination') {
         const cost = Number(opp.cost_impact) || 0;
@@ -213,12 +240,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       if (activeStatus !== 'All' && opp.status !== activeStatus) return false;
       return true;
     });
-  }, [opportunities, activeBuildingAreas, activeCostCodes, activeStatus]);
+  }, [mergedOpportunities, opportunities, currentView, activeBuildingAreas, activeCostCodes, activeStatus]);
 
   const uniqueCostCodes = React.useMemo(() => {
-    const codes = opportunities.map(o => o.cost_code).filter(Boolean) as string[];
+    const codes = mergedOpportunities.map(o => o.cost_code).filter(Boolean) as string[];
     return Array.from(new Set(codes)).sort();
-  }, [opportunities]);
+  }, [mergedOpportunities]);
 
   const globalCostCodeStrings = React.useMemo(() => {
     return globalCostCodes
@@ -477,61 +504,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     forceCollapse={viewMode === 'split' && !!selectedOpportunityId} 
                   />
                   
-                  {/* Filter Toolbar */}
-                  <div className="flex flex-wrap items-center gap-3 mb-4 mt-2 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
-                    <div className="flex items-center gap-2 pl-2">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filters</span>
-                    </div>
-                    
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800" />
-                    
-                    {/* Status Filter */}
-                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">VE Status:</span>
-                      <select
-                        value={activeStatus}
-                        onChange={(e) => setActiveStatus(e.target.value)}
-                        className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
-                      >
-                        <option value="All">All</option>
-                        {uniqueStatuses.map(status => (
-                          <option key={status} value={status}>{status}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Building Area Filter */}
-                    <div className="flex items-center gap-2">
-                      <MultiSelectFilter
-                        label="Building Area"
-                        options={dynamicBuildingAreas}
-                        selected={activeBuildingAreas}
-                        onChange={setActiveBuildingAreas}
-                        placeholder="Search areas..."
-                      />
-                      <button
-                        onClick={() => navigateToSettings('building_areas')}
-                        className="text-slate-400 hover:text-sky-500 transition-colors bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
-                        title="Manage Building Areas"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </div>
-
-                    {/* Cost Code Filter */}
-                    <MultiSelectFilter
-                      label="Cost Code"
-                      options={uniqueCostCodes}
-                      selected={activeCostCodes}
-                      onChange={setActiveCostCodes}
-                      placeholder="Search codes..."
-                    />
-
-                    <div className="flex-1" />
-                    <button className="text-xs font-medium text-slate-400 hover:text-sky-500 pr-3 transition-colors flex items-center gap-1">
-                      <Plus size={14} /> Add Filter
-                    </button>
-                  </div>
+                  {/* Filter Toolbar removed — filters are now inline in the grid toolbar via filterSlot */}
                 </div>
 
                 <div className="flex-1 overflow-hidden flex flex-col relative">
@@ -555,6 +528,36 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                       data={filteredOpportunities} 
                       viewMode={viewMode} 
                       onOpenCompare={() => setIsCompareModalOpen(true)}
+                      filterActiveCount={(activeStatus !== 'All' ? 1 : 0) + activeBuildingAreas.length + activeCostCodes.length}
+                      onClearFilters={() => { setActiveStatus('All'); setActiveBuildingAreas([]); setActiveCostCodes([]); }}
+                      filterSlot={
+                        <>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">VE Status</label>
+                            <select
+                              value={activeStatus}
+                              onChange={(e) => setActiveStatus(e.target.value)}
+                              className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 cursor-pointer"
+                            >
+                              <option value="All">All</option>
+                              {uniqueStatuses.map(status => (
+                                <option key={status} value={status}>{status}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Building Area</label>
+                              <button onClick={() => navigateToSettings('building_areas')} className="text-slate-400 hover:text-sky-500 transition-colors" title="Manage Building Areas"><Plus size={13} /></button>
+                            </div>
+                            <MultiSelectFilter fullWidth label="Building Area" options={dynamicBuildingAreas} selected={activeBuildingAreas} onChange={setActiveBuildingAreas} placeholder="Search areas..." />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cost Code</label>
+                            <MultiSelectFilter fullWidth label="Cost Code" options={uniqueCostCodes} selected={activeCostCodes} onChange={setActiveCostCodes} placeholder="Search codes..." />
+                          </div>
+                        </>
+                      }
                     />
                   )}
                 </div>
@@ -578,46 +581,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                 <div className="shrink-0">
                   <BudgetSummaryV2 projectId={projectId} />
                   
-                  {/* Filter Toolbar */}
-                  <div className="flex flex-wrap items-center gap-3 mb-4 mt-2 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
-                    <div className="flex items-center gap-2 pl-2">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filters</span>
-                    </div>
-                    
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800" />
-                    
-                    {/* Building Area Filter */}
-                    <div className="flex items-center gap-2">
-                      <MultiSelectFilter
-                        label="Building Area"
-                        options={dynamicBuildingAreas}
-                        selected={activeBuildingAreas}
-                        onChange={setActiveBuildingAreas}
-                        placeholder="Search areas..."
-                      />
-                      <button
-                        onClick={() => navigateToSettings('building_areas')}
-                        className="text-slate-400 hover:text-sky-500 transition-colors bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
-                        title="Manage Building Areas"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </div>
-
-                    {/* Cost Code Filter */}
-                    <MultiSelectFilter
-                      label="Cost Code"
-                      options={uniqueCostCodes}
-                      selected={activeCostCodes}
-                      onChange={setActiveCostCodes}
-                      placeholder="Search codes..."
-                    />
-
-                    <div className="flex-1" />
-                    <button className="text-xs font-medium text-slate-400 hover:text-sky-500 pr-3 transition-colors flex items-center gap-1">
-                      <Plus size={14} /> Add Filter
-                    </button>
-                  </div>
+                  {/* Filter Toolbar removed — filters are now inline in the grid toolbar via filterSlot */}
                 </div>
 
                 <div className="flex-1 overflow-hidden flex flex-col relative">
@@ -633,7 +597,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                       />
                     </div>
                   )}
-                  {isLoading ? (
+                  {isLoading || isLedgerLoading ? (
                     <div className="h-full flex items-center justify-center text-slate-500">Loading log...</div>
                   ) : (
                     <OpportunityGridV2 
@@ -641,6 +605,23 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                       data={filteredOpportunities} 
                       viewMode={viewMode} 
                       onOpenCompare={() => setIsCompareModalOpen(true)}
+                      filterActiveCount={activeBuildingAreas.length + activeCostCodes.length}
+                      onClearFilters={() => { setActiveBuildingAreas([]); setActiveCostCodes([]); }}
+                      filterSlot={
+                        <>
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Building Area</label>
+                              <button onClick={() => navigateToSettings('building_areas')} className="text-slate-400 hover:text-sky-500 transition-colors" title="Manage Building Areas"><Plus size={13} /></button>
+                            </div>
+                            <MultiSelectFilter fullWidth label="Building Area" options={dynamicBuildingAreas} selected={activeBuildingAreas} onChange={setActiveBuildingAreas} placeholder="Search areas..." />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cost Code</label>
+                            <MultiSelectFilter fullWidth label="Cost Code" options={uniqueCostCodes} selected={activeCostCodes} onChange={setActiveCostCodes} placeholder="Search codes..." />
+                          </div>
+                        </>
+                      }
                     />
                   )}
                 </div>
@@ -789,77 +770,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     />
                   </div>
                   
-                  <div className="shrink-0 mb-4 mt-2">
-                    <div className="flex flex-wrap items-center gap-3 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full">
-                      <div className="flex items-center gap-2 pl-2">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filters</span>
-                      </div>
-                      
-                      <div className="h-6 w-px bg-slate-200 dark:bg-slate-800" />
-                      
-                      {/* Type Filter */}
-                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
-                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Type:</span>
-                        <select
-                          value={coordActiveType}
-                          onChange={(e) => setCoordActiveType(e.target.value)}
-                          className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
-                        >
-                          <option value="All">All</option>
-                          {uniqueCoordTypes.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Status Filter */}
-                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700">
-                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Status:</span>
-                        <select
-                          value={coordActiveStatus}
-                          onChange={(e) => setCoordActiveStatus(e.target.value)}
-                          className="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none cursor-pointer"
-                        >
-                          <option value="All">All</option>
-                          {uniqueCoordStatuses.map(status => (
-                            <option key={status} value={status}>{status}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Building Area Filter */}
-                      <MultiSelectFilter
-                        label="Building Area"
-                        options={dynamicBuildingAreas}
-                        selected={coordActiveBuildingAreas}
-                        onChange={setCoordActiveBuildingAreas}
-                        placeholder="Search areas..."
-                      />
-
-                      {/* Discipline Filter */}
-                      <MultiSelectFilter
-                        label="Discipline"
-                        options={disciplineLabels}
-                        selected={coordActiveDisciplines}
-                        onChange={setCoordActiveDisciplines}
-                        placeholder="Search disciplines..."
-                      />
-
-                      {/* Cost Code Filter */}
-                      <MultiSelectFilter
-                        label="Cost Code"
-                        options={uniqueCoordCostCodes}
-                        selected={coordActiveCostCodes}
-                        onChange={setCoordActiveCostCodes}
-                        placeholder="Search codes..."
-                      />
-
-                      <div className="flex-1" />
-                      <button className="text-xs font-medium text-slate-400 hover:text-sky-500 pr-3 transition-colors flex items-center gap-1">
-                        <Plus size={14} /> Add Filter
-                      </button>
-                    </div>
-                  </div>
+                  {/* Filter Toolbar removed — filters are now inline in the grid toolbar via filterSlot */}
 
                   <div className="flex-1 overflow-hidden flex flex-col relative">
                     {isMapVisible && (
@@ -875,7 +786,43 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                       </div>
                     )}
                     {coordinationViewMode.startsWith('table') ? (
-                      <CoordinationTable projectId={projectId} opportunities={filteredCoordinationOpportunities} viewMode={coordinationViewMode.replace('table-', '')} />
+                      <CoordinationTable
+                        projectId={projectId}
+                        opportunities={filteredCoordinationOpportunities}
+                        viewMode={coordinationViewMode.replace('table-', '')}
+                        filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + (coordActiveStatus !== 'All' ? 1 : 0) + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length}
+                        onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatus('All'); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); }}
+                        filterSlot={
+                          <>
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Type</label>
+                              <select value={coordActiveType} onChange={(e) => setCoordActiveType(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 cursor-pointer">
+                                <option value="All">All</option>
+                                {uniqueCoordTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                              </select>
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</label>
+                              <select value={coordActiveStatus} onChange={(e) => setCoordActiveStatus(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 cursor-pointer">
+                                <option value="All">All</option>
+                                {uniqueCoordStatuses.map(status => <option key={status} value={status}>{status}</option>)}
+                              </select>
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Building Area</label>
+                              <MultiSelectFilter fullWidth label="Building Area" options={dynamicBuildingAreas} selected={coordActiveBuildingAreas} onChange={setCoordActiveBuildingAreas} placeholder="Search areas..." />
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Discipline</label>
+                              <MultiSelectFilter fullWidth label="Discipline" options={disciplineLabels} selected={coordActiveDisciplines} onChange={setCoordActiveDisciplines} placeholder="Search disciplines..." />
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cost Code</label>
+                              <MultiSelectFilter fullWidth label="Cost Code" options={uniqueCoordCostCodes} selected={coordActiveCostCodes} onChange={setCoordActiveCostCodes} placeholder="Search codes..." />
+                            </div>
+                          </>
+                        }
+                      />
                     ) : (
                       <CoordinationBoard projectId={projectId} opportunities={filteredCoordinationOpportunities} />
                     )}

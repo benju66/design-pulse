@@ -7,9 +7,10 @@ interface MultiSelectFilterProps {
   selected: string[];
   onChange: (selected: string[]) => void;
   placeholder?: string;
+  fullWidth?: boolean;
 }
 
-export function MultiSelectFilter({ label, options, selected, onChange, placeholder = "Search..." }: MultiSelectFilterProps) {
+export function MultiSelectFilter({ label, options, selected, onChange, placeholder = "Search...", fullWidth = false }: MultiSelectFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,7 +82,7 @@ export function MultiSelectFilter({ label, options, selected, onChange, placehol
   }
 
   return (
-    <div ref={containerRef} className="relative inline-block text-left">
+    <div ref={containerRef} className={`relative text-left ${fullWidth ? 'block w-full' : 'inline-block'}`}>
       {/* Trigger Button */}
       <div 
         className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors hover:border-sky-300 dark:hover:border-sky-700 cursor-pointer select-none"

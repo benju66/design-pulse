@@ -810,3 +810,55 @@ export function useBulkImportCoordinationTasks(projectId: string) {
 
 
 
+
+// -- Master Budget Ledger: Financial Lifecycle Hooks --------------------------
+
+// Queries items marked for the Estimator's Inbox
+export function usePendingEstimateUpdates(projectId: string | null) {
+  return useQuery<Opportunity[], Error>({
+    queryKey: ['pending_estimate_updates', projectId],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('opportunities')
+        .select('*')
+        .eq('project_id', projectId!)
+        .eq('estimate_sync_status', 'Pending Estimate Update')
+        .eq('is_deleted', false)
+        .order('updated_at', { ascending: false });
+      if (error) throw error;
+      return (data || []) as Opportunity[];
+    },
+  });
+}
+
+// Reconciles and incorporates a VE item into an active budget version
+export function useReconcileOpportunity(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    { opportunityId: string; versionId: string; realizedCost: number; note: string }
+  >({
+    mutationFn: async ({ opportunityId, versionId, realizedCost, note }) => {
+      const { error } = await supabase.rpc('reconcile_and_incorporate_opportunity', {
+        p_opp_id: opportunityId,
+        p_version_id: versionId,
+        p_realized_cost: realizedCost,
+        p_note: note,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['pending_estimate_updates', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
+      toast.success('Opportunity reconciled and incorporated successfully.');
+    },
+    onError: (err) => {
+      console.error('Reconciliation Error:', err);
+      toast.error(`Failed to reconcile opportunity: ${err.message}`);
+    },
+  });
+}

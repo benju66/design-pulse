@@ -8,6 +8,7 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { Upload, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, BarChart3, Trash2, Star, Search, X } from 'lucide-react';
 import { useProjectEstimateVersions, useImportEstimateMutation, useActivateEstimateVersion, useDeleteDraftEstimateVersion, useProjectEstimateLines } from '@/hooks/useEstimateQueries';
+import { usePendingEstimateUpdates } from '@/hooks/useOpportunityQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { parseProcoreBudgetExcel } from '@/lib/excel/procoreBudgetParser';
 import { SmartCostCodeCombobox } from '@/components/ui/SmartCostCodeCombobox';
@@ -281,6 +282,9 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
   const [availableHeaders, setAvailableHeaders] = useState<string[]>([]);
   const [activeBudgetCol, setActiveBudgetCol]   = useState<string>('budget amount');
 
+  const { data: pendingEstimates = [] } = usePendingEstimateUpdates(projectId);
+  const [selectedVeIds, setSelectedVeIds] = useState<string[]>([]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Derive cost codes ONCE in parent — not per-row (AGENTS.md C24)
@@ -387,7 +391,7 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
     setImportState('saving');
 
     importMutation.mutate(
-      { versionName: versionName.trim(), versionDate, setActive: setAsActive, rows: stagingRows },
+      { versionName: versionName.trim(), versionDate, setActive: setAsActive, rows: stagingRows, incorporated_ve_ids: selectedVeIds },
       {
         onSuccess: () => {
           setImportState('saved');
@@ -409,6 +413,7 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
     setStagingSearch('');
     setAvailableHeaders([]);
     setActiveBudgetCol('budget amount');
+    setSelectedVeIds([]);
     setImportState('idle');
   }, []);
 
@@ -730,6 +735,46 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
               </table>
             </div>
           </div>
+
+          {/* Pending Estimate Updates Checklist */}
+          {pendingEstimates.length > 0 && (
+            <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 bg-amber-50/50 dark:bg-amber-900/10">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-2 flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-amber-500" />
+                Incorporate Approved Changes
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                The following VE items have been locked and are awaiting estimate incorporation. Select the items that are included in this new budget upload.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2">
+                {pendingEstimates.map(opp => (
+                  <label key={opp.id} className="flex items-start gap-3 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:border-sky-300 dark:hover:border-sky-700 transition-colors">
+                    <input 
+                      type="checkbox"
+                      className="mt-0.5 rounded text-sky-500 focus:ring-sky-500 bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-600 cursor-pointer"
+                      checked={selectedVeIds.includes(opp.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedVeIds(prev => [...prev, opp.id]);
+                        } else {
+                          setSelectedVeIds(prev => prev.filter(id => id !== opp.id));
+                        }
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate" title={opp.title || ''}>{opp.title}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{opp.display_id} | {opp.cost_code}</span>
+                        <span className={`text-xs font-bold ${Number(opp.cost_impact) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {formatCurrency(Number(opp.cost_impact) || 0)}
+                        </span>
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Footer / commit form */}
           <div className="border-t border-slate-100 dark:border-slate-800 px-5 py-4 flex flex-wrap items-end gap-4">

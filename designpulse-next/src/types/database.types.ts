@@ -202,6 +202,7 @@ export interface Database {
           division: string | null
           record_type: string | null
           coordination_details: Json | null
+          item_assumptions: string | null
         }
         Insert: {
           id?: string
@@ -232,6 +233,7 @@ export interface Database {
           division?: string | null
           record_type?: string | null
           coordination_details?: Json | null
+          item_assumptions?: string | null
         }
         Update: {
           id?: string
@@ -262,6 +264,7 @@ export interface Database {
           division?: string | null
           record_type?: string | null
           coordination_details?: Json | null
+          item_assumptions?: string | null
         }
       }
       cost_codes: {
@@ -364,6 +367,35 @@ export interface Database {
         Update: {
           permit_id?: string
           coordination_task_id?: string
+        }
+      }
+      estimate_variance_notes: {
+        Row: {
+          id: string
+          project_id: string
+          estimate_version_id: string
+          cost_code: string | null
+          variance_note: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          estimate_version_id: string
+          cost_code?: string | null
+          variance_note?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          estimate_version_id?: string
+          cost_code?: string | null
+          variance_note?: string
+          created_at?: string
+          updated_at?: string
         }
       }
       opportunity_options: {

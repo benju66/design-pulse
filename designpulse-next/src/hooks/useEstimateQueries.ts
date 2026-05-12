@@ -151,14 +151,18 @@ export function useImportEstimateMutation(projectId: string) {
         // a JSON *array*, causing the RPC's jsonb_typeof() guard to fire ('string'
         // != 'array') and silently insert 0 rows → total_budget = $0.
         const payload = chunk.map((r: EstimateStagingRow) => ({
-          cost_code:     r.cost_code     ?? null,
-          cost_type:     r.cost_type     ?? null,
-          description:   r.description,
-          unit_qty:      r.unit_qty,
-          uom:           r.uom           ?? null,
-          unit_cost:     r.unit_cost,
-          budget_amount: r.budget_amount,
-          display_order: r.display_order,
+          cost_code:        r.cost_code        ?? null,
+          cost_type:        r.cost_type        ?? null,
+          description:      r.description,
+          unit_qty:         r.unit_qty,
+          uom:              r.uom              ?? null,
+          unit_cost:        r.unit_cost,
+          budget_amount:    r.budget_amount,
+          display_order:    r.display_order,
+          item_assumptions: r.item_assumptions ?? null,
+          // Phase 1: variance note fields — RPC conditionally inserts into estimate_variance_notes
+          variance_note:    r.variance_note    ?? null,
+          variance_note_id: r.variance_note_id ?? null,
         }));
 
         const startRow  = chunkIdx * CHUNK_SIZE + 1;

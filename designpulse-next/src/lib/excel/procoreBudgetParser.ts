@@ -245,6 +245,7 @@ export async function parseProcoreBudgetExcel(
       unit_cost:           unitCost,
       budget_amount:       budgetAmt,
       display_order:       order++,
+      item_assumptions:    null,  // Populated in Step 3 (Phase 1) via column detection
       procore_raw_code:    rawCode,
       is_matched:          normalized !== null && knownCodes.has(normalized),
       is_budget_resolved:  isBudgetResolved,

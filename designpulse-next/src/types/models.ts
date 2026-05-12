@@ -22,6 +22,7 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   incorporated_version_id?: string | null;
   estimator_assignee?: string | null;
   is_budget_line?: boolean;
+  item_assumptions?: string | null;
   // Ledger financial columns (populated only for is_budget_line=true rows from get_master_ledger_grid)
   baseline_budget?: number;
   approved_changes?: number;
@@ -238,6 +239,7 @@ export interface ProjectEstimateLine {
   unit_cost: number;
   budget_amount: number;
   display_order: number;
+  item_assumptions: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -250,10 +252,27 @@ export interface EstimateStagingRow extends Omit<ProjectEstimateLine, 'version_i
   is_budget_resolved:  boolean; // true when parser found a real value (manual, cached formula, or column remap).
                                 // false when all sources returned 0/null — UI shows amber warning (informational only,
                                 // NOT a block; $0 budgets and early estimates are valid user data).
+  // Phase 1: variance note captured during upload staging when delta is detected.
+  variance_note?:      string;
+  // Client-minted UUID for the variance note row (AGENTS.md C8 — optimistic stability).
+  variance_note_id?:   string;
   // Client-only: raw numeric values keyed by lowercase column header (e.g. "budget amount", "unit cost").
   // Populated during parse so the staging column picker can remap without re-reading the file.
   // Stripped by the mutation hook's explicit payload map — never sent to the DB.
   _rawCols?:           Record<string, number>;
+}
+
+// Phase 1: Variance note captured during estimate upload to explain cost swings.
+// Immutable once the parent version is finalized (is_finalized = true).
+// Granularity: (estimate_version_id, cost_code) — no cost_type drill-down.
+export interface EstimateVarianceNote {
+  id: string;
+  project_id: string;
+  estimate_version_id: string;
+  cost_code: string | null;
+  variance_note: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BudgetWaterfallRow {

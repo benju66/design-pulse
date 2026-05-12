@@ -112,10 +112,14 @@ CREATE TABLE IF NOT EXISTS opportunities (
   record_type text DEFAULT 'VE' CHECK (record_type IN ('VE', 'Coordination')),
   coordination_details jsonb DEFAULT '{}'::jsonb,
   description text,
+  item_assumptions text,
   is_deleted boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Safely add item_assumptions if the table already exists
+ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS item_assumptions text;
 
 -- 4. Opportunity Options (Contenders) Table
 CREATE TABLE IF NOT EXISTS opportunity_options (
@@ -577,6 +581,8 @@ BEGIN
     v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
   ELSIF TG_TABLE_NAME = 'opportunity_options' THEN
     SELECT project_id INTO v_project_id FROM opportunities WHERE id = CASE WHEN TG_OP = 'DELETE' THEN OLD.opportunity_id ELSE NEW.opportunity_id END;
+  ELSIF TG_TABLE_NAME = 'estimate_variance_notes' THEN
+    v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
   END IF;
 
   SELECT enable_audit_logging INTO v_audit_enabled FROM project_settings WHERE project_id = v_project_id;
@@ -587,7 +593,8 @@ BEGIN
 
   IF TG_OP = 'UPDATE' THEN
     IF (row_to_json(OLD)::jsonb - 'updated_at') IS NOT DISTINCT FROM (row_to_json(NEW)::jsonb - 'updated_at') THEN RETURN NEW; END IF;
-    IF OLD.is_deleted = false AND NEW.is_deleted = true THEN
+    -- Soft-delete detection: only for tables that carry is_deleted (opportunities, opportunity_options, permits)
+    IF TG_TABLE_NAME IN ('opportunities', 'opportunity_options', 'permits') AND OLD.is_deleted = false AND NEW.is_deleted = true THEN
       INSERT INTO audit_logs (record_id, table_name, action_type, old_payload, user_id, project_id) VALUES (NEW.id, TG_TABLE_NAME, 'SOFT_DELETE', row_to_json(OLD)::jsonb, auth.uid(), v_project_id);
     ELSE
       INSERT INTO audit_logs (record_id, table_name, action_type, old_payload, new_payload, user_id, project_id) VALUES (NEW.id, TG_TABLE_NAME, 'UPDATE', row_to_json(OLD)::jsonb, row_to_json(NEW)::jsonb, auth.uid(), v_project_id);
@@ -1769,9 +1776,12 @@ CREATE TABLE IF NOT EXISTS public.project_estimates (
   unit_cost      numeric NOT NULL DEFAULT 0,
   budget_amount  numeric NOT NULL DEFAULT 0,
   display_order  integer NOT NULL DEFAULT 0,
+  item_assumptions text,
   created_at     timestamptz NOT NULL DEFAULT now(),
   updated_at     timestamptz NOT NULL DEFAULT now()
 );
+-- Safely add item_assumptions if the table already exists
+ALTER TABLE public.project_estimates ADD COLUMN IF NOT EXISTS item_assumptions text;
 CREATE INDEX IF NOT EXISTS idx_estimates_version ON public.project_estimates(version_id);
 CREATE INDEX IF NOT EXISTS idx_estimates_project  ON public.project_estimates(project_id);
 ALTER TABLE public.project_estimates ENABLE ROW LEVEL SECURITY;
@@ -1801,6 +1811,79 @@ DROP TRIGGER IF EXISTS trg_estimates_updated_at ON public.project_estimates;
 CREATE TRIGGER trg_estimates_updated_at
   BEFORE UPDATE ON public.project_estimates
   FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
+
+-- ── estimate_variance_notes ─────────────────────────────────────────────────
+-- Captures explanations for cost swings between estimate versions.
+-- Granularity: (version_id, cost_code) — no cost_type drill-down.
+-- Immutable once the parent version is finalized (is_finalized = true).
+-- cost_code is nullable to support unmatched/unmapped rows during import.
+CREATE TABLE IF NOT EXISTS public.estimate_variance_notes (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id            uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  estimate_version_id   uuid NOT NULL REFERENCES public.project_estimate_versions(id) ON DELETE CASCADE,
+  cost_code             text,
+  variance_note         text NOT NULL DEFAULT '',
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  updated_at            timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_variance_notes_version ON public.estimate_variance_notes(estimate_version_id);
+CREATE INDEX IF NOT EXISTS idx_variance_notes_project ON public.estimate_variance_notes(project_id);
+ALTER TABLE public.estimate_variance_notes ENABLE ROW LEVEL SECURITY;
+
+-- RLS: mirrors project_estimates pattern (AGENTS.md Rule B — uses get_user_project_role, not direct project_members query)
+DROP POLICY IF EXISTS "Members can view variance notes" ON public.estimate_variance_notes;
+CREATE POLICY "Members can view variance notes"
+  ON public.estimate_variance_notes FOR SELECT
+  USING (public.is_platform_admin() OR public.get_user_project_role(project_id) IS NOT NULL);
+DROP POLICY IF EXISTS "Admins can manage variance notes" ON public.estimate_variance_notes;
+CREATE POLICY "Admins can manage variance notes"
+  ON public.estimate_variance_notes FOR ALL
+  USING (public.has_project_permission(project_id, 'can_edit_project_settings'));
+
+-- Immutability: prevent edits/deletes once the parent version is finalized.
+-- Escape hatch honored for SECURITY DEFINER RPCs (AGENTS.md Rule B).
+CREATE OR REPLACE FUNCTION enforce_variance_note_immutability()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_is_finalized boolean;
+BEGIN
+  -- Escape hatch for authorized RPCs
+  IF current_setting('designpulse.bypass_immutability', true) = 'true' THEN
+    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    SELECT is_finalized INTO v_is_finalized
+    FROM project_estimate_versions WHERE id = OLD.estimate_version_id;
+  ELSE
+    SELECT is_finalized INTO v_is_finalized
+    FROM project_estimate_versions WHERE id = NEW.estimate_version_id;
+  END IF;
+
+  IF v_is_finalized IS TRUE THEN
+    RAISE EXCEPTION 'Variance notes are immutable once the estimate version is finalized.';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_variance_note_immutability ON public.estimate_variance_notes;
+CREATE TRIGGER trg_enforce_variance_note_immutability
+  BEFORE UPDATE OR DELETE ON public.estimate_variance_notes
+  FOR EACH ROW EXECUTE FUNCTION enforce_variance_note_immutability();
+
+-- Timestamp trigger
+DROP TRIGGER IF EXISTS trg_variance_notes_updated_at ON public.estimate_variance_notes;
+CREATE TRIGGER trg_variance_notes_updated_at
+  BEFORE UPDATE ON public.estimate_variance_notes
+  FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
+
+-- Audit trigger (process_audit_log must be updated to handle this table — see below)
+DROP TRIGGER IF EXISTS trg_audit_variance_notes ON public.estimate_variance_notes;
+CREATE TRIGGER trg_audit_variance_notes
+  AFTER INSERT OR UPDATE OR DELETE ON public.estimate_variance_notes
+  FOR EACH ROW EXECUTE FUNCTION process_audit_log();
 
 -- ── RPC 1: create_estimate_version ──────────────────────────────────────────
 -- Called once per import. Creates the version header and optionally
@@ -1833,6 +1916,9 @@ GRANT  EXECUTE ON FUNCTION public.create_estimate_version(uuid, text, date, bool
 -- Called N times in 50-row chunks (AGENTS.md C20).
 -- Set-based insert; no FOR loops (AGENTS.md C21).
 -- Cross-ownership guard prevents cross-project data injection.
+-- Strict transaction: any RAISE EXCEPTION rolls back the entire chunk atomically —
+-- PL/pgSQL functions run inside the caller's transaction by default.
+-- Phase 1 additions: item_assumptions (text) + variance_note → estimate_variance_notes.
 CREATE OR REPLACE FUNCTION public.bulk_append_estimate_lines(
   p_version_id uuid,
   p_project_id uuid,
@@ -1853,9 +1939,11 @@ BEGIN
   IF jsonb_typeof(COALESCE(p_payload, '[]'::jsonb)) != 'array' THEN
     RAISE EXCEPTION 'p_payload must be a JSON array';
   END IF;
+
+  -- ── Insert estimate lines (with optional item_assumptions) ────────────────
   INSERT INTO project_estimates (
     version_id, project_id, cost_code, cost_type, description,
-    unit_qty, uom, unit_cost, budget_amount, display_order
+    unit_qty, uom, unit_cost, budget_amount, display_order, item_assumptions
   )
   SELECT
     p_version_id, p_project_id,
@@ -1866,8 +1954,24 @@ BEGIN
     NULLIF(val->>'uom', ''),
     COALESCE((val->>'unit_cost')::numeric, 0),
     ROUND(COALESCE((val->>'budget_amount')::numeric, 0), 2),
-    COALESCE((val->>'display_order')::integer, 0)
+    COALESCE((val->>'display_order')::integer, 0),
+    NULLIF(TRIM(val->>'item_assumptions'), '')
   FROM jsonb_array_elements(p_payload) AS val;
+
+  -- ── Insert variance notes (only for rows that carry a non-empty note) ─────
+  -- Set-based; filters out rows with NULL/empty variance_note at the SQL level.
+  -- cost_code is nullable to support unmapped rows (AGENTS.md Phase 1 edge case).
+  INSERT INTO estimate_variance_notes (
+    id, project_id, estimate_version_id, cost_code, variance_note
+  )
+  SELECT
+    COALESCE((val->>'variance_note_id')::uuid, gen_random_uuid()),
+    p_project_id,
+    p_version_id,
+    NULLIF(val->>'cost_code', ''),
+    TRIM(val->>'variance_note')
+  FROM jsonb_array_elements(p_payload) AS val
+  WHERE NULLIF(TRIM(val->>'variance_note'), '') IS NOT NULL;
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.bulk_append_estimate_lines(uuid, uuid, jsonb) FROM PUBLIC, anon;

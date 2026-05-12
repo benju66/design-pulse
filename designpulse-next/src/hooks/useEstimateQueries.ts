@@ -39,6 +39,8 @@ const CHUNK_SIZE = 50; // AGENTS.md C20 — Kong gateway protection
 export const estimateKeys = {
   versions:  (projectId: string) => ['estimate-versions', projectId] as const,
   lines:     (versionId: string) => ['estimate-lines',    versionId] as const,
+  lineDetails: (projectId: string, costCode: string) => ['estimate-line-details', projectId, costCode] as const,
+  varianceHistory: (projectId: string, costCode: string) => ['variance-history', projectId, costCode] as const,
   waterfall: (projectId: string, versionId?: string | null) => 
     versionId !== undefined ? ['budget-waterfall', projectId, versionId] as const : ['budget-waterfall', projectId] as const,
 };
@@ -322,9 +324,10 @@ export function useMasterLedgerGrid(projectId: string | null) {
 
 // -- useEstimateLineDetails ---------------------------------------------------
 // Fetches detailed estimate lines (Labor, Material, etc.) for a specific cost code.
+// Audit Fix #4: Added ProjectEstimateLine[] generic to prevent untyped any[] return.
 export function useEstimateLineDetails(projectId: string | null, costCode: string | null) {
-  return useQuery({
-    queryKey: ['estimate-line-details', projectId, costCode],
+  return useQuery<ProjectEstimateLine[]>({
+    queryKey: estimateKeys.lineDetails(projectId ?? '', costCode ?? ''),
     enabled: !!projectId && !!costCode,
     queryFn: async () => {
       // Find the active version ID
@@ -346,7 +349,7 @@ export function useEstimateLineDetails(projectId: string | null, costCode: strin
         .order('display_order', { ascending: true });
         
       if (error) throw error;
-      return data || [];
+      return (data ?? []) as ProjectEstimateLine[];
     },
   });
 }
@@ -368,6 +371,82 @@ export function useEstimateVarianceNotes(projectId: string | null, versionId: st
         .eq('estimate_version_id', versionId!);
       if (error) throw error;
       return (data ?? []) as EstimateVarianceNote[];
+    },
+  });
+}
+
+// ── Phase 3: Budget Detail Panel Hooks ───────────────────────────────────────
+
+/** Extended type for variance notes with the joined version name */
+export interface VarianceNoteWithVersion extends EstimateVarianceNote {
+  version_name: string;
+}
+
+// ── useVarianceHistoryByCostCode ─────────────────────────────────────────────
+// Fetches ALL variance notes across every estimate version for a given
+// (project_id, cost_code), ordered by created_at DESC (newest first).
+// Powers the read-only Variance History timeline in BudgetDetailView.
+// 5-minute staleTime — variance notes are immutable once parent version is finalized.
+export function useVarianceHistoryByCostCode(projectId: string | null, costCode: string | null) {
+  return useQuery<VarianceNoteWithVersion[]>({
+    queryKey: estimateKeys.varianceHistory(projectId ?? '', costCode ?? ''),
+    enabled: !!projectId && !!costCode,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('estimate_variance_notes')
+        .select('*, project_estimate_versions!inner(version_name)')
+        .eq('project_id', projectId!)
+        .eq('cost_code', costCode!)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      return (data ?? []).map((row) => {
+        const joined = row as Record<string, unknown>;
+        const versionData = joined.project_estimate_versions as
+          | { version_name: string }
+          | null;
+        return {
+          id: row.id as string,
+          project_id: row.project_id as string,
+          estimate_version_id: row.estimate_version_id as string,
+          cost_code: row.cost_code as string | null,
+          variance_note: row.variance_note as string,
+          created_at: row.created_at as string,
+          updated_at: row.updated_at as string,
+          version_name: versionData?.version_name ?? 'Unknown',
+        };
+      });
+    },
+  });
+}
+
+// ── useUpdateEstimateAssumptions ─────────────────────────────────────────────
+// Saves edits to item_assumptions on project_estimates for a specific cost code
+// within the active version. Uses SECURITY DEFINER RPC (Audit Fix #1) to bypass
+// the can_edit_project_settings RLS while checking can_edit_records instead.
+// Cache invalidation targets estimateKeys.lineDetails() (must match Step 2b refactor).
+export function useUpdateEstimateAssumptions(projectId: string) {
+  const qc = useQueryClient();
+
+  return useMutation<void, Error, { costCode: string; assumptions: string }>({
+    mutationFn: async ({ costCode, assumptions }) => {
+      const { error } = await supabase.rpc('update_estimate_assumptions', {
+        p_project_id: projectId,
+        p_cost_code: costCode,
+        p_assumptions: assumptions || null, // AGENTS.md C11 — null, not undefined
+      });
+      if (error) throw error;
+    },
+
+    onSuccess: (_data, variables) => {
+      // Invalidate the detail view so the panel reflects the saved text
+      qc.invalidateQueries({
+        queryKey: estimateKeys.lineDetails(projectId, variables.costCode),
+      });
+      // Update the FileText icon in the grid compound cell
+      qc.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
     },
   });
 }

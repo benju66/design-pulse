@@ -100,7 +100,7 @@ export default function DetailPanel({ projectId, opportunities, viewMode }: Deta
       <div className="flex-1 overflow-auto p-4 bg-slate-50 dark:bg-slate-900/50 min-w-0 w-full">
         <div className="-m-4 border-none shadow-none bg-transparent h-full">
           {isBudgetRow ? (
-            <div className="p-4 h-[calc(100vh-4rem)]">
+            <div className="p-4 h-full flex flex-col">
               <BudgetDetailView projectId={projectId} costCode={selectedOpportunityId.replace('budget-', '')} />
             </div>
           ) : (

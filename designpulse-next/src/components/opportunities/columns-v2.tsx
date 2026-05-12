@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell } from './ReadOnlyCell';
+import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell, CostImpactAggregatedCell, DaysImpactAggregatedCell, LedgerFinancialCell, LedgerFinancialAggregatedCell, LedgerDeltaCell, LedgerDeltaAggregatedCell, LedgerProjectedCell, LedgerProjectedAggregatedCell } from './ReadOnlyCell';
 import { OptionsCell } from './OptionsCell';
 import { InlineOptionCell } from './InlineOptionCell';
 import { ColumnDef, Row, CellContext } from '@tanstack/react-table';
@@ -123,8 +123,14 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
       { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
       ...dynamicOptionColumns,
-      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell, aggregationFn: 'sum' },
-      { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell, aggregationFn: 'sum' },
+      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell, aggregatedCell: CostImpactAggregatedCell, aggregationFn: 'sum' },
+      { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell, aggregatedCell: DaysImpactAggregatedCell, aggregationFn: 'sum' },
+      // ── Ledger Financial Narrative Columns (hidden in Value Matrix via columnVisibility) ──
+      { accessorKey: 'baseline_budget', header: 'Baseline', cell: LedgerFinancialCell, aggregatedCell: LedgerFinancialAggregatedCell, aggregationFn: 'sum', size: 130, enableSorting: false },
+      { accessorKey: 'approved_changes', header: 'Approved Δ', cell: LedgerDeltaCell, aggregatedCell: LedgerDeltaAggregatedCell, aggregationFn: 'sum', size: 130, enableSorting: false },
+      { accessorKey: 'revised_budget', header: 'Revised', cell: LedgerFinancialCell, aggregatedCell: LedgerFinancialAggregatedCell, aggregationFn: 'sum', size: 130, enableSorting: false },
+      { accessorKey: 'pending_changes', header: 'Pending Δ', cell: LedgerDeltaCell, aggregatedCell: LedgerDeltaAggregatedCell, aggregationFn: 'sum', size: 130, enableSorting: false },
+      { accessorKey: 'projected_final', header: 'Projected', cell: LedgerProjectedCell, aggregatedCell: LedgerProjectedAggregatedCell, aggregationFn: 'sum', size: 140, enableSorting: false },
       { accessorKey: 'status', header: 'VE Status', cell: StatusCell },
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
       { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
@@ -158,8 +164,17 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
       { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
       { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
-      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell, aggregationFn: 'sum' },
-      { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell, aggregationFn: 'sum' },
+      { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell, aggregatedCell: CostImpactAggregatedCell, aggregationFn: 'sum' },
+      { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell, aggregatedCell: DaysImpactAggregatedCell, aggregationFn: 'sum' },
+      // ── Ledger Financial Narrative Columns ──────────────────────────────────────
+      // Visible only in Budget Ledger view (controlled by isLedgerView → columnVisibility).
+      // aggregationFn: 'sum' enables native TanStack rollup for group rows.
+      // aggregatedCell renders bold values for group row totals.
+      { accessorKey: 'baseline_budget', header: 'Baseline', cell: LedgerFinancialCell, aggregatedCell: LedgerFinancialAggregatedCell, aggregationFn: 'sum', size: 130, enableSorting: false },
+      { accessorKey: 'approved_changes', header: 'Approved Δ', cell: LedgerDeltaCell, aggregatedCell: LedgerDeltaAggregatedCell, aggregationFn: 'sum', size: 130, enableSorting: false },
+      { accessorKey: 'revised_budget', header: 'Revised', cell: LedgerFinancialCell, aggregatedCell: LedgerFinancialAggregatedCell, aggregationFn: 'sum', size: 130, enableSorting: false },
+      { accessorKey: 'pending_changes', header: 'Pending Δ', cell: LedgerDeltaCell, aggregatedCell: LedgerDeltaAggregatedCell, aggregationFn: 'sum', size: 130, enableSorting: false },
+      { accessorKey: 'projected_final', header: 'Projected', cell: LedgerProjectedCell, aggregatedCell: LedgerProjectedAggregatedCell, aggregationFn: 'sum', size: 140, enableSorting: false },
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
       { id: 'division', accessorFn: (row: Opportunity) => row.division ? row.division.substring(0, 6) : 'Uncategorized', header: 'Division', cell: DivisionCell, size: 120, sortingFn: divisionSort },
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 150 },

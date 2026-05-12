@@ -2548,12 +2548,15 @@ ALTER TABLE public.opportunities
 CREATE OR REPLACE FUNCTION public.get_master_ledger_grid(p_project_id UUID)
 RETURNS TABLE (
   cost_code text,
+  csi_division text,
   description text,
   old_budget numeric,
   new_budget numeric,
   locked_ve numeric,
-  pending_ve numeric
-) LANGUAGE plpgsql SECURITY DEFINER AS $$
+  pending_ve numeric,
+  revised_budget numeric,
+  projected_final numeric
+) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF NOT public.has_project_permission(p_project_id, 'can_view_project') THEN
     RAISE EXCEPTION 'Unauthorized';
@@ -2579,11 +2582,14 @@ BEGIN
   )
   SELECT 
     COALESCE(b.cost_code, v.cost_code) as cost_code,
+    LEFT(COALESCE(b.cost_code, v.cost_code), 2) as csi_division,
     COALESCE(b.description, 'VE Item') as description,
     COALESCE(b.amount, 0) as old_budget,
     COALESCE(b.amount, 0) as new_budget,
     COALESCE(v.locked_ve, 0) as locked_ve,
-    COALESCE(v.pending_ve, 0) as pending_ve
+    COALESCE(v.pending_ve, 0) as pending_ve,
+    COALESCE(b.amount, 0) + COALESCE(v.locked_ve, 0) as revised_budget,
+    COALESCE(b.amount, 0) + COALESCE(v.locked_ve, 0) + COALESCE(v.pending_ve, 0) as projected_final
   FROM active_budget b
   FULL OUTER JOIN ve_impacts v ON b.cost_code = v.cost_code;
 END;

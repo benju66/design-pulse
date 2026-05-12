@@ -44,6 +44,13 @@ import { Opportunity, OpportunityOption, EstimateComparisonRow, ProjectEstimateV
 // Used to exclude them from ve_column_order persistence and column ordering logic (Bug #5).
 const COMPARE_COLUMN_IDS = ['compare_version_a', 'compare_version_b', 'compare_delta'] as const;
 
+// IDs of the five ledger financial narrative columns.
+// Excluded from ve_column_order persistence — ledger column order is fixed by design.
+const LEDGER_COLUMN_IDS = ['baseline_budget', 'approved_changes', 'revised_budget', 'pending_changes', 'projected_final'] as const;
+
+// Combined set for all non-persistable column IDs
+const EXCLUDED_COLUMN_IDS = [...COMPARE_COLUMN_IDS, ...LEDGER_COLUMN_IDS] as const;
+
 
 interface OpportunityGridProps {
   projectId: string;
@@ -52,6 +59,7 @@ interface OpportunityGridProps {
   onOpenCompare?: () => void;
   isolateState?: boolean;
   hideGhostRow?: boolean;
+  isLedgerView?: boolean;
   filterSlot?: ReactNode;
   filterActiveCount?: number;
   onClearFilters?: () => void;
@@ -75,19 +83,20 @@ interface GroupedRowProps {
   virtualRow: VirtualItem;
   measureElement: (el: Element | null) => void;
   visibleColumnIds: string;
-  rawCostCodes?: any[];
+  rawCostCodes?: unknown[];
   isExpanded: boolean;
+  isLedgerView: boolean;
   divisionDeltaMap?: Record<string, number>; // Bug #9: passed as explicit prop, not via table.options.meta
 }
 
-const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded, divisionDeltaMap }: GroupedRowProps) => {
+const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded, isLedgerView, divisionDeltaMap }: GroupedRowProps) => {
   const divisionVal = row.getValue('division') as string;
   let divisionLabel = divisionVal ? `${divisionVal}` : 'Uncategorized';
   
   if (divisionVal === 'Uncategorized') {
     divisionLabel = 'Uncategorized';
   } else if (divisionVal && rawCostCodes.length > 0) {
-    const match = rawCostCodes.find(c => c.code === divisionVal || c.code.startsWith(divisionVal));
+    const match = (rawCostCodes as Array<{ code: string; description?: string }>).find(c => c.code === divisionVal || c.code.startsWith(divisionVal));
     const divNum = divisionVal.substring(0, 2);
     if (match && match.description) {
       divisionLabel = `DIVISION ${divNum} — ${match.description.toUpperCase()}`;
@@ -102,6 +111,73 @@ const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCos
     ? (divisionDeltaMap[divisionPrefix] ?? null)
     : null;
 
+  // ── Ledger Mode: Hybrid ColSpan Layout ──────────────────────────────────────
+  // Split visible cells into "label" (non-financial) and "financial" (aggregated).
+  // The label portion gets a single colSpan td with the group key; each financial
+  // cell renders individually under its header. This eliminates the staircase effect.
+  if (isLedgerView) {
+    const isDivisionLevel = row.depth === 0;
+    const groupKey = isDivisionLevel ? divisionLabel : (() => {
+      const costCodeVal = row.getValue('cost_code') as string;
+      if (!costCodeVal) return 'Uncategorized';
+      const match = (rawCostCodes as Array<{ code: string; description?: string }>).find(c => c.code === costCodeVal);
+      return match?.description ? `${costCodeVal} — ${match.description}` : costCodeVal;
+    })();
+
+    const depthStyles = isDivisionLevel
+      ? 'bg-slate-200/80 dark:bg-slate-800'
+      : 'bg-slate-100/60 dark:bg-slate-800/60';
+
+    // Partition cells by POSITION: find the first financial column and split there.
+    // Label colSpan covers everything before the first financial cell.
+    // Each cell from the first financial onward gets its own <td>.
+    const allCells = row.getVisibleCells();
+    const financialCellIds = new Set(['cost_impact', 'days_impact', 'baseline_budget', 'approved_changes', 'revised_budget', 'pending_changes', 'projected_final']);
+    const firstFinancialIdx = allCells.findIndex(c => financialCellIds.has(c.column.id));
+    const labelColSpan = firstFinancialIdx > 0 ? firstFinancialIdx : 1;
+    const trailingCells = firstFinancialIdx > 0 ? allCells.slice(firstFinancialIdx) : allCells.slice(1);
+
+    return (
+      <tbody
+        ref={measureElement}
+        data-index={virtualRow.index}
+        className={`border-b border-slate-200 dark:border-slate-700 ${depthStyles}`}
+      >
+        <tr>
+          {/* Label: single colSpan td covering everything before the first financial column */}
+          <td
+            colSpan={labelColSpan}
+            className="max-w-0 px-4 py-2.5 cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-700/50 overflow-hidden"
+            onClick={row.getToggleExpandedHandler()}
+            title={groupKey}
+          >
+            <span className="flex items-center gap-2 min-w-0" style={{ paddingLeft: row.depth * 20 }}>
+              <span className="text-slate-400 text-xs shrink-0">{isExpanded ? '▼' : '▶'}</span>
+              <span className={`truncate ${isDivisionLevel ? 'font-bold text-sm text-slate-200' : 'font-semibold text-sm text-slate-300'}`}>
+                {groupKey}
+              </span>
+              <span className="text-xs text-slate-500 font-normal shrink-0">
+                ({row.subRows.length})
+              </span>
+            </span>
+          </td>
+          {/* Remaining cells: financial ones render aggregated values, others render empty */}
+          {trailingCells.map(cell => (
+            <td key={cell.id} className="px-0 py-0">
+              {financialCellIds.has(cell.column.id)
+                ? flexRender(
+                    cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell,
+                    cell.getContext()
+                  )
+                : null}
+            </td>
+          ))}
+        </tr>
+      </tbody>
+    );
+  }
+
+  // ── Value Matrix Mode: Original Colspan Layout ────────────────────────────
   return (
     <tbody 
       ref={measureElement}
@@ -163,6 +239,8 @@ const MemoizedGroupedRow = React.memo(({ row, virtualRow, measureElement, rawCos
 }, (prev: GroupedRowProps, next: GroupedRowProps) => {
   return (
     prev.isExpanded === next.isExpanded &&
+    prev.isLedgerView === next.isLedgerView &&
+    prev.row.id === next.row.id &&
     prev.row.getValue('cost_impact') === next.row.getValue('cost_impact') &&
     prev.row.getValue('days_impact') === next.row.getValue('days_impact') &&
     prev.visibleColumnIds === next.visibleColumnIds &&
@@ -283,7 +361,7 @@ const MemoizedGridRowV2 = React.memo(({ row, virtualRow, isSelected, viewMode, m
   );
 });
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, filterSlot, filterActiveCount = 0, onClearFilters, comparisonMap = {}, divisionDeltaMap = {}, estimateVersions = [], compareVersionA = null, compareVersionB = null, isCompareActive = false, onSetCompareVersionA, onSetCompareVersionB, onSetIsCompareActive }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, comparisonMap = {}, divisionDeltaMap = {}, estimateVersions = [], compareVersionA = null, compareVersionB = null, isCompareActive = false, onSetCompareVersionA, onSetCompareVersionB, onSetIsCompareActive }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -353,7 +431,14 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const [expanded, setExpanded] = useState<ExpandedState>({});
   const [sorting, setSorting] = useState<SortingState>([{ id: 'division', desc: false }]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
-  const [grouping, setGrouping] = useState<GroupingState>(['division']);
+  const [grouping, setGrouping] = useState<GroupingState>(
+    isLedgerView ? ['division', 'cost_code'] : ['division']
+  );
+
+  // Sync grouping when isLedgerView changes without remount (e.g., sidebar nav)
+  useEffect(() => {
+    setGrouping(isLedgerView ? ['division', 'cost_code'] : ['division']);
+  }, [isLedgerView]);
   
 const EMPTY_VISIBILITY: VisibilityState = {};
 
@@ -382,8 +467,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     const hiddenIds = settings.ve_column_order.filter((c: any) => c.visible === false).map((c: any) => c.id);
     return columns.filter((c: any) => {
       const id = c.accessorKey || c.id;
-      // Bug #5: always keep compare overlay cols in the active set regardless of ve_column_order
-      if ((COMPARE_COLUMN_IDS as readonly string[]).includes(id)) return true;
+      // Bug #5: always keep compare overlay & ledger cols in the active set regardless of ve_column_order
+      if ((EXCLUDED_COLUMN_IDS as readonly string[]).includes(id)) return true;
       return !hiddenIds.includes(id);
     });
   }, [columns, settings?.ve_column_order]);
@@ -393,11 +478,11 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       const savedOrder = settings.ve_column_order;
       const configuredIds = typeof savedOrder[0] === 'string' ? savedOrder : savedOrder.map((c: any) => c.id);
       
-      // Bug #5: exclude overlay column IDs from the order-managed set so they never
+      // Bug #5: exclude overlay & ledger column IDs from the order-managed set so they never
       // enter ve_column_order persistence and cause stale visibility on page reload.
       const allColIds = activeColumns
-        .map(c => (c as any).accessorKey || c.id)
-        .filter((id): id is string => !!id && !(COMPARE_COLUMN_IDS as readonly string[]).includes(id));
+        .map(c => ('accessorKey' in c ? c.accessorKey : c.id) as string | undefined)
+        .filter((id): id is string => !!id && !(EXCLUDED_COLUMN_IDS as readonly string[]).includes(id));
       
       // Explicitly pin UI columns to the front
       const pinnedFront = ['select', 'open_panel', 'display_id', 'title'].filter(id => allColIds.includes(id));
@@ -417,7 +502,19 @@ const EMPTY_VISIBILITY: VisibilityState = {};
         !dynamicOptionIds.includes(id as string)
       );
       
-      setColumnOrder([...pinnedFront, ...dynamicOptionIds, ...activeConfiguredIds, ...unconfiguredIds] as string[]);
+      // Inject ledger columns at their fixed position (right after days_impact) so
+      // the financial narrative flows left-to-right. They're excluded from
+      // ve_column_order persistence but need explicit positional injection here.
+      const baseOrder = [...pinnedFront, ...dynamicOptionIds, ...activeConfiguredIds, ...unconfiguredIds] as string[];
+      const daysIdx = baseOrder.indexOf('days_impact');
+      const ledgerIds = [...LEDGER_COLUMN_IDS] as string[];
+      if (daysIdx !== -1) {
+        baseOrder.splice(daysIdx + 1, 0, ...ledgerIds);
+      } else {
+        // Fallback: append after the pinned+dynamic block
+        baseOrder.push(...ledgerIds);
+      }
+      setColumnOrder(baseOrder);
     }
   }, [settings?.ve_column_order, activeColumns, isolateState]);
 
@@ -435,6 +532,10 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     columns: activeColumns,
     state: { expanded, columnVisibility, columnOrder, sorting, globalFilter, grouping, columnPinning },
     getSubRows: (row) => {
+      // Ledger view: hierarchy is entirely managed by getGroupedRowModel via grouping state.
+      // getSubRows must be disabled to avoid corrupting the grouped row tree (F1 fix).
+      if (isLedgerView) return [];
+      
       // Disable subrows completely in Flat (Matrix) View to render contenders horizontally
       if (viewMode === 'flat') return [];
       
@@ -487,6 +588,28 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       compare_delta: isActive,
     }));
   }, [comparisonMap]); // comparisonMap is a stable useMemo reference from page.tsx
+
+  // Ledger columns: visible only in Budget Ledger view, hidden in Value Matrix.
+  // Also hide columns that are redundant in the grouped hierarchy:
+  // - division / cost_code: already displayed in group row headers
+  // - expander: group rows have built-in expand toggles
+  // - options: not relevant for budget line items
+  useEffect(() => {
+    setColumnVisibility(prev => ({
+      ...prev,
+      // Show ledger financial columns
+      baseline_budget: isLedgerView,
+      approved_changes: isLedgerView,
+      revised_budget: isLedgerView,
+      pending_changes: isLedgerView,
+      projected_final: isLedgerView,
+      // Hide columns redundant in grouped hierarchy
+      division: !isLedgerView,
+      cost_code: !isLedgerView,
+      expander: !isLedgerView,
+      options: !isLedgerView,
+    }));
+  }, [isLedgerView]);
 
 
   const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
@@ -744,8 +867,9 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                   virtualRow={virtualRow}
                   measureElement={virtualizer.measureElement}
                   visibleColumnIds={visibleColumnIds}
-                  rawCostCodes={(table.options.meta as any)?.rawCostCodes || []}
+                  rawCostCodes={(table.options.meta as Record<string, unknown>)?.rawCostCodes as unknown[] || []}
                   isExpanded={row.getIsExpanded()}
+                  isLedgerView={isLedgerView}
                   divisionDeltaMap={divisionDeltaMap}
                 />
               );

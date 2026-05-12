@@ -256,11 +256,17 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       project_id: projectId,
       title: row.description || `Budget: ${row.cost_code}`,
       cost_code: row.cost_code,
-      division: row.cost_code ? row.cost_code.substring(0, 2) + '0000' : 'Uncategorized',
+      division: row.csi_division ? row.csi_division + '0000' : 'Uncategorized',
       status: 'Approved',
       cost_impact: row.new_budget,
       days_impact: 0,
       is_budget_line: true,
+      // Ledger financial columns — server-computed (AGENTS.md C5)
+      baseline_budget: row.new_budget,
+      approved_changes: row.locked_ve,
+      revised_budget: row.revised_budget,
+      pending_changes: row.pending_ve,
+      projected_final: row.projected_final,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       priority: 'Low',
@@ -651,6 +657,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                       projectId={projectId} 
                       data={filteredOpportunities} 
                       viewMode={viewMode} 
+                      isLedgerView
+                      hideGhostRow
                       onOpenCompare={() => setIsCompareModalOpen(true)}
                       filterActiveCount={activeBuildingAreas.length + activeCostCodes.length}
                       onClearFilters={() => { setActiveBuildingAreas([]); setActiveCostCodes([]); }}

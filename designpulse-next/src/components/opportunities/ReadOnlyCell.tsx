@@ -216,3 +216,99 @@ export const AssigneeCell = React.memo(({ getValue, table }: CellContext<Opportu
     </ReadOnlyWrapper>
   );
 }, commonComparator);
+
+// ── Aggregated Impact Cells (for group row rollups) ─────────────────────────
+// ImpactCell accesses optionsMap which breaks for synthetic TanStack group rows.
+// These dedicated cells render the aggregated sum with proper formatting.
+
+export const CostImpactAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
+  const val = Number(getValue()) || 0;
+  const colorClass = val < 0 ? 'text-emerald-600 dark:text-emerald-400' 
+                   : val > 0 ? 'text-rose-600 dark:text-rose-400' 
+                   : '';
+  const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+  return <ReadOnlyWrapper className={`justify-end tabular-nums font-bold ${colorClass}`}>{formatted}</ReadOnlyWrapper>;
+}, commonComparator);
+
+export const DaysImpactAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
+  const val = Number(getValue()) || 0;
+  return <ReadOnlyWrapper className="justify-end tabular-nums font-bold">{val} days</ReadOnlyWrapper>;
+}, commonComparator);
+
+// ── Ledger Financial Cells ───────────────────────────────────────────────────
+// Used by the Budget Ledger hierarchical view. Show financial values for budget
+// rows; render a dash for VE leaf rows. aggregatedCell variants render with
+// bold weight for group row rollups.
+
+const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+/** Neutral right-aligned currency — Baseline, Revised columns */
+export const LedgerFinancialCell = React.memo(({ getValue, row }: CellContext<Opportunity, unknown>) => {
+  if (!row.original.is_budget_line) {
+    return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
+  }
+  const val = Number(getValue()) || 0;
+  return <ReadOnlyWrapper className="justify-end tabular-nums text-slate-700 dark:text-slate-200">{currencyFmt.format(val)}</ReadOnlyWrapper>;
+}, commonComparator);
+
+/** Bold variant for aggregated group rows */
+export const LedgerFinancialAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
+  const val = Number(getValue()) || 0;
+  return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-800 dark:text-slate-100">{currencyFmt.format(val)}</ReadOnlyWrapper>;
+}, commonComparator);
+
+/** Delta cell — green for savings (negative), red for overruns (positive) */
+export const LedgerDeltaCell = React.memo(({ getValue, row }: CellContext<Opportunity, unknown>) => {
+  if (!row.original.is_budget_line) {
+    return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
+  }
+  const val = Number(getValue()) || 0;
+  const colorClass = val < 0
+    ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+    : val > 0
+    ? 'text-rose-600 dark:text-rose-400 font-medium'
+    : 'text-slate-500 dark:text-slate-400';
+  return <ReadOnlyWrapper className={`justify-end tabular-nums ${colorClass}`}>{(val >= 0 ? '+' : '') + currencyFmt.format(val)}</ReadOnlyWrapper>;
+}, commonComparator);
+
+/** Bold aggregated delta for group rows */
+export const LedgerDeltaAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
+  const val = Number(getValue()) || 0;
+  const colorClass = val < 0
+    ? 'text-emerald-600 dark:text-emerald-400'
+    : val > 0
+    ? 'text-rose-600 dark:text-rose-400'
+    : 'text-slate-500 dark:text-slate-400';
+  return <ReadOnlyWrapper className={`justify-end tabular-nums font-bold ${colorClass}`}>{(val >= 0 ? '+' : '') + currencyFmt.format(val)}</ReadOnlyWrapper>;
+}, commonComparator);
+
+/** Projected final — shows variance chip vs baseline on hover */
+export const LedgerProjectedCell = React.memo(({ getValue, row }: CellContext<Opportunity, unknown>) => {
+  if (!row.original.is_budget_line) {
+    return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
+  }
+  const val = Number(getValue()) || 0;
+  const baseline = Number(row.original.baseline_budget) || 0;
+  const variance = val - baseline;
+  const varColor = variance < 0
+    ? 'text-emerald-500 dark:text-emerald-400'
+    : variance > 0
+    ? 'text-rose-500 dark:text-rose-400'
+    : 'text-slate-400';
+  return (
+    <div className="w-full h-full px-3 py-2 text-sm min-h-[28px] flex items-center justify-end gap-2 group relative">
+      <span className="tabular-nums text-slate-700 dark:text-slate-200">{currencyFmt.format(val)}</span>
+      {variance !== 0 && (
+        <span className={`text-[10px] font-medium tabular-nums ${varColor} hidden group-hover:inline-block`}>
+          ({(variance >= 0 ? '+' : '') + currencyFmt.format(variance)})
+        </span>
+      )}
+    </div>
+  );
+}, commonComparator);
+
+/** Bold aggregated projected for group rows */
+export const LedgerProjectedAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
+  const val = Number(getValue()) || 0;
+  return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-800 dark:text-slate-100">{currencyFmt.format(val)}</ReadOnlyWrapper>;
+}, commonComparator);

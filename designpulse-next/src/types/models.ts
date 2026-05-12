@@ -22,6 +22,12 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   incorporated_version_id?: string | null;
   estimator_assignee?: string | null;
   is_budget_line?: boolean;
+  // Ledger financial columns (populated only for is_budget_line=true rows from get_master_ledger_grid)
+  baseline_budget?: number;
+  approved_changes?: number;
+  revised_budget?: number;
+  pending_changes?: number;
+  projected_final?: number;
 };
 
 export interface DisciplineDetails {
@@ -262,11 +268,14 @@ export interface BudgetWaterfallRow {
 
 export interface MasterLedgerRow {
   cost_code: string;
+  csi_division: string;
   description: string;
   old_budget: number;
   new_budget: number;
   locked_ve: number;
   pending_ve: number;
+  revised_budget: number;
+  projected_final: number;
 }
 
 export interface RolePermission {

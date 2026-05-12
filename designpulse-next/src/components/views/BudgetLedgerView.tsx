@@ -1,6 +1,7 @@
 "use client";
 import { Plus } from 'lucide-react';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
+import BudgetSummaryV2 from '@/components/BudgetSummaryV2';
 import FloorplanCanvas from '@/components/FloorplanCanvas';
 import DetailPanel from '@/components/DetailPanel';
 import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
@@ -78,7 +79,12 @@ export function BudgetLedgerView({
       <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${
         (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
       }`}>
-        {/* Phase 4: BudgetSummaryV2 removed — Waterfall belongs on Analytics/Dashboard */}
+        <div className="shrink-0">
+          <BudgetSummaryV2
+            projectId={projectId}
+            forceCollapse={viewMode === 'split' && !!selectedOpportunityId}
+          />
+        </div>
 
         <div className="flex-1 overflow-hidden flex flex-col relative">
           {isMapVisible && (

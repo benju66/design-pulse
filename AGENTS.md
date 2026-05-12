@@ -124,4 +124,9 @@ When generating, refactoring, or modifying code, you MUST adhere to the followin
 2. **Domain-Driven Hook Separation:** Never create "god files" for data fetching (e.g., a single `useProjectQueries.ts` containing all hooks). TanStack Query hooks MUST be separated into discrete, domain-specific files (e.g., `useOpportunityQueries.ts`, `useSettingsQueries.ts`) to prevent massive import blocks and reduce merge conflicts.
 3. **Custom Hook Extraction for Complex Logic:** When a UI component relies on complex data transformation (e.g., chained `useMemo` blocks for filtering data grids) alongside localized state (e.g., active filters), you MUST extract the filtering logic and its state into a custom hook (e.g., `useOpportunityFilters`). Keep main page components focused strictly on layout composition.
 4. **FastAPI Backend Modularity:** The Python backend MUST NOT house all endpoints and logic in `main.py`. You must use `APIRouter` to split endpoints by domain (e.g., `routers/pdf.py`). Furthermore, heavy synchronous processing (like `PyMuPDF`/`fitz` operations) MUST be extracted into a `services/` layer to keep route handlers thin and readable.
-
+
+## E. Test Credentials
+When checking the app in the browser, use the following credentials to log in:
+- Username: `burness@fpcinc.com`
+- Password: `BuildIt2026!!`
+- URL: `http://localhost:8000/`

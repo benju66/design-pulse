@@ -14,13 +14,17 @@ import { CoordinationView } from '@/components/views/CoordinationView';
 // Lazy-loaded views — only loaded when the user navigates to them
 const AnalyticsDashboard = dynamic(() => import('@/components/analytics/AnalyticsDashboard'));
 const MyDeskDashboard = dynamic(() => import('@/components/mydesk/MyDeskDashboard'));
+const VersionComparisonViewer = dynamic(
+  () => import('@/components/project/VersionComparisonViewer').then(
+    m => ({ default: m.VersionComparisonViewer })
+  )
+);
 import PermitBoard from '@/components/permits/PermitBoard';
 import { useOpportunities, useCreateOpportunity } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { useCreatePermit } from '@/hooks/usePermitQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
-import { useMasterLedgerGrid, useProjectEstimateVersions, useCompareEstimateVersions, useEstimateVarianceNotes } from '@/hooks/useEstimateQueries';
-import type { EstimateComparisonRow } from '@/types/models';
+import { useMasterLedgerGrid, useProjectEstimateVersions, useEstimateVarianceNotes } from '@/hooks/useEstimateQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import DrawingDetailPanel from '@/components/drawings/DrawingDetailPanel';
@@ -36,7 +40,7 @@ import { Opportunity, MasterLedgerRow } from '@/types/models';
 
 // ── Module-level navigation type guards ─────────────────────────────────────────
 const VALID_PROJECT_VIEWS = new Set<ProjectView>([
-  'dashboard', 'dashboard-v2', 'map', 'analytics',
+  'dashboard', 'dashboard-v2', 'budget-compare', 'map', 'analytics',
   'coordination', 'permits', 'my-desk', 'settings',
 ]);
 function isProjectView(v: string | undefined): v is ProjectView {
@@ -65,16 +69,9 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const { data: globalCostCodes = [] } = useCostCodes();
   const createMutation = useCreateOpportunity(projectId);
   const createPermitMutation = useCreatePermit(projectId);
-  // ── Version compare state — declared before hooks that depend on them ─────────
-  const [compareVersionA, setCompareVersionA] = React.useState<string | null>(null);
-  const [compareVersionB, setCompareVersionB] = React.useState<string | null>(null);
-  const [isCompareActive, setIsCompareActive] = React.useState(false);
+  
+  // ── Estimate hooks ────────────────────────────────────────────────────────────
   const { data: estimateVersions = [] } = useProjectEstimateVersions(projectId);
-  const { data: comparisonRows = [] } = useCompareEstimateVersions(
-    isCompareActive ? projectId : null,   // AGENTS.md C11: null, never undefined
-    isCompareActive ? compareVersionA : null,
-    isCompareActive ? compareVersionB : null
-  );
 
   // ── Drawings / Map hooks (called unconditionally per Rules of Hooks) ─────────
   const activeSheetId = useMapStore((s) => s.activeSheetId);
@@ -205,45 +202,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     ? (settings.building_areas as string[]) 
     : ['Corridor / Common', 'Unit Interiors', 'Back of House'];
 
-  // Bug #7: auto-select the active version as Version A on first load
-  React.useEffect(() => {
-    if (estimateVersions.length > 0 && compareVersionA === null) {
-      const active = estimateVersions.find(v => v.is_active);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (active) setCompareVersionA(active.id);
-    }
-  }, [estimateVersions]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Bug #8: RPC groups by (cost_code, cost_type) — aggregate into arrays to avoid key collisions
-  const comparisonMap = React.useMemo((): Record<string, EstimateComparisonRow[]> => {
-    if (!isCompareActive || comparisonRows.length === 0) return {};
-    const map: Record<string, EstimateComparisonRow[]> = {};
-    for (const r of comparisonRows) {
-      if (!map[r.cost_code]) map[r.cost_code] = [];
-      map[r.cost_code].push(r);
-    }
-    return map;
-  }, [isCompareActive, comparisonRows]);
-
-  // Bug #4: pre-compute division deltas once in O(n) — grouped row does O(1) lookup
-  const divisionDeltaMap = React.useMemo((): Record<string, number> => {
-    if (!isCompareActive || comparisonRows.length === 0) return {};
-    const map: Record<string, number> = {};
-    for (const r of comparisonRows) {
-      const prefix = r.cost_code?.substring(0, 2) ?? 'XX';
-      map[prefix] = (map[prefix] ?? 0) + (Number(r.delta_amount) || 0);
-    }
-    return map;
-  }, [isCompareActive, comparisonRows]);
-
-  const compareVersionALabel = React.useMemo(
-    () => estimateVersions.find(v => v.id === compareVersionA)?.version_name ?? 'Version A',
-    [estimateVersions, compareVersionA]
-  );
-  const compareVersionBLabel = React.useMemo(
-    () => estimateVersions.find(v => v.id === compareVersionB)?.version_name ?? 'Version B',
-    [estimateVersions, compareVersionB]
-  );
 
   // Phase 2: derive active version ID and fetch variance notes (active-only scope)
   const activeVersionId = React.useMemo(
@@ -418,6 +377,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             {currentView === 'permits' && 'Permits Tracker'}
             {currentView === 'my-desk' && 'My Desk'}
             {currentView === 'settings' && 'Project Settings'}
+            {currentView === 'budget-compare' && 'Version Comparison Matrix'}
           </h2>
           <div className="flex gap-3 items-center">
             {(currentView === 'dashboard' || currentView === 'dashboard-v2') && (
@@ -616,19 +576,14 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               dynamicBuildingAreas={dynamicBuildingAreas}
               uniqueCostCodes={uniqueCostCodes}
               navigateToSettings={navigateToSettings}
-              comparisonMap={comparisonMap}
-              divisionDeltaMap={divisionDeltaMap}
-              compareVersionALabel={compareVersionALabel}
-              compareVersionBLabel={compareVersionBLabel}
-              estimateVersions={estimateVersions}
-              compareVersionA={compareVersionA}
-              compareVersionB={compareVersionB}
-              isCompareActive={isCompareActive}
-              onSetCompareVersionA={setCompareVersionA}
-              onSetCompareVersionB={setCompareVersionB}
-              onSetIsCompareActive={setIsCompareActive}
               varianceNoteMap={varianceNoteMap}
             />
+          )}
+
+          {currentView === 'budget-compare' && (
+            <div className="flex-1 overflow-hidden p-6">
+              <VersionComparisonViewer projectId={projectId} />
+            </div>
           )}
 
           {currentView === 'map' && (() => {

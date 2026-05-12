@@ -327,3 +327,12 @@ export interface EstimateComparisonRow {
   new_amount: number;
   delta_amount: number;
 }
+
+export interface MultiVersionMatrixRow {
+  cost_code: string;
+  description: string;
+  version_id: string;
+  version_name: string;
+  version_date: string; // ISO date
+  budget_amount: number;
+}

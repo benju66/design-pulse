@@ -31,6 +31,7 @@ import type {
   BudgetWaterfallRow,
   EstimateComparisonRow,
   EstimateVarianceNote,
+  MultiVersionMatrixRow,
 } from '@/types/models';
 
 const CHUNK_SIZE = 50; // AGENTS.md C20 — Kong gateway protection
@@ -447,6 +448,26 @@ export function useUpdateEstimateAssumptions(projectId: string) {
       });
       // Update the FileText icon in the grid compound cell
       qc.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+    },
+  });
+}
+
+// ── Phase 5: Multi-Version Forensic Matrix ────────────────────────────────────
+export function useMultiVersionMatrix(
+  projectId: string | null,
+  versionIds: string[]
+) {
+  return useQuery<MultiVersionMatrixRow[]>({
+    queryKey: ['multi-version-matrix', projectId, ...[...versionIds].sort()], // FIX #2: shallow copy before sort
+    enabled: !!projectId && versionIds.length >= 2,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_multi_version_matrix', {
+        p_project_id: projectId!,
+        p_version_ids: versionIds,
+      });
+      if (error) throw error;
+      return (data ?? []) as MultiVersionMatrixRow[];
     },
   });
 }

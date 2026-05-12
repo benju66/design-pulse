@@ -4,7 +4,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell, CostImpactAggregatedCell, DaysImpactAggregatedCell, LedgerFinancialCell, LedgerFinancialAggregatedCell, LedgerDeltaCell, LedgerDeltaAggregatedCell, LedgerProjectedCell, LedgerProjectedAggregatedCell, ItemDefinitionCell, CostClassificationCell, ManagementCell } from './ReadOnlyCell';
 import { OptionsCell } from './OptionsCell';
 import { InlineOptionCell } from './InlineOptionCell';
-import { ColumnDef, Row, CellContext } from '@tanstack/react-table';
+import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
 
 const CheckboxCell = ({ row }: { row: Row<Opportunity> }) => {
@@ -193,78 +193,6 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
       { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
       { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
-      // ── Version Compare Overlay Columns ──────────────────────────────────────
-      // Always defined, hidden by default via columnVisibility (Bug #1 fix).
-      // Cells only render data for budget lines; VE rows always show — (Bug #2 fix).
-      // Data summed across all cost_type rows per cost_code (Bug #8 fix).
-      {
-        id: 'compare_version_a',
-        header: 'Version A',
-        cell: ({ row, table }: CellContext<Opportunity, unknown>) => {
-          if (!row.original.is_budget_line) {
-            return <span className="flex items-center justify-end h-full px-2 text-slate-300 dark:text-slate-600 text-xs">—</span>;
-          }
-          const entries = (table.options.meta?.comparisonMap ?? {})[row.original.cost_code ?? ''] ?? [];
-          const total = entries.reduce((s, e) => s + (Number(e.old_amount) || 0), 0);
-          return (
-            <div className="px-2 py-1 text-xs text-right tabular-nums text-slate-600 dark:text-slate-300 bg-amber-50/40 dark:bg-amber-900/10 h-full flex items-center justify-end">
-              {entries.length > 0
-                ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(total)
-                : <span className="text-slate-300 dark:text-slate-600">—</span>}
-            </div>
-          );
-        },
-        size: 130,
-        enableSorting: false,
-        enableResizing: false,
-      },
-      {
-        id: 'compare_version_b',
-        header: 'Version B',
-        cell: ({ row, table }: CellContext<Opportunity, unknown>) => {
-          if (!row.original.is_budget_line) {
-            return <span className="flex items-center justify-end h-full px-2 text-slate-300 dark:text-slate-600 text-xs">—</span>;
-          }
-          const entries = (table.options.meta?.comparisonMap ?? {})[row.original.cost_code ?? ''] ?? [];
-          const total = entries.reduce((s, e) => s + (Number(e.new_amount) || 0), 0);
-          return (
-            <div className="px-2 py-1 text-xs text-right tabular-nums text-slate-600 dark:text-slate-300 bg-amber-50/40 dark:bg-amber-900/10 h-full flex items-center justify-end">
-              {entries.length > 0
-                ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(total)
-                : <span className="text-slate-300 dark:text-slate-600">—</span>}
-            </div>
-          );
-        },
-        size: 130,
-        enableSorting: false,
-        enableResizing: false,
-      },
-      {
-        id: 'compare_delta',
-        header: 'Δ Delta',
-        cell: ({ row, table }: CellContext<Opportunity, unknown>) => {
-          if (!row.original.is_budget_line) {
-            return <span className="flex items-center justify-end h-full px-2 text-slate-300 dark:text-slate-600 text-xs">—</span>;
-          }
-          const entries = (table.options.meta?.comparisonMap ?? {})[row.original.cost_code ?? ''] ?? [];
-          const delta = entries.reduce((s, e) => s + (Number(e.delta_amount) || 0), 0);
-          const colorClass = entries.length === 0
-            ? 'text-slate-400'
-            : delta < 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-            : delta > 0 ? 'text-rose-600 dark:text-rose-400 font-semibold'
-            : 'text-slate-500';
-          return (
-            <div className={`px-2 py-1 text-xs text-right tabular-nums bg-amber-50/40 dark:bg-amber-900/10 h-full flex items-center justify-end ${colorClass}`}>
-              {entries.length > 0
-                ? (delta >= 0 ? '+' : '') + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(delta)
-                : <span className="text-slate-300 dark:text-slate-600">—</span>}
-            </div>
-          );
-        },
-        size: 120,
-        enableSorting: false,
-        enableResizing: false,
-      },
     ],
     [viewMode, checkboxColumn, openPanelColumn]
   );

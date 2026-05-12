@@ -7,6 +7,7 @@ import { useMapStore } from '@/stores/useMapStore';
 export type ProjectView =
   | 'dashboard'
   | 'dashboard-v2'
+  | 'budget-compare'
   | 'map'
   | 'analytics'
   | 'coordination'
@@ -354,7 +355,7 @@ export const useUIStore = create<UIState>()(
         gridV2ColumnVisibility: state.gridV2ColumnVisibility ?? {},
         dashboardViewMode: state.dashboardViewMode ?? 'card',
       }),
-      version: 5,
+      version: 6,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -401,6 +402,10 @@ export const useUIStore = create<UIState>()(
             ...state,
             gridV2ColumnVisibility: {},
           } as UIState;
+        }
+        if (version < 6) {
+          // v5 → v6: added 'budget-compare' to ProjectView union (no shape change)
+          return state as UIState;
         }
         return state as UIState;
       },

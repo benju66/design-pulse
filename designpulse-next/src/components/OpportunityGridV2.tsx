@@ -18,7 +18,7 @@ import {
   Cell,
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
-import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon, SlidersHorizontal, GitCompare } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon, SlidersHorizontal } from 'lucide-react';
 import {
   useUpdateOpportunity,
   useCreateOpportunity,
@@ -38,11 +38,7 @@ import { ColumnChooser } from './opportunities/ColumnChooser';
 import { useOpportunityColumnsV2 } from './opportunities/columns-v2';
 import GhostRow from './opportunities/GhostRow';
 import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
-import { Opportunity, OpportunityOption, EstimateComparisonRow, ProjectEstimateVersion } from '@/types/models';
-
-// IDs of the three version-compare overlay columns.
-// Used to exclude them from ve_column_order persistence and column ordering logic (Bug #5).
-const COMPARE_COLUMN_IDS = ['compare_version_a', 'compare_version_b', 'compare_delta'] as const;
+import { Opportunity, OpportunityOption } from '@/types/models';
 
 // IDs of the five ledger financial narrative columns.
 // Excluded from ve_column_order persistence — ledger column order is fixed by design.
@@ -52,7 +48,7 @@ const LEDGER_COLUMN_IDS = ['baseline_budget', 'approved_changes', 'revised_budge
 const COMPOUND_COLUMN_IDS = ['item_definition', 'cost_classification', 'management'] as const;
 
 // Combined set for all non-persistable column IDs
-const EXCLUDED_COLUMN_IDS = [...COMPARE_COLUMN_IDS, ...LEDGER_COLUMN_IDS, ...COMPOUND_COLUMN_IDS] as const;
+const EXCLUDED_COLUMN_IDS = [...LEDGER_COLUMN_IDS, ...COMPOUND_COLUMN_IDS] as const;
 
 
 interface OpportunityGridProps {
@@ -66,19 +62,6 @@ interface OpportunityGridProps {
   filterSlot?: ReactNode;
   filterActiveCount?: number;
   onClearFilters?: () => void;
-  // Version Compare Overlay props (data)
-  comparisonMap?: Record<string, EstimateComparisonRow[]>;  // Bug #8: array per cost_code
-  divisionDeltaMap?: Record<string, number>;
-  compareVersionALabel?: string;
-  compareVersionBLabel?: string;
-  // Version Compare Overlay props (controls — lifted to grid toolbar)
-  estimateVersions?: ProjectEstimateVersion[];
-  compareVersionA?: string | null;
-  compareVersionB?: string | null;
-  isCompareActive?: boolean;
-  onSetCompareVersionA?: (id: string | null) => void;
-  onSetCompareVersionB?: (id: string | null) => void;
-  onSetIsCompareActive?: React.Dispatch<React.SetStateAction<boolean>>;
   // Phase 2: pre-computed variance note lookup (cost_code → note text)
   varianceNoteMap?: Record<string, string>;
 }
@@ -91,10 +74,9 @@ interface GroupedRowProps {
   rawCostCodes?: unknown[];
   isExpanded: boolean;
   isLedgerView: boolean;
-  divisionDeltaMap?: Record<string, number>; // Bug #9: passed as explicit prop, not via table.options.meta
 }
 
-const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded, isLedgerView, divisionDeltaMap }: GroupedRowProps) {
+const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded, isLedgerView }: GroupedRowProps) {
   const divisionVal = row.getValue('division') as string;
   let divisionLabel = divisionVal ? `${divisionVal}` : 'Uncategorized';
   
@@ -110,11 +92,7 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
     }
   }
 
-  // Bug #4 + #9: divisionDeltaMap is pre-computed in page.tsx (O(1) lookup per division)
-  const divisionPrefix = divisionVal?.substring(0, 2);
-  const divisionDelta = (divisionPrefix && divisionDeltaMap)
-    ? (divisionDeltaMap[divisionPrefix] ?? null)
-    : null;
+
 
   // ── Ledger Mode: Hybrid ColSpan Layout ──────────────────────────────────────
   // Split visible cells into "label" (non-financial) and "financial" (aggregated).
@@ -223,18 +201,7 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
                 <span className="text-xs text-slate-500 font-normal uppercase">Days Impact</span>
                 <span className="text-sm">{row.getValue('days_impact') || 0}</span>
               </div>
-              {divisionDelta !== null && (
-                <div className="flex flex-col items-end border-l border-amber-300 dark:border-amber-700 pl-4">
-                  <span className="text-xs text-amber-500 dark:text-amber-400 font-normal uppercase tracking-wide">Δ Version Delta</span>
-                  <span className={`text-sm font-semibold ${
-                    divisionDelta < 0 ? 'text-emerald-600 dark:text-emerald-400'
-                    : divisionDelta > 0 ? 'text-rose-600 dark:text-rose-400'
-                    : 'text-slate-500'
-                  }`}>
-                    {(divisionDelta >= 0 ? '+' : '') + new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(divisionDelta)}
-                  </span>
-                </div>
-              )}
+
             </div>
           </div>
         </td>
@@ -249,8 +216,7 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
     prev.row.getValue('cost_impact') === next.row.getValue('cost_impact') &&
     prev.row.getValue('days_impact') === next.row.getValue('days_impact') &&
     prev.visibleColumnIds === next.visibleColumnIds &&
-    prev.virtualRow.index === next.virtualRow.index &&
-    prev.divisionDeltaMap === next.divisionDeltaMap  // stable reference comparison (Bug #9)
+    prev.virtualRow.index === next.virtualRow.index
   );
 });
 
@@ -366,7 +332,7 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
   );
 });
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, comparisonMap = {}, divisionDeltaMap = {}, estimateVersions = [], compareVersionA = null, compareVersionB = null, isCompareActive = false, onSetCompareVersionA, onSetCompareVersionB, onSetIsCompareActive, varianceNoteMap = {} }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {} }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -580,9 +546,6 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       csiSpecs,
       projectMembers,
       permissions,
-      // Bug #3: route through meta, never prop-drill into cell renderers
-      comparisonMap,
-      divisionDeltaMap,
       // Phase 2: variance note lookup for LedgerDeltaCell icon
       varianceNoteMap,
     },
@@ -591,16 +554,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const { rows } = table.getRowModel();
 
-  // Bug #1: activate/deactivate overlay columns via TanStack visibility API (no structural change)
-  useEffect(() => {
-    const isActive = Object.keys(comparisonMap).length > 0;
-    setColumnVisibility(prev => ({
-      ...prev,
-      compare_version_a: isActive,
-      compare_version_b: isActive,
-      compare_delta: isActive,
-    }));
-  }, [comparisonMap, setColumnVisibility]);
+
 
   // Ledger columns: visible only in Budget Ledger view, hidden in Value Matrix.
   // Also hide columns that are redundant in the grouped hierarchy:
@@ -736,62 +690,6 @@ const EMPTY_VISIBILITY: VisibilityState = {};
         </div>
         {/* Right: actions + compare strip */}
         <div className="flex items-center gap-2 ml-auto shrink-0">
-          {/* Compare strip */}
-          {onSetIsCompareActive && (
-            isCompareActive ? (
-              <>
-                <select
-                  value={compareVersionA ?? ''}
-                  onChange={e => onSetCompareVersionA?.(e.target.value || null)}
-                  className="text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                >
-                  <option value="">Version A…</option>
-                  {estimateVersions.map(v => (
-                    <option key={v.id} value={v.id}>{v.version_name}{v.is_active ? ' ★' : ''}</option>
-                  ))}
-                </select>
-                <span className="text-xs text-slate-400 select-none px-0.5">vs</span>
-                <select
-                  value={compareVersionB ?? ''}
-                  onChange={e => onSetCompareVersionB?.(e.target.value || null)}
-                  className="text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                >
-                  <option value="">Version B…</option>
-                  {estimateVersions.map(v => (
-                    <option key={v.id} value={v.id}>{v.version_name}{v.is_active ? ' ★' : ''}</option>
-                  ))}
-                </select>
-                <button
-                  disabled={!compareVersionA || !compareVersionB || compareVersionA === compareVersionB}
-                  onClick={() => onSetIsCompareActive(true)}
-                  title={compareVersionA === compareVersionB ? 'Select two different versions to compare' : 'Activate comparison'}
-                  className="px-3 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Compare
-                </button>
-                <button
-                  onClick={() => { onSetIsCompareActive(false); onSetCompareVersionB?.(null); }}
-                  className="text-xs text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 px-1 transition-colors"
-                  title="Exit Compare Mode"
-                >
-                  ✕ Exit
-                </button>
-                <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => onSetIsCompareActive(prev => !prev)}
-                  disabled={estimateVersions.length < 2}
-                  title={estimateVersions.length < 2 ? 'Import at least two estimate versions to compare' : 'Compare estimate versions'}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-slate-600 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-400 border border-slate-200 dark:border-slate-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  <GitCompare size={13} /> Compare Versions
-                </button>
-                <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
-              </>
-            )
-          )}
           {filterSlot && (
             <button
               onClick={() => setIsFilterOpen(o => !o)}
@@ -911,7 +809,6 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                   rawCostCodes={(table.options.meta as Record<string, unknown>)?.rawCostCodes as unknown[] || []}
                   isExpanded={row.getIsExpanded()}
                   isLedgerView={isLedgerView}
-                  divisionDeltaMap={divisionDeltaMap}
                 />
               );
             }

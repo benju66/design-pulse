@@ -2843,3 +2843,54 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.update_estimate_assumptions(uuid, text, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.update_estimate_assumptions(uuid, text, text) TO authenticated;
 
+
+-- -- Phase 5: Multi-Version Forensic Matrix ------------------------------------
+CREATE OR REPLACE FUNCTION public.get_multi_version_matrix(
+  p_project_id  uuid,
+  p_version_ids uuid[]
+) RETURNS TABLE (
+  cost_code      text,
+  description    text,
+  version_id     uuid,
+  version_name   text,
+  version_date   date,
+  budget_amount  numeric
+) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS 
+BEGIN
+  -- RBAC gate (matches existing compare_estimate_versions pattern)
+  IF NOT (is_platform_admin() OR get_user_project_role(p_project_id) IS NOT NULL) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- IDOR protection: verify ALL version IDs belong to p_project_id
+  IF EXISTS (
+    SELECT 1 FROM unnest(p_version_ids) AS vid
+    WHERE NOT EXISTS (
+      SELECT 1 FROM project_estimate_versions
+      WHERE id = vid AND project_id = p_project_id
+    )
+  ) THEN
+    RAISE EXCEPTION 'One or more versions do not belong to the specified project.';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    COALESCE(e.cost_code, 'Unassigned')::text  AS cost_code,
+    MAX(e.description)::text                   AS description,
+    v.id                                        AS version_id,
+    v.version_name::text                        AS version_name,
+    v.version_date                              AS version_date,
+    SUM(e.budget_amount)                        AS budget_amount
+  FROM project_estimates e
+  JOIN project_estimate_versions v ON v.id = e.version_id
+  WHERE v.id = ANY(p_version_ids)
+    AND v.project_id = p_project_id
+  GROUP BY e.cost_code, v.id, v.version_name, v.version_date
+  ORDER BY cost_code ASC, v.version_date ASC, v.id ASC;
+END;
+;
+
+REVOKE EXECUTE ON FUNCTION public.get_multi_version_matrix(uuid, uuid[])
+  FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.get_multi_version_matrix(uuid, uuid[])
+  TO authenticated;

@@ -6,9 +6,8 @@ import FloorplanCanvas from '@/components/FloorplanCanvas';
 import DetailPanel from '@/components/DetailPanel';
 import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
 import { useUIStore } from '@/stores/useUIStore';
-import type { Opportunity, EstimateComparisonRow, ProjectEstimateVersion } from '@/types/models';
+import type { Opportunity } from '@/types/models';
 import type { SettingsTab } from '@/stores/useUIStore';
-import type { Dispatch, SetStateAction } from 'react';
 
 interface BudgetLedgerViewProps {
   projectId: string;
@@ -26,18 +25,6 @@ interface BudgetLedgerViewProps {
   dynamicBuildingAreas: string[];
   uniqueCostCodes: string[];
   navigateToSettings: (tab: SettingsTab) => void;
-  // Compare state
-  comparisonMap: Record<string, EstimateComparisonRow[]>;
-  divisionDeltaMap: Record<string, number>;
-  compareVersionALabel: string;
-  compareVersionBLabel: string;
-  estimateVersions: ProjectEstimateVersion[];
-  compareVersionA: string | null;
-  compareVersionB: string | null;
-  isCompareActive: boolean;
-  onSetCompareVersionA: Dispatch<SetStateAction<string | null>>;
-  onSetCompareVersionB: Dispatch<SetStateAction<string | null>>;
-  onSetIsCompareActive: Dispatch<SetStateAction<boolean>>;
   // Variance notes
   varianceNoteMap: Record<string, string>;
 }
@@ -57,17 +44,6 @@ export function BudgetLedgerView({
   dynamicBuildingAreas,
   uniqueCostCodes,
   navigateToSettings,
-  comparisonMap,
-  divisionDeltaMap,
-  compareVersionALabel,
-  compareVersionBLabel,
-  estimateVersions,
-  compareVersionA,
-  compareVersionB,
-  isCompareActive,
-  onSetCompareVersionA,
-  onSetCompareVersionB,
-  onSetIsCompareActive,
   varianceNoteMap,
 }: BudgetLedgerViewProps) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
@@ -111,17 +87,6 @@ export function BudgetLedgerView({
               onOpenCompare={onOpenCompare}
               filterActiveCount={activeBuildingAreas.length + activeCostCodes.length + (varianceThreshold > 0 ? 1 : 0)}
               onClearFilters={() => { setActiveBuildingAreas([]); setActiveCostCodes([]); setVarianceThreshold(0); }}
-              comparisonMap={comparisonMap}
-              divisionDeltaMap={divisionDeltaMap}
-              compareVersionALabel={compareVersionALabel}
-              compareVersionBLabel={compareVersionBLabel}
-              estimateVersions={estimateVersions}
-              compareVersionA={compareVersionA}
-              compareVersionB={compareVersionB}
-              isCompareActive={isCompareActive}
-              onSetCompareVersionA={onSetCompareVersionA}
-              onSetCompareVersionB={onSetCompareVersionB}
-              onSetIsCompareActive={onSetIsCompareActive}
               filterSlot={
                 <>
                   <div className="flex flex-col gap-1.5">

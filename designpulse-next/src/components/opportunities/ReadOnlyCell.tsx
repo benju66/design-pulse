@@ -5,10 +5,27 @@ import { FileText, MessageSquare } from 'lucide-react';
 import { Opportunity } from '@/types/models';
 import { formatCostCode } from '@/lib/formatCostCode';
 
+const isZero = (v: number) => Math.abs(v) < 0.001;
+
 const commonComparator = (prevProps: CellContext<Opportunity, unknown>, nextProps: CellContext<Opportunity, unknown>) => {
   if (prevProps.getValue() !== nextProps.getValue()) return false;
   if (prevProps.row.original !== nextProps.row.original) return false;
   return true;
+};
+
+const deltaCellComparator = (prevProps: CellContext<Opportunity, unknown>, nextProps: CellContext<Opportunity, unknown>) => {
+  if (!commonComparator(prevProps, nextProps)) return false;
+  
+  const prevCode = prevProps.row.original?.cost_code;
+  const nextCode = nextProps.row.original?.cost_code;
+  
+  if (prevCode !== nextCode) return false;
+  if (!prevCode) return true;
+  
+  const prevNote = prevProps.table.options.meta?.varianceNoteMap?.[prevCode];
+  const nextNote = nextProps.table.options.meta?.varianceNoteMap?.[prevCode];
+  
+  return prevNote === nextNote;
 };
 
 // --- BASE WRAPPER ---
@@ -95,10 +112,15 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
 
   // Handle standard scalar values
   if (rawValue === null || rawValue === undefined || rawValue === '') {
-    return <ReadOnlyWrapper className="justify-end">--</ReadOnlyWrapper>;
+    return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
   }
 
   const numValue = Number(rawValue);
+
+  if (isZero(numValue)) {
+    return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
+  }
+
   const colorClass = column.id === 'cost_impact' && numValue < 0 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 
                      column.id === 'cost_impact' && numValue > 0 ? 'text-rose-600 dark:text-rose-400 font-medium' : '';
                      
@@ -155,7 +177,7 @@ export const DivisionCell = React.memo(({ row, table }: CellContext<Opportunity,
   const storedDivision = row.original.division ?? null;
   const displayValue = derivedDivision ?? storedDivision;
 
-  if (!displayValue) return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600">--</ReadOnlyWrapper>;
+  if (!displayValue) return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600">--</ReadOnlyWrapper>;
 
   return (
     <ReadOnlyWrapper title={displayValue} className={derivedDivision ? 'font-medium text-slate-700 dark:text-slate-200' : 'italic text-slate-400 dark:text-slate-500'}>
@@ -185,7 +207,7 @@ export const AssigneeCell = React.memo(({ getValue, table }: CellContext<Opportu
   const value = getValue() as string | null | undefined;
   const projectMembers = (table.options.meta as any)?.projectMembers || [];
   
-  if (!value) return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600">--</ReadOnlyWrapper>;
+  if (!value) return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600">--</ReadOnlyWrapper>;
 
   const emails = value.split(',').map(e => e.trim()).filter(Boolean);
   const assignedMembers = emails.map(email => {
@@ -196,7 +218,7 @@ export const AssigneeCell = React.memo(({ getValue, table }: CellContext<Opportu
     };
   });
 
-  if (assignedMembers.length === 0) return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600">--</ReadOnlyWrapper>;
+  if (assignedMembers.length === 0) return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600">--</ReadOnlyWrapper>;
 
   const tooltipTitle = assignedMembers.map(m => `${m.displayName}${m.email && m.email !== m.displayName ? `\n${m.email}` : ''}`).join('\n\n');
 
@@ -224,6 +246,9 @@ export const AssigneeCell = React.memo(({ getValue, table }: CellContext<Opportu
 
 export const CostImpactAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
   const val = Number(getValue()) || 0;
+  if (isZero(val)) {
+    return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-400 dark:text-slate-600">$0</ReadOnlyWrapper>;
+  }
   const colorClass = val < 0 ? 'text-emerald-600 dark:text-emerald-400' 
                    : val > 0 ? 'text-rose-600 dark:text-rose-400' 
                    : '';
@@ -233,6 +258,9 @@ export const CostImpactAggregatedCell = React.memo(({ getValue }: CellContext<Op
 
 export const DaysImpactAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
   const val = Number(getValue()) || 0;
+  if (isZero(val)) {
+    return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-400 dark:text-slate-600">0 days</ReadOnlyWrapper>;
+  }
   return <ReadOnlyWrapper className="justify-end tabular-nums font-bold">{val} days</ReadOnlyWrapper>;
 }, commonComparator);
 
@@ -245,39 +273,45 @@ const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency
 
 /** Neutral right-aligned currency — Baseline, Revised columns */
 export const LedgerFinancialCell = React.memo(({ getValue, row }: CellContext<Opportunity, unknown>) => {
-  if (!row.original.is_budget_line) {
-    return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
-  }
   const val = Number(getValue()) || 0;
+  const baseline = Number(row.original.baseline_budget) || 0;
+  if (!row.original.is_budget_line || (isZero(val) && isZero(baseline))) {
+    return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
+  }
   return <ReadOnlyWrapper className="justify-end tabular-nums text-slate-700 dark:text-slate-200">{currencyFmt.format(val)}</ReadOnlyWrapper>;
 }, commonComparator);
 
 /** Bold variant for aggregated group rows */
 export const LedgerFinancialAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
   const val = Number(getValue()) || 0;
+  if (isZero(val)) {
+    return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-400 dark:text-slate-600">$0</ReadOnlyWrapper>;
+  }
   return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-800 dark:text-slate-100">{currencyFmt.format(val)}</ReadOnlyWrapper>;
 }, commonComparator);
 
 /** Delta cell — green for savings (negative), red for overruns (positive) */
 export const LedgerDeltaCell = React.memo(({ getValue, row, table }: CellContext<Opportunity, unknown>) => {
-  if (!row.original.is_budget_line) {
-    return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
-  }
   const val = Number(getValue()) || 0;
-  const colorClass = val < 0
-    ? 'text-emerald-600 dark:text-emerald-400 font-medium'
-    : val > 0
-    ? 'text-rose-600 dark:text-rose-400 font-medium'
-    : 'text-slate-500 dark:text-slate-400';
-  // Phase 2: variance note icon (display-only — click-to-open is Phase 3 scope)
   const varianceNoteMap = table.options.meta?.varianceNoteMap;
   const noteText = varianceNoteMap
     ? varianceNoteMap[row.original.cost_code ?? ''] ?? null
     : null;
+
+  if (!row.original.is_budget_line || (isZero(val) && !noteText)) {
+    return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
+  }
+
+  const colorClass = val < 0
+    ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+    : val > 0
+    ? 'text-rose-600 dark:text-rose-400 font-medium'
+    : 'text-slate-400 dark:text-slate-600';
+
   return (
     <ReadOnlyWrapper className={`justify-end tabular-nums ${colorClass}`}>
       <span className="flex items-center gap-1">
-        {(val >= 0 ? '+' : '') + currencyFmt.format(val)}
+        {isZero(val) ? '—' : (val >= 0 ? '+' : '') + currencyFmt.format(val)}
         {noteText && (
           <span title={noteText.length > 120 ? noteText.substring(0, 120) + '…' : noteText}>
             <MessageSquare
@@ -289,11 +323,14 @@ export const LedgerDeltaCell = React.memo(({ getValue, row, table }: CellContext
       </span>
     </ReadOnlyWrapper>
   );
-}, commonComparator);
+}, deltaCellComparator);
 
 /** Bold aggregated delta for group rows */
 export const LedgerDeltaAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
   const val = Number(getValue()) || 0;
+  if (isZero(val)) {
+    return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-400 dark:text-slate-600">$0</ReadOnlyWrapper>;
+  }
   const colorClass = val < 0
     ? 'text-emerald-600 dark:text-emerald-400'
     : val > 0
@@ -304,11 +341,12 @@ export const LedgerDeltaAggregatedCell = React.memo(({ getValue }: CellContext<O
 
 /** Projected final — shows variance chip vs baseline on hover */
 export const LedgerProjectedCell = React.memo(function LedgerProjectedCell({ getValue, row }: CellContext<Opportunity, unknown>) {
-  if (!row.original.is_budget_line) {
-    return <ReadOnlyWrapper className="text-slate-300 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
-  }
   const val = Number(getValue()) || 0;
   const baseline = Number(row.original.baseline_budget) || 0;
+  if (!row.original.is_budget_line || (isZero(val) && isZero(baseline))) {
+    return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
+  }
+  
   const variance = val - baseline;
   const varColor = variance < 0
     ? 'text-emerald-500 dark:text-emerald-400'
@@ -318,7 +356,7 @@ export const LedgerProjectedCell = React.memo(function LedgerProjectedCell({ get
   return (
     <div className="w-full h-full px-3 py-2 text-sm min-h-[28px] flex items-center justify-end gap-2 group relative">
       <span className="tabular-nums text-slate-700 dark:text-slate-200">{currencyFmt.format(val)}</span>
-      {variance !== 0 && (
+      {!isZero(variance) && (
         <span className={`text-[10px] font-medium tabular-nums ${varColor} hidden group-hover:inline-block`}>
           ({(variance >= 0 ? '+' : '') + currencyFmt.format(variance)})
         </span>
@@ -330,6 +368,9 @@ export const LedgerProjectedCell = React.memo(function LedgerProjectedCell({ get
 /** Bold aggregated projected for group rows */
 export const LedgerProjectedAggregatedCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
   const val = Number(getValue()) || 0;
+  if (isZero(val)) {
+    return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-400 dark:text-slate-600">$0</ReadOnlyWrapper>;
+  }
   return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-800 dark:text-slate-100">{currencyFmt.format(val)}</ReadOnlyWrapper>;
 }, commonComparator);
 

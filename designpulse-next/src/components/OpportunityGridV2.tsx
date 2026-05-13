@@ -125,7 +125,7 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
       <tbody
         ref={measureElement}
         data-index={virtualRow.index}
-        className={`border-b border-slate-200 dark:border-slate-700 ${depthStyles}`}
+        className={`${depthStyles}`}
       >
         <tr>
           {/* Label: single colSpan td covering everything before the first financial column */}
@@ -133,13 +133,13 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
             colSpan={labelColSpan}
             data-row-index={virtualRow.index}
             data-col-id={allCells[0]?.column.id}
-            className="max-w-0 px-4 py-2.5 cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-700/50 overflow-hidden"
+            className="max-w-0 px-4 py-2.5 cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-700/50 overflow-hidden border-b border-slate-200 dark:border-slate-700 bg-clip-padding"
             onClick={row.getToggleExpandedHandler()}
             title={groupKey}
           >
             <span className="flex items-center gap-2 min-w-0" style={{ paddingLeft: row.depth * 20 }}>
               <span className="text-slate-400 text-xs shrink-0">{isExpanded ? '▼' : '▶'}</span>
-              <span className={`truncate ${isDivisionLevel ? 'font-bold text-sm text-slate-200' : 'font-semibold text-sm text-slate-300'}`}>
+              <span className={`truncate ${isDivisionLevel ? 'font-bold text-sm text-slate-800 dark:text-slate-200' : 'font-semibold text-sm text-slate-700 dark:text-slate-300'}`}>
                 {groupKey}
               </span>
               <span className="text-xs text-slate-500 font-normal shrink-0">
@@ -149,7 +149,7 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
           </td>
           {/* Remaining cells: financial ones render aggregated values, others render empty */}
           {trailingCells.map(cell => (
-            <td key={cell.id} data-row-index={virtualRow.index} data-col-id={cell.column.id} className="px-0 py-0">
+            <td key={cell.id} data-row-index={virtualRow.index} data-col-id={cell.column.id} className="px-0 py-0 border-b border-slate-200 dark:border-slate-700 bg-clip-padding">
               {financialCellIds.has(cell.column.id)
                 ? flexRender(
                     cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell,
@@ -168,14 +168,14 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
     <tbody 
       ref={measureElement}
       data-index={virtualRow.index}
-      className="border-b-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800"
+      className="bg-slate-100 dark:bg-slate-800"
     >
       <tr>
         <td 
           colSpan={row.getVisibleCells().length} 
           data-row-index={virtualRow.index}
           data-col-id={row.getVisibleCells()[0]?.column.id}
-          className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
+          className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600 bg-clip-padding"
           onClick={row.getToggleExpandedHandler()}
         >
           <div className="flex justify-between items-center w-full">
@@ -198,13 +198,19 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
             <div className="flex items-center gap-6">
               <div className="flex flex-col items-end">
                 <span className="text-xs text-slate-500 font-normal uppercase">Cost Impact</span>
-                <span className={`text-sm ${Number(row.getValue('cost_impact')) > 0 ? 'text-rose-600' : Number(row.getValue('cost_impact')) < 0 ? 'text-emerald-600' : ''}`}>
+                <span className={`text-sm ${
+                  Math.abs(Number(row.getValue('cost_impact')) || 0) < 0.001 ? 'text-slate-400 dark:text-slate-600' :
+                  Number(row.getValue('cost_impact')) > 0 ? 'text-rose-600' : 
+                  Number(row.getValue('cost_impact')) < 0 ? 'text-emerald-600' : ''
+                }`}>
                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(row.getValue('cost_impact')) || 0)}
                 </span>
               </div>
               <div className="flex flex-col items-end">
                 <span className="text-xs text-slate-500 font-normal uppercase">Days Impact</span>
-                <span className="text-sm">{row.getValue('days_impact') || 0}</span>
+                <span className={`text-sm ${Math.abs(Number(row.getValue('days_impact')) || 0) < 0.001 ? 'text-slate-400 dark:text-slate-600' : ''}`}>
+                  {row.getValue('days_impact') || 0}
+                </span>
               </div>
 
             </div>
@@ -782,14 +788,20 @@ const EMPTY_VISIBILITY: VisibilityState = {};
           <div className="flex flex-col items-start px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">VE Impact</span>
             <span className={`text-sm font-bold tabular-nums leading-tight mt-0.5 ${
-              budgetMetrics.netVeImpact < 0 ? 'text-emerald-600 dark:text-emerald-400'
-              : budgetMetrics.netVeImpact > 0 ? 'text-rose-600 dark:text-rose-400'
-              : 'text-slate-700 dark:text-slate-200'
-            }`}>{budgetMetrics.netVeImpact >= 0 ? '+' : ''}{fmt(budgetMetrics.netVeImpact)}</span>
+              Math.abs(budgetMetrics.netVeImpact) < 0.001 ? 'text-slate-400 dark:text-slate-500'
+              : budgetMetrics.netVeImpact < 0 ? 'text-emerald-600 dark:text-emerald-400'
+              : 'text-rose-600 dark:text-rose-400'
+            }`}>{Math.abs(budgetMetrics.netVeImpact) < 0.001 ? '' : budgetMetrics.netVeImpact >= 0 ? '+' : ''}{fmt(budgetMetrics.netVeImpact)}</span>
           </div>
-          <div className="flex flex-col items-start px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800">
-            <span className="text-[10px] font-semibold text-amber-500 dark:text-amber-400 uppercase tracking-wider leading-none">Exposure</span>
-            <span className="text-sm font-bold text-amber-600 dark:text-amber-400 tabular-nums leading-tight mt-0.5">{fmt(budgetMetrics.potentialExposure)}</span>
+          <div className={`flex flex-col items-start px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border ${
+            Math.abs(budgetMetrics.potentialExposure) < 0.001 ? 'border-slate-200 dark:border-slate-700' : 'border-amber-200 dark:border-amber-800'
+          }`}>
+            <span className={`text-[10px] font-semibold uppercase tracking-wider leading-none ${
+              Math.abs(budgetMetrics.potentialExposure) < 0.001 ? 'text-slate-400 dark:text-slate-500' : 'text-amber-500 dark:text-amber-400'
+            }`}>Exposure</span>
+            <span className={`text-sm font-bold tabular-nums leading-tight mt-0.5 ${
+              Math.abs(budgetMetrics.potentialExposure) < 0.001 ? 'text-slate-400 dark:text-slate-500' : 'text-amber-600 dark:text-amber-400'
+            }`}>{fmt(budgetMetrics.potentialExposure)}</span>
           </div>
         </div>
         {/* Right: actions + compare strip */}

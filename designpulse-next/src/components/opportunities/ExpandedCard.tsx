@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { hasDescriptionContent } from '@/lib/htmlUtils';
 import { useUIStore } from '@/stores/useUIStore';
 import { useUpdateOpportunity, useDeleteOpportunity, useDeEscalateOpportunity } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
@@ -49,13 +51,13 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
 
   // Controlled accordion: eliminates React vs browser DOM fight on <details open>
   const [descOpen, setDescOpen] = useState(
-    () => !!row.original.description?.trim()
+    () => hasDescriptionContent(row.original.description)
   );
   // Re-derive default when the user navigates to a different item.
   // Keyed on `id` only — NOT `description` — so the user's manual toggle
   // isn't overridden when their own edits trigger a TanStack refetch.
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { setDescOpen(!!row.original.description?.trim()); }, [row.original.id]);
+  useEffect(() => { setDescOpen(hasDescriptionContent(row.original.description)); }, [row.original.id]);
 
   const activeFields = cardOrder
     .map(id => ALL_PRIMARY_FIELDS.find(f => f.id === id))
@@ -314,14 +316,14 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
                     Description / Notes
                   </span>
                   {/* Subtle Visual Indicator if content exists */}
-                  {!!row.original.description?.trim() && (
+                  {hasDescriptionContent(row.original.description) && (
                     <span className="w-1.5 h-1.5 rounded-full bg-sky-500 dark:bg-sky-400"></span>
                   )}
                 </div>
                 
                 <div className="flex items-center gap-3 pr-2">
                   {/* Text preview when collapsed and empty */}
-                  {!row.original.description?.trim() && (
+                  {!hasDescriptionContent(row.original.description) && (
                     <span className="text-xs text-slate-400 dark:text-slate-500 group-open:hidden">
                       + Add description...
                     </span>
@@ -331,30 +333,17 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               </summary>
               
               <div className="p-2 bg-white dark:bg-slate-800 rounded-b-xl">
-                <textarea
-                  className="w-full text-sm bg-transparent border-none p-2 h-24 resize-y focus:ring-2 focus:ring-sky-500 rounded-lg outline-none text-slate-800 dark:text-slate-200 disabled:opacity-70 disabled:cursor-not-allowed"
-                  placeholder="Add description, scope notes, or context..."
+                <RichTextEditor
                   key={row.original.id + '-desc'}
-                  defaultValue={row.original.description || ''}
+                  content={row.original.description || ''}
                   disabled={isLocked || !permissions?.can_edit_records}
-                  onBlur={(e) => {
-                    if (e.target.value !== (row.original.description || '')) {
+                  placeholder="Add description, scope notes, or context..."
+                  onSave={(html) => {
+                    if (html !== (row.original.description || '')) {
                       updateData.mutate({
                         id: row.original.id,
-                        updates: { description: e.target.value }
+                        updates: { description: html }
                       });
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      const val = e.currentTarget.value;
-                      if (val !== (row.original.description || '')) {
-                        updateData.mutate({
-                          id: row.original.id,
-                          updates: { description: val }
-                        });
-                      }
-                      e.currentTarget.blur();
                     }
                   }}
                 />

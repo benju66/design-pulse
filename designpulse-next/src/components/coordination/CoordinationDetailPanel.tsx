@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle, List, MessageSquare, ChevronDown } from 'lucide-react';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { hasDescriptionContent } from '@/lib/htmlUtils';
 import { useUIStore } from '@/stores/useUIStore';
 import { Opportunity, DisciplineConfig, DisciplineDetails } from '@/types/models';
 import { useUpdateOpportunity, useUpdateCoordinationDetails } from '@/hooks/useOpportunityQueries';
@@ -21,13 +23,13 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
 
   // Controlled accordion: eliminates React vs browser DOM fight on <details open>
   const [descOpen, setDescOpen] = useState(
-    () => !!opportunity.description?.trim()
+    () => hasDescriptionContent(opportunity.description)
   );
   // Re-derive default when the user navigates to a different item.
   // Keyed on `id` only — NOT `description` — so the user's manual toggle
   // isn't overridden when their own edits trigger a TanStack refetch.
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { setDescOpen(!!opportunity.description?.trim()); }, [opportunity.id]);
+  useEffect(() => { setDescOpen(hasDescriptionContent(opportunity.description)); }, [opportunity.id]);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const updateMutation = useUpdateOpportunity(projectId);
@@ -245,14 +247,14 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
                 Description / Notes
               </span>
               {/* Subtle Visual Indicator if content exists */}
-              {!!opportunity.description?.trim() && (
+              {hasDescriptionContent(opportunity.description) && (
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-500 dark:bg-sky-400"></span>
               )}
             </div>
             
             <div className="flex items-center gap-3 pr-2">
               {/* Text preview when collapsed and empty */}
-              {!opportunity.description?.trim() && (
+              {!hasDescriptionContent(opportunity.description) && (
                 <span className="text-xs text-slate-400 dark:text-slate-500 group-open:hidden">
                   + Add description...
                 </span>
@@ -262,30 +264,17 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
           </summary>
           
           <div className="p-2 bg-white dark:bg-slate-800 rounded-b-xl">
-            <textarea
-              className="w-full text-sm bg-transparent border-none p-2 h-24 resize-y focus:ring-2 focus:ring-sky-500 rounded-lg outline-none text-slate-800 dark:text-slate-200 disabled:opacity-70 disabled:cursor-not-allowed"
-              placeholder="Add description, scope notes, or context..."
+            <RichTextEditor
               key={opportunity.id + '-desc'}
-              defaultValue={opportunity.description || ''}
+              content={opportunity.description || ''}
               disabled={!permissions?.can_edit_records}
-              onBlur={(e) => {
-                if (e.target.value !== (opportunity.description || '')) {
+              placeholder="Add description, scope notes, or context..."
+              onSave={(html) => {
+                if (html !== (opportunity.description || '')) {
                   updateMutation.mutate({
                     id: opportunity.id,
-                    updates: { description: e.target.value }
+                    updates: { description: html }
                   });
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  const val = e.currentTarget.value;
-                  if (val !== (opportunity.description || '')) {
-                    updateMutation.mutate({
-                      id: opportunity.id,
-                      updates: { description: val }
-                    });
-                  }
-                  e.currentTarget.blur();
                 }
               }}
             />

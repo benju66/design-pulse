@@ -67,7 +67,7 @@ export function CoordinationView({
           
           {/* Filter Toolbar removed — filters are now inline in the grid toolbar via filterSlot */}
 
-          <div className="flex-1 overflow-hidden flex flex-col relative">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col relative">
             {isMapVisible && (
               <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
                 <FloorplanCanvas 

@@ -521,8 +521,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     : 0;
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden">
-      <div className="flex-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative flex flex-col">
+    <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative flex flex-col">
         
         {/* no overflow-hidden: MultiSelectFilter popover is z-[100] and must escape this container */}
         <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
@@ -583,7 +583,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
 
         <div 
           ref={tableContainerRef} 
-          className="flex-1 overflow-auto rounded-b-xl outline-none"
+          className="flex-1 min-h-0 overflow-auto rounded-b-xl outline-none"
           tabIndex={0}
           onKeyDown={(e) => {
             if (handleKeyDown) handleKeyDown(e as any);

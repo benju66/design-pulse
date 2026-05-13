@@ -39,6 +39,7 @@ import { useOpportunityColumnsV2 } from './opportunities/columns-v2';
 import GhostRow from './opportunities/GhostRow';
 import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { Opportunity, OpportunityOption } from '@/types/models';
+import { useVirtualGridKeyboardNavigation } from '@/hooks/useVirtualGridKeyboardNavigation';
 
 // IDs of the five ledger financial narrative columns.
 // Excluded from ve_column_order persistence — ledger column order is fixed by design.
@@ -130,6 +131,8 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
           {/* Label: single colSpan td covering everything before the first financial column */}
           <td
             colSpan={labelColSpan}
+            data-row-index={virtualRow.index}
+            data-col-id={allCells[0]?.column.id}
             className="max-w-0 px-4 py-2.5 cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-700/50 overflow-hidden"
             onClick={row.getToggleExpandedHandler()}
             title={groupKey}
@@ -146,7 +149,7 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
           </td>
           {/* Remaining cells: financial ones render aggregated values, others render empty */}
           {trailingCells.map(cell => (
-            <td key={cell.id} className="px-0 py-0">
+            <td key={cell.id} data-row-index={virtualRow.index} data-col-id={cell.column.id} className="px-0 py-0">
               {financialCellIds.has(cell.column.id)
                 ? flexRender(
                     cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell,
@@ -170,6 +173,8 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
       <tr>
         <td 
           colSpan={row.getVisibleCells().length} 
+          data-row-index={virtualRow.index}
+          data-col-id={row.getVisibleCells()[0]?.column.id}
           className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"
           onClick={row.getToggleExpandedHandler()}
         >
@@ -276,6 +281,8 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
             return (
               <td 
                 key={cell.id} 
+                data-row-index={virtualRow.index}
+                data-col-id={cell.column.id}
                 className={`p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-middle bg-clip-padding ${
                   isPinned 
                     ? `sticky z-10 ${
@@ -295,6 +302,8 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
           return (
             <td 
               key={cell.id} 
+              data-row-index={virtualRow.index}
+              data-col-id={cell.column.id}
               className={`p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top bg-clip-padding ${
                 isPinned 
                   ? `sticky z-10 ${
@@ -339,6 +348,7 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const createOptionMutation = useCreateOption(projectId);
   const updateOptionMutation = useUpdateOption(projectId);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
   const compareQueue = useUIStore(state => state.compareQueue);
   const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
   const setCompareQueue = useUIStore(state => state.setCompareQueue);
@@ -617,6 +627,100 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     overscan: 5,
   });
 
+  // Auto-focus the grid when it mounts so keyboard navigation works immediately
+  useEffect(() => {
+    if (tableContainerRef.current) {
+      tableContainerRef.current.focus({ preventScroll: true });
+    }
+  }, []);
+
+  const { onKeyDown } = useVirtualGridKeyboardNavigation({
+    table,
+    virtualizer,
+    onEscape: () => {
+      setSelectedOpportunityId(null);
+    },
+    onEnter: (row, colId) => {
+      // Grouped Rows (Division/Cost Code headers) always expand on Enter
+      if (row.getIsGrouped()) {
+        row.getToggleExpandedHandler()();
+        return;
+      }
+      // The explicit expander column (Card View) expands on Enter
+      if (colId === 'expander') {
+        if (row.getCanExpand()) row.getToggleExpandedHandler()();
+        return;
+      }
+      // Any other cell opens the Detail Panel.
+      // If it's a sub-row (Option), we must open the PARENT opportunity's detail panel.
+      const targetId = 'opportunity_id' in row.original 
+        ? (row.original.opportunity_id as string) 
+        : row.original.id;
+      
+      setSelectedOpportunityId(targetId);
+      
+      // Force the layout into split view so the detail panel actually appears
+      if (useUIStore.getState().veGridViewMode !== 'split') {
+        useUIStore.getState().setVeGridViewMode('split');
+      }
+
+      // Throw focus to the Detail Panel after React renders it
+      setTimeout(() => {
+        const panel = document.getElementById('detail-panel-container');
+        if (panel) panel.focus({ preventScroll: true });
+      }, 50);
+    },
+    onSpace: (row, colId) => {
+      // Grouped Rows always expand on Space
+      if (row.getIsGrouped()) {
+        row.getToggleExpandedHandler()();
+        return;
+      }
+      // The explicit expander column expands on Space
+      if (colId === 'expander') {
+        if (row.getCanExpand()) row.getToggleExpandedHandler()();
+        return;
+      }
+      // Any other cell toggles the Compare Queue.
+      // Must explicitly block sub-rows (Options) and Budget Lines to prevent data corruption.
+      if (!('opportunity_id' in row.original) && !row.original.is_budget_line) {
+        const id = row.original.id;
+        if (compareQueue.includes(id)) {
+          setCompareQueue(compareQueue.filter(x => x !== id));
+        } else {
+          setCompareQueue([...compareQueue, id]);
+        }
+      }
+    },
+    getValidColumnIds: (row, visibleCols) => {
+      // 1. Grouped Row Logic
+      if (row.getIsGrouped() && isLedgerView) {
+        const financialCellIds = new Set(['cost_impact', 'days_impact', 'baseline_budget', 'approved_changes', 'revised_budget', 'pending_changes', 'projected_final']);
+        const allColIds = visibleCols.map(c => c.id);
+        const firstFinIdx = allColIds.findIndex(id => financialCellIds.has(id));
+        if (firstFinIdx > 0) {
+          return [allColIds[0], ...allColIds.slice(firstFinIdx)];
+        }
+      }
+      
+      // 2. Sub-Row Logic
+      const isSubRow = row.original && !('project_id' in row.original) && 'opportunity_id' in row.original;
+      if (isSubRow) {
+        // Skip the empty indentation cells so the user doesn't have to arrow through blank space
+        const skipIds = new Set(['select', 'open_panel', 'display_id', 'expander']);
+        return visibleCols.map(c => c.id).filter(id => !skipIds.has(id));
+      }
+
+      // 3. Budget Line Logic
+      if (row.original?.is_budget_line) {
+        // Budget lines don't have checkboxes, so we skip the select column entirely
+        return visibleCols.map(c => c.id).filter(id => id !== 'select');
+      }
+
+      return visibleCols.map(c => c.id);
+    }
+  });
+
   useEffect(() => {
     if (selectedOpportunityId) {
       const index = rows.findIndex(r => r.original.id === selectedOpportunityId);
@@ -737,6 +841,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
         ref={tableContainerRef} 
         className="flex-1 overflow-auto rounded-b-xl outline-none"
         tabIndex={0}
+        onKeyDown={onKeyDown}
       >
         <table 
           className="text-left text-sm whitespace-nowrap border-separate border-spacing-0" 

@@ -52,11 +52,24 @@ export default function DetailPanel({ projectId, opportunities, viewMode }: Deta
     document.body.style.cursor = 'col-resize';
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setSelectedOpportunityId(null);
+      // Return focus to the grid
+      const grid = document.getElementById('opportunity-grid-v2-container');
+      if (grid) grid.focus({ preventScroll: true });
+    }
+  };
+
   return (
     <div 
       ref={panelRef}
+      id="detail-panel-container"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
       style={!isMaximized ? { width: `${panelWidth}%` } : {}}
-      className={`relative bg-white dark:bg-slate-900 shadow-[rgba(0,0,0,0.1)_-4px_0px_10px_0px] border-l border-slate-200 dark:border-slate-800 z-10 flex flex-col shrink-0 max-w-full ${
+      className={`relative bg-white dark:bg-slate-900 shadow-[rgba(0,0,0,0.1)_-4px_0px_10px_0px] border-l border-slate-200 dark:border-slate-800 z-10 flex flex-col shrink-0 max-w-full focus:outline-none ${
         isMaximized ? 'absolute top-0 bottom-0 right-0 w-full z-50 transition-all duration-300' : (isDragging ? 'h-full transition-none' : 'h-full transition-all duration-300')
       }`}
     >

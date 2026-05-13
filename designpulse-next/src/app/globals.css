@@ -107,3 +107,9 @@ select option, select optgroup {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.keyboard-focused-cell {
+  outline: 2px solid #0ea5e9 !important;
+  outline-offset: -2px !important;
+  border-radius: 2px;
+}

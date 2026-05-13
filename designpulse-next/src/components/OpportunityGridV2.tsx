@@ -75,9 +75,10 @@ interface GroupedRowProps {
   rawCostCodes?: unknown[];
   isExpanded: boolean;
   isLedgerView: boolean;
+  isStickyClone?: boolean;
 }
 
-const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded, isLedgerView }: GroupedRowProps) {
+const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded, isLedgerView, isStickyClone = false }: GroupedRowProps) {
   const divisionVal = row.getValue('division') as string;
   let divisionLabel = divisionVal ? `${divisionVal}` : 'Uncategorized';
   
@@ -121,6 +122,8 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
     const labelColSpan = firstFinancialIdx > 0 ? firstFinancialIdx : 1;
     const trailingCells = firstFinancialIdx > 0 ? allCells.slice(firstFinancialIdx) : allCells.slice(1);
 
+    const labelWidth = allCells.slice(0, labelColSpan).reduce((acc, c) => acc + c.column.getSize(), 0);
+
     return (
       <tbody
         ref={measureElement}
@@ -133,7 +136,8 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
             colSpan={labelColSpan}
             data-row-index={virtualRow.index}
             data-col-id={allCells[0]?.column.id}
-            className="max-w-0 px-4 py-2.5 cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-700/50 overflow-hidden border-b border-slate-200 dark:border-slate-700 bg-clip-padding"
+            style={isStickyClone ? { width: labelWidth } : undefined}
+            className={`max-w-0 px-4 py-2.5 cursor-pointer hover:bg-slate-200/50 dark:hover:bg-slate-700/50 overflow-hidden border-b border-slate-200 dark:border-slate-700 bg-clip-padding ${isStickyClone ? (isDivisionLevel ? 'bg-slate-200 dark:bg-slate-800' : 'bg-slate-100 dark:bg-slate-800') : ''}`}
             onClick={row.getToggleExpandedHandler()}
             title={groupKey}
           >
@@ -149,7 +153,7 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
           </td>
           {/* Remaining cells: financial ones render aggregated values, others render empty */}
           {trailingCells.map(cell => (
-            <td key={cell.id} data-row-index={virtualRow.index} data-col-id={cell.column.id} className="px-0 py-0 border-b border-slate-200 dark:border-slate-700 bg-clip-padding">
+            <td key={cell.id} data-row-index={virtualRow.index} data-col-id={cell.column.id} style={isStickyClone ? { width: cell.column.getSize() } : undefined} className={`px-0 py-0 border-b border-slate-200 dark:border-slate-700 bg-clip-padding ${isStickyClone ? (isDivisionLevel ? 'bg-slate-200 dark:bg-slate-800' : 'bg-slate-100 dark:bg-slate-800') : ''}`}>
               {financialCellIds.has(cell.column.id)
                 ? flexRender(
                     cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell,
@@ -164,18 +168,21 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
   }
 
   // ── Value Matrix Mode: Original Colspan Layout ────────────────────────────
+  const totalWidth = row.getVisibleCells().reduce((acc, c) => acc + c.column.getSize(), 0);
+  
   return (
     <tbody 
       ref={measureElement}
       data-index={virtualRow.index}
-      className="bg-slate-100 dark:bg-slate-800"
+      className={isStickyClone ? '' : "bg-slate-100 dark:bg-slate-800"}
     >
       <tr>
         <td 
           colSpan={row.getVisibleCells().length} 
           data-row-index={virtualRow.index}
           data-col-id={row.getVisibleCells()[0]?.column.id}
-          className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600 bg-clip-padding"
+          style={isStickyClone ? { width: totalWidth } : undefined}
+          className={`px-4 py-3 font-bold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 border-b-2 border-slate-300 dark:border-slate-600 bg-clip-padding ${isStickyClone ? 'bg-slate-100 dark:bg-slate-800' : ''}`}
           onClick={row.getToggleExpandedHandler()}
         >
           <div className="flex justify-between items-center w-full">
@@ -223,6 +230,7 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
   return (
     prev.isExpanded === next.isExpanded &&
     prev.isLedgerView === next.isLedgerView &&
+    prev.isStickyClone === next.isStickyClone &&
     prev.row.id === next.row.id &&
     prev.row.getValue('cost_impact') === next.row.getValue('cost_impact') &&
     prev.row.getValue('days_impact') === next.row.getValue('days_impact') &&
@@ -749,6 +757,64 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   const paddingBottom = virtualItems.length > 0
     ? virtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end || 0)
     : 0;
+    
+  const theadRef = useRef<HTMLTableSectionElement>(null);
+  const [theadHeight, setTheadHeight] = useState(34);
+  
+  useEffect(() => {
+    if (theadRef.current) {
+      setTheadHeight(theadRef.current.getBoundingClientRect().height);
+    }
+  }, [activeColumns, isLedgerView]);
+
+  const { activeGroupRow, stickyTranslateY } = useMemo(() => {
+    if (virtualItems.length === 0) return { activeGroupRow: null, stickyTranslateY: 0 };
+    const currentScroll = virtualizer.scrollOffset ?? 0;
+    // 1. Find the deepest virtual item that has hit the ceiling
+    let topVisibleIndex = -1;
+    for (let i = 0; i < virtualItems.length; i++) {
+      if (virtualItems[i].start <= currentScroll) {
+        topVisibleIndex = virtualItems[i].index;
+      } else {
+        break; // Items are ordered by index/start, so we can stop early
+      }
+    }
+    
+    // If no items have hit the ceiling (e.g. bounce scrolling at the very top), no sticky row
+    if (topVisibleIndex === -1) {
+      return { activeGroupRow: null, stickyTranslateY: 0 };
+    }
+    
+    // 2. Scan backwards from the top visible item to find the parent group
+    let activeIndex = -1;
+    for (let i = topVisibleIndex; i >= 0; i--) {
+      if (rows[i].getIsGrouped() && rows[i].depth === 0) {
+        activeIndex = i;
+        break;
+      }
+    }
+    
+    if (activeIndex === -1) return { activeGroupRow: null, stickyTranslateY: 0 };
+    
+    let translateY = 0;
+    const nextGroupVirtualItem = virtualItems.find(
+      (v) => v.index > activeIndex && rows[v.index].getIsGrouped() && rows[v.index].depth === 0
+    );
+    
+    if (nextGroupVirtualItem) {
+      const distanceToCeiling = nextGroupVirtualItem.start - currentScroll;
+      const stickyHeight = isLedgerView ? 41 : 46; // Approximate heights
+      if (distanceToCeiling > 0 && distanceToCeiling < stickyHeight) {
+        translateY = distanceToCeiling - stickyHeight;
+      }
+    }
+    
+    return { 
+      activeGroupRow: { row: rows[activeIndex], index: activeIndex },
+      stickyTranslateY: translateY
+    };
+  }, [virtualItems, rows, virtualizer.scrollOffset, theadHeight, isLedgerView]);
+
   // Budget Ledger metric pills - computed from the data prop
   const budgetMetrics = useMemo(() => {
     const budgetLines = data.filter(r => r.is_budget_line);
@@ -851,15 +917,39 @@ const EMPTY_VISIBILITY: VisibilityState = {};
 
       <div 
         ref={tableContainerRef} 
-        className="flex-1 overflow-auto rounded-b-xl outline-none"
+        className="flex-1 overflow-auto rounded-b-xl outline-none relative"
         tabIndex={0}
         onKeyDown={onKeyDown}
       >
+        {/* Floating Sticky Group Header */}
+        {activeGroupRow && activeGroupRow.row.getIsExpanded() && (
+          <div 
+            className="sticky left-0 z-[15] w-full pointer-events-none shadow-md drop-shadow-sm"
+            style={{ top: `${theadHeight + stickyTranslateY}px`, height: 0 }}
+          >
+            <table 
+              className="text-left text-sm whitespace-nowrap border-separate border-spacing-0 pointer-events-auto"
+              style={{ width: table.getTotalSize() }}
+            >
+              <MemoizedGroupedRow 
+                row={activeGroupRow.row}
+                virtualRow={{ index: activeGroupRow.index } as unknown as VirtualItem}
+                measureElement={() => {}}
+                visibleColumnIds={activeGroupRow.row.getVisibleCells().map(c => c.column.id).join(',')}
+                rawCostCodes={(table.options.meta as Record<string, unknown>)?.rawCostCodes as unknown[] || []}
+                isExpanded={activeGroupRow.row.getIsExpanded()}
+                isLedgerView={isLedgerView}
+                isStickyClone={true}
+              />
+            </table>
+          </div>
+        )}
+
         <table 
           className="text-left text-sm whitespace-nowrap border-separate border-spacing-0" 
           style={{ tableLayout: 'fixed', width: table.getTotalSize() }}
         >
-          <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-20">
+          <thead ref={theadRef} className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-20">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => {

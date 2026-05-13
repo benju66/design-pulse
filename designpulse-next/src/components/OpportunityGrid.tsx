@@ -415,10 +415,10 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                   style={{ width: header.getSize(), ...(isPinned ? { left: header.column.getStart('left') } : {}) }}
                 >
                   <div 
-                    className={`truncate flex items-center justify-between ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}
+                    className={`min-w-0 flex items-center justify-between ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}
                     onClick={header.column.getToggleSortingHandler()}
                   >
-                    <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                    <span className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</span>
                     {{
                       asc: <ChevronUp size={14} className="ml-1 inline-block shrink-0" />,
                       desc: <ChevronDown size={14} className="ml-1 inline-block shrink-0" />,

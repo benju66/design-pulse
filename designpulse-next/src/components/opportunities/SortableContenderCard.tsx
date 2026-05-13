@@ -5,6 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, X, Star, RotateCcw } from 'lucide-react';
 import { OpportunityOption, DisciplineConfig, CategoryConfig, UserPermissions } from '@/types/models';
+import type { ContenderRecordType } from './ContendersMatrix';
 import { UseMutationResult } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import { useUpdateOptionRequirements } from '@/hooks/useOpportunityQueries';
@@ -12,6 +13,7 @@ import { useCostCodes } from '@/hooks/useGlobalQueries';
 
 interface SortableContenderCardProps {
   opt: OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean };
+  recordType?: ContenderRecordType;
   categories: CategoryConfig[];
   disciplines: DisciplineConfig[];
   updateOption: UseMutationResult<OpportunityOption, Error, { id: string; updates: Partial<OpportunityOption & { quantity?: number; unit_cost?: number; uom?: string; time_impact_uom?: string; is_favorite?: boolean }> }, unknown>;
@@ -28,6 +30,7 @@ interface SortableContenderCardProps {
 
 export const SortableContenderCard = ({
   opt,
+  recordType = 'VE',
   categories,
   disciplines,
   updateOption,
@@ -202,8 +205,8 @@ export const SortableContenderCard = ({
       </div>
 
       <textarea
-        className="text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-2 mb-3 outline-none focus:ring-2 focus:ring-sky-500 resize-none h-16 disabled:opacity-70 disabled:cursor-not-allowed"
-        placeholder="Description & Pros/Cons..."
+        className={`text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-2 mb-3 outline-none focus:ring-2 focus:ring-sky-500 resize-none disabled:opacity-70 disabled:cursor-not-allowed ${recordType === 'Coordination' ? 'h-24' : 'h-16'}`}
+        placeholder={recordType === 'Coordination' ? 'Detail the design changes required for this solution...' : 'Description & Pros/Cons...'}
         defaultValue={opt.description || ''}
         disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
         onBlur={(e) => {
@@ -211,6 +214,8 @@ export const SortableContenderCard = ({
         }}
       />
 
+      {recordType === 'VE' ? (
+        <>
       <div className="grid grid-cols-2 gap-2 mb-2">
         <div className="flex flex-col">
           <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Quantity / UoM</label>
@@ -314,7 +319,26 @@ export const SortableContenderCard = ({
           </div>
         </div>
       </div>
+        </>
+      ) : (
+        /* Coordination mode: compact read-only financial summary */
+        <div className="grid grid-cols-2 gap-2 mb-2 opacity-60">
+          <div className="flex flex-col">
+            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Cost Impact</label>
+            <span className="text-xs text-slate-600 dark:text-slate-400 font-mono tabular-nums">
+              ${Number(opt.cost_impact ?? 0).toLocaleString()}
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Schedule</label>
+            <span className="text-xs text-slate-600 dark:text-slate-400 font-mono tabular-nums">
+              {opt.days_impact ?? 0} {opt.time_impact_uom || 'days'}
+            </span>
+          </div>
+        </div>
+      )}
 
+      {recordType === 'VE' ? (
       <div className="flex flex-col mb-4">
         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Cost Code</label>
         <div className="flex bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded focus-within:ring-2 focus-within:ring-sky-500">
@@ -357,8 +381,19 @@ export const SortableContenderCard = ({
           ))}
         </datalist>
       </div>
+      ) : opt.cost_code ? (
+        <div className="flex flex-col mb-4 opacity-60">
+          <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Cost Code</label>
+          <span className="text-xs text-slate-600 dark:text-slate-400 font-mono truncate">{opt.cost_code}</span>
+          {opt.division && (
+            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 truncate">Div: {opt.division}</span>
+          )}
+        </div>
+      ) : null}
 
       <div className="mt-auto flex flex-col gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/50">
+        {recordType === 'VE' && (
+          <>
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Target for Forecast</span>
             <button
@@ -522,7 +557,10 @@ export const SortableContenderCard = ({
             </div>
           </details>
         )}
+          </>
+        )}
 
+        {recordType === 'VE' ? (
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Final Selection</span>
           {opt.is_locked && canUnlock ? (
@@ -557,6 +595,19 @@ export const SortableContenderCard = ({
             </button>
           )}
         </div>
+        ) : (
+          /* Coordination mode: read-only status badge */
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Selection</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+              opt.is_locked
+                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+            }`}>
+              {opt.is_locked ? 'Locked' : 'Open'}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

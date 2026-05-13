@@ -14,20 +14,31 @@ import {
   useReorderOptions,
   useUnlockOpportunityOption
 } from '@/hooks/useOpportunityQueries';
-import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
+import { useProjectSettings, useCurrentUserPermissions, DEFAULT_PERMS } from '@/hooks/useProjectCoreQueries';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 import { normalizeCategories } from '@/lib/normalizeSettings';
-import type { CategoryConfig, DisciplineConfig } from '@/types/models';
+import type { CategoryConfig, DisciplineConfig, UserPermissions } from '@/types/models';
 import { SortableContenderCard } from './SortableContenderCard';
+
+export type ContenderRecordType = 'VE' | 'Coordination';
 
 interface ContendersMatrixProps {
   opportunityId: string;
   isLocked?: boolean;
+  recordType?: ContenderRecordType;
+  projectId?: string;
+  permissions?: UserPermissions;
 }
 
-export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixProps) => {
+export const ContendersMatrix = ({
+  opportunityId,
+  isLocked,
+  recordType = 'VE',
+  projectId: projectIdProp,
+  permissions: permissionsProp
+}: ContendersMatrixProps) => {
   const params = useParams();
-  const projectId = params?.projectId as string;
+  const projectId = projectIdProp || (params?.projectId as string);
 
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   const options = useMemo(() => allOptions.filter(o => o.opportunity_id === opportunityId), [allOptions, opportunityId]);
@@ -52,7 +63,9 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
   const deleteOption = useDeleteOption(opportunityId, projectId);
   const reorderOptions = useReorderOptions(projectId);
 
-  const { permissions } = useCurrentUserPermissions(projectId);
+  // [FIX #4 — C24] Skip internal permissions hook when parent provides them via prop
+  const { permissions: derivedPermissions } = useCurrentUserPermissions(permissionsProp ? null : projectId);
+  const permissions = permissionsProp ?? derivedPermissions ?? DEFAULT_PERMS;
   const unlockMutation = useUnlockOpportunityOption(projectId);
   const [unlockConfirmOppId, setUnlockConfirmOppId] = useState<string | null>(null);
 
@@ -89,7 +102,7 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
   return (
     <div className="mb-6">
       <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 px-2 flex items-center gap-3">
-        Contenders Matrix
+        {recordType === 'Coordination' ? 'Design Options' : 'Contenders Matrix'}
         <span className="text-xs font-normal text-slate-500 bg-slate-200 dark:bg-slate-800 px-2 py-1 rounded-full">
           {options.length} Options
         </span>
@@ -101,6 +114,7 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
               <SortableContenderCard 
                 key={opt.id} 
                 opt={opt}
+                recordType={recordType}
                 opportunityId={opportunityId}
                 categories={categories}
                 disciplines={disciplines}
@@ -125,7 +139,7 @@ export const ContendersMatrix = ({ opportunityId, isLocked }: ContendersMatrixPr
                 className="shrink-0 w-80 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 cursor-pointer hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors text-slate-500 hover:text-sky-600 dark:hover:text-sky-400"
               >
                 <Plus size={32} className="mb-2 opacity-50" />
-                <span className="font-semibold">+ Add Option</span>
+                <span className="font-semibold">{recordType === 'Coordination' ? '+ Add Design Solution' : '+ Add Option'}</span>
               </div>
             )}
           </div>

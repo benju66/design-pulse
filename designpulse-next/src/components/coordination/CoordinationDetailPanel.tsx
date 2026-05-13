@@ -1,9 +1,10 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
-import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle, List, MessageSquare } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle, List, MessageSquare, ChevronDown } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { Opportunity, DisciplineConfig, DisciplineDetails } from '@/types/models';
-import { useUpdateOpportunity, useUpdateCoordinationDetails, useAllProjectOptions } from '@/hooks/useOpportunityQueries';
-import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
+import { useUpdateOpportunity, useUpdateCoordinationDetails } from '@/hooks/useOpportunityQueries';
+import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
+import { ContendersMatrix } from '../opportunities/ContendersMatrix';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface CoordinationDetailPanelProps {
@@ -22,8 +23,7 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
   const updateMutation = useUpdateOpportunity(projectId);
   const updateCoordDetails = useUpdateCoordinationDetails(projectId);
   const { data: settings } = useProjectSettings(projectId);
-  const { data: allOptions } = useAllProjectOptions(projectId);
-  const lockedOption = allOptions?.find(o => o.opportunity_id === opportunity.id && o.is_locked);
+  const { permissions } = useCurrentUserPermissions(projectId);
   
   const rawDisciplines = settings?.disciplines;
   const disciplines: DisciplineConfig[] = Array.isArray(rawDisciplines) 
@@ -223,53 +223,40 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
           </div>
         </div>
 
-        {/* VE Selection Details — visible for any record that has a locked contender */}
-        {lockedOption && (
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm flex flex-col gap-4">
-             <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 pb-2">VE Selection Details</h4>
-             
-             <div>
-               <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Contender Title</label>
-               <div className="text-sm font-bold text-slate-800 dark:text-slate-200">{lockedOption.title}</div>
-             </div>
-
-             <div className="flex gap-4">
-               <div className="flex-1 min-w-0">
-                 <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Cost Code & Division</label>
-                 <div className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate" title={lockedOption.cost_code || opportunity.cost_code ? `${lockedOption.cost_code || opportunity.cost_code}${lockedOption.division || opportunity.division ? ` - ${lockedOption.division || opportunity.division}` : ''}` : 'None'}>
-                   {lockedOption.cost_code || opportunity.cost_code ? `${lockedOption.cost_code || opportunity.cost_code}${lockedOption.division || opportunity.division ? ` - ${lockedOption.division || opportunity.division}` : ''}` : 'None'}
-                 </div>
-               </div>
-               <div className="flex-1 min-w-0">
-                 <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Building Location</label>
-                 <div className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate" title={opportunity.location || opportunity.building_area || 'Not Set'}>
-                   {opportunity.location || opportunity.building_area || 'Not Set'}
-                 </div>
-               </div>
-             </div>
-
-             {lockedOption.description && (
-               <details className="group border border-slate-200 dark:border-slate-700 rounded-md mt-2">
-                 <summary className="flex items-center justify-between px-3 py-2 cursor-pointer list-none text-xs font-bold text-slate-500 dark:text-slate-400 select-none outline-none bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-t-md group-open:rounded-b-none group-[&:not([open])]:rounded-md group-open:border-b group-open:border-slate-200 dark:group-open:border-slate-700">
-                   <span>Description & Pros/Cons</span>
-                   <ChevronDown size={14} className="text-slate-400 group-open:rotate-180 transition-transform" />
-                 </summary>
-                 <div className="p-3 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap bg-white dark:bg-slate-800 rounded-b-md">
-                   {lockedOption.description}
-                 </div>
-               </details>
-             )}
-          </div>
-        )}
-
-        {/* Coordination Description (Only for Direct Coordination items without a locked contender) */}
-        {opportunity.record_type === 'Coordination' && !lockedOption && (
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-1">Description</label>
+        {/* Pinned Description / Notes Accordion */}
+        <details 
+          className="group border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm mb-2"
+          open={!!opportunity.description?.trim()} 
+        >
+          <summary className="flex items-center justify-between p-3 cursor-pointer select-none outline-none bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/50 dark:hover:bg-slate-800 transition-colors rounded-xl group-open:rounded-b-none group-open:border-b group-open:border-slate-200 dark:group-open:border-slate-700">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+                Description / Notes
+              </span>
+              {/* Subtle Visual Indicator if content exists */}
+              {!!opportunity.description?.trim() && (
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 dark:bg-sky-400"></span>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-3 pr-2">
+              {/* Text preview when collapsed and empty */}
+              {!opportunity.description?.trim() && (
+                <span className="text-xs text-slate-400 dark:text-slate-500 group-open:hidden">
+                  + Add description...
+                </span>
+              )}
+              <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+            </div>
+          </summary>
+          
+          <div className="p-2 bg-white dark:bg-slate-800 rounded-b-xl">
             <textarea
-              className="w-full text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 h-24 resize-y focus:ring-2 focus:ring-sky-500 outline-none text-slate-800 dark:text-slate-200 shadow-sm"
-              placeholder="Add description or scope details..."
+              className="w-full text-sm bg-transparent border-none p-2 h-24 resize-y focus:ring-2 focus:ring-sky-500 rounded-lg outline-none text-slate-800 dark:text-slate-200 disabled:opacity-70 disabled:cursor-not-allowed"
+              placeholder="Add description, scope notes, or context..."
+              key={opportunity.id + '-desc'}
               defaultValue={opportunity.description || ''}
+              disabled={!permissions?.can_edit_records}
               onBlur={(e) => {
                 if (e.target.value !== (opportunity.description || '')) {
                   updateMutation.mutate({
@@ -280,12 +267,28 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
+                  const val = e.currentTarget.value;
+                  if (val !== (opportunity.description || '')) {
+                    updateMutation.mutate({
+                      id: opportunity.id,
+                      updates: { description: val }
+                    });
+                  }
                   e.currentTarget.blur();
                 }
               }}
             />
           </div>
-        )}
+        </details>
+
+        {/* Interactive Contenders Matrix — replaces static VE Selection Details */}
+        <ContendersMatrix
+          opportunityId={opportunity.id}
+          isLocked={opportunity.status === 'Approved'}
+          recordType="Coordination"
+          projectId={projectId}
+          permissions={permissions}
+        />
 
         {/* Manual Escalation */}
         <div className="flex flex-col gap-4">
@@ -421,9 +424,3 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
   );
 };
 
-// Helper for the details Chevron
-const ChevronDown = ({ size, className }: { size: number, className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <polyline points="6 9 12 15 18 9"></polyline>
-  </svg>
-);

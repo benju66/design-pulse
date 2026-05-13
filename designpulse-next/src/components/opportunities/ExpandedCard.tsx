@@ -292,7 +292,70 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
       <div className="p-4 bg-slate-50 dark:bg-slate-900/50">
         {activeTab === 'Details' && (
           <>
-            <ContendersMatrix opportunityId={row.original.id} isLocked={isLocked} />
+            {/* Pinned Description / Notes Accordion */}
+            <details 
+              className="group border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm mb-6"
+              open={!!row.original.description?.trim()} 
+            >
+              <summary className="flex items-center justify-between p-3 cursor-pointer select-none outline-none bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/50 dark:hover:bg-slate-800 transition-colors rounded-xl group-open:rounded-b-none group-open:border-b group-open:border-slate-200 dark:group-open:border-slate-700">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+                    Description / Notes
+                  </span>
+                  {/* Subtle Visual Indicator if content exists */}
+                  {!!row.original.description?.trim() && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 dark:bg-sky-400"></span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-3 pr-2">
+                  {/* Text preview when collapsed and empty */}
+                  {!row.original.description?.trim() && (
+                    <span className="text-xs text-slate-400 dark:text-slate-500 group-open:hidden">
+                      + Add description...
+                    </span>
+                  )}
+                  <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                </div>
+              </summary>
+              
+              <div className="p-2 bg-white dark:bg-slate-800 rounded-b-xl">
+                <textarea
+                  className="w-full text-sm bg-transparent border-none p-2 h-24 resize-y focus:ring-2 focus:ring-sky-500 rounded-lg outline-none text-slate-800 dark:text-slate-200 disabled:opacity-70 disabled:cursor-not-allowed"
+                  placeholder="Add description, scope notes, or context..."
+                  key={row.original.id + '-desc'}
+                  defaultValue={row.original.description || ''}
+                  disabled={isLocked || !permissions?.can_edit_records}
+                  onBlur={(e) => {
+                    if (e.target.value !== (row.original.description || '')) {
+                      updateData.mutate({
+                        id: row.original.id,
+                        updates: { description: e.target.value }
+                      });
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      const val = e.currentTarget.value;
+                      if (val !== (row.original.description || '')) {
+                        updateData.mutate({
+                          id: row.original.id,
+                          updates: { description: val }
+                        });
+                      }
+                      e.currentTarget.blur();
+                    }
+                  }}
+                />
+              </div>
+            </details>
+            <ContendersMatrix
+              opportunityId={row.original.id}
+              isLocked={isLocked}
+              recordType="VE"
+              projectId={projectId}
+              permissions={permissions}
+            />
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               {/* Primary Data Grid */}
               <SortableContext items={primaryFields.map(f => f!.id)} strategy={rectSortingStrategy}>

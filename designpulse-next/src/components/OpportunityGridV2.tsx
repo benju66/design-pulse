@@ -51,6 +51,9 @@ const COMPOUND_COLUMN_IDS = ['item_definition', 'cost_classification', 'manageme
 // Combined set for all non-persistable column IDs
 const EXCLUDED_COLUMN_IDS = [...LEDGER_COLUMN_IDS, ...COMPOUND_COLUMN_IDS] as const;
 
+// Narrow type for ve_column_order items (replaces `any` casts — AGENTS.md C1)
+interface VeColumnConfig { id: string; visible?: boolean; pinned?: boolean }
+
 
 interface OpportunityGridProps {
   projectId: string;
@@ -459,19 +462,22 @@ const EMPTY_VISIBILITY: VisibilityState = {};
 
   const activeColumns = useMemo(() => {
     if (!settings?.ve_column_order || typeof settings.ve_column_order[0] === 'string') return columns;
-    const hiddenIds = settings.ve_column_order.filter((c: any) => c.visible === false).map((c: any) => c.id);
-    return columns.filter((c: any) => {
-      const id = c.accessorKey || c.id;
+    const orderConfig = settings.ve_column_order as VeColumnConfig[];
+    const hiddenIds = orderConfig.filter(c => c.visible === false).map(c => c.id);
+    return columns.filter(c => {
+      const id = ('accessorKey' in c ? c.accessorKey : c.id) as string | undefined;
       // Bug #5: always keep compare overlay & ledger cols in the active set regardless of ve_column_order
-      if ((EXCLUDED_COLUMN_IDS as readonly string[]).includes(id)) return true;
-      return !hiddenIds.includes(id);
+      if ((EXCLUDED_COLUMN_IDS as readonly string[]).includes(id!)) return true;
+      return !hiddenIds.includes(id!);
     });
   }, [columns, settings?.ve_column_order]);
 
   useEffect(() => {
     if (!isolateState && settings?.ve_column_order && settings.ve_column_order.length > 0) {
       const savedOrder = settings.ve_column_order;
-      const configuredIds = typeof savedOrder[0] === 'string' ? savedOrder : savedOrder.map((c: any) => c.id);
+      const configuredIds = typeof savedOrder[0] === 'string'
+        ? (savedOrder as string[])
+        : (savedOrder as VeColumnConfig[]).map(c => c.id);
       
       // Bug #5: exclude overlay & ledger column IDs from the order-managed set so they never
       // enter ve_column_order persistence and cause stale visibility on page reload.
@@ -513,7 +519,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       }
       setColumnOrder(baseOrder);
     }
-  }, [settings?.ve_column_order, activeColumns, isolateState]);
+  }, [settings?.ve_column_order, activeColumns, isolateState, isLedgerView]);
 
   const userPinningOverrides = useUIStore(state => state.gridColumnPinningOverrides[projectId]) || { pinned: [], unpinned: [] };
   // Bug #4: column pinning must swap based on isLedgerView
@@ -522,7 +528,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     if (isLedgerView) {
       return { left: [...defaultPinned, 'item_definition'] };
     }
-    const globalPinned = settings?.ve_column_order?.filter((c: { pinned?: boolean }) => c.pinned).map((c: { id: string }) => c.id) || ['display_id', 'title'];
+    const globalPinned = (settings?.ve_column_order as VeColumnConfig[] | undefined)?.filter(c => c.pinned).map(c => c.id) || ['display_id', 'title'];
     const allPinned = new Set([...defaultPinned, ...globalPinned, ...userPinningOverrides.pinned]);
     userPinningOverrides.unpinned.forEach(id => allPinned.delete(id));
     return { left: Array.from(allPinned) };
@@ -823,9 +829,22 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     const netVeImpact = veRows.reduce((s, r) => s + (Number(r.cost_impact) || 0), 0);
     const potentialExposure = veRows
       .filter(r => r.status !== 'Approved' && r.status !== 'Rejected')
-      .reduce((s, r) => s + Math.max(0, Number(r.cost_impact) || 0), 0);
+      .reduce((s, r) => {
+        const opts = optionsMap[r.id] || [];
+        if (opts.length === 0) {
+          // No options attached — use parent cost_impact
+          return s + Math.max(0, Number(r.cost_impact) || 0);
+        }
+        // Priority: if user has flagged specific options for budget, use those
+        const budgetFlagged = opts.filter(o => o.include_in_budget);
+        if (budgetFlagged.length > 0) {
+          return s + budgetFlagged.reduce((sum, o) => sum + Math.max(0, Number(o.cost_impact) || 0), 0);
+        }
+        // Fallback: worst-case = Math.max() across all options (AGENTS.md §3)
+        return s + Math.max(0, ...opts.map(o => Number(o.cost_impact) || 0));
+      }, 0);
     return { totalBudget, netVeImpact, potentialExposure };
-  }, [data]);
+  }, [data, optionsMap]);
   const fmt = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 
@@ -936,7 +955,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                 virtualRow={{ index: activeGroupRow.index } as unknown as VirtualItem}
                 measureElement={() => {}}
                 visibleColumnIds={activeGroupRow.row.getVisibleCells().map(c => c.column.id).join(',')}
-                rawCostCodes={(table.options.meta as Record<string, unknown>)?.rawCostCodes as unknown[] || []}
+                rawCostCodes={table.options.meta?.rawCostCodes ?? []}
                 isExpanded={activeGroupRow.row.getIsExpanded()}
                 isLedgerView={isLedgerView}
                 isStickyClone={true}
@@ -999,10 +1018,11 @@ const EMPTY_VISIBILITY: VisibilityState = {};
           {virtualItems.map((virtualRow) => {
             const row = rows[virtualRow.index];
             const isSelected = selectedOpportunityId === row.original.id;
-            const visibleColumnIds = row.getVisibleCells().map((c: any) => c.column.id).join(',');
-            const pinnedColumnOffsets = row.getVisibleCells()
-              .filter((c: any) => c.column.getIsPinned())
-              .map((c: any) => c.column.getStart('left'))
+            const visibleCells = row.getVisibleCells();
+            const visibleColumnIds = visibleCells.map(c => c.column.id).join(',');
+            const pinnedColumnOffsets = visibleCells
+              .filter(c => c.column.getIsPinned())
+              .map(c => c.column.getStart('left'))
               .join(',');
             
             if (row.getIsGrouped()) {
@@ -1013,7 +1033,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                   virtualRow={virtualRow}
                   measureElement={virtualizer.measureElement}
                   visibleColumnIds={visibleColumnIds}
-                  rawCostCodes={(table.options.meta as Record<string, unknown>)?.rawCostCodes as unknown[] || []}
+                  rawCostCodes={table.options.meta?.rawCostCodes ?? []}
                   isExpanded={row.getIsExpanded()}
                   isLedgerView={isLedgerView}
                 />
@@ -1054,7 +1074,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
           {/* Ghost Row for Quick Add */}
           {!hideGhostRow && permissions.can_edit_records && (
             <tbody>
-              <GhostRow table={table as any} createMutation={createMutation as any} />
+              <GhostRow table={table} createMutation={createMutation} />
             </tbody>
           )}
         </table>

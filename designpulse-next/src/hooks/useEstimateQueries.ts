@@ -247,15 +247,15 @@ export function useActivateEstimateVersion(projectId: string) {
   });
 }
 
-// ── useDeleteDraftEstimateVersion ────────────────────────────────────────────
-// Deletes an unfinalized (is_finalized=false, is_active=false) version.
+// ── useDeleteEstimateVersion ────────────────────────────────────────────
+// Deletes a version (must not be active).
 // Used by UI "Delete" button and mutation onError cleanup.
-export function useDeleteDraftEstimateVersion(projectId: string) {
+export function useDeleteEstimateVersion(projectId: string) {
   const qc = useQueryClient();
 
   return useMutation<void, Error, string>({
     mutationFn: async (versionId: string) => {
-      const { error } = await supabase.rpc('delete_draft_estimate_version', {
+      const { error } = await supabase.rpc('delete_estimate_version', {
         p_version_id: versionId,
         p_project_id: projectId,
       });
@@ -263,6 +263,8 @@ export function useDeleteDraftEstimateVersion(projectId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: estimateKeys.versions(projectId) });
+      qc.invalidateQueries({ queryKey: ['project_settings', projectId] });
+      qc.invalidateQueries({ queryKey: estimateKeys.waterfall(projectId) });
     },
   });
 }

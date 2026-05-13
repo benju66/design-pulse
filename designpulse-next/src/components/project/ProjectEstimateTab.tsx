@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { Upload, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, BarChart3, Trash2, Star, Search, X } from 'lucide-react';
-import { useProjectEstimateVersions, useImportEstimateMutation, useActivateEstimateVersion, useDeleteDraftEstimateVersion, useProjectEstimateLines, useCompareEstimateVersions } from '@/hooks/useEstimateQueries';
+import { useProjectEstimateVersions, useImportEstimateMutation, useActivateEstimateVersion, useDeleteEstimateVersion, useProjectEstimateLines, useCompareEstimateVersions } from '@/hooks/useEstimateQueries';
 import { usePendingEstimateUpdates } from '@/hooks/useOpportunityQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { parseProcoreBudgetExcel } from '@/lib/excel/procoreBudgetParser';
@@ -232,17 +232,18 @@ function VersionRow({
               Set Active
             </button>
           )}
-          {!version.is_active && !version.is_finalized && (
-            <button
-              id={`delete-draft-${version.id}`}
-              onClick={(e) => { e.stopPropagation(); onDelete(version.id); }}
-              disabled={isDeleting}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-50 transition-colors"
-              title="Delete draft"
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
+          <button
+            id={`delete-version-${version.id}`}
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              onDelete(version.id); 
+            }}
+            disabled={isDeleting}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-50 transition-colors"
+            title="Delete version"
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
     </div>
@@ -409,6 +410,7 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
   const [viewingVersionId, setViewingVersionId] = useState<string | null>(null);
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([]);
   const [comparingVersionIds, setComparingVersionIds] = useState<[string, string] | null>(null);
+  const [versionToDelete, setVersionToDelete] = useState<string | null>(null);
 
   const [isDragging, setIsDragging]   = useState(false);
   const [historyOpen, setHistoryOpen] = useState(true);
@@ -430,7 +432,7 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
   const { data: versions = [], isLoading: versionsLoading } = useProjectEstimateVersions(projectId);
   const importMutation   = useImportEstimateMutation(projectId);
   const activateMutation = useActivateEstimateVersion(projectId);
-  const deleteMutation   = useDeleteDraftEstimateVersion(projectId);
+  const deleteMutation   = useDeleteEstimateVersion(projectId);
 
   // Known 6-digit codes set for match detection — memoized to prevent processFile/handleDrop
   // recreation on every render (knownCodes dep in useCallback) (AGENTS.md C24 performance).
@@ -560,7 +562,7 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
       <div>
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
           <BarChart3 size={20} className="text-sky-500" />
-          Project Estimate
+          Project Budget
         </h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
           Import a Procore Budget Template (.xlsx) to establish a versioned financial baseline for this project.
@@ -596,7 +598,7 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
                 key={v.id}
                 version={v}
                 onActivate={id => activateMutation.mutate(id)}
-                onDelete={id => deleteMutation.mutate(id)}
+                onDelete={id => setVersionToDelete(id)}
                 onView={id => setViewingVersionId(id)}
                 isSelected={selectedVersionIds.includes(v.id)}
                 onToggleSelect={(id, selected) => {
@@ -619,6 +621,45 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
       {/* Viewer Modal */}
       {viewingVersionId && (
         <VersionLinesViewer versionId={viewingVersionId} onClose={() => setViewingVersionId(null)} />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {versionToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-rose-100 dark:bg-rose-900/30 rounded-full text-rose-600 dark:text-rose-500 shrink-0">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete Version</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                  Are you sure you want to permanently delete this version and its associated variance notes? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setVersionToDelete(null)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  deleteMutation.mutate(versionToDelete, {
+                    onSuccess: () => setVersionToDelete(null),
+                  });
+                }}
+                disabled={deleteMutation.isPending}
+                className="px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-xl transition-colors shadow-sm flex items-center gap-2"
+              >
+                {deleteMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Compare Modal */}

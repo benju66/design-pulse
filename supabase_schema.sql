@@ -2045,10 +2045,10 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.activate_estimate_version(uuid) FROM PUBLIC, anon;
 GRANT  EXECUTE ON FUNCTION public.activate_estimate_version(uuid) TO authenticated;
 
--- ── RPC 5: delete_draft_estimate_version ────────────────────────────────────
--- Orphan cleanup: called from mutation onError when chunked insert fails.
--- Safety guards: never deletes active or finalized versions.
-CREATE OR REPLACE FUNCTION public.delete_draft_estimate_version(
+-- ── RPC 5: delete_estimate_version ────────────────────────────────────────────
+-- Orphan cleanup and version removal.
+-- If the active version is deleted, the project budget is zeroed out.
+CREATE OR REPLACE FUNCTION public.delete_estimate_version(
   p_version_id uuid,
   p_project_id uuid
 ) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -2057,24 +2057,28 @@ BEGIN
   IF NOT has_project_permission(p_project_id, 'can_edit_project_settings') THEN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
+
+  -- Open the escape hatch to bypass immutability triggers on cascading deletes for variance notes
+  -- Must be placed BEFORE any UPDATE statements per AGENTS.md Rule B.
+  PERFORM set_config('designpulse.bypass_immutability', 'true', true);
+
   SELECT * INTO v_version FROM project_estimate_versions
   WHERE id = p_version_id AND project_id = p_project_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Version % not found in project %', p_version_id, p_project_id;
   END IF;
+
   IF v_version.is_active THEN
-    RAISE EXCEPTION 'Cannot delete an active estimate version';
+    -- Zero out the project baseline if the active version is deleted
+    PERFORM 1 FROM project_settings WHERE project_id = p_project_id FOR UPDATE;
+    UPDATE project_settings SET original_budget = 0 WHERE project_id = p_project_id;
   END IF;
-  -- Use is_finalized (not total_budget != 0) — the old proxy would incorrectly
-  -- allow deleting legitimately $0 budgets and block deletions on uncompleted imports.
-  IF v_version.is_finalized THEN
-    RAISE EXCEPTION 'Cannot delete a finalized estimate version. Use deactivation instead.';
-  END IF;
+
   DELETE FROM project_estimate_versions WHERE id = p_version_id;
 END;
 $$;
-REVOKE EXECUTE ON FUNCTION public.delete_draft_estimate_version(uuid, uuid) FROM PUBLIC, anon;
-GRANT  EXECUTE ON FUNCTION public.delete_draft_estimate_version(uuid, uuid) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.delete_estimate_version(uuid, uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.delete_estimate_version(uuid, uuid) TO authenticated;
 
 -- ── RPC 6: get_project_budget_waterfall ─────────────────────────────────────
 -- Server-side aggregation for the waterfall chart (AGENTS.md C5).

@@ -552,7 +552,7 @@ export const ProjectSettings = ({
                     : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
                 }`}
               >
-                <LucideIcons.BarChart3 size={16} className={activeTab === 'estimate' ? 'text-sky-500' : 'text-slate-400'} /> Estimate
+                <LucideIcons.BarChart3 size={16} className={activeTab === 'estimate' ? 'text-sky-500' : 'text-slate-400'} /> Project Budget
               </button>
               <button
                 onClick={() => onTabChange('brand_standards')}

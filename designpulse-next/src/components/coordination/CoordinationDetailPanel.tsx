@@ -18,6 +18,16 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
   const [panelWidth, setPanelWidth] = useState(40); // Initial 40%
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState('Details');
+
+  // Controlled accordion: eliminates React vs browser DOM fight on <details open>
+  const [descOpen, setDescOpen] = useState(
+    () => !!opportunity.description?.trim()
+  );
+  // Re-derive default when the user navigates to a different item.
+  // Keyed on `id` only — NOT `description` — so the user's manual toggle
+  // isn't overridden when their own edits trigger a TanStack refetch.
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { setDescOpen(!!opportunity.description?.trim()); }, [opportunity.id]);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const updateMutation = useUpdateOpportunity(projectId);
@@ -226,7 +236,8 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
         {/* Pinned Description / Notes Accordion */}
         <details 
           className="group border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm mb-2"
-          open={!!opportunity.description?.trim()} 
+          open={descOpen}
+          onToggle={(e) => setDescOpen(e.newState === 'open')}
         >
           <summary className="flex items-center justify-between p-3 cursor-pointer select-none outline-none bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/50 dark:hover:bg-slate-800 transition-colors rounded-xl group-open:rounded-b-none group-open:border-b group-open:border-slate-200 dark:group-open:border-slate-700">
             <div className="flex items-center gap-3">

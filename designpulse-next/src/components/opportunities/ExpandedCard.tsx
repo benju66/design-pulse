@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useUIStore } from '@/stores/useUIStore';
 import { useUpdateOpportunity, useDeleteOpportunity, useDeEscalateOpportunity } from '@/hooks/useOpportunityQueries';
@@ -46,6 +46,16 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const toggleCardVisibility = useUIStore(state => state.toggleCardVisibility);
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState('Details');
+
+  // Controlled accordion: eliminates React vs browser DOM fight on <details open>
+  const [descOpen, setDescOpen] = useState(
+    () => !!row.original.description?.trim()
+  );
+  // Re-derive default when the user navigates to a different item.
+  // Keyed on `id` only — NOT `description` — so the user's manual toggle
+  // isn't overridden when their own edits trigger a TanStack refetch.
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { setDescOpen(!!row.original.description?.trim()); }, [row.original.id]);
 
   const activeFields = cardOrder
     .map(id => ALL_PRIMARY_FIELDS.find(f => f.id === id))
@@ -295,7 +305,8 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
             {/* Pinned Description / Notes Accordion */}
             <details 
               className="group border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm mb-6"
-              open={!!row.original.description?.trim()} 
+              open={descOpen}
+              onToggle={(e) => setDescOpen(e.newState === 'open')}
             >
               <summary className="flex items-center justify-between p-3 cursor-pointer select-none outline-none bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/50 dark:hover:bg-slate-800 transition-colors rounded-xl group-open:rounded-b-none group-open:border-b group-open:border-slate-200 dark:group-open:border-slate-700">
                 <div className="flex items-center gap-3">

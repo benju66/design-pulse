@@ -12,6 +12,7 @@ import type { SettingsTab } from '@/stores/useUIStore';
 interface BudgetLedgerViewProps {
   projectId: string;
   filteredOpportunities: Opportunity[];
+  allOpportunities: Opportunity[];  // Unfiltered — for DetailPanel VE Impact lookup
   viewMode: string;
   isLoading: boolean;
   onOpenCompare: () => void;
@@ -37,6 +38,7 @@ interface BudgetLedgerViewProps {
 export function BudgetLedgerView({
   projectId,
   filteredOpportunities,
+  allOpportunities,
   viewMode,
   isLoading,
   onOpenCompare,
@@ -164,7 +166,7 @@ export function BudgetLedgerView({
       {/* Detail Panel */}
       <DetailPanel 
         projectId={projectId} 
-        opportunities={filteredOpportunities} 
+        opportunities={allOpportunities} 
         viewMode={viewMode} 
       />
     </>

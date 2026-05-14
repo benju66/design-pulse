@@ -621,6 +621,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             <BudgetLedgerView
               projectId={projectId}
               filteredOpportunities={filteredLedgerItems}
+              allOpportunities={mergedOpportunities}
               viewMode={viewMode}
               isLoading={isLoading || isLedgerLoading}
               onOpenCompare={() => setIsCompareModalOpen(true)}

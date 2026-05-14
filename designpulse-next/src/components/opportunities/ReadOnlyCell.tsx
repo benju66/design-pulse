@@ -123,6 +123,22 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
     return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
   }
 
+  // Budget Ledger: de-emphasize VE row cost_impact to avoid visual
+  // double-counting with the budget line's Approved Δ / Pending Δ columns.
+  // Uses table.options.meta.isLedgerView (set at table init, never mutated inline — AGENTS.md C10).
+  if (table.options.meta?.isLedgerView
+      && !row.original.is_budget_line
+      && column.id === 'cost_impact') {
+    const display = new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD', minimumFractionDigits: 0,
+    }).format(numValue);
+    return (
+      <ReadOnlyWrapper className="text-slate-400 dark:text-slate-500 justify-end tabular-nums italic">
+        {display}
+      </ReadOnlyWrapper>
+    );
+  }
+
   const colorClass = column.id === 'cost_impact' && numValue < 0 ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 
                      column.id === 'cost_impact' && numValue > 0 ? 'text-rose-600 dark:text-rose-400 font-medium' : '';
                      
@@ -133,6 +149,7 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   return <ReadOnlyWrapper className={`${colorClass} justify-end tabular-nums`}>{displayValue}</ReadOnlyWrapper>;
 }, (prev, next) => {
   if (prev.row.original !== next.row.original) return false;
+  if (prev.table.options.meta?.isLedgerView !== next.table.options.meta?.isLedgerView) return false;
   return true;
 });
 
@@ -398,6 +415,13 @@ export const ItemDefinitionCell = React.memo(({ row }: CellContext<Opportunity, 
         )}
       </div>
       <div className="flex items-center gap-1.5">
+        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+          row.original.is_budget_line
+            ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+            : 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300'
+        }`}>
+          {row.original.is_budget_line ? 'BL' : 'VE'}
+        </span>
         {displayId && (
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">{displayId}</span>
         )}

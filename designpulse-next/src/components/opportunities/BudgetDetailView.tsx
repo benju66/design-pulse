@@ -24,8 +24,9 @@ import {
   useUpdateEstimateAssumptions,
   useVarianceHistoryByCostCode,
 } from "@/hooks/useEstimateQueries";
-import { FileText, History, Save, Loader2, Database, AlertCircle } from "lucide-react";
+import { FileText, History, Save, Loader2, Database, AlertCircle, Layers } from "lucide-react";
 import { toast } from "sonner";
+import type { Opportunity } from "@/types/models";
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat("en-US", {
@@ -44,9 +45,10 @@ const formatShortDate = (iso: string) =>
 interface BudgetDetailViewProps {
   projectId: string;
   costCode: string;
+  veItems?: Opportunity[];
 }
 
-export function BudgetDetailView({ projectId, costCode }: BudgetDetailViewProps) {
+export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDetailViewProps) {
   const { data: lines, isLoading, isError } = useEstimateLineDetails(projectId, costCode);
   const { permissions } = useCurrentUserPermissions(projectId);
   const { data: varianceNotes, isLoading: varianceLoading } = useVarianceHistoryByCostCode(projectId, costCode);
@@ -239,6 +241,113 @@ export function BudgetDetailView({ projectId, costCode }: BudgetDetailViewProps)
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      {/* ── Section 2.5: VE Impact Summary ── */}
+      <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden shrink-0">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+          <Layers size={16} className="text-slate-500 dark:text-slate-400" />
+          <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            VE Impact
+          </h4>
+          {veItems.length > 0 && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+              {veItems.length}
+            </span>
+          )}
+        </div>
+        <div className="p-4">
+          {veItems.length === 0 ? (
+            <p className="text-sm italic text-slate-400 dark:text-slate-500">
+              No VE items linked to this cost code.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                {veItems.map((item) => {
+                  const impact = Number(item.cost_impact) || 0;
+                  const status = item.status || 'Draft';
+                  const statusStyles: Record<string, string> = {
+                    Approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+                    Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                    Draft: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+                  };
+                  return (
+                    <div key={item.id} className="flex items-center justify-between py-2 gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap ${
+                          statusStyles[status] || statusStyles.Draft
+                        }`}>
+                          {status}
+                        </span>
+                        <span className="text-sm text-slate-700 dark:text-slate-300 truncate">
+                          {item.title || 'Untitled'}
+                        </span>
+                      </div>
+                      <span className={`text-sm font-medium tabular-nums whitespace-nowrap ${
+                        impact < 0 ? 'text-emerald-600 dark:text-emerald-400' :
+                        impact > 0 ? 'text-rose-600 dark:text-rose-400' :
+                        'text-slate-400'
+                      }`}>
+                        {formatCurrency(impact)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Summary totals + Budget Reconciliation */}
+              {(() => {
+                const approved = veItems
+                  .filter(i => i.status === 'Approved')
+                  .reduce((sum, i) => sum + (Number(i.cost_impact) || 0), 0);
+                const pending = veItems
+                  .filter(i => i.status !== 'Approved')
+                  .reduce((sum, i) => sum + (Number(i.cost_impact) || 0), 0);
+                const revised = totalAmount + approved;
+                const projected = totalAmount + approved + pending;
+                return (
+                  <div className="flex flex-col gap-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-xs">
+                    {/* VE Deltas */}
+                    <div className="flex items-center justify-between">
+                      {approved !== 0 && (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium tabular-nums">
+                          Approved Δ: {formatCurrency(approved)}
+                        </span>
+                      )}
+                      {pending !== 0 && (
+                        <span className="text-amber-600 dark:text-amber-400 font-medium tabular-nums">
+                          Pending Δ: {formatCurrency(pending)}
+                        </span>
+                      )}
+                      {approved === 0 && pending === 0 && (
+                        <span className="text-slate-400 italic">No financial impact</span>
+                      )}
+                    </div>
+                    {/* Budget Reconciliation — only show when there are actual budget lines */}
+                    {totalAmount > 0 && (approved !== 0 || pending !== 0) && (
+                      <div className="flex flex-col gap-1 pt-2 border-t border-dashed border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                          <span>Baseline</span>
+                          <span className="tabular-nums">{formatCurrency(totalAmount)}</span>
+                        </div>
+                        <div className="flex items-center justify-between font-semibold text-slate-800 dark:text-slate-200">
+                          <span>Revised Budget</span>
+                          <span className="tabular-nums">{formatCurrency(revised)}</span>
+                        </div>
+                        {pending !== 0 && (
+                          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                            <span>Projected Final</span>
+                            <span className="tabular-nums">{formatCurrency(projected)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       </section>
 

@@ -163,7 +163,16 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
                 {groupKey}
               </span>
               <span className="text-xs text-slate-500 font-normal shrink-0">
-                ({row.subRows.length})
+                {isDivisionLevel
+                  ? `(${row.subRows.length})`
+                  : (() => {
+                      const bl = row.subRows.filter(r => r.original.is_budget_line).length;
+                      const ve = row.subRows.length - bl;
+                      if (bl > 0 && ve > 0) return `(${bl} BL · ${ve} VE)`;
+                      if (bl > 0) return `(${bl} BL)`;
+                      return `(${ve} VE)`;
+                    })()
+                }
               </span>
             </span>
           </td>
@@ -594,6 +603,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       permissions,
       // Phase 2: variance note lookup for LedgerDeltaCell icon
       varianceNoteMap,
+      // Phase 3: Ledger mode flag — used by ImpactCell to de-emphasize VE cost_impact
+      isLedgerView,
     },
   });
 

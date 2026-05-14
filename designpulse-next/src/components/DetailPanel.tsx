@@ -114,7 +114,14 @@ export default function DetailPanel({ projectId, opportunities, viewMode }: Deta
         <div className="-m-4 border-none shadow-none bg-transparent h-full">
           {isBudgetRow ? (
             <div className="p-4 h-full flex flex-col">
-              <BudgetDetailView projectId={projectId} costCode={selectedOpportunityId.replace('budget-', '')} />
+              <BudgetDetailView
+                projectId={projectId}
+                costCode={selectedOpportunityId.replace('budget-', '')}
+                veItems={opportunities.filter(o =>
+                  !o.is_budget_line &&
+                  o.cost_code === selectedOpportunityId.replace('budget-', '')
+                )}
+              />
             </div>
           ) : (
             mockRow && <ExpandedCard row={mockRow} />

@@ -2680,8 +2680,8 @@ BEGIN
   ),
   ve_impacts AS (
     SELECT o.cost_code,
-      SUM(CASE WHEN o.status = 'Approved' THEN o.cost_impact ELSE 0 END) as locked_ve,
-      SUM(CASE WHEN o.status != 'Approved' THEN o.cost_impact ELSE 0 END) as pending_ve
+      SUM(CASE WHEN o.status IN ('Approved', 'Pending Plan Update', 'Implemented') THEN o.cost_impact ELSE 0 END) as locked_ve,
+      SUM(CASE WHEN o.status IN ('Draft', 'Pending Review', 'Pending') THEN o.cost_impact ELSE 0 END) as pending_ve
     FROM public.opportunities o
     WHERE o.project_id = p_project_id 
       AND o.is_deleted = false 

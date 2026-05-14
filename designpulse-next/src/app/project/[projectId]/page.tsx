@@ -112,6 +112,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [activeCostCodes, setActiveCostCodes] = React.useState<string[]>([]);
   const [activeStatus, setActiveStatus] = React.useState('All');
   const [varianceThreshold, setVarianceThreshold] = React.useState<number>(0);
+  const [showVeOnly, setShowVeOnly] = React.useState(false);
   const [coordActiveBuildingAreas, setCoordActiveBuildingAreas] = React.useState<string[]>([]);
   const [coordActiveCostCodes, setCoordActiveCostCodes] = React.useState<string[]>([]);
   const [coordActiveType, setCoordActiveType] = React.useState('All');
@@ -233,7 +234,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       title: row.description || `Budget: ${row.cost_code}`,
       cost_code: row.cost_code,
       division: row.csi_division && row.csi_division.split('').every((ch: string) => ch >= '0' && ch <= '9') ? row.csi_division + '0000' : 'Uncategorized',
-      status: 'Approved',
+      status: 'Budget Line',
       cost_impact: row.new_budget,
       days_impact: 0,
       is_budget_line: true,
@@ -283,6 +284,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   }, [opportunities, ledgerRows, projectId]);
 
   // Shared base filter — no currentView dependency, so sidebar switches don't trigger recomputation
+  // NOTE: activeStatus is NOT included here — it's view-specific (only Value Matrix uses it).
+  // Including it here caused a ghost filter where status set in VM silently leaked into the Budget Ledger.
   const applyBaseFilters = React.useCallback((items: Opportunity[]) => {
     return items.filter(opp => {
       if (opp.record_type === 'VE') return true;
@@ -296,30 +299,52 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     }).filter(opp => {
       if (activeBuildingAreas.length > 0 && !activeBuildingAreas.includes(opp.building_area || '')) return false;
       if (activeCostCodes.length > 0 && !activeCostCodes.includes(opp.cost_code || '')) return false;
-      if (activeStatus !== 'All' && opp.status !== activeStatus) return false;
       return true;
     });
-  }, [activeBuildingAreas, activeCostCodes, activeStatus]);
+  }, [activeBuildingAreas, activeCostCodes]);
 
   // Value Matrix filtered items (from raw opportunities only)
+  // activeStatus is applied here — scoped to VM only, never leaks into Budget Ledger
   const filteredOpportunities = React.useMemo(
-    () => applyBaseFilters(opportunities),
-    [opportunities, applyBaseFilters]
+    () => {
+      const base = applyBaseFilters(opportunities);
+      if (activeStatus === 'All') return base;
+      return base.filter(opp => opp.status === activeStatus);
+    },
+    [opportunities, applyBaseFilters, activeStatus]
   );
 
-  // Budget Ledger filtered items (from merged dataset, with variance threshold)
+  // Budget Ledger filtered items (from merged dataset, with variance threshold + VE focus)
   const filteredLedgerItems = React.useMemo(() => {
     const base = applyBaseFilters(mergedOpportunities);
-    if (varianceThreshold <= 0) return base;
-    // Phase 2: Variance threshold filter — ONLY applies to budget lines (Bug #1 fix)
-    return base.filter(opp => {
-      if (!opp.is_budget_line) return true;
-      const totalVariance = Math.abs(
-        (Number(opp.pending_changes) || 0) + (Number(opp.approved_changes) || 0)
+
+    // VE Focus: compute set of cost codes that have at least one VE item
+    let veCostCodes: Set<string> | null = null;
+    if (showVeOnly) {
+      veCostCodes = new Set(
+        base.filter(o => !o.is_budget_line && o.cost_code).map(o => o.cost_code as string)
       );
-      return totalVariance >= varianceThreshold;
+    }
+
+    return base.filter(opp => {
+      // VE Focus filter — hide budget lines whose cost code has no VE items
+      if (showVeOnly && opp.is_budget_line && !veCostCodes?.has(opp.cost_code || '')) return false;
+      // Variance threshold — only applies to budget lines
+      if (varianceThreshold > 0 && opp.is_budget_line) {
+        const totalVariance = Math.abs(
+          (Number(opp.pending_changes) || 0) + (Number(opp.approved_changes) || 0)
+        );
+        if (totalVariance < varianceThreshold) return false;
+      }
+      return true;
     });
-  }, [mergedOpportunities, applyBaseFilters, varianceThreshold]);
+  }, [mergedOpportunities, applyBaseFilters, varianceThreshold, showVeOnly]);
+
+  // Centralized ledger filter count + clear handler (single source of truth — not duplicated in the view)
+  const ledgerFilterActiveCount = activeBuildingAreas.length + activeCostCodes.length + (varianceThreshold > 0 ? 1 : 0) + (showVeOnly ? 1 : 0);
+  const ledgerClearFilters = React.useCallback(() => {
+    setActiveBuildingAreas([]); setActiveCostCodes([]); setVarianceThreshold(0); setShowVeOnly(false);
+  }, []);
 
   const uniqueCostCodes = React.useMemo(() => {
     const codes = mergedOpportunities.map(o => o.cost_code).filter(Boolean) as string[];
@@ -605,6 +630,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               setActiveCostCodes={setActiveCostCodes}
               varianceThreshold={varianceThreshold}
               setVarianceThreshold={setVarianceThreshold}
+              showVeOnly={showVeOnly}
+              setShowVeOnly={setShowVeOnly}
+              filterActiveCount={ledgerFilterActiveCount}
+              onClearFilters={ledgerClearFilters}
               dynamicBuildingAreas={dynamicBuildingAreas}
               uniqueCostCodes={uniqueCostCodes}
               navigateToSettings={navigateToSettings}

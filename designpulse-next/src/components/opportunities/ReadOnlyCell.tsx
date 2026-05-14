@@ -2,7 +2,7 @@
 import React from 'react';
 import { CellContext } from '@tanstack/react-table';
 import { FileText, MessageSquare } from 'lucide-react';
-import { Opportunity } from '@/types/models';
+import { Opportunity, OpportunityOption } from '@/types/models';
 import { formatCostCode } from '@/lib/formatCostCode';
 
 const isZero = (v: number) => Math.abs(v) < 0.001;
@@ -58,6 +58,7 @@ export const StatusCell = React.memo(({ getValue }: CellContext<Opportunity, unk
   if (value === 'Approved') colorClass = 'text-emerald-600 dark:text-emerald-400 font-medium';
   if (value === 'Pending Review') colorClass = 'text-sky-600 dark:text-sky-400 font-medium';
   if (value === 'Rejected') colorClass = 'text-rose-600 dark:text-rose-400';
+  if (value === 'Budget Line') colorClass = 'text-slate-500 dark:text-slate-400 font-medium';
 
   return <ReadOnlyWrapper className={colorClass}>{value}</ReadOnlyWrapper>;
 }, commonComparator);
@@ -93,11 +94,12 @@ export const ImpactCell = React.memo(({ getValue, row, column, table }: CellCont
   const optionsMap = table.options.meta?.optionsMap || {};
   const options = optionsMap[row.original.id] || [];
   const hasOptions = options.length > 0;
-  const lockedOption = options.find((o: any) => o.is_locked);
+  const lockedOption = options.find(o => o.is_locked);
   
   if (hasOptions && !lockedOption) {
-    const min = Math.min(...options.map((o: any) => Number(o[column.id]) || 0));
-    const max = Math.max(...options.map((o: any) => Number(o[column.id]) || 0));
+    const fieldId = column.id as keyof Pick<OpportunityOption, 'cost_impact' | 'days_impact'>;
+    const min = Math.min(...options.map(o => Number(o[fieldId]) || 0));
+    const max = Math.max(...options.map(o => Number(o[fieldId]) || 0));
     
     const formatVal = (v: number) => column.id === 'cost_impact' 
       ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v)
@@ -139,7 +141,7 @@ export const CostCodeCell = React.memo(({ row, table }: CellContext<Opportunity,
   if (!code || code === 'Unassigned') return <ReadOnlyWrapper className="text-slate-400 italic">Unassigned</ReadOnlyWrapper>;
   
   const rawCostCodes = table.options.meta?.rawCostCodes || [];
-  const matched = rawCostCodes.find((c: any) => c.code === code);
+  const matched = rawCostCodes.find(c => c.code === code);
   const displayValue = matched ? `${formatCostCode(matched.code)} - ${matched.description}` : formatCostCode(code);
   
   return <ReadOnlyWrapper title={displayValue}>{displayValue}</ReadOnlyWrapper>;
@@ -150,7 +152,7 @@ export const CsiSpecCell = React.memo(({ row, table }: CellContext<Opportunity, 
   if (!code) return <ReadOnlyWrapper className="text-slate-400 italic">--</ReadOnlyWrapper>;
   
   const csiSpecs = table.options.meta?.csiSpecs || [];
-  const matched = csiSpecs.find((c: any) => c.id === code);
+  const matched = csiSpecs.find(c => c.id === code);
   const displayValue = matched ? `${matched.csi_number} - ${matched.description}` : code;
   
   return <ReadOnlyWrapper title={displayValue}>{displayValue}</ReadOnlyWrapper>;
@@ -162,10 +164,10 @@ export const DivisionCell = React.memo(({ row, table }: CellContext<Opportunity,
 
   const derivedDivision = (() => {
     if (!costCode || rawCostCodes.length === 0) return null;
-    const matched = rawCostCodes.find((c: any) => c.code === costCode);
+    const matched = rawCostCodes.find(c => c.code === costCode);
     if (!matched) return null;
     if (matched.parent_division) {
-      const parentDiv = rawCostCodes.find((c: any) => c.code === matched.parent_division && c.is_division);
+      const parentDiv = rawCostCodes.find(c => c.code === matched.parent_division && c.is_division);
       return parentDiv ? `${parentDiv.code} \u2013 ${parentDiv.description}` : null;
     }
     if (matched.is_division) {
@@ -205,13 +207,13 @@ export const DisplayIdCell = React.memo(({ getValue, row }: CellContext<Opportun
 
 export const AssigneeCell = React.memo(({ getValue, table }: CellContext<Opportunity, unknown>) => {
   const value = getValue() as string | null | undefined;
-  const projectMembers = (table.options.meta as any)?.projectMembers || [];
+  const projectMembers = table.options.meta?.projectMembers ?? [];
   
   if (!value) return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600">--</ReadOnlyWrapper>;
 
   const emails = value.split(',').map(e => e.trim()).filter(Boolean);
   const assignedMembers = emails.map(email => {
-    const matched = projectMembers.find((m: any) => m.email === email || m.name === email);
+    const matched = projectMembers.find(m => m.email === email || m.name === email);
     return {
       email: matched?.email || email,
       displayName: matched ? (matched.name || matched.email) : email

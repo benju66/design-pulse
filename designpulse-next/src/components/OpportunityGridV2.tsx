@@ -887,7 +887,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             <span className="text-sm font-bold text-slate-700 dark:text-slate-200 tabular-nums leading-tight mt-0.5">{fmt(budgetMetrics.totalBudget)}</span>
           </div>
           <div className="flex flex-col items-start px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">VE Impact</span>
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">VE Impact{filterActiveCount > 0 ? ' ✱' : ''}</span>
             <span className={`text-sm font-bold tabular-nums leading-tight mt-0.5 ${
               Math.abs(budgetMetrics.netVeImpact) < 0.001 ? 'text-slate-400 dark:text-slate-500'
               : budgetMetrics.netVeImpact < 0 ? 'text-emerald-600 dark:text-emerald-400'
@@ -899,7 +899,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
           }`}>
             <span className={`text-[10px] font-semibold uppercase tracking-wider leading-none ${
               Math.abs(budgetMetrics.potentialExposure) < 0.001 ? 'text-slate-400 dark:text-slate-500' : 'text-amber-500 dark:text-amber-400'
-            }`}>Exposure</span>
+            }`}>Exposure{filterActiveCount > 0 ? ' ✱' : ''}</span>
             <span className={`text-sm font-bold tabular-nums leading-tight mt-0.5 ${
               Math.abs(budgetMetrics.potentialExposure) < 0.001 ? 'text-slate-400 dark:text-slate-500' : 'text-amber-600 dark:text-amber-400'
             }`}>{fmt(budgetMetrics.potentialExposure)}</span>

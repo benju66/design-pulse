@@ -22,6 +22,11 @@ interface BudgetLedgerViewProps {
   setActiveCostCodes: (a: string[]) => void;
   varianceThreshold: number;
   setVarianceThreshold: (n: number) => void;
+  showVeOnly: boolean;
+  setShowVeOnly: (v: boolean) => void;
+  // Centralized filter count + clear (computed in page.tsx — single source of truth)
+  filterActiveCount: number;
+  onClearFilters: () => void;
   dynamicBuildingAreas: string[];
   uniqueCostCodes: string[];
   navigateToSettings: (tab: SettingsTab) => void;
@@ -41,6 +46,10 @@ export function BudgetLedgerView({
   setActiveCostCodes,
   varianceThreshold,
   setVarianceThreshold,
+  showVeOnly,
+  setShowVeOnly,
+  filterActiveCount,
+  onClearFilters,
   dynamicBuildingAreas,
   uniqueCostCodes,
   navigateToSettings,
@@ -85,8 +94,8 @@ export function BudgetLedgerView({
               isLedgerView
               hideGhostRow
               onOpenCompare={onOpenCompare}
-              filterActiveCount={activeBuildingAreas.length + activeCostCodes.length + (varianceThreshold > 0 ? 1 : 0)}
-              onClearFilters={() => { setActiveBuildingAreas([]); setActiveCostCodes([]); setVarianceThreshold(0); }}
+              filterActiveCount={filterActiveCount}
+              onClearFilters={onClearFilters}
               filterSlot={
                 <>
                   <div className="flex flex-col gap-1.5">
@@ -123,6 +132,26 @@ export function BudgetLedgerView({
                         <button onClick={() => setVarianceThreshold(0)} className="text-[10px] text-rose-500 hover:text-rose-400">Reset</button>
                       )}
                     </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">VE Focus</label>
+                    <button
+                      onClick={() => setShowVeOnly(!showVeOnly)}
+                      className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        showVeOnly
+                          ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
+                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      <span>Only VE-impacted codes</span>
+                      <div className={`relative w-8 h-[18px] rounded-full transition-colors ${
+                        showVeOnly ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-600'
+                      }`}>
+                        <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform ${
+                          showVeOnly ? 'translate-x-[16px]' : 'translate-x-[2px]'
+                        }`} />
+                      </div>
+                    </button>
                   </div>
                 </>
               }

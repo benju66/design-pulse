@@ -235,11 +235,11 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       cost_code: row.cost_code,
       division: row.csi_division && row.csi_division.split('').every((ch: string) => ch >= '0' && ch <= '9') ? row.csi_division + '0000' : 'Uncategorized',
       status: 'Budget Line',
-      cost_impact: row.new_budget,
+      cost_impact: row.baseline_budget,
       days_impact: 0,
       is_budget_line: true,
       // Ledger financial columns — server-computed (AGENTS.md C5)
-      baseline_budget: row.new_budget,
+      baseline_budget: row.baseline_budget,
       approved_changes: row.locked_ve,
       revised_budget: row.revised_budget,
       pending_changes: row.pending_ve,
@@ -297,7 +297,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       }
       return false;
     }).filter(opp => {
-      if (activeBuildingAreas.length > 0 && !activeBuildingAreas.includes(opp.building_area || '')) return false;
+      if (activeBuildingAreas.length > 0 && !opp.is_budget_line && !activeBuildingAreas.includes(opp.building_area || '')) return false;
       if (activeCostCodes.length > 0 && !activeCostCodes.includes(opp.cost_code || '')) return false;
       return true;
     });

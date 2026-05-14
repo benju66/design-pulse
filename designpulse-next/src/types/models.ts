@@ -289,8 +289,7 @@ export interface MasterLedgerRow {
   cost_code: string;
   csi_division: string;
   description: string;
-  old_budget: number;
-  new_budget: number;
+  baseline_budget: number;
   locked_ve: number;
   pending_ve: number;
   revised_budget: number;

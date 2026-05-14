@@ -10,7 +10,7 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 
 - **Tri-State Master-Detail Grid:** A high-performance Value Engineering matrix featuring an Excel-like keyboard navigation experience. Supports flat dense tables, split detail panels, and pop-out isolated views for rapid data entry and evaluation.
 - **Persistent Grid Pinning:** Enterprise-grade column pinning that merges global admin-defined default layouts with local, user-specific browser overrides, utilizing high-performance CSS and zero-JS tooltips.
-- **Enterprise Budget Ledger:** A management-by-exception view that merges VE opportunities with imported estimate line items into a unified financial grid. Features dense compound cells, variance threshold filtering ($0–$500k slider), visual context icons for assumptions and variance notes, and isolated column visibility persistence.
+- **Enterprise Budget Ledger:** A management-by-exception view that merges VE opportunities with imported estimate line items into a unified financial grid. Features dense compound cells, variance threshold filtering ($0–$500k slider), a VE Focus toggle to isolate cost codes with active VE items, scoped filter pipelines preventing cross-view state leaks, neutral "Budget Line" status styling, and isolated column visibility persistence.
 - **Design Coordination Tracker:** A drag-and-drop Kanban pipeline for managing architectural and MEP drawing updates directly downstream from locked financial decisions.
 - **Permits Tracker:** A specialized workspace for managing complex permit lifecycles, featuring both a high-fidelity Board view for status tracking and a Table view for granular detail management.
 - **Bulk Import Engine:** A high-performance Excel/CSV processing pipeline that utilizes client-side chunking and set-based PostgreSQL operations to import hundreds of records instantly.
@@ -94,6 +94,74 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
 
 ## 7. Release Notes
+
+---
+
+### v0.12 — Budget Ledger Remediation & Filter Architecture
+**Released:** 2026-05-14
+
+This release hardens the Budget Ledger's financial integrity, eliminates type safety violations, and restructures the filter pipeline to prevent cross-view state leaks.
+
+#### Financial Logic Fixes
+
+**Status Bucketing Fix (`get_master_ledger_grid` RPC)**
+The `ve_impacts` CTE previously used a binary `status = 'Approved'` / `status != 'Approved'` split, causing Rejected VE items to inflate the "Pending Δ" column. Now uses explicit enumeration matching the waterfall RPC:
+- _Locked (Approved Δ):_ `Approved`, `Pending Plan Update`, `Implemented`
+- _Pending (Pending Δ):_ `Draft`, `Pending Review`, `Pending`
+- _Excluded (zero weight):_ `Rejected` and any unknown future statuses
+- _Migration:_ `supabase_migrations/20260514_fix_ledger_status_bucketing.sql`
+
+**Budget Line Status Semantics**
+Synthetic budget lines now display `'Budget Line'` instead of `'Approved'` in the VE Status column:
+- _Visual:_ Neutral `text-slate-500` styling — no green "Approved" badge for estimate rows that have no VE decision attached.
+- _Filter bypass:_ Budget lines are exempt from VE status filtering via `is_budget_line` guard, ensuring they always appear regardless of active status filters.
+- _Isolation verified:_ `columns-v2.tsx` imports exclusively from `ReadOnlyCell.tsx`, so the `isLocked = status === 'Approved'` edit guard in `EditableCell.tsx` is unaffected.
+
+#### New Features
+
+**VE Focus Toggle**
+A new toggle in the Budget Ledger filter drawer that filters the view to only show cost codes with active VE items — collapsing from "full estimate with VE overlay" to "only cost codes where VE work is happening":
+- _Toggle UI:_ Styled switch under a "VE Focus" section header. Sky-blue active state, slate inactive state.
+- _Filter logic:_ Builds a `Set<string>` of VE cost codes from the filtered dataset, then hides budget lines whose cost code is not in the set. VE items always pass through.
+- _Badge integration:_ Counts as an active filter in the `[Filters N]` pill. Reset by "Clear All".
+
+**Filtered Metric Indicators**
+The VE Impact and Exposure metric pills now display a `✱` indicator when filters are active, signaling that the displayed values reflect filtered data. Budget Total intentionally excluded — budget lines bypass status filters, so the total is always unfiltered.
+
+#### Filter Architecture Refactor
+
+**Ghost Filter Elimination**
+`activeStatus` was previously embedded in the shared `applyBaseFilters` callback, causing VE status filters set in the Value Matrix to silently persist when switching to the Budget Ledger (which has no status dropdown to reveal or clear the filter):
+- _Fix:_ Removed `activeStatus` from `applyBaseFilters`. It is now applied exclusively in the `filteredOpportunities` memo (Value Matrix-specific).
+- _Result:_ Setting a status filter in the Value Matrix has zero effect on the Budget Ledger.
+
+**Centralized Filter Count & Clear**
+Previously, `filterActiveCount` and `onClearFilters` were computed inline at the call site in each view component — duplicated across `BudgetLedgerView.tsx` and `ValueMatrixView.tsx`. Adding a new filter required updating both:
+- _Fix:_ `ledgerFilterActiveCount` (derived value) and `ledgerClearFilters` (`useCallback`) are now computed once in `page.tsx` and passed as pre-computed props.
+- _Result:_ Adding a new ledger filter now requires updating only one file.
+
+#### Type Safety
+
+**9 `any` Casts Eliminated in `ReadOnlyCell.tsx`**
+All `any` type violations replaced with proper types from the existing `TableMeta` interface and `models.ts`:
+- `(o: any)` → typed via `OpportunityOption` and `keyof Pick<OpportunityOption, ...>`
+- `(c: any)` → inferred from `CostCode[]`, `ProjectCsiSpec[]` via `TableMeta`
+- `(table.options.meta as any)` → direct optional chaining `table.options.meta?.`
+- `(m: any)` → inferred from `ProjectMember[]` via `TableMeta`
+
+#### Internal / Architecture
+
+| Item | Detail |
+|------|--------|
+| `feature_step1.sql` | Deleted — stale pre-fix version of `get_master_ledger_grid` with zero codebase references |
+| `applyBaseFilters` | `page.tsx` — No longer depends on `activeStatus`. Dependencies: `[activeBuildingAreas, activeCostCodes]` only |
+| `filteredOpportunities` | `page.tsx` — Now applies `activeStatus` filter inline, scoped to Value Matrix |
+| `ledgerFilterActiveCount` | `page.tsx` — Centralized derived value replacing inline computation in `BudgetLedgerView` |
+| `ledgerClearFilters` | `page.tsx` — Centralized `useCallback` replacing inline arrow function in `BudgetLedgerView` |
+| `showVeOnly` | `page.tsx` — `useState<boolean>` controlling VE Focus filter, passed through `BudgetLedgerView` |
+| `StatusCell` | `ReadOnlyCell.tsx` — New `'Budget Line'` rendering case with neutral `text-slate-500` styling |
+| `OpportunityOption` import | `ReadOnlyCell.tsx` — Added for `keyof Pick<OpportunityOption, ...>` in `ImpactCell` |
+| Migration | `supabase_migrations/20260514_fix_ledger_status_bucketing.sql` — Full `CREATE OR REPLACE` + `REVOKE/GRANT` |
 
 ---
 

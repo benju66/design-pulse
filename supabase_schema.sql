@@ -2658,8 +2658,7 @@ RETURNS TABLE (
   cost_code text,
   csi_division text,
   description text,
-  old_budget numeric,
-  new_budget numeric,
+  baseline_budget numeric,
   locked_ve numeric,
   pending_ve numeric,
   revised_budget numeric,
@@ -2683,24 +2682,24 @@ BEGIN
       SUM(CASE WHEN o.status IN ('Approved', 'Pending Plan Update', 'Implemented') THEN o.cost_impact ELSE 0 END) as locked_ve,
       SUM(CASE WHEN o.status IN ('Draft', 'Pending Review', 'Pending') THEN o.cost_impact ELSE 0 END) as pending_ve
     FROM public.opportunities o
-    WHERE o.project_id = p_project_id 
-      AND o.is_deleted = false 
+    WHERE o.project_id = p_project_id
+      AND o.is_deleted = false
       AND o.incorporated_version_id IS NULL
       AND o.cost_code IS NOT NULL AND o.cost_code != ''
     GROUP BY o.cost_code
   )
-  SELECT 
+  SELECT
     COALESCE(b.cost_code, v.cost_code) as cost_code,
     LEFT(LPAD(SPLIT_PART(COALESCE(b.cost_code, v.cost_code), '.', 1), 6, '0'), 2) as csi_division,
-    COALESCE(b.description, 'VE Item') as description,
-    COALESCE(b.amount, 0) as old_budget,
-    COALESCE(b.amount, 0) as new_budget,
+    COALESCE(b.description, 'VE Item – ' || COALESCE(c.description, 'Unbudgeted Impact')) as description,
+    COALESCE(b.amount, 0) as baseline_budget,
     COALESCE(v.locked_ve, 0) as locked_ve,
     COALESCE(v.pending_ve, 0) as pending_ve,
     COALESCE(b.amount, 0) + COALESCE(v.locked_ve, 0) as revised_budget,
     COALESCE(b.amount, 0) + COALESCE(v.locked_ve, 0) + COALESCE(v.pending_ve, 0) as projected_final
   FROM active_budget b
-  FULL OUTER JOIN ve_impacts v ON b.cost_code = v.cost_code;
+  FULL OUTER JOIN ve_impacts v ON b.cost_code = v.cost_code
+  LEFT JOIN cost_codes c ON c.code = COALESCE(b.cost_code, v.cost_code);
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.get_master_ledger_grid(uuid) FROM PUBLIC, anon;

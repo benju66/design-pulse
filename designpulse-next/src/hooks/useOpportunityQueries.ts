@@ -104,6 +104,10 @@ export function useUpdateOpportunity(projectId: string) {
       }
       console.error('Update Opportunity Error:', err);
       toast.error(`Failed to update opportunity: ${err.message || 'Unknown error'}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
     }
   });
 }
@@ -147,6 +151,8 @@ export function useDeleteOpportunity(projectId: string) {
       toast.success('Item deleted successfully.');
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
       queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
     },
     onError: (err, _id, context) => {
       if (context?.previousOpportunities) {
@@ -269,6 +275,8 @@ export function useDeEscalateOpportunity(projectId: string) {
       // AND opportunities. Both caches are now stale. (AGENTS.md C2)
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
       queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
     },
   });
 }
@@ -657,6 +665,8 @@ export function useLockOption(opportunityId: string, projectId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
       queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
     },
     onError: (err, _optionId, context) => {
       if (context?.previousOptions) {
@@ -708,6 +718,8 @@ export function useUnlockOpportunityOption(projectId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
       queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
       toast.success('Option unlocked successfully');
     },
     onError: (err, _oppId, context) => {

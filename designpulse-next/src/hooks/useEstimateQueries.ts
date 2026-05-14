@@ -223,6 +223,7 @@ export function useImportEstimateMutation(projectId: string) {
       qc.invalidateQueries({ queryKey: estimateKeys.versions(projectId) });
       qc.invalidateQueries({ queryKey: ['project_settings', projectId] });
       qc.invalidateQueries({ queryKey: estimateKeys.waterfall(projectId) });
+      qc.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
     },
   });
 }
@@ -243,11 +244,12 @@ export function useActivateEstimateVersion(projectId: string) {
       qc.invalidateQueries({ queryKey: estimateKeys.versions(projectId) });
       qc.invalidateQueries({ queryKey: ['project_settings', projectId] });
       qc.invalidateQueries({ queryKey: estimateKeys.waterfall(projectId) });
+      qc.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
     },
   });
 }
 
-// ── useDeleteEstimateVersion ────────────────────────────────────────────
+// ── useDeleteEstimateVersion ──────────────────────────────────────────────────────
 // Deletes a version (must not be active).
 // Used by UI "Delete" button and mutation onError cleanup.
 export function useDeleteEstimateVersion(projectId: string) {
@@ -265,11 +267,12 @@ export function useDeleteEstimateVersion(projectId: string) {
       qc.invalidateQueries({ queryKey: estimateKeys.versions(projectId) });
       qc.invalidateQueries({ queryKey: ['project_settings', projectId] });
       qc.invalidateQueries({ queryKey: estimateKeys.waterfall(projectId) });
+      qc.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
     },
   });
 }
 
-// ── useProjectBudgetWaterfall ────────────────────────────────────────────────
+// ── useProjectBudgetWaterfall ────────────────────────────────────────────────────
 // Server-side aggregation — never compute client-side (AGENTS.md C5).
 // 5-minute staleTime: expensive RPC, does not need real-time freshness.
 export function useProjectBudgetWaterfall(projectId: string | null, versionId: string | null = null) {

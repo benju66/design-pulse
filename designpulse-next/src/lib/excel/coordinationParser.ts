@@ -135,7 +135,9 @@ export async function parseCoordinationExcel(
     if (!title && !description && !rawCostCode && !building_area) return;
 
     // -- Rosetta Stone: parse suffix from the cost code field --
-    const { normalizedCode, costType: suffixCostType } = parseCostCodeSuffix(rawCostCode);
+    const { normalizedCode: strippedCode, costType: suffixCostType } = parseCostCodeSuffix(rawCostCode);
+    // Pad to 6 digits to prevent leading-zero loss (e.g. 61753 → 061753 → Div 06)
+    const normalizedCode = strippedCode ? strippedCode.padStart(6, '0') : strippedCode;
 
     // Explicit Cost Type column (new template) takes precedence over suffix notation
     let explicitCostType: CostType | null = null;

@@ -40,6 +40,7 @@ import GhostRow from './opportunities/GhostRow';
 import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { Opportunity, OpportunityOption } from '@/types/models';
 import { useVirtualGridKeyboardNavigation } from '@/hooks/useVirtualGridKeyboardNavigation';
+import { formatCostCode } from '@/lib/formatCostCode';
 
 // IDs of the five ledger financial narrative columns.
 // Excluded from ve_column_order persistence — ledger column order is fixed by design.
@@ -83,17 +84,23 @@ interface GroupedRowProps {
 
 const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtualRow, measureElement, rawCostCodes = [], isExpanded, isLedgerView, isStickyClone = false }: GroupedRowProps) {
   const divisionVal = row.getValue('division') as string;
-  let divisionLabel = divisionVal ? `${divisionVal}` : 'Uncategorized';
+  let divisionLabel = divisionVal ? `${divisionVal}` : 'UNCATEGORIZED';
   
   if (divisionVal === 'Uncategorized') {
-    divisionLabel = 'Uncategorized';
+    divisionLabel = 'UNCATEGORIZED';
   } else if (divisionVal && rawCostCodes.length > 0) {
-    const match = (rawCostCodes as Array<{ code: string; description?: string }>).find(c => c.code === divisionVal || c.code.startsWith(divisionVal));
     const divNum = divisionVal.substring(0, 2);
-    if (match && match.description) {
-      divisionLabel = `DIVISION ${divNum} — ${match.description.toUpperCase()}`;
+    // Guard: if division prefix is non-numeric (e.g. 'Un' from 'Un0000'), treat as Uncategorized
+    const isNumericDiv = divNum.length === 2 && divNum[0] >= '0' && divNum[0] <= '9' && divNum[1] >= '0' && divNum[1] <= '9';
+    if (!isNumericDiv) {
+      divisionLabel = 'UNCATEGORIZED';
     } else {
-      divisionLabel = `DIVISION ${divNum}`;
+      const match = (rawCostCodes as Array<{ code: string; description?: string }>).find(c => c.code === divisionVal || c.code.startsWith(divisionVal));
+      if (match && match.description) {
+        divisionLabel = `DIVISION ${divNum} — ${match.description.toUpperCase()}`;
+      } else {
+        divisionLabel = `DIVISION ${divNum}`;
+      }
     }
   }
 
@@ -108,8 +115,14 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
     const groupKey = isDivisionLevel ? divisionLabel : (() => {
       const costCodeVal = row.getValue('cost_code') as string;
       if (!costCodeVal) return 'Uncategorized';
-      const match = (rawCostCodes as Array<{ code: string; description?: string }>).find(c => c.code === costCodeVal);
-      return match?.description ? `${costCodeVal} — ${match.description}` : costCodeVal;
+      // Strip cost_type suffix (.M/.S/.L) before lookup (iOS-safe — no regex, AGENTS.md A)
+      const dotIdx = costCodeVal.indexOf('.');
+      const baseCode = dotIdx !== -1 ? costCodeVal.slice(0, dotIdx) : costCodeVal;
+      const padded = baseCode.padStart(6, '0');
+      const match = (rawCostCodes as Array<{ code: string; description?: string }>).find(c => c.code === padded);
+      return match?.description
+        ? `${formatCostCode(padded)} \u2014 ${match.description}`
+        : formatCostCode(padded);
     })();
 
     const depthStyles = isDivisionLevel
@@ -427,7 +440,10 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
 
 
   const [expanded, setExpanded] = useState<ExpandedState>({});
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'division', desc: false }]);
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'division', desc: false },
+    { id: 'cost_code', desc: false },
+  ]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
   const [grouping, setGrouping] = useState<GroupingState>(
     isLedgerView ? ['division', 'cost_code'] : ['division']

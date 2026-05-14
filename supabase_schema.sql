@@ -2686,11 +2686,12 @@ BEGIN
     WHERE o.project_id = p_project_id 
       AND o.is_deleted = false 
       AND o.incorporated_version_id IS NULL
+      AND o.cost_code IS NOT NULL AND o.cost_code != ''
     GROUP BY o.cost_code
   )
   SELECT 
     COALESCE(b.cost_code, v.cost_code) as cost_code,
-    LEFT(COALESCE(b.cost_code, v.cost_code), 2) as csi_division,
+    LEFT(LPAD(SPLIT_PART(COALESCE(b.cost_code, v.cost_code), '.', 1), 6, '0'), 2) as csi_division,
     COALESCE(b.description, 'VE Item') as description,
     COALESCE(b.amount, 0) as old_budget,
     COALESCE(b.amount, 0) as new_budget,

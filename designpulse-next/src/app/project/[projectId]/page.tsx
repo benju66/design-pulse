@@ -223,12 +223,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
 
   const mergedOpportunities = React.useMemo(() => {
-    const budgetOpps: Opportunity[] = ledgerRows.map((row: MasterLedgerRow) => ({
+    // Filter out RPC rows with null/empty cost_code — unassigned VEs already appear
+    // as real opportunity rows; a budget-line duplicate would be a phantom.
+    const budgetOpps: Opportunity[] = ledgerRows
+      .filter((row: MasterLedgerRow) => row.cost_code != null && row.cost_code !== '')
+      .map((row: MasterLedgerRow) => ({
       id: `budget-${row.cost_code}`,
       project_id: projectId,
       title: row.description || `Budget: ${row.cost_code}`,
       cost_code: row.cost_code,
-      division: row.csi_division ? row.csi_division + '0000' : 'Uncategorized',
+      division: row.csi_division && row.csi_division.split('').every((ch: string) => ch >= '0' && ch <= '9') ? row.csi_division + '0000' : 'Uncategorized',
       status: 'Approved',
       cost_impact: row.new_budget,
       days_impact: 0,
@@ -247,7 +251,35 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       record_type: 'VE',
     } as unknown as Opportunity));
 
-    return [...opportunities, ...budgetOpps];
+    // ── Normalize VE opportunity cost codes for ledger grouping ──────────────
+    // VE items may have raw, un-normalized cost codes (e.g. "61753.M" instead of
+    // "061753") from legacy coordination imports or manual entry. This causes
+    // fake divisions (DIVISION 61 instead of 06) and orphan sub-groups.
+    // Normalize at merge time (display-layer only — no DB mutation).
+    // iOS-safe: char loop for digit validation, no regex (AGENTS.md A).
+    const normalizedOpps = opportunities.map(opp => {
+      if ((opp as Record<string, unknown>).is_budget_line) return opp;
+      const raw = opp.cost_code;
+      // No cost code → force into the Uncategorized bucket
+      if (!raw) return opp.division === 'Uncategorized' ? opp : { ...opp, division: 'Uncategorized' };
+      // Strip cost_type suffix (.L, .M, .S, .E, .O)
+      const dotIdx = raw.indexOf('.');
+      const base = dotIdx !== -1 ? raw.slice(0, dotIdx) : raw;
+      // Validate all-digit (iOS-safe — no regex)
+      let allDigit = base.length > 0;
+      for (let i = 0; i < base.length; i++) {
+        if (base[i] < '0' || base[i] > '9') { allDigit = false; break; }
+      }
+      // Non-numeric cost code (e.g. "Uncategorized") → force into Uncategorized bucket
+      if (!allDigit) return opp.division === 'Uncategorized' ? opp : { ...opp, division: 'Uncategorized' };
+      // Pad to 6 digits and re-derive division
+      const padded = base.padStart(6, '0');
+      const division = padded.slice(0, 2) + '0000';
+      if (padded === raw && opp.division === division) return opp; // already clean
+      return { ...opp, cost_code: padded, division };
+    });
+
+    return [...normalizedOpps, ...budgetOpps];
   }, [opportunities, ledgerRows, projectId]);
 
   // Shared base filter — no currentView dependency, so sidebar switches don't trigger recomputation
@@ -370,7 +402,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">
             {currentView === 'dashboard' && 'Value Matrix'}
-            {currentView === 'dashboard-v2' && 'Value Matrix V2'}
+            {currentView === 'dashboard-v2' && 'Budget Ledger'}
             {currentView === 'map' && 'Drawings'}
             {currentView === 'analytics' && 'Project Analytics'}
             {currentView === 'coordination' && 'Design Coordination Board'}

@@ -6,49 +6,57 @@ import { useEffect } from 'react';
 
 const PAGE_SIZE = 20;
 
-export function useActivityFeed(opportunityId: string | null) {
+export interface ActivityParams {
+  opportunityId?: string | null;
+  lessonId?: string | null;
+}
+
+function getQueryKey(params: ActivityParams) {
+  if (params.lessonId) return ['activity_feed', 'lesson', params.lessonId];
+  if (params.opportunityId) return ['activity_feed', 'opportunity', params.opportunityId];
+  return ['activity_feed', 'unknown'];
+}
+
+export function useActivityFeed({ opportunityId, lessonId }: ActivityParams) {
   const queryClient = useQueryClient();
+  const id = lessonId || opportunityId;
+  const filterCol = lessonId ? 'lesson_id' : 'opportunity_id';
 
   useEffect(() => {
-    if (!opportunityId) return;
+    if (!id) return;
 
-    // Supabase Realtime Subscription filtered strictly by opportunity_id
-    const channel = supabase.channel(`activity-${opportunityId}`)
+    // Supabase Realtime Subscription
+    const channel = supabase.channel(`activity-${id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'item_activity',
-          filter: `opportunity_id=eq.${opportunityId}`
+          filter: `${filterCol}=eq.${id}`
         },
         () => {
-          // Invalidate the query when new data arrives
-          queryClient.invalidateQueries({ queryKey: ['activity_feed', opportunityId] });
+          queryClient.invalidateQueries({ queryKey: getQueryKey({ opportunityId, lessonId }) });
         }
       )
       .subscribe();
 
     return () => {
-      // Clean up to prevent memory leaks (AGENTS.md Rule 24/11)
       supabase.removeChannel(channel);
     };
-  }, [opportunityId, queryClient]);
+  }, [id, filterCol, queryClient, opportunityId, lessonId]);
 
   return useInfiniteQuery<{ data: ItemActivity[]; nextCursor: number | null }, Error>({
-    queryKey: ['activity_feed', opportunityId],
-    // Override the global staleTime (5 min) so the feed always refetches when the
-    // Activity tab is opened. Without this, React Query serves cached (stale) data
-    // that predates the DB trigger insert from adding/deleting a contender. (AGENTS.md Rule C.2)
+    queryKey: getQueryKey({ opportunityId, lessonId }),
     staleTime: 0,
     refetchOnMount: 'always',
     queryFn: async ({ pageParam = 0 }) => {
-      if (!opportunityId) return { data: [], nextCursor: null };
+      if (!id) return { data: [], nextCursor: null };
       
       const { data, error } = await supabase
         .from('item_activity')
         .select('*')
-        .eq('opportunity_id', opportunityId)
+        .eq(filterCol, id)
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .order('id', { ascending: true })
@@ -65,13 +73,14 @@ export function useActivityFeed(opportunityId: string | null) {
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    enabled: !!opportunityId,
+    enabled: !!id,
     initialPageParam: 0,
   });
 }
 
-export function useAddComment(opportunityId: string, projectId: string) {
+export function useAddComment(params: ActivityParams, projectId: string) {
   const queryClient = useQueryClient();
+  const queryKey = getQueryKey(params);
 
   return useMutation<
     ItemActivity,
@@ -86,7 +95,8 @@ export function useAddComment(opportunityId: string, projectId: string) {
         .insert([{
           id: id || crypto.randomUUID(),
           project_id: projectId,
-          opportunity_id: opportunityId,
+          opportunity_id: params.opportunityId || null,
+          lesson_id: params.lessonId || null,
           activity_type: 'user_comment',
           ...rest
         }])
@@ -97,19 +107,19 @@ export function useAddComment(opportunityId: string, projectId: string) {
       return data as ItemActivity;
     },
     onMutate: async (newComment) => {
-      await queryClient.cancelQueries({ queryKey: ['activity_feed', opportunityId] });
-      const previousPages = queryClient.getQueryData(['activity_feed', opportunityId]);
+      await queryClient.cancelQueries({ queryKey });
+      const previousPages = queryClient.getQueryData(queryKey);
 
       const realUUID = newComment.id || crypto.randomUUID();
 
-      queryClient.setQueryData(['activity_feed', opportunityId], (old: any) => {
+      queryClient.setQueryData(queryKey, (old: any) => {
         if (!old || !old.pages) return old;
         
-        // Ensure optimistic update structure matches ItemActivity
         const optimisticComment: ItemActivity = {
           id: realUUID,
           project_id: projectId,
-          opportunity_id: opportunityId,
+          opportunity_id: params.opportunityId || null,
+          lesson_id: params.lessonId || null,
           option_id: newComment.option_id || null,
           activity_type: 'user_comment',
           content: newComment.content,
@@ -136,19 +146,19 @@ export function useAddComment(opportunityId: string, projectId: string) {
     },
     onError: (err, _newComment, context) => {
       if (context?.previousPages) {
-        queryClient.setQueryData(['activity_feed', opportunityId], context.previousPages);
+        queryClient.setQueryData(queryKey, context.previousPages);
       }
       toast.error(`Failed to add comment: ${err.message || 'Unknown error'}`);
     },
     onSuccess: () => {
-      // Guarantee the feed refetches and persists the true DB state
-      queryClient.invalidateQueries({ queryKey: ['activity_feed', opportunityId] });
+      queryClient.invalidateQueries({ queryKey });
     }
   });
 }
 
-export function useUpdateComment(opportunityId: string) {
+export function useUpdateComment(params: ActivityParams) {
   const queryClient = useQueryClient();
+  const queryKey = getQueryKey(params);
 
   return useMutation<
     ItemActivity,
@@ -172,10 +182,10 @@ export function useUpdateComment(opportunityId: string) {
       return data as ItemActivity;
     },
     onMutate: async (updates) => {
-      await queryClient.cancelQueries({ queryKey: ['activity_feed', opportunityId] });
-      const previousPages = queryClient.getQueryData(['activity_feed', opportunityId]);
+      await queryClient.cancelQueries({ queryKey });
+      const previousPages = queryClient.getQueryData(queryKey);
 
-      queryClient.setQueryData(['activity_feed', opportunityId], (old: any) => {
+      queryClient.setQueryData(queryKey, (old: any) => {
         if (!old || !old.pages) return old;
 
         const newPages = old.pages.map((page: any) => ({
@@ -193,18 +203,19 @@ export function useUpdateComment(opportunityId: string) {
     },
     onError: (err, _variables, context) => {
       if (context?.previousPages) {
-        queryClient.setQueryData(['activity_feed', opportunityId], context.previousPages);
+        queryClient.setQueryData(queryKey, context.previousPages);
       }
       toast.error(`Failed to update comment: ${err.message || 'Unknown error'}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['activity_feed', opportunityId] });
+      queryClient.invalidateQueries({ queryKey });
     }
   });
 }
 
-export function useDeleteComment(opportunityId: string) {
+export function useDeleteComment(params: ActivityParams) {
   const queryClient = useQueryClient();
+  const queryKey = getQueryKey(params);
 
   return useMutation<
     string,
@@ -213,7 +224,6 @@ export function useDeleteComment(opportunityId: string) {
     { previousPages: any }
   >({
     mutationFn: async (id) => {
-      // Soft delete
       const { error } = await supabase
         .from('item_activity')
         .update({ is_deleted: true })
@@ -223,10 +233,10 @@ export function useDeleteComment(opportunityId: string) {
       return id;
     },
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ['activity_feed', opportunityId] });
-      const previousPages = queryClient.getQueryData(['activity_feed', opportunityId]);
+      await queryClient.cancelQueries({ queryKey });
+      const previousPages = queryClient.getQueryData(queryKey);
 
-      queryClient.setQueryData(['activity_feed', opportunityId], (old: any) => {
+      queryClient.setQueryData(queryKey, (old: any) => {
         if (!old || !old.pages) return old;
 
         const newPages = old.pages.map((page: any) => ({
@@ -240,7 +250,7 @@ export function useDeleteComment(opportunityId: string) {
     },
     onError: (err, _id, context) => {
       if (context?.previousPages) {
-        queryClient.setQueryData(['activity_feed', opportunityId], context.previousPages);
+        queryClient.setQueryData(queryKey, context.previousPages);
       }
       toast.error(`Failed to delete comment: ${err.message || 'Unknown error'}`);
     },

@@ -11,6 +11,7 @@ import { BulkImportModal } from '@/components/coordination/BulkImportModal';
 import { ValueMatrixView } from '@/components/views/ValueMatrixView';
 import { BudgetLedgerView } from '@/components/views/BudgetLedgerView';
 import { CoordinationView } from '@/components/views/CoordinationView';
+import { LessonsLearnedView } from '@/components/views/LessonsLearnedView';
 // Lazy-loaded views — only loaded when the user navigates to them
 const AnalyticsDashboard = dynamic(() => import('@/components/analytics/AnalyticsDashboard'));
 const MyDeskDashboard = dynamic(() => import('@/components/mydesk/MyDeskDashboard'));
@@ -41,7 +42,7 @@ import { Opportunity, MasterLedgerRow } from '@/types/models';
 // ── Module-level navigation type guards ─────────────────────────────────────────
 const VALID_PROJECT_VIEWS = new Set<ProjectView>([
   'dashboard', 'dashboard-v2', 'budget-compare', 'map', 'analytics',
-  'coordination', 'permits', 'my-desk', 'settings',
+  'coordination', 'permits', 'my-desk', 'settings', 'lessons'
 ]);
 function isProjectView(v: string | undefined): v is ProjectView {
   return !!v && VALID_PROJECT_VIEWS.has(v as ProjectView);
@@ -442,6 +443,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             {currentView === 'my-desk' && 'My Desk'}
             {currentView === 'settings' && 'Project Settings'}
             {currentView === 'budget-compare' && 'Version Comparison Matrix'}
+            {currentView === 'lessons' && 'Lessons Learned'}
           </h2>
           <div className="flex gap-3 items-center">
             {(currentView === 'dashboard' || currentView === 'dashboard-v2') && (
@@ -802,6 +804,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
           {currentView === 'permits' && (
             <PermitBoard projectId={projectId} />
+          )}
+
+          {currentView === 'lessons' && (
+            <div className="flex-1 overflow-hidden">
+              <LessonsLearnedView projectId={projectId} />
+            </div>
           )}
 
         </div>

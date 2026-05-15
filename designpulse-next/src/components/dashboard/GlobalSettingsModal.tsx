@@ -102,7 +102,14 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl w-full max-w-5xl h-[90vh] max-h-[1000px] overflow-hidden flex flex-col">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
-          <h2 className="text-lg font-bold text-slate-800 dark:text-white">Platform Administration</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white">Platform Administration</h2>
+            {/* ⚠️ SUPER ADMIN BYPASS BANNER — remove with the bypass code in route.ts */}
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 text-xs font-semibold">
+              <TriangleAlert size={13} className="shrink-0" />
+              Don&apos;t forget to turn off the Super Admin Bypass!
+            </span>
+          </div>
           <button 
             onClick={() => {
               if (isDirty && !window.confirm('You have unsaved changes. Are you sure you want to close?')) return;

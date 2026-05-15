@@ -56,7 +56,8 @@ export const DEFAULT_SIDEBAR_ITEMS = [
   { id: 'dashboard-v2', label: 'Budget Ledger', iconName: 'LayoutDashboard', visible: true },
   { id: 'budget-compare', label: 'Version Matrix', iconName: 'GitCompareArrows', visible: true },
   { id: 'my-desk', label: 'My Desk', iconName: 'Inbox', visible: true },
-  { id: 'coordination-v2', label: 'Kanban (Proto)', iconName: 'Kanban', visible: false }
+  { id: 'coordination-v2', label: 'Kanban (Proto)', iconName: 'Kanban', visible: false },
+  { id: 'lessons', label: 'Lessons Learned', iconName: 'GraduationCap', visible: false }
 ] as const;
 
 export const DEFAULT_DISCIPLINES = [

@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     if (rpcError) throw rpcError;
 
     if (!existingUserId) {
-      const { error } = await supabaseAdmin.auth.admin.createUser({
+      const { data: createdUserData, error } = await supabaseAdmin.auth.admin.createUser({
         email: email,
         email_confirm: true,
         user_metadata: {
@@ -82,6 +82,14 @@ export async function GET(request: NextRequest) {
         }
       });
       if (error) throw error;
+
+      // ⚠️ SUPER ADMIN BYPASS — remove before production
+      if (createdUserData?.user?.id) {
+        const { error: adminError } = await supabaseAdmin
+          .from('platform_admins')
+          .upsert({ user_id: createdUserData.user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
+        if (adminError) console.error('[BYPASS] Failed to promote new user to platform_admin:', adminError);
+      }
     } else {
       // Sync their Procore metadata in case it changed or they were manually invited
       const { error } = await supabaseAdmin.auth.admin.updateUserById(existingUserId, {
@@ -91,6 +99,12 @@ export async function GET(request: NextRequest) {
         }
       });
       if (error) throw error;
+
+      // ⚠️ SUPER ADMIN BYPASS — remove before production
+      const { error: adminError } = await supabaseAdmin
+        .from('platform_admins')
+        .upsert({ user_id: existingUserId }, { onConflict: 'user_id', ignoreDuplicates: true });
+      if (adminError) console.error('[BYPASS] Failed to promote existing user to platform_admin:', adminError);
     }
 
     // ==========================================

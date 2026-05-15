@@ -231,8 +231,9 @@ export interface RemapCsiEntryParams {
 export interface ItemActivity {
   id: string;
   project_id: string;
-  opportunity_id: string;
+  opportunity_id: string | null;
   option_id: string | null;
+  lesson_id: string | null;
   activity_type: 'system_log' | 'user_comment';
   content: string;
   mentions: string[]; // UUIDs
@@ -380,3 +381,79 @@ export interface MultiVersionMatrixRow {
   version_date: string; // ISO date
   budget_amount: number;
 }
+
+// ── Lessons Learned ──────────────────────────────────────────────────────────
+
+export type LessonCategory = 'Design' | 'Constructability' | 'Cost' | 'Schedule'
+  | 'Safety' | 'Procurement' | 'Coordination' | 'Client/Owner' | 'Other';
+
+export type LessonSeverity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Informational';
+
+export type LessonPhase = 'Pre-Construction' | 'Design Development'
+  | 'Construction Documents' | 'Buyout' | 'Construction' | 'Closeout';
+
+export type LessonStatus = 'Draft' | 'Submitted' | 'Verified' | 'Archived';
+
+export type LessonSourceType = 'manual' | 'ai_generated' | 'ai_assisted';
+
+export interface ProjectLesson {
+  id: string;
+  project_id: string;
+  display_id: string | null;
+  title: string;
+  what_happened: string | null;
+  root_cause: string | null;
+  recommendation: string;
+  category: LessonCategory;
+  severity: LessonSeverity;
+  phase: LessonPhase;
+  status: LessonStatus;
+  template_id: string | null;
+  cost_code: string | null;
+  csi_number: string | null;
+  building_area: string | null;
+  discipline_id: string | null;
+  client_id: string | null;
+  author_id: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  source_type: LessonSourceType;
+  ai_confidence: number | null;
+  ai_metadata: Record<string, unknown>;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LessonAttachment {
+  id: string;
+  lesson_id: string;
+  project_id: string;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  file_type: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+export interface LessonOpportunityLink {
+  lesson_id: string;
+  opportunity_id: string;
+}
+
+export interface LessonIndicator {
+  cost_code: string;
+  lesson_count: number;
+  max_severity: string;
+}
+
+export interface LessonTemplate {
+  id: string;
+  label: string;
+  defaultCategory: LessonCategory;
+  whatHappenedPlaceholder: string;
+  rootCausePlaceholder: string;
+  recommendationPlaceholder: string;
+}
+

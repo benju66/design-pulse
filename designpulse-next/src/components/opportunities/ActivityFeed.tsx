@@ -8,14 +8,15 @@ import { User, Shield, MessageSquare, Trash2 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 
 interface ActivityFeedProps {
-  opportunityId: string;
+  opportunityId?: string;
+  lessonId?: string;
   projectId: string;
 }
 
-export const ActivityFeed = ({ opportunityId, projectId }: ActivityFeedProps) => {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useActivityFeed(opportunityId);
-  const addComment = useAddComment(opportunityId, projectId);
-  const deleteComment = useDeleteComment(opportunityId);
+export const ActivityFeed = ({ opportunityId, lessonId, projectId }: ActivityFeedProps) => {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useActivityFeed({ opportunityId, lessonId });
+  const addComment = useAddComment({ opportunityId, lessonId }, projectId);
+  const deleteComment = useDeleteComment({ opportunityId, lessonId });
   const { data: members = [] } = useProjectMembers(projectId);
   const { permissions } = useCurrentUserPermissions(projectId);
   const { session } = useAuth();

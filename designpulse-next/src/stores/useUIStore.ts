@@ -13,7 +13,8 @@ export type ProjectView =
   | 'coordination'
   | 'permits'
   | 'my-desk'
-  | 'settings';
+  | 'settings'
+  | 'lessons';
 
 export type SettingsTab =
   | 'info'
@@ -88,6 +89,12 @@ export interface UIState {
 
   drawingGridViewMode: 'split' | 'flat';
   setDrawingGridViewMode: (mode: 'split' | 'flat') => void;
+
+  lessonsViewMode: 'split' | 'flat';
+  setLessonsViewMode: (mode: 'split' | 'flat') => void;
+
+  lessonsColumnVisibility: Record<string, Record<string, boolean>>;
+  setLessonsColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
 
   // Dashboard view mode
   dashboardViewMode: DashboardViewMode;
@@ -276,6 +283,21 @@ export const useUIStore = create<UIState>()(
       drawingGridViewMode: 'split',
       setDrawingGridViewMode: (mode) => set({ drawingGridViewMode: mode }),
 
+      lessonsViewMode: 'split',
+      setLessonsViewMode: (mode) => set({ lessonsViewMode: mode }),
+
+      lessonsColumnVisibility: {},
+      setLessonsColumnVisibility: (projectId, updater) => set((state) => {
+        const oldState = state.lessonsColumnVisibility?.[projectId] || {};
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          lessonsColumnVisibility: {
+            ...state.lessonsColumnVisibility,
+            [projectId]: newState
+          }
+        };
+      }),
+
       dashboardViewMode: 'card',
       setDashboardViewMode: (mode) => set({ dashboardViewMode: mode }),
 
@@ -362,8 +384,10 @@ export const useUIStore = create<UIState>()(
         gridColumnPinningOverrides: state.gridColumnPinningOverrides ?? {},
         gridV2ColumnVisibility: state.gridV2ColumnVisibility ?? {},
         dashboardViewMode: state.dashboardViewMode ?? 'card',
+        lessonsViewMode: state.lessonsViewMode ?? 'split',
+        lessonsColumnVisibility: state.lessonsColumnVisibility ?? {},
       }),
-      version: 6,
+      version: 7,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -414,6 +438,14 @@ export const useUIStore = create<UIState>()(
         if (version < 6) {
           // v5 → v6: added 'budget-compare' to ProjectView union (no shape change)
           return state as UIState;
+        }
+        if (version < 7) {
+          // v6 → v7: added lessonsViewMode and lessonsColumnVisibility
+          return {
+            ...state,
+            lessonsViewMode: 'split',
+            lessonsColumnVisibility: {}
+          } as UIState;
         }
         return state as UIState;
       },

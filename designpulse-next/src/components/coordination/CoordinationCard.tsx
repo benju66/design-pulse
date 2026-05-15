@@ -150,9 +150,16 @@ export const CoordinationCard = ({ opportunity, updateMutation, settings, member
       className={`bg-white dark:bg-slate-800 border ${isDragging ? 'border-sky-500 shadow-xl opacity-80 cursor-grabbing' : 'border-slate-200 dark:border-slate-700 shadow-sm cursor-grab hover:border-slate-300 dark:hover:border-slate-600'} rounded-lg p-3 mb-3 flex flex-col transition-shadow`}
     >
       <div className="flex justify-between items-start mb-2">
-        <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded">
-          {opportunity.display_id || '----'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded">
+            {opportunity.display_id || '----'}
+          </span>
+          {opportunity.status === 'Draft' && (
+            <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded" title="Financial decision is not yet locked">
+              In Evaluation
+            </span>
+          )}
+        </div>
         {opportunity.due_date && (
           <span className={`text-[10px] font-semibold ${dueColor}`}>
             {opportunity.due_date}

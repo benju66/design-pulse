@@ -8,7 +8,7 @@ import { useUpdateOpportunity, useDeleteOpportunity, useDeEscalateOpportunity } 
 import { useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
-import { List, Paperclip, MessageSquare, Settings, ChevronDown } from 'lucide-react';
+import { List, Paperclip, MessageSquare, Settings, ChevronDown, Play } from 'lucide-react';
 import { ALL_PRIMARY_FIELDS, ADVANCED_FIELD_IDS } from '@/lib/constants';
 
 import { ContendersMatrix } from './ContendersMatrix';
@@ -214,7 +214,12 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               value={row.original.status || 'Draft'}
               disabled={!permissions.can_edit_records}
               onChange={(e) => {
-                updateData.mutate({ id: row.original.id, updates: { status: e.target.value } });
+                const newStatus = e.target.value;
+                const updates: any = { status: newStatus };
+                if (newStatus === 'Rejected') {
+                  updates.coordination_status = 'Not Required';
+                }
+                updateData.mutate({ id: row.original.id, updates });
               }}
               className="bg-transparent border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-md px-2 py-1 text-sm font-medium focus:ring-2 focus:ring-sky-500 outline-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
             >
@@ -238,6 +243,34 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               {buildingAreas.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             
+            {row.original.record_type === 'VE' && (row.original.coordination_status === 'Not Required' || !row.original.coordination_status) && (
+              <>
+                <button
+                  onClick={() => {
+                    const projectDisciplines = (settings?.disciplines as {id: string, label: string}[]) || [];
+                    const scaffold: Record<string, any> = {};
+                    projectDisciplines.forEach(d => {
+                      scaffold[d.id] = { status: 'Not Required', notes: '' };
+                    });
+                    updateData.mutate({
+                      id: row.original.id,
+                      updates: {
+                        coordination_status: 'Draft',
+                        coordination_details: scaffold
+                      }
+                    });
+                  }}
+                  disabled={updateData.isPending}
+                  className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-sky-100 dark:hover:bg-sky-900/30 text-sky-600 dark:text-sky-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Begin design coordination for this item before financial locking"
+                >
+                  <Play size={16} />
+                  <span className="text-sm font-semibold">Begin Coordination</span>
+                </button>
+                <div className="w-px h-5 bg-slate-300 dark:bg-slate-700" />
+              </>
+            )}
+
             <button 
               onClick={() => setShowSettings(!showSettings)}
               className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors"

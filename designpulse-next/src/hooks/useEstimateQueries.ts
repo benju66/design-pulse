@@ -29,6 +29,7 @@ import type {
   ProjectEstimateLine,
   EstimateStagingRow,
   BudgetWaterfallRow,
+  BudgetVersionTimelineRow,
   EstimateComparisonRow,
   EstimateVarianceNote,
   MultiVersionMatrixRow,
@@ -44,6 +45,7 @@ export const estimateKeys = {
   varianceHistory: (projectId: string, costCode: string) => ['variance-history', projectId, costCode] as const,
   waterfall: (projectId: string, versionId?: string | null) => 
     versionId !== undefined ? ['budget-waterfall', projectId, versionId] as const : ['budget-waterfall', projectId] as const,
+  timeline: (projectId: string) => ['budget-version-timeline', projectId] as const,
 };
 
 // ── useProjectEstimateVersions ───────────────────────────────────────────────
@@ -224,6 +226,7 @@ export function useImportEstimateMutation(projectId: string) {
       qc.invalidateQueries({ queryKey: ['project_settings', projectId] });
       qc.invalidateQueries({ queryKey: estimateKeys.waterfall(projectId) });
       qc.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      qc.invalidateQueries({ queryKey: estimateKeys.timeline(projectId) });
     },
   });
 }
@@ -245,6 +248,7 @@ export function useActivateEstimateVersion(projectId: string) {
       qc.invalidateQueries({ queryKey: ['project_settings', projectId] });
       qc.invalidateQueries({ queryKey: estimateKeys.waterfall(projectId) });
       qc.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      qc.invalidateQueries({ queryKey: estimateKeys.timeline(projectId) });
     },
   });
 }
@@ -268,6 +272,7 @@ export function useDeleteEstimateVersion(projectId: string) {
       qc.invalidateQueries({ queryKey: ['project_settings', projectId] });
       qc.invalidateQueries({ queryKey: estimateKeys.waterfall(projectId) });
       qc.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      qc.invalidateQueries({ queryKey: estimateKeys.timeline(projectId) });
     },
   });
 }
@@ -473,6 +478,25 @@ export function useMultiVersionMatrix(
       });
       if (error) throw error;
       return (data ?? []) as MultiVersionMatrixRow[];
+    },
+  });
+}
+
+// ── useBudgetVersionTimeline ─────────────────────────────────────────────────
+// Fetches version milestones for the Risk Exposure Trend chart.
+// Returns each finalized version with its baseline budget + current VE overlay.
+// 5-minute staleTime — mirrors waterfall (expensive aggregation, no real-time need).
+export function useBudgetVersionTimeline(projectId: string | null) {
+  return useQuery<BudgetVersionTimelineRow[]>({
+    queryKey: estimateKeys.timeline(projectId ?? ''),
+    enabled: !!projectId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_budget_version_timeline', {
+        p_project_id: projectId!,
+      });
+      if (error) throw error;
+      return (data ?? []) as BudgetVersionTimelineRow[];
     },
   });
 }

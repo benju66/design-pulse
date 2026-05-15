@@ -285,6 +285,15 @@ export interface BudgetWaterfallRow {
   projected_position: number;
 }
 
+export interface BudgetVersionTimelineRow {
+  version_id: string;
+  version_name: string;
+  version_date: string;
+  baseline: number;
+  locked_ve: number;
+  pending_ve: number;
+}
+
 export interface MasterLedgerRow {
   cost_code: string;
   csi_division: string;

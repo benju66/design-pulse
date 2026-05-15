@@ -4,6 +4,7 @@ import { Opportunity } from '@/types/models';
 import VarianceWaterfallChart from './VarianceWaterfallChart';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useOwnerROIMetrics } from '@/hooks/useProjectAnalyticsQueries';
+import { useProjectBudgetWaterfall } from '@/hooks/useEstimateQueries';
 
 interface Props {
   projectId: string;
@@ -13,6 +14,9 @@ interface Props {
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 export default function OwnerDashboard({ projectId, opportunities }: Props) {
+  // Waterfall data for the refactored chart component
+  const { data: waterfallRows = [], isLoading: waterfallLoading } = useProjectBudgetWaterfall(projectId, null);
+
   // KPI: Average Age of Pending Items
   const avgPendingDays = useMemo(() => {
     const pendingOpps = opportunities.filter(o => o.status === 'Pending Review');
@@ -107,7 +111,7 @@ export default function OwnerDashboard({ projectId, opportunities }: Props) {
       {/* Bottom: Variance Waterfall */}
       <div className="xl:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">Trade Variance Waterfall</h3>
-        <VarianceWaterfallChart projectId={projectId} versionId={null} />
+        <VarianceWaterfallChart rows={waterfallRows} isLoading={waterfallLoading} />
       </div>
 
     </div>

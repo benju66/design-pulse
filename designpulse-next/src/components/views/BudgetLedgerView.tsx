@@ -1,4 +1,5 @@
 "use client";
+import { useMemo, useCallback, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import BudgetSummaryV2 from '@/components/BudgetSummaryV2';
@@ -59,6 +60,42 @@ export function BudgetLedgerView({
 }: BudgetLedgerViewProps) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const isMapVisible = useUIStore(state => state.isMapVisible);
+  const isFullscreen = useUIStore(state => state.isBudgetAnalyticsFullscreen);
+  const isBudgetSummaryCollapsed = useUIStore(state => state.isBudgetSummaryCollapsed);
+  const setBudgetSummaryCollapsed = useUIStore(state => state.setBudgetSummaryCollapsed);
+  const setFullscreen = useUIStore(state => state.setBudgetAnalyticsFullscreen);
+
+  // Auto-collapse analytics when filter drawer opens, restore when it closes
+  const preFilterCollapsedRef = useRef<boolean | null>(null);
+  const handleFilterDrawerToggle = useCallback((isOpen: boolean) => {
+    if (isOpen) {
+      // Store current state before collapsing
+      preFilterCollapsedRef.current = isBudgetSummaryCollapsed;
+      if (isFullscreen) setFullscreen(false);
+      if (!isBudgetSummaryCollapsed) setBudgetSummaryCollapsed(true);
+    } else {
+      // Restore previous state when closing
+      if (preFilterCollapsedRef.current === false) {
+        setBudgetSummaryCollapsed(false);
+      }
+      preFilterCollapsedRef.current = null;
+    }
+  }, [isBudgetSummaryCollapsed, isFullscreen, setBudgetSummaryCollapsed, setFullscreen]);
+
+  // ── Layered Context: compute filtered cost codes for analytics ──
+  const filteredCostCodes = useMemo(() => {
+    const codes = filteredOpportunities
+      .map(o => o.cost_code)
+      .filter(Boolean) as string[];
+    return Array.from(new Set(codes));
+  }, [filteredOpportunities]);
+
+  const totalCodes = useMemo(() => {
+    const codes = allOpportunities
+      .map(o => o.cost_code)
+      .filter(Boolean) as string[];
+    return new Set(codes).size;
+  }, [allOpportunities]);
 
   return (
     <>
@@ -66,14 +103,19 @@ export function BudgetLedgerView({
       <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${
         (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
       }`}>
-        <div className="shrink-0">
-          <BudgetSummaryV2
-            projectId={projectId}
-            forceCollapse={viewMode === 'split' && !!selectedOpportunityId}
-          />
-        </div>
+        <BudgetSummaryV2
+          projectId={projectId}
+          forceCollapse={viewMode === 'split' && !!selectedOpportunityId}
+          filteredCostCodes={filteredCostCodes}
+          totalFilteredCodes={filteredCostCodes.length}
+          totalCodes={totalCodes}
+          onClearFilters={onClearFilters}
+          navigateToSettings={navigateToSettings}
+          allLedgerItems={allOpportunities}
+        />
 
-        <div className="flex-1 overflow-hidden flex flex-col relative">
+        {/* Grid — hidden when analytics is fullscreen */}
+        <div className={`flex-1 overflow-hidden flex flex-col relative ${isFullscreen ? 'hidden' : ''}`}>
           {isMapVisible && (
             <div className="h-1/2 border-b border-slate-200 dark:border-slate-800 shrink-0">
               <FloorplanCanvas 
@@ -158,12 +200,13 @@ export function BudgetLedgerView({
                 </>
               }
               varianceNoteMap={varianceNoteMap}
+              onFilterDrawerToggle={handleFilterDrawerToggle}
             />
           )}
         </div>
       </div>
 
-      {/* Detail Panel */}
+      {/* Detail Panel — always visible even in fullscreen */}
       <DetailPanel 
         projectId={projectId} 
         opportunities={allOpportunities} 

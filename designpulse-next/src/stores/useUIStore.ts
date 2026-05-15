@@ -105,6 +105,10 @@ export interface UIState {
 
   isBudgetSummaryCollapsed: boolean;
   toggleBudgetSummary: () => void;
+  setBudgetSummaryCollapsed: (v: boolean) => void;
+  
+  isBudgetAnalyticsFullscreen: boolean;
+  setBudgetAnalyticsFullscreen: (v: boolean) => void;
   
   isCoordSummaryCollapsed: boolean;
   toggleCoordSummary: () => void;
@@ -292,6 +296,10 @@ export const useUIStore = create<UIState>()(
       
       isBudgetSummaryCollapsed: false,
       toggleBudgetSummary: () => set((state) => ({ isBudgetSummaryCollapsed: !state.isBudgetSummaryCollapsed })),
+      setBudgetSummaryCollapsed: (v: boolean) => set({ isBudgetSummaryCollapsed: v }),
+      
+      isBudgetAnalyticsFullscreen: false,
+      setBudgetAnalyticsFullscreen: (v) => set({ isBudgetAnalyticsFullscreen: v }),
       
       isCoordSummaryCollapsed: false,
       toggleCoordSummary: () => set((state) => ({ isCoordSummaryCollapsed: !state.isCoordSummaryCollapsed })),

@@ -69,6 +69,8 @@ interface OpportunityGridProps {
   onClearFilters?: () => void;
   // Phase 2: pre-computed variance note lookup (cost_code → note text)
   varianceNoteMap?: Record<string, string>;
+  /** Fires when the internal filter drawer opens/closes — lets parent views react (e.g. auto-collapse analytics) */
+  onFilterDrawerToggle?: (isOpen: boolean) => void;
 }
 
 interface GroupedRowProps {
@@ -380,7 +382,7 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
   );
 });
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {} }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {}, onFilterDrawerToggle }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -405,6 +407,12 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  // Notify parent when filter drawer toggles (e.g., BudgetLedgerView auto-collapses analytics)
+  const handleFilterToggle = useCallback((open: boolean) => {
+    setIsFilterOpen(open);
+    onFilterDrawerToggle?.(open);
+  }, [onFilterDrawerToggle]);
 
   const handleBulkDelete = async () => {
     setIsDeleting(true);
@@ -920,7 +928,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
         <div className="flex items-center gap-2 ml-auto shrink-0">
           {filterSlot && (
             <button
-              onClick={() => setIsFilterOpen(o => !o)}
+              onClick={() => handleFilterToggle(!isFilterOpen)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 isFilterOpen || filterActiveCount > 0
                   ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
@@ -953,7 +961,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       {filterSlot && (
         <GridFilterDrawer
           isOpen={isFilterOpen}
-          onClose={() => setIsFilterOpen(false)}
+          onClose={() => handleFilterToggle(false)}
           activeCount={filterActiveCount}
           onClearAll={() => onClearFilters?.()}
         >

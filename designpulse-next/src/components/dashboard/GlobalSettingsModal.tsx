@@ -6,14 +6,18 @@ import {
   ColumnDef,
 } from '@tanstack/react-table';
 import { useCostCodes, useUploadCostCodesCSV, useSystemUsers, useTogglePlatformAdmin, useRolePermissions, useUpdateRolePermission, useGlobalCsiTrainingData, useToggleGlobalCsiVerified, useRemapGlobalCsiEntry, useUserProjectMembers, useBulkUpdateUserProjects, SystemUser, useUpdateCostCodeDescription, useDeleteCostCode, checkCostCodeUsage, useToggleCostCodeCategory, CategoryField } from '@/hooks/useGlobalQueries';
+import { useCompanyCsiDefaults, useBulkUpsertCompanyCsiDefaults, useDeleteCompanyCsiDefault, useCompanyCsiRosettaView } from '@/hooks/useCompanyCsiQueries';
+import { CompanyCsiDefault } from '@/types/models';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
-import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, Circle, Save, Pencil, Loader2, Check, TriangleAlert } from 'lucide-react';
+import { X, UploadCloud, AlertCircle, FileSpreadsheet, Users, ShieldCheck, Building2, Eye, EyeOff, Trash2, GitMerge, Search, ChevronLeft, ChevronRight, ChevronDown, CheckCircle2, Circle, Save, Pencil, Loader2, Check, TriangleAlert, Database, Layers, Download } from 'lucide-react';
 import { useProjects, useUpdateProjectCore, useDeleteProjectCore } from '@/hooks/useProjectCoreQueries';
 import { Project, GlobalCsiTrainingData, RemapCsiEntryParams, CostCode, RolePermission } from '@/types/models';
 import { formatCostCode } from '@/lib/formatCostCode';
 import { generateCostCodeTemplate } from '@/lib/excel/costCodeTemplate';
 import { parseCostCodeExcel } from '@/lib/excel/costCodeParser';
+import { generateCompanyDefaultsTemplate } from '@/lib/excel/companyDefaultsTemplate';
+import { toast } from 'sonner';
 
 interface Props {
   isOpen: boolean;
@@ -413,7 +417,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
           )}
 
           {activeTab === 'csi_mapping' && isPlatformAdmin && (
-            <CsiMappingTab costCodes={costCodes} />
+            <CsiMappingWithSubViews costCodes={costCodes} />
           )}
         </div>
       </div>
@@ -705,6 +709,421 @@ function CsiMappingTab({ costCodes }: { costCodes: CostCode[] }) {
               <ChevronRight size={16} />
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── CSI Mapping Sub-View Wrapper (Phase 7) ─────────────────────────────────────
+// Segmented control switching between ML Flywheel and Company Defaults views.
+function CsiMappingWithSubViews({ costCodes }: { costCodes: CostCode[] }) {
+  const [subView, setSubView] = useState<'flywheel' | 'defaults' | 'rosetta'>('flywheel');
+
+  return (
+    <div className="flex flex-col h-full gap-3">
+      {/* Segmented Control */}
+      <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-fit">
+        <button
+          onClick={() => setSubView('flywheel')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+            subView === 'flywheel'
+              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+          }`}
+        >
+          <GitMerge size={13} />
+          ML Flywheel
+        </button>
+        <button
+          onClick={() => setSubView('defaults')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+            subView === 'defaults'
+              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+          }`}
+        >
+          <Database size={13} />
+          Company Defaults
+        </button>
+        <button
+          onClick={() => setSubView('rosetta')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+            subView === 'rosetta'
+              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+          }`}
+        >
+          <Layers size={13} />
+          Rosetta Stone
+        </button>
+      </div>
+
+      {/* Sub-View Content */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {subView === 'flywheel' && <CsiMappingTab costCodes={costCodes} />}
+        {subView === 'defaults' && <CompanyDefaultsTab costCodes={costCodes} />}
+        {subView === 'rosetta' && <RosettaStoneTab costCodes={costCodes} />}
+      </div>
+    </div>
+  );
+}
+
+// ── Company Defaults Tab (Phase 7) ─────────────────────────────────────────────
+// Admin-only view for managing company-level default CSI-to-Cost-Code mappings.
+function CompanyDefaultsTab({ costCodes }: { costCodes: CostCode[] }) {
+  const { data: defaults = [], isLoading } = useCompanyCsiDefaults();
+  const upsertMutation = useBulkUpsertCompanyCsiDefaults();
+  const deleteMutation = useDeleteCompanyCsiDefault();
+  const [searchFilter, setSearchFilter] = useState('');
+
+  const filteredDefaults = useMemo(() => {
+    if (!searchFilter) return defaults;
+    const q = searchFilter.toLowerCase();
+    return defaults.filter(d =>
+      d.csi_number.toLowerCase().includes(q) ||
+      (d.description ?? '').toLowerCase().includes(q) ||
+      (d.cost_code ?? '').toLowerCase().includes(q)
+    );
+  }, [defaults, searchFilter]);
+
+  // Excel upload handler (reuses AGENTS.md C19 dynamic import pattern)
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ''; // Reset so same file can be re-selected
+
+    try {
+      // C19: Dynamic import of browser-safe ExcelJS build
+      const ExcelJS = (await import('exceljs/dist/exceljs.min.js')).default;
+      const workbook = new ExcelJS.Workbook();
+      const buffer = await file.arrayBuffer();
+      await workbook.xlsx.load(buffer);
+
+      // Find first visible sheet with CSI/Description headers
+      let csiCol = -1;
+      let descCol = -1;
+      let costCodeCol = -1;
+      // ExcelJS dynamic import (C19) loses type info — `any` is unavoidable here
+      let sheet: any | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      for (const ws of workbook.worksheets) {
+        if (ws.state === 'hidden') continue;
+        csiCol = -1;
+        descCol = -1;
+        costCodeCol = -1;
+        ws.getRow(1).eachCell((cell: { text: string }, colNumber: number) => {
+          const val = String(cell.text || '').toLowerCase().replace(/[^a-z]/g, '');
+          if (val.includes('csi')) csiCol = colNumber;
+          else if (val.includes('desc')) descCol = colNumber;
+          else if (val.includes('costcode') || val.includes('code')) costCodeCol = colNumber;
+        });
+        if (csiCol !== -1 && descCol !== -1) {
+          sheet = ws;
+          break;
+        }
+      }
+
+      if (!sheet) {
+        toast.error("Could not find a sheet with 'CSI Number' and 'Description' columns.");
+        return;
+      }
+
+      const parsedPayload: Partial<CompanyCsiDefault>[] = [];
+      sheet.eachRow((row: { getCell: (col: number) => { text: string } }, rowNumber: number) => {
+        if (rowNumber === 1) return; // skip header
+        const rawCsi = String(row.getCell(csiCol).text || '').trim();
+        const rawDesc = String(row.getCell(descCol).text || '').trim();
+        if (!rawCsi) return;
+
+        let costCodeVal: string | undefined;
+        if (costCodeCol !== -1) {
+          const rawCostCode = String(row.getCell(costCodeCol).text || '').trim();
+          if (rawCostCode) {
+            // Strip description suffix (e.g. "096500 - Flooring" → "096500")
+            costCodeVal = rawCostCode.split(' - ')[0].split(' – ')[0].trim();
+          }
+        }
+
+        parsedPayload.push({
+          id: crypto.randomUUID(), // C8: Client-side UUIDs
+          csi_number: rawCsi,
+          description: rawDesc || null,
+          cost_code: costCodeVal || null,
+        });
+      });
+
+      if (parsedPayload.length === 0) {
+        toast.error('No valid rows found in spreadsheet.');
+        return;
+      }
+
+      await upsertMutation.mutateAsync(parsedPayload);
+    } catch (err: unknown) {
+      console.error('Company Defaults Excel Import Error:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to import: ${msg}`);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full gap-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Company Default CSI Codes</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {defaults.length.toLocaleString()} default mappings • Seeded into new projects on demand
+          </p>
+        </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              <input
+                value={searchFilter}
+                onChange={e => setSearchFilter(e.target.value)}
+                placeholder="Search CSI, description, code..."
+                className="pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-slate-100 w-56"
+              />
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  const blob = await generateCompanyDefaultsTemplate(costCodes, defaults);
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'Company_CSI_Defaults_Template.xlsx';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error('Template download error:', err);
+                  toast.error('Failed to generate template.');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+            >
+              <Download size={13} />
+              Template
+            </button>
+            <label className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer shadow-sm ${
+              upsertMutation.isPending
+                ? 'bg-sky-50 border-sky-300 text-sky-500 dark:bg-sky-900/20 dark:border-sky-700 dark:text-sky-400 cursor-wait'
+                : 'bg-sky-500 border-sky-600 text-white hover:bg-sky-600'
+            }`}>
+              <UploadCloud size={13} />
+              {upsertMutation.isPending ? 'Uploading…' : 'Upload .xlsx'}
+              <input type="file" className="hidden" accept=".xlsx" onChange={handleExcelUpload} disabled={upsertMutation.isPending} />
+            </label>
+          </div>
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col min-h-0">
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-left text-sm" style={{ tableLayout: 'fixed', minWidth: 700 }}>
+            <thead className="bg-slate-50 dark:bg-slate-900/80 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+              <tr>
+                <th style={{ width: 160 }} className="px-3 py-2.5 font-semibold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">CSI Number</th>
+                <th className="px-3 py-2.5 font-semibold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">Description</th>
+                <th style={{ width: 200 }} className="px-3 py-2.5 font-semibold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">Mapped Cost Code</th>
+                <th style={{ width: 60 }} className="px-3 py-2.5 font-semibold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider text-center"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+              {filteredDefaults.map(row => (
+                <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
+                  <td className="px-3 py-2 align-middle">
+                    <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400 font-semibold">{row.csi_number}</span>
+                  </td>
+                  <td className="px-3 py-2 align-middle">
+                    <span className="text-xs text-slate-700 dark:text-slate-300 truncate block">{row.description ?? '—'}</span>
+                  </td>
+                  <td className="px-3 py-2 align-middle">
+                    {(() => {
+                      const matched = costCodes.find(c => c.code === row.cost_code);
+                      return (
+                        <span className="text-xs text-slate-700 dark:text-slate-300 truncate block" title={matched ? `${formatCostCode(matched.code)} – ${matched.description}` : (row.cost_code ?? 'Unmapped')}>
+                          {matched ? `${formatCostCode(matched.code)} – ${matched.description}` : (row.cost_code ?? <span className="text-slate-400 italic">Unmapped</span>)}
+                        </span>
+                      );
+                    })()}
+                  </td>
+                  <td className="px-3 py-2 align-middle text-center">
+                    <button
+                      onClick={() => deleteMutation.mutate(row.id)}
+                      disabled={deleteMutation.isPending}
+                      className="p-1.5 rounded-md text-slate-400 opacity-0 group-hover:opacity-100 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all disabled:opacity-50"
+                      title="Remove default"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {filteredDefaults.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-400 italic">
+                    {searchFilter
+                      ? 'No defaults match your search.'
+                      : 'No company CSI defaults yet. Upload an .xlsx to get started.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Rosetta Stone Aggregation Tab (Phase 2) ─────────────────────────────────────
+// Read-only cross-project view: company defaults + project overrides.
+function RosettaStoneTab({ costCodes: _costCodes }: { costCodes: CostCode[] }) {
+  const { data: rows = [], isLoading } = useCompanyCsiRosettaView(true);
+  const [search, setSearch] = useState('');
+
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter(
+      (r) =>
+        (r.cost_code?.toLowerCase().includes(q)) ||
+        (r.cost_code_description?.toLowerCase().includes(q)) ||
+        r.default_csi_number.toLowerCase().includes(q) ||
+        (r.default_csi_description?.toLowerCase().includes(q)) ||
+        r.project_specs.some(
+          (ps) =>
+            ps.project_name.toLowerCase().includes(q) ||
+            ps.csi_number.toLowerCase().includes(q)
+        )
+    );
+  }, [rows, search]);
+
+  return (
+    <div className="flex flex-col gap-3 h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+            Rosetta Stone View
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {rows.length} default mappings • Cross-project override visibility
+          </p>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+          <input
+            type="text"
+            placeholder="Search CSI, cost code, project..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 w-64"
+          />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 min-h-0 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-900">
+        <div className="overflow-auto h-full">
+          <table className="w-full text-left border-collapse">
+            <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 shadow-[0_1px_0_var(--tw-shadow-color)] shadow-slate-200 dark:shadow-slate-700">
+              <tr>
+                <th className="px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-56">
+                  Cost Code
+                </th>
+                <th className="px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-44">
+                  Default CSI Code
+                </th>
+                <th className="px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Project-Specific Overrides
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={3} className="px-3 py-12 text-center text-sm text-slate-400">
+                    <Loader2 className="mx-auto mb-2 animate-spin" size={20} />
+                    Loading Rosetta Stone view...
+                  </td>
+                </tr>
+              ) : filteredRows.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-3 py-12 text-center text-sm text-slate-400 dark:text-slate-500 italic">
+                    {rows.length === 0
+                      ? 'No company defaults to display. Upload defaults in the Company Defaults tab first.'
+                      : `No results matching "${search}"`}
+                  </td>
+                </tr>
+              ) : (
+                filteredRows.map((row, i) => (
+                  <tr key={`${row.default_csi_number}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                    {/* Cost Code */}
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-sm text-slate-700 dark:text-slate-300">
+                          {row.cost_code || '—'}
+                        </span>
+                        {row.cost_code_description && (
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate max-w-[200px]" title={row.cost_code_description}>
+                            {row.cost_code_description}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    {/* Default CSI */}
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-sm text-indigo-600 dark:text-indigo-400">
+                          {row.default_csi_number}
+                        </span>
+                        {row.default_csi_description && (
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate max-w-[200px]" title={row.default_csi_description}>
+                            {row.default_csi_description}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    {/* Project Overrides */}
+                    <td className="px-3 py-2.5">
+                      {row.project_specs.length === 0 ? (
+                        <span className="text-xs text-slate-300 dark:text-slate-600 italic">
+                          No project overrides
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {row.project_specs.map((ps) => (
+                            <span
+                              key={`${ps.project_id}-${ps.csi_number}`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                              title={`${ps.project_name}: ${ps.csi_number}`}
+                            >
+                              <span className="font-mono">{ps.csi_number}</span>
+                              <span className="text-emerald-400 dark:text-emerald-600">·</span>
+                              <span className="font-normal text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
+                                {ps.project_name}
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

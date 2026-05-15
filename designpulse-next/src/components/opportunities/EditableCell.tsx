@@ -523,6 +523,10 @@ export const CsiSpecCell = React.memo(({ row, table }: CellContext<Opportunity, 
   const permissions    = table.options.meta?.permissions || { can_edit_records: false };
   const disabled       = !permissions.can_edit_records;
 
+  // Phase 7: Derive source from the matched spec for lineage indicator
+  const matchedSpec = initialSpecNumberId ? csiSpecs.find(s => s.id === initialSpecNumberId) : null;
+  const isCompanyDefault = matchedSpec?.source === 'company_default';
+
   const handleChange = (updates: { cost_code?: string; division?: string; cost_type?: string; spec_number_id?: string | null }) => {
     if (updateMutation) {
       updateMutation.mutate({ id: row.original.id, updates: updates as Partial<Opportunity> });
@@ -530,16 +534,24 @@ export const CsiSpecCell = React.memo(({ row, table }: CellContext<Opportunity, 
   };
 
   return (
-    <SmartCostCodeCombobox
-      mode="csi_spec_only"
-      value={initialCode}
-      specNumberId={initialSpecNumberId}
-      onChange={handleChange as any}
-      rawCostCodes={rawCostCodes as CostCode[]}
-      csiSpecs={csiSpecs as ProjectCsiSpec[]}
-      disabled={disabled}
-      showCostTypeSegment={false} // Architectural focus
-    />
+    <div className="relative w-full h-full group">
+      <SmartCostCodeCombobox
+        mode="csi_spec_only"
+        value={initialCode}
+        specNumberId={initialSpecNumberId}
+        onChange={handleChange as any}
+        rawCostCodes={rawCostCodes as CostCode[]}
+        csiSpecs={csiSpecs as ProjectCsiSpec[]}
+        disabled={disabled}
+        showCostTypeSegment={false} // Architectural focus
+      />
+      {/* Phase 7: Company Default source indicator */}
+      {isCompanyDefault && (
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none">
+          <span className="text-[10px] text-amber-600 dark:text-amber-400" title="Company Default">🏢</span>
+        </div>
+      )}
+    </div>
   );
 }, (prev, next) => prev.row.original === next.row.original);
 

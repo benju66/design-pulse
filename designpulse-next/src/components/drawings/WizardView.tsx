@@ -3,6 +3,7 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { Loader2, AlertCircle, ChevronRight } from 'lucide-react';
 import { InspectPdfResponse } from '@/types/map.types';
 import { SheetSelection } from './PdfImportModal.types';
+import { API_BASE_URL } from '@/services/api';
 
 interface WizardViewProps {
   projectId: string;
@@ -42,8 +43,7 @@ export function WizardView({
       setPreviewLoading(true);
       setPreviewError(null);
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-        const url = `${apiUrl}/drawings/preview/${projectId}/${stagedKey}/${pageIndex}`;
+        const url = `${API_BASE_URL}/drawings/preview/${projectId}/${stagedKey}/${pageIndex}`;
         const res = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`

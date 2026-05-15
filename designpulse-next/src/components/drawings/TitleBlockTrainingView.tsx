@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, AlertCircle, X, CheckCircle, ChevronRight } from 'lucide-react';
 import { InspectPdfResponse } from '@/types/map.types';
 import { SheetSelection, ModalPhase, ZoneDefinition } from './PdfImportModal.types';
+import { API_BASE_URL } from '@/services/api';
 
 interface TitleBlockTrainingViewProps {
   projectId: string;
@@ -46,8 +47,7 @@ export function TitleBlockTrainingView({
       if (!inspectResult?.staged_key) return;
       setLoadingImg(true);
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-        const url = `${apiUrl}/drawings/preview/${projectId}/${inspectResult.staged_key}/0`;
+        const url = `${API_BASE_URL}/drawings/preview/${projectId}/${inspectResult.staged_key}/0`;
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error('Failed to load preview');
         const blob = await res.blob();
@@ -83,8 +83,7 @@ export function TitleBlockTrainingView({
       setPreviewError(false);
       setPreviewExpired(false);
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-        const res = await fetch(`${apiUrl}/drawings/extract/${projectId}/${inspectResult.staged_key}`, {
+        const res = await fetch(`${API_BASE_URL}/drawings/extract/${projectId}/${inspectResult.staged_key}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -186,10 +185,9 @@ export function TitleBlockTrainingView({
     if (zones.length === 0 || !inspectResult) return;
     setPhase('extracting');
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
       const pageIndices = selections.filter(s => s.selected).map(s => s.pageIndex);
       
-      const res = await fetch(`${apiUrl}/drawings/extract/${projectId}/${inspectResult.staged_key}`, {
+      const res = await fetch(`${API_BASE_URL}/drawings/extract/${projectId}/${inspectResult.staged_key}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

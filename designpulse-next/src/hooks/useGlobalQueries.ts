@@ -396,9 +396,9 @@ export function useToggleCostCodeCategory() {
 
 export async function checkCostCodeUsage(code: string): Promise<{
   total: number;
-  breakdown: { opportunities: number; options: number; csiSpecs: number };
+  breakdown: { opportunities: number; options: number; csiSpecs: number; companyDefaults: number };
 }> {
-  const [oppResult, optResult, specResult] = await Promise.all([
+  const [oppResult, optResult, specResult, defaultsResult] = await Promise.all([
     supabase
       .from('opportunities')
       .select('id', { count: 'exact', head: true })
@@ -413,18 +413,25 @@ export async function checkCostCodeUsage(code: string): Promise<{
       .from('project_csi_specs')
       .select('id', { count: 'exact', head: true })
       .eq('cost_code', code),
+    // Phase 7 (Finding 4): Check company CSI defaults
+    supabase
+      .from('company_csi_defaults')
+      .select('id', { count: 'exact', head: true })
+      .eq('cost_code', code),
   ]);
   
   if (oppResult.error) throw oppResult.error;
   if (optResult.error) throw optResult.error;
   if (specResult.error) throw specResult.error;
+  if (defaultsResult.error) throw defaultsResult.error;
 
-  const opportunities = oppResult.count ?? 0;
-  const options      = optResult.count  ?? 0;
-  const csiSpecs     = specResult.count ?? 0;
+  const opportunities    = oppResult.count ?? 0;
+  const options          = optResult.count  ?? 0;
+  const csiSpecs         = specResult.count ?? 0;
+  const companyDefaults  = defaultsResult.count ?? 0;
   
   return { 
-    total: opportunities + options + csiSpecs, 
-    breakdown: { opportunities, options, csiSpecs } 
+    total: opportunities + options + csiSpecs + companyDefaults, 
+    breakdown: { opportunities, options, csiSpecs, companyDefaults } 
   };
 }

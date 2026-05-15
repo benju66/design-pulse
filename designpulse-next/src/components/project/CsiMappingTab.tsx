@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useCallback, useEffect } from 'react';
-import { Upload, RefreshCw, Save, Download, FileSpreadsheet } from 'lucide-react';
+import { Upload, RefreshCw, Save, Download, FileSpreadsheet, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CsiStagingGrid } from '@/components/project/CsiStagingGrid';
 import { useUploadCsiTOC, useBulkUpsertProjectCsiSpecs, useProjectCsiSpecs } from '@/hooks/useCsiQueries';
+import { useSeedFromCompanyDefaults, useCompanyCsiDefaults } from '@/hooks/useCompanyCsiQueries';
 import { CsiSpecItem, ProjectCsiSpec } from '@/types/models';
 import { useCostCodes, useCsiTrainingSuggestions } from '@/hooks/useGlobalQueries';
 import { toast } from 'sonner';
@@ -18,6 +19,8 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
   const upsertMutation = useBulkUpsertProjectCsiSpecs(projectId);
   const { data: costCodes = [] } = useCostCodes();
   const { data: projectSpecs = [] } = useProjectCsiSpecs(projectId);
+  const { data: companyDefaults = [] } = useCompanyCsiDefaults();
+  const seedMutation = useSeedFromCompanyDefaults(projectId);
 
   // Extract just the CSI numbers to fetch suggestions
   const extractedNumbers = stagingData.map(d => d.csi_number.toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -233,7 +236,8 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
       id: d.id,
       csi_number: d.csi_number,
       description: d.description,
-      cost_code: d.cost_code || null
+      cost_code: d.cost_code || null,
+      source: 'project' as const,  // Finding 3: Explicitly mark user-uploaded specs
     }));
     
     upsertMutation.mutate(payload, {
@@ -331,6 +335,24 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
                       Browse Files
                     </label>
                   </div>
+                  {/* Phase 7: Seed from Company Defaults CTA */}
+                  {companyDefaults.length > 0 && projectSpecs.length === 0 && (
+                    <div className="mt-4 flex flex-col items-center gap-1">
+                      <p className="text-xs text-slate-400 dark:text-slate-500">or</p>
+                      <button
+                        onClick={() => seedMutation.mutate()}
+                        disabled={seedMutation.isPending}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 border border-indigo-200 dark:border-indigo-800 transition-colors disabled:opacity-50"
+                      >
+                        {seedMutation.isPending ? (
+                          <RefreshCw size={14} className="animate-spin" />
+                        ) : (
+                          <Building2 size={14} />
+                        )}
+                        Seed from {companyDefaults.length} Company Default{companyDefaults.length !== 1 ? 's' : ''}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </motion.div>

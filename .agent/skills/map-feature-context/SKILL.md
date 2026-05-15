@@ -18,7 +18,7 @@ Trace the data lifecycle for this feature.
 Identify every external touchpoint.
 * Are there OAuth scopes involved? 
 * Does this touch any specific multi-family project logic or bulk-engine processes?
-* Check against `ARCHITECTURE.md` to ensure the current implementation aligns with our C4 model.
+* Check against current architecture
 
 **Step 4: Pattern Recognition**
 Review `AGENTS.md` and existing components to identify the "house style."

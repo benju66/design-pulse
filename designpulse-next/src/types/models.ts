@@ -161,6 +161,7 @@ export interface ProjectCsiSpec {
   normalized_csi_number: string;
   description: string | null;
   cost_code: string | null;
+  source?: 'company_default' | 'project' | 'ml_suggested';  // Phase 7: Lineage tracking
   created_at: string;
   updated_at: string;
 }
@@ -171,7 +172,20 @@ export interface CsiSpecItem {
   id?: string;
   cost_code?: string;
   is_suggested?: boolean;  // ML Flywheel: true when cost_code was auto-mapped from training data
+  source?: 'company_default' | 'project' | 'ml_suggested';  // Phase 7: Lineage tracking
 }
+
+// Phase 7: Company-level default CSI-to-Cost-Code mapping (Rosetta Stone)
+export interface CompanyCsiDefault {
+  id: string;
+  csi_number: string;
+  normalized_csi_number: string;
+  description: string | null;
+  cost_code: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 
 // Rosetta Stone Phase 4: ML Flywheel — Global cross-project CSI training data
 // Composite PK: (normalized_csi_number, global_cost_code_id)

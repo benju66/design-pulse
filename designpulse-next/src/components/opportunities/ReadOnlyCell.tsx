@@ -171,8 +171,17 @@ export const CsiSpecCell = React.memo(({ row, table }: CellContext<Opportunity, 
   const csiSpecs = table.options.meta?.csiSpecs || [];
   const matched = csiSpecs.find(c => c.id === code);
   const displayValue = matched ? `${matched.csi_number} - ${matched.description}` : code;
+  // Phase 7: Source lineage indicator
+  const isCompanyDefault = matched?.source === 'company_default';
   
-  return <ReadOnlyWrapper title={displayValue}>{displayValue}</ReadOnlyWrapper>;
+  return (
+    <ReadOnlyWrapper title={displayValue}>
+      <span className="flex items-center gap-1 min-w-0">
+        <span className="truncate">{displayValue}</span>
+        {isCompanyDefault && <span className="text-[10px] shrink-0" title="Company Default">🏢</span>}
+      </span>
+    </ReadOnlyWrapper>
+  );
 }, commonComparator);
 
 export const DivisionCell = React.memo(({ row, table }: CellContext<Opportunity, unknown>) => {

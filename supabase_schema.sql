@@ -2923,3 +2923,148 @@ REVOKE EXECUTE ON FUNCTION public.get_multi_version_matrix(uuid, uuid[])
   FROM PUBLIC, anon;
 GRANT  EXECUTE ON FUNCTION public.get_multi_version_matrix(uuid, uuid[])
   TO authenticated;
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- ── CLIENT PROFILE HUB (Phase 2) ────────────────────────────────────────────
+-- ══════════════════════════════════════════════════════════════════════════════
+
+-- 1. Add category column to client_brand_standards for user-defined grouping
+ALTER TABLE client_brand_standards
+  ADD COLUMN IF NOT EXISTS category text;
+
+-- 2. Client Documents Table
+CREATE TABLE IF NOT EXISTS client_documents (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id            uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  brand_standard_id    uuid REFERENCES client_brand_standards(id) ON DELETE SET NULL,
+  file_name            text NOT NULL,
+  storage_path         text NOT NULL,
+  file_size            bigint,
+  mime_type            text,
+  description          text,
+  category             text,
+  version              integer DEFAULT 1,
+  replaces_document_id uuid REFERENCES client_documents(id) ON DELETE SET NULL,
+  uploaded_by          uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  is_deleted           boolean DEFAULT false,
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_client_documents_client_id
+  ON client_documents(client_id);
+CREATE INDEX IF NOT EXISTS idx_client_documents_standard_id
+  ON client_documents(brand_standard_id)
+  WHERE brand_standard_id IS NOT NULL;
+
+-- 3. RLS on client_documents
+ALTER TABLE client_documents ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view client documents" ON client_documents;
+CREATE POLICY "Users can view client documents"
+  ON client_documents FOR SELECT USING (
+    is_platform_admin() OR EXISTS (
+      SELECT 1 FROM projects
+      WHERE client_id = client_documents.client_id
+        AND get_user_project_role(id) IS NOT NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "Only admins can manage client documents" ON client_documents;
+CREATE POLICY "Only admins can manage client documents"
+  ON client_documents FOR ALL USING (is_platform_admin());
+
+-- 4. Triggers
+CREATE TRIGGER trg_client_documents_updated_at
+  BEFORE UPDATE ON client_documents
+  FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
+
+CREATE TRIGGER trg_audit_client_documents
+  AFTER INSERT OR UPDATE OR DELETE ON client_documents
+  FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+-- 5. Storage Bucket for client documents
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('client_documents', 'client_documents', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage path convention: <client_id>/<document_id>/<filename>
+-- path_tokens[1] = client_id (matches project_drawings pattern)
+DROP POLICY IF EXISTS "Users can view client_documents storage" ON storage.objects;
+CREATE POLICY "Users can view client_documents storage"
+  ON storage.objects FOR SELECT USING (
+    bucket_id = 'client_documents' AND (
+      public.is_platform_admin() OR EXISTS (
+        SELECT 1 FROM projects
+        WHERE client_id = (path_tokens[1])::uuid
+          AND public.get_user_project_role(id) IS NOT NULL
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can insert client_documents storage" ON storage.objects;
+CREATE POLICY "Admins can insert client_documents storage"
+  ON storage.objects FOR INSERT WITH CHECK (
+    bucket_id = 'client_documents' AND public.is_platform_admin()
+  );
+
+DROP POLICY IF EXISTS "Admins can delete client_documents storage" ON storage.objects;
+CREATE POLICY "Admins can delete client_documents storage"
+  ON storage.objects FOR DELETE USING (
+    bucket_id = 'client_documents' AND public.is_platform_admin()
+  );
+
+-- 6. RPC: create_client_document (atomic metadata + ownership validation)
+CREATE OR REPLACE FUNCTION public.create_client_document(
+  p_id              uuid,
+  p_client_id       uuid,
+  p_brand_standard_id uuid DEFAULT NULL,
+  p_file_name       text DEFAULT '',
+  p_storage_path    text DEFAULT '',
+  p_file_size       bigint DEFAULT NULL,
+  p_mime_type       text DEFAULT NULL,
+  p_description     text DEFAULT NULL,
+  p_category        text DEFAULT NULL,
+  p_version         integer DEFAULT 1,
+  p_replaces_id     uuid DEFAULT NULL
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT is_platform_admin() THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+  -- Ownership guard: client must exist and not be soft-deleted
+  IF NOT EXISTS (SELECT 1 FROM clients WHERE id = p_client_id AND is_deleted = false) THEN
+    RAISE EXCEPTION 'Client % not found or deleted', p_client_id;
+  END IF;
+  INSERT INTO client_documents (
+    id, client_id, brand_standard_id, file_name, storage_path,
+    file_size, mime_type, description, category, version, replaces_document_id,
+    uploaded_by
+  ) VALUES (
+    p_id, p_client_id, p_brand_standard_id, p_file_name, p_storage_path,
+    p_file_size, p_mime_type, p_description, p_category, p_version, p_replaces_id,
+    auth.uid()
+  );
+  RETURN p_id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.create_client_document(uuid, uuid, uuid, text, text, bigint, text, text, text, integer, uuid)
+  FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.create_client_document(uuid, uuid, uuid, text, text, bigint, text, text, text, integer, uuid)
+  TO authenticated;
+
+-- ── FUTURE: Lessons Learned ─────────────────────────────────────────────────
+-- CREATE TABLE IF NOT EXISTS client_lessons_learned (
+--   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--   client_id      uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+--   project_id     uuid REFERENCES projects(id) ON DELETE SET NULL,
+--   category       text,
+--   title          text NOT NULL,
+--   description    text,
+--   impact_level   text CHECK (impact_level IN ('low', 'medium', 'high', 'critical')),
+--   created_by     uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+--   is_deleted     boolean DEFAULT false,
+--   created_at     timestamptz NOT NULL DEFAULT now(),
+--   updated_at     timestamptz NOT NULL DEFAULT now()
+-- );

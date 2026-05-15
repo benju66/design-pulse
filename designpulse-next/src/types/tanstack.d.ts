@@ -38,5 +38,8 @@ declare module '@tanstack/react-table' {
     varianceNoteMap?: Record<string, string>;
     // Phase 3: Ledger mode flag — used by ImpactCell to de-emphasize VE cost_impact values
     isLedgerView?: boolean;
+    // Client Brand Standards grid meta (AGENTS.md C1 — global TableMeta, no local interfaces)
+    onUpdateBrandStandard?: (params: { id: string; updates: Record<string, unknown> }) => void;
+    onDeleteBrandStandard?: (id: string) => void;
   }
 }

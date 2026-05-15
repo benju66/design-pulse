@@ -98,6 +98,39 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 
 ---
 
+### v0.14 — Client Profile Hub & Global Brand Standards
+**Released:** 2026-05-15
+
+This release introduces a centralized **Client Hub** to manage client profiles, global brand standards, and document lifecycles, establishing the architectural foundation for cross-project brand compliance and lessons learned.
+
+#### New Features
+
+**Tabbed Client Hub Interface**
+The Client detail page has been completely rewritten into a state-management shell following the Master-Detail pattern:
+- _Profile Tab:_ Editable client identity and contact information with floating save/discard state bar.
+- _Brand Standards Tab:_ Full CRUD TanStack Table for managing client-specific design requirements, complete with inline editing, category filter pills, and a Smart Cost Code combobox.
+- _Documents Tab:_ Secure file management with a drag-and-drop upload zone, type-specific file icons, and standard-based filtering. Uses signed URLs for secure downloads.
+- _Projects Tab:_ Read-only aggregation view showing all projects linked to the client, summarizing total budget, locked variance, and potential exposure.
+- _Lessons Learned Tab:_ Architectural runway for tracking cross-project insights.
+
+**Atomic Storage & Document Architecture**
+A robust, atomic pipeline was implemented for handling client document uploads:
+- _`client_documents` Storage Bucket:_ Private bucket protected by RLS path-token policies (`<client_id>/<document_id>/<filename>`).
+- _Atomic RPC Insertion:_ Upload metadata is handled via a `SECURITY DEFINER` RPC (`create_client_document`) that validates client ownership before creating the database record, preventing orphaned storage objects.
+- _Client-Minted UUIDs:_ Frontend mints the `document_id` via `crypto.randomUUID()` to orchestrate the storage-then-database flow securely.
+
+**Data Layer Expansion**
+The `useClientQueries.ts` module was expanded from 4 to 14 discrete hooks to support the new features, strictly adhering to MVCC tie-breaking (`.order('id')`) and optimistic mutation patterns.
+
+#### Database Schema
+
+| Table | Purpose |
+|-------|---------|
+| `client_brand_standards` | Added `category` column (text) to group design requirements. |
+| `client_documents` | New table tracking file metadata, storage paths, and linked brand standards with RLS. |
+
+---
+
 ### v0.13 — Company CSI Default Library & Project Specification Management
 **Released:** 2026-05-15
 

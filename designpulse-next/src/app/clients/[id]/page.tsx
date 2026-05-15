@@ -1,136 +1,175 @@
 "use client";
-import { use } from "react";
-import { useClient, useClientMetrics } from "@/hooks/useClientQueries";
-import { ArrowLeft, Building2, ExternalLink, Link2, Users } from "lucide-react";
+import { use, useState } from "react";
+import { useClient, useClientMetrics, useBrandStandards } from "@/hooks/useClientQueries";
+import { ArrowLeft, User2, Layers, FileText, Building2, Lightbulb } from "lucide-react";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import UserAccountDropdown from "@/components/layout/UserAccountDropdown";
+import { useIsPlatformAdmin } from "@/hooks/usePlatformAdmin";
+import { ClientProfileTab } from "@/components/clients/ClientProfileTab";
+import { BrandStandardsGrid } from "@/components/clients/BrandStandardsGrid";
+import { ClientDocumentsTab } from "@/components/clients/ClientDocumentsTab";
+import { ClientProjectsTab } from "@/components/clients/ClientProjectsTab";
+
+type ClientTab = 'profile' | 'standards' | 'documents' | 'projects' | 'lessons_learned';
+
+const TABS: { id: ClientTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'profile', label: 'Profile', icon: <User2 size={16} /> },
+  { id: 'standards', label: 'Brand Standards', icon: <Layers size={16} /> },
+  { id: 'documents', label: 'Documents', icon: <FileText size={16} /> },
+  { id: 'projects', label: 'Projects', icon: <Building2 size={16} /> },
+  { id: 'lessons_learned', label: 'Lessons Learned', icon: <Lightbulb size={16} /> },
+];
 
 export default function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const clientId = resolvedParams.id;
-  
+
+  // ── Data Queries (state-management shell, C24) ──────────────────────────
   const { data: client, isLoading } = useClient(clientId);
   const { data: metrics = [], isLoading: isMetricsLoading } = useClientMetrics(clientId);
+  const { data: brandStandards = [] } = useBrandStandards(clientId);
+  const { data: isPlatformAdmin, isLoading: adminLoading } = useIsPlatformAdmin();
 
-  if (isLoading || !client) {
+  // ── Tab State ───────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<ClientTab>('profile');
+  const canEdit = !!isPlatformAdmin;
+
+  // ── Loading State ───────────────────────────────────────────────────────
+  if (isLoading || adminLoading || !client) {
     return (
-      <div className="p-8 max-w-7xl mx-auto h-full flex items-center justify-center">
-        <p className="text-slate-500">Loading client data...</p>
+      <div className="flex w-full h-screen bg-white dark:bg-slate-900 overflow-hidden">
+        <div className="w-56 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-6">
+          <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mb-6" />
+          <div className="space-y-3">
+            {[...Array(5)].map((_, i) => <div key={i} className="h-8 w-full bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />)}
+          </div>
+        </div>
+        <div className="flex-1 p-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="h-8 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse mb-8" />
+            <div className="h-96 w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl animate-pulse" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto min-h-screen flex flex-col">
-      {/* Header */}
-      <div className="flex justify-between items-start mb-8">
-        <div>
-          <Link href="/dashboard" className="text-sky-500 hover:text-sky-600 font-medium flex items-center gap-1 mb-4 w-fit">
-            <ArrowLeft size={16} /> Back to Dashboard
+    <div className="flex w-full h-screen bg-white dark:bg-slate-900 overflow-hidden">
+      {/* ── Left Sidebar ───────────────────────────────────────────────── */}
+      <div className="w-56 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex flex-col h-full">
+        <div className="p-4 space-y-4 flex-1 overflow-y-auto custom-scrollbar">
+          {/* Back Link */}
+          <Link
+            href="/dashboard"
+            className="text-sky-500 hover:text-sky-600 font-medium flex items-center gap-1 text-sm mb-2"
+          >
+            <ArrowLeft size={14} /> Dashboard
           </Link>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{client.name}</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-2xl">
-            {client.description || 'No description provided.'}
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <ThemeToggle />
-          <div className="w-48">
-            <UserAccountDropdown isCollapsed={false} direction="down" />
-          </div>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Details & Associated Projects */}
-        <div className="lg:col-span-1 space-y-8">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-              <Users size={20} className="text-sky-500" />
-              Contact Information
+          {/* Client Name */}
+          <div className="pb-3 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate" title={client.name}>
+              {client.name}
             </h2>
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Primary Contact</p>
-                <p className="text-slate-800 dark:text-slate-200">{client.primary_contact_name || 'Not set'}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Email</p>
-                <p className="text-slate-800 dark:text-slate-200">
-                  {client.primary_contact_email ? (
-                    <a href={`mailto:${client.primary_contact_email}`} className="text-sky-500 hover:underline">
-                      {client.primary_contact_email}
-                    </a>
-                  ) : 'Not set'}
-                </p>
-              </div>
-              {client.general_standards_url && (
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Global Standard Document</p>
-                  <a href={client.general_standards_url} target="_blank" rel="noreferrer" className="text-sky-500 hover:underline flex items-center gap-1">
-                    <Link2 size={14} /> View Document
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-              <Building2 size={20} className="text-sky-500" />
-              Associated Projects
-            </h2>
-            
-            {isMetricsLoading ? (
-              <p className="text-slate-500 text-sm">Loading projects...</p>
-            ) : metrics.length === 0 ? (
-              <p className="text-slate-500 text-sm">No projects associated with this client.</p>
-            ) : (
-              <div className="space-y-3">
-                {metrics.map(proj => (
-                  <Link key={proj.project_id} href={`/project/${proj.project_id}`} className="block group">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl group-hover:border-sky-300 dark:group-hover:border-sky-800 transition-colors">
-                      <div className="flex justify-between items-start">
-                        <span className="font-medium text-slate-800 dark:text-slate-200 group-hover:text-sky-500 transition-colors">{proj.name}</span>
-                        <ExternalLink size={16} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                      <div className="mt-2 flex gap-4 text-xs font-mono text-slate-500">
-                        <div>
-                          <span className="text-slate-400">Budget: </span>
-                          <span className="text-slate-700 dark:text-slate-300">
-                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(proj.original_budget)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Exposure: </span>
-                          <span className={proj.potential_exposure < 0 ? 'text-emerald-500' : proj.potential_exposure > 0 ? 'text-rose-500' : 'text-slate-700 dark:text-slate-300'}>
-                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(proj.potential_exposure)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+            {client.description && (
+              <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{client.description}</p>
             )}
           </div>
+
+          {/* Tab Navigation */}
+          <nav className="space-y-1">
+            {TABS.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400'
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <span className={activeTab === tab.id ? 'text-sky-500' : 'text-slate-400'}>{tab.icon}</span>
+                {tab.label}
+                {tab.id === 'standards' && brandStandards.length > 0 && (
+                  <span className="ml-auto text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-full">
+                    {brandStandards.length}
+                  </span>
+                )}
+                {tab.id === 'projects' && metrics.length > 0 && (
+                  <span className="ml-auto text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-full">
+                    {metrics.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
         </div>
 
-        {/* Right Column: Global Brand Standards Grid (Placeholder for Phase 2) */}
-        <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 h-full min-h-[500px]">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Global Brand Standards</h2>
-              <button className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-xl text-sm font-bold transition-colors">
-                Manage Standards
-              </button>
+        {/* Admin Badge */}
+        {isPlatformAdmin && (
+          <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Platform Admin
             </div>
-            
-            <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl flex flex-col items-center justify-center p-12 text-center">
-              <p className="text-slate-500 dark:text-slate-400 mb-2">Global Brand Standards matrix will render here.</p>
-              <p className="text-slate-400 text-sm max-w-sm">This grid will allow Platform Admins to map specific requirements to CSI codes or Cost Codes across all projects for this client.</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Main Content ───────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {/* Header Bar */}
+        <div className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800 px-8 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">{client.name}</h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {TABS.find(t => t.id === activeTab)?.label}
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <div className="w-48">
+              <UserAccountDropdown isCollapsed={false} direction="down" />
             </div>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="p-8">
+          <div className="max-w-4xl mx-auto pb-24">
+            {activeTab === 'profile' && (
+              <ClientProfileTab client={client} canEdit={canEdit} />
+            )}
+            {activeTab === 'standards' && (
+              <BrandStandardsGrid clientId={clientId} canEdit={canEdit} />
+            )}
+            {activeTab === 'documents' && (
+              <ClientDocumentsTab
+                clientId={clientId}
+                canEdit={canEdit}
+                brandStandards={brandStandards}
+              />
+            )}
+            {activeTab === 'projects' && (
+              <ClientProjectsTab
+                metrics={metrics}
+                isLoading={isMetricsLoading}
+              />
+            )}
+            {activeTab === 'lessons_learned' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center animate-in fade-in">
+                <div className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
+                  <Lightbulb size={24} className="text-amber-500" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Lessons Learned</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto">
+                  Project-specific lessons learned and insights will be available here in a future update.
+                  This will include categorized findings, impact ratings, and cross-project pattern recognition.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

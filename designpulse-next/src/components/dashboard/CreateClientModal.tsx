@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useCreateClient } from '@/hooks/useClientQueries';
 import { X } from 'lucide-react';
 
@@ -8,6 +9,7 @@ interface CreateClientModalProps {
 }
 
 export default function CreateClientModal({ isOpen, onClose }: CreateClientModalProps) {
+  const router = useRouter();
   const createClient = useCreateClient();
   const [newClientData, setNewClientData] = useState({
     name: '',
@@ -22,8 +24,9 @@ export default function CreateClientModal({ isOpen, onClose }: CreateClientModal
     e.preventDefault();
     if (!newClientData.name.trim()) return;
 
+    const newId = crypto.randomUUID();
     createClient.mutate({
-      id: crypto.randomUUID(),
+      id: newId,
       name: newClientData.name.trim(),
       description: newClientData.description.trim() || null,
       primary_contact_name: newClientData.primary_contact_name.trim() || null,
@@ -32,6 +35,7 @@ export default function CreateClientModal({ isOpen, onClose }: CreateClientModal
       onSuccess: () => {
         setNewClientData({ name: '', description: '', primary_contact_name: '', primary_contact_email: '' });
         onClose();
+        router.push(`/clients/${newId}`);
       }
     });
   };

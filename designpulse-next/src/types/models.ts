@@ -90,6 +90,7 @@ export interface ClientBrandStandard {
   cost_code: string | null;
   normalized_csi_number: string | null;
   standard_description: string;
+  category: string | null;
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
@@ -105,6 +106,24 @@ export interface ProjectBrandStandard {
   is_verified: boolean;
   is_deleted: boolean;
   created_at: string;
+}
+
+export interface ClientDocument {
+  id: string;
+  client_id: string;
+  brand_standard_id: string | null;
+  file_name: string;
+  storage_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  description: string | null;
+  category: string | null;
+  version: number;
+  replaces_document_id: string | null;
+  uploaded_by: string | null;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ClientProjectsMetrics {

@@ -151,7 +151,7 @@ export const ContendersMatrix = ({
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full overflow-hidden p-6 border border-slate-200 dark:border-slate-800">
             <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Unlock Decision</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
-              Are you sure you want to unlock this item? This will revert the Opportunity to &apos;Draft&apos; status, clear the final direction, and shift the locked cost back into Pending/Potential exposure.
+              Are you sure you want to unlock this item? This will revert the Opportunity to &apos;Draft&apos; status, clear the final direction, and shift the locked cost back into Pending/Potential exposure. Any coordination progress will be preserved and restored when the item is re-locked.
             </p>
             <div className="flex items-center justify-end gap-3">
               <button 

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { calculateParentTotals } from '@/utils/financialMath';
 import { toast } from 'sonner';
-import { Opportunity, OpportunityOption } from '@/types/models';
+import { Opportunity, OpportunityOption, CoordinationDetailsMap } from '@/types/models';
 
 export function useOpportunities(projectId: string | null) {
   return useQuery<Opportunity[], Error>({
@@ -635,25 +635,39 @@ export function useLockOption(opportunityId: string, projectId: string) {
           return old.map(opp => {
             if (opp.id === opportunityId) {
               const reqs = (optionToLock.coordination_requirements as Record<string, { required: boolean; notes?: string }>) || {};
-              const newCoordDetails: Record<string, any> = {};
-              
+
               if (optionToLock.requires_coordination !== false) {
+                // Merge: keep existing progress, add new disciplines only
+                const existingDetails: CoordinationDetailsMap = (opp.coordination_details as CoordinationDetailsMap) || {};
+                const mergedDetails: CoordinationDetailsMap = { ...existingDetails };
+
                 for (const [k, v] of Object.entries(reqs)) {
-                  if (v.required) {
-                    newCoordDetails[k] = { status: 'Pending', notes: v.notes || '' };
+                  if (v.required && !(k in mergedDetails)) {
+                    mergedDetails[k] = { status: 'Pending', notes: v.notes || '' };
                   }
                 }
-              }
 
-              return { 
-                ...opp, 
-                status: 'Approved',
-                coordination_status: optionToLock.requires_coordination === false ? 'Not Required' : 'Pending Plan Update',
-                final_direction: `Locked: ${optionToLock.title}`,
-                cost_impact: optionToLock.cost_impact,
-                days_impact: optionToLock.days_impact,
-                coordination_details: newCoordDetails
-              };
+                return {
+                  ...opp,
+                  status: 'Approved',
+                  coordination_status: 'Pending Plan Update',
+                  final_direction: `Locked: ${optionToLock.title}`,
+                  cost_impact: optionToLock.cost_impact,
+                  days_impact: optionToLock.days_impact,
+                  coordination_details: mergedDetails
+                } as Opportunity;
+              } else {
+                // requires_coordination = false: clear coordination_details (edge case)
+                return {
+                  ...opp,
+                  status: 'Approved',
+                  coordination_status: 'Not Required',
+                  final_direction: `Locked: ${optionToLock.title}`,
+                  cost_impact: optionToLock.cost_impact,
+                  days_impact: optionToLock.days_impact,
+                  coordination_details: {} as CoordinationDetailsMap
+                } as Opportunity;
+              }
             }
             return opp;
           });
@@ -706,11 +720,20 @@ export function useUnlockOpportunityOption(projectId: string) {
 
       queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
         if (!old) return old;
-        return old.map(opp => 
-          opp.id === oppId 
-            ? { ...opp, status: 'Draft', final_direction: null }
-            : opp
-        );
+        return old.map(opp => {
+          if (opp.id === oppId) {
+            const details = opp.coordination_details as Record<string, unknown> | null;
+            const hasCoordProgress = details !== null && typeof details === 'object' && Object.keys(details).length > 0;
+            return {
+              ...opp,
+              status: 'Draft',
+              final_direction: null,
+              coordination_status: hasCoordProgress ? 'Draft' : 'Not Required'
+              // coordination_details intentionally untouched — preserves discipline progress
+            };
+          }
+          return opp;
+        });
       });
 
       return { previousOptions, previousOpportunities };

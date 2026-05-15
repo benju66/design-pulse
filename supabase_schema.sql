@@ -834,8 +834,12 @@ BEGIN
   UPDATE opportunities SET 
     status = 'Draft', 
     final_direction = NULL,
-    coordination_status = 'Not Required',
-    coordination_details = '{}'::jsonb
+    coordination_status = CASE 
+      WHEN COALESCE(coordination_details, '{}'::jsonb) != '{}'::jsonb 
+      THEN 'Draft' 
+      ELSE 'Not Required' 
+    END
+    -- coordination_details intentionally preserved (AGENTS.md C7 orphaned data retention)
   WHERE id = p_opp_id;
 END;
 $$;
@@ -853,8 +857,12 @@ DECLARE
   v_requires_coord boolean;
   v_coord_reqs jsonb;
   v_new_coord_details jsonb := '{}'::jsonb;
+  v_existing_coord_details jsonb;
+  v_merged_coord_details jsonb;
   k text;
   v text;
+  merge_k text;
+  merge_v jsonb;
 BEGIN
   IF NOT public.has_project_permission((SELECT project_id FROM opportunities WHERE id = p_opp_id), 'can_lock_options') THEN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to lock options';
@@ -897,6 +905,23 @@ BEGIN
   END IF;
 
   IF v_requires_coord THEN
+    -- Fetch existing coordination_details for merge (preserves discipline progress)
+    SELECT COALESCE(coordination_details, '{}'::jsonb) 
+    INTO v_existing_coord_details 
+    FROM opportunities WHERE id = p_opp_id;
+    
+    -- Start with existing details (preserves orphaned keys per AGENTS.md C7)
+    v_merged_coord_details := v_existing_coord_details;
+    
+    -- Layer in new required disciplines — only if they DON'T already exist
+    IF jsonb_typeof(v_new_coord_details) = 'object' THEN
+      FOR merge_k, merge_v IN SELECT key, value FROM jsonb_each(v_new_coord_details) LOOP
+        IF NOT v_merged_coord_details ? merge_k THEN
+          v_merged_coord_details := jsonb_set(v_merged_coord_details, ARRAY[merge_k], merge_v, true);
+        END IF;
+      END LOOP;
+    END IF;
+
     UPDATE opportunities SET 
       final_direction = 'Locked: ' || v_option_title, 
       status = 'Approved', 
@@ -905,7 +930,7 @@ BEGIN
       cost_code = COALESCE(v_option_cost_code, cost_code),
       division = COALESCE(v_option_division, division),
       coordination_status = 'Pending Plan Update',
-      coordination_details = v_new_coord_details,
+      coordination_details = v_merged_coord_details,
       estimate_sync_status = 'Pending Estimate Update'
     WHERE id = p_opp_id;
   ELSE

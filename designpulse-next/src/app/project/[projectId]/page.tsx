@@ -364,7 +364,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const coordinationOpportunities = React.useMemo(() => {
     return opportunities.filter(opp => {
       if (opp.record_type === 'Coordination') return true;
+      // Approved VE items with coordination needs
       if (opp.record_type === 'VE' && opp.status === 'Approved' && opp.coordination_status !== 'Not Required') return true;
+      // Unlocked VE items with preserved coordination progress (non-empty details)
+      if (opp.record_type === 'VE' && opp.status === 'Draft' && opp.coordination_status !== 'Not Required' && opp.coordination_status !== null) {
+        const details = opp.coordination_details as Record<string, unknown> | null;
+        return details !== null && typeof details === 'object' && Object.keys(details).length > 0;
+      }
       return false;
     });
   }, [opportunities]);

@@ -139,6 +139,7 @@ export const SortableContenderCard = ({
       <div className="flex justify-between items-start mb-2 pt-2">
         <div className="flex-1 mr-2">
           <input
+            key={`title-${opt.id}-${opt.title}`}
             className="font-bold text-lg bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-950 focus:border-sky-500 focus:ring-2 focus:ring-sky-500 rounded px-1.5 py-0.5 -ml-1.5 w-full text-slate-800 dark:text-slate-100 cursor-pointer focus:cursor-text transition-colors truncate mb-1.5 disabled:opacity-80 disabled:cursor-default disabled:hover:border-transparent"
             defaultValue={opt.title}
             placeholder="Option Title"
@@ -205,6 +206,7 @@ export const SortableContenderCard = ({
       </div>
 
       <textarea
+        key={`desc-${opt.id}-${opt.description}`}
         className={`text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-2 mb-3 outline-none focus:ring-2 focus:ring-sky-500 resize-none disabled:opacity-70 disabled:cursor-not-allowed ${recordType === 'Coordination' ? 'h-24' : 'h-16'}`}
         placeholder={recordType === 'Coordination' ? 'Detail the design changes required for this solution...' : 'Description & Pros/Cons...'}
         defaultValue={opt.description || ''}
@@ -221,6 +223,7 @@ export const SortableContenderCard = ({
           <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Quantity / UoM</label>
           <div className="flex bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded focus-within:ring-2 focus-within:ring-sky-500">
             <input
+              key={`qty-${opt.id}-${opt.quantity}`}
               type="number"
               className="w-16 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.quantity || ''}
@@ -239,6 +242,7 @@ export const SortableContenderCard = ({
               }}
             />
             <select
+              key={`uom-${opt.id}-${opt.uom}`}
               className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.uom || 'ls'}
               disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
@@ -257,6 +261,7 @@ export const SortableContenderCard = ({
           <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded p-1.5 focus-within:ring-2 focus-within:ring-sky-500">
             <span className="text-slate-400 text-sm pl-1">$</span>
             <input
+              key={`uc-${opt.id}-${opt.unit_cost ?? opt.cost_impact}`}
               type="number"
               className="w-full bg-transparent border-none outline-none text-sm text-slate-800 dark:text-slate-200 px-1 disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.unit_cost || opt.cost_impact || ''}
@@ -293,6 +298,7 @@ export const SortableContenderCard = ({
           <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Schedule</label>
           <div className="flex bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded focus-within:ring-2 focus-within:ring-sky-500">
             <input
+              key={`days-${opt.id}-${opt.days_impact}`}
               type="number"
               className="w-14 bg-transparent border-r border-slate-200 dark:border-slate-800 outline-none text-sm text-slate-800 dark:text-slate-200 p-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.days_impact || ''}
@@ -307,6 +313,7 @@ export const SortableContenderCard = ({
               }}
             />
             <select
+              key={`tuom-${opt.id}-${opt.time_impact_uom}`}
               className="w-full bg-transparent border-none outline-none text-xs font-semibold text-slate-600 dark:text-slate-400 p-1.5 cursor-pointer appearance-none disabled:opacity-70 disabled:cursor-not-allowed"
               defaultValue={opt.time_impact_uom || 'days'}
               disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
@@ -343,6 +350,7 @@ export const SortableContenderCard = ({
         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Cost Code</label>
         <div className="flex bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded focus-within:ring-2 focus-within:ring-sky-500">
           <input
+            key={`cc-${opt.id}-${opt.cost_code}`}
             list={`cost-codes-list-${opt.id}`}
             defaultValue={opt.cost_code || ''}
             disabled={opt.is_locked || isLocked || !permissions.can_edit_records}
@@ -351,12 +359,12 @@ export const SortableContenderCard = ({
             onBlur={(e) => {
               const val = e.target.value;
               if (val !== opt.cost_code) {
-                let updates: any = { cost_code: val || null };
+                let updates: Partial<OpportunityOption> = { cost_code: val || null };
                 if (val) {
                   const parsedCode = val.split(' - ')[0]?.trim();
-                  const matchedCode = rawCostCodes.find((c: any) => c.code === parsedCode && !c.is_division);
+                  const matchedCode = rawCostCodes.find(c => c.code === parsedCode && !c.is_division);
                   if (matchedCode && matchedCode.parent_division) {
-                    const parentDivObj = rawCostCodes.find((c: any) => c.code === matchedCode.parent_division && c.is_division);
+                    const parentDivObj = rawCostCodes.find(c => c.code === matchedCode.parent_division && c.is_division);
                     if (parentDivObj) {
                       updates.division = `${parentDivObj.code} - ${parentDivObj.description}`;
                     }
@@ -376,7 +384,7 @@ export const SortableContenderCard = ({
            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mt-1 truncate">Div: {opt.division}</span>
         )}
         <datalist id={`cost-codes-list-${opt.id}`}>
-          {rawCostCodes.filter((c: any) => !c.is_division).map((c: any) => (
+          {rawCostCodes.filter(c => !c.is_division).map(c => (
             <option key={c.code} value={`${c.code} - ${c.description}`} />
           ))}
         </datalist>
@@ -576,10 +584,10 @@ export const SortableContenderCard = ({
               onClick={async () => {
                 try {
                   await flushUpdates();
-                  // Give a slightly longer delay to ensure pending onBlur mutations (like notes) reach the DB
-                  setTimeout(() => {
-                    lockOption.mutate(opt.id);
-                  }, 500);
+                  // Second flush catches any updates re-seeded by onBlur during the first flush's await.
+                  // No-op if the queue is empty (returns immediately). Deterministic — no arbitrary timer.
+                  await flushUpdates();
+                  lockOption.mutate(opt.id);
                 } catch (e) {
                   console.error('Failed to flush updates before locking:', e);
                 }

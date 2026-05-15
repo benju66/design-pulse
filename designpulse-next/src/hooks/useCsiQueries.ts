@@ -72,9 +72,9 @@ export function useBulkUpsertProjectCsiSpecs(projectId: string) {
       queryClient.invalidateQueries({ queryKey: ['project_csi_specs', projectId] });
       toast.success('CSI specs saved successfully.');
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       console.error('Bulk Upsert Error:', err);
-      toast.error(`Failed to save specs: ${err.message || JSON.stringify(err)}`);
+      toast.error(`Failed to save specs: ${err.message}`);
     }
   });
 }

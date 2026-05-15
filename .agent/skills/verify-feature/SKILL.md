@@ -3,9 +3,13 @@
 Execute these steps sequentially. Stop and ask for clarification if any step fails or encounters an unexpected state.
 
 **Step 1: Intent vs. Execution Audit**
-Review the original Implementation Plan and compare it against the actual Git diffs generated in this worktree. 
-* Did the execution satisfy every requirement? 
-* Were any unauthorized changes made outside the scope of the original plan? 
+Review the original Implementation Plan and compare it directly against the current state of the file system, independent of version control.
+
+* Identify all files you created, modified, or deleted during this current implementation session.
+* Read the current contents of those specific files into your context.
+* Evaluate the actual written code against the plan to answer:
+  * Did the execution satisfy every requirement? 
+  * Were any unauthorized changes made outside the scope of the original plan? 
 Flag any discrepancies.
 
 **Step 2: Cross-Surface Verification**

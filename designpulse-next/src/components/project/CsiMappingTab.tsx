@@ -4,7 +4,7 @@ import { Upload, RefreshCw, Save, Download, FileSpreadsheet } from 'lucide-react
 import { motion, AnimatePresence } from 'framer-motion';
 import { CsiStagingGrid } from '@/components/project/CsiStagingGrid';
 import { useUploadCsiTOC, useBulkUpsertProjectCsiSpecs, useProjectCsiSpecs } from '@/hooks/useCsiQueries';
-import { CsiSpecItem } from '@/types/models';
+import { CsiSpecItem, ProjectCsiSpec } from '@/types/models';
 import { useCostCodes, useCsiTrainingSuggestions } from '@/hooks/useGlobalQueries';
 import { toast } from 'sonner';
 import type { Row } from 'exceljs';
@@ -31,7 +31,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
         let hasChanges = false;
         const next = current.map(item => {
           // If already mapped manually, skip
-          if (item.cost_code && !(item as any).is_suggested) return item;
+          if (item.cost_code && !item.is_suggested) return item;
 
           const nq = item.csi_number.toLowerCase().replace(/[^a-z0-9]/g, '');
           const match = suggestions.find(s => s.normalized_csi_number === nq);
@@ -71,7 +71,8 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
       let csiCol = -1;
       let descCol = -1;
       let costCodeCol = -1;
-      let sheet: any | undefined;
+      // ExcelJS dynamic import (C19) loses type info — `any` is unavoidable here
+      let sheet: any | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
 
       for (const ws of workbook.worksheets) {
         if (ws.state === 'hidden') continue;
@@ -228,14 +229,14 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
   }
 
   const handleSave = () => {
-    const payload = stagingData.map(d => ({
+    const payload: Partial<ProjectCsiSpec>[] = stagingData.map(d => ({
       id: d.id,
       csi_number: d.csi_number,
       description: d.description,
       cost_code: d.cost_code || null
     }));
     
-    upsertMutation.mutate(payload as any, {
+    upsertMutation.mutate(payload, {
       onSuccess: () => {
         setStagingData([]);
         setFile(null);

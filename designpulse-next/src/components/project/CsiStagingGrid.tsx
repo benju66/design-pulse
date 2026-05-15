@@ -44,7 +44,7 @@ export function CsiStagingGrid({ data, setData, costCodes }: CsiStagingGridProps
         header: 'Mapped Cost Code',
         cell: (info) => {
           const row = info.row.original;
-          const isSuggested = (row as CsiSpecItem & { is_suggested?: boolean }).is_suggested;
+          const isSuggested = row.is_suggested;
           
           return (
             <div className="relative group w-full h-full">

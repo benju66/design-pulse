@@ -1,11 +1,12 @@
-import { Opportunity, OpportunityOption } from '@/types/models';
+import { Opportunity, OpportunityOption, ProjectCsiSpec } from '@/types/models';
 
 export async function generateVeMatrixTemplate(
   opportunities: Opportunity[],
   optionsMap: Record<string, OpportunityOption[]>,
   buildingAreas: string[],
   costCodes: string[],
-  maxOptionCount: number
+  maxOptionCount: number,
+  csiSpecs?: ProjectCsiSpec[]
 ): Promise<Blob> {
   // Use dynamic import to avoid bloating the main Next.js client bundle
   // and specifically use the browser-safe minified version to prevent Node.js stream errors.
@@ -85,7 +86,7 @@ export async function generateVeMatrixTemplate(
 
   // --- Map Data into Rows ---
   opportunities.forEach(opp => {
-    const rowData: any = {
+    const rowData: Record<string, unknown> = {
       display_id: opp.display_id || '',
       title: opp.title || '',
       cost_impact: opp.cost_impact || 0,
@@ -95,7 +96,11 @@ export async function generateVeMatrixTemplate(
       building_area: opp.building_area || '',
       division: opp.division || '',
       cost_code: opp.cost_code || '',
-      spec_number_id: opp.spec_number_id || '',
+      spec_number_id: (() => {
+        if (!opp.spec_number_id) return '';
+        const spec = csiSpecs?.find(s => s.id === opp.spec_number_id);
+        return spec ? `${spec.csi_number} - ${spec.description || ''}`.trim() : opp.spec_number_id;
+      })(),
       priority: opp.priority || '',
       assignee: opp.assignee || '',
       due_date: opp.due_date || '',

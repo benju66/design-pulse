@@ -233,6 +233,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       project_id: projectId,
       title: row.description || `Budget: ${row.cost_code}`,
       cost_code: row.cost_code,
+      // csi_division is the 2-digit MasterFormat prefix from the cost_code, NOT from project_csi_specs
       division: row.csi_division && row.csi_division.split('').every((ch: string) => ch >= '0' && ch <= '9') ? row.csi_division + '0000' : 'Uncategorized',
       status: 'Budget Line',
       cost_impact: row.baseline_budget,

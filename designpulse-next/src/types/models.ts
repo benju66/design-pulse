@@ -170,6 +170,7 @@ export interface CsiSpecItem {
   description: string;
   id?: string;
   cost_code?: string;
+  is_suggested?: boolean;  // ML Flywheel: true when cost_code was auto-mapped from training data
 }
 
 // Rosetta Stone Phase 4: ML Flywheel — Global cross-project CSI training data
@@ -296,6 +297,8 @@ export interface BudgetVersionTimelineRow {
 
 export interface MasterLedgerRow {
   cost_code: string;
+  /** 2-digit CSI MasterFormat division prefix derived from cost_code via the
+   *  get_master_ledger_grid RPC — NOT from project_csi_specs. */
   csi_division: string;
   description: string;
   baseline_budget: number;

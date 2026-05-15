@@ -1,12 +1,14 @@
 "use client";
 import React, { useState, useCallback, useEffect } from 'react';
-import { Upload, RefreshCw, Save, Download, FileSpreadsheet, Building2 } from 'lucide-react';
+import { Upload, RefreshCw, Save, Download, FileSpreadsheet, Building2, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CsiStagingGrid } from '@/components/project/CsiStagingGrid';
+import { ProjectCsiSpecsTable } from '@/components/project/ProjectCsiSpecsTable';
 import { useUploadCsiTOC, useBulkUpsertProjectCsiSpecs, useProjectCsiSpecs } from '@/hooks/useCsiQueries';
 import { useSeedFromCompanyDefaults, useCompanyCsiDefaults } from '@/hooks/useCompanyCsiQueries';
 import { CsiSpecItem, ProjectCsiSpec } from '@/types/models';
 import { useCostCodes, useCsiTrainingSuggestions } from '@/hooks/useGlobalQueries';
+import { useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { toast } from 'sonner';
 import type { Row } from 'exceljs';
 
@@ -14,6 +16,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
   const [, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [stagingData, setStagingData] = useState<CsiSpecItem[]>([]);
+  const [showUploadZone, setShowUploadZone] = useState(false);
   
   const uploadMutation = useUploadCsiTOC();
   const upsertMutation = useBulkUpsertProjectCsiSpecs(projectId);
@@ -21,6 +24,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
   const { data: projectSpecs = [] } = useProjectCsiSpecs(projectId);
   const { data: companyDefaults = [] } = useCompanyCsiDefaults();
   const seedMutation = useSeedFromCompanyDefaults(projectId);
+  const { permissions, isLoading: permissionsLoading } = useCurrentUserPermissions(projectId);
 
   // Extract just the CSI numbers to fetch suggestions
   const extractedNumbers = stagingData.map(d => d.csi_number.toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -279,10 +283,41 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
         )}
         </div>
       </div>
-
       <motion.div layout>
         <AnimatePresence mode="popLayout">
-          {stagingData.length === 0 ? (
+          {stagingData.length > 0 ? (
+            <motion.div
+              key="staging-grid"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CsiStagingGrid 
+                data={stagingData} 
+                setData={setStagingData} 
+                costCodes={costCodes} 
+              />
+            </motion.div>
+          ) : projectSpecs.length > 0 && !showUploadZone ? (
+            <motion.div
+              key="specs-table"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+            >
+              {!permissionsLoading && (
+                <ProjectCsiSpecsTable
+                  projectId={projectId}
+                  specs={projectSpecs}
+                  costCodes={costCodes}
+                  onUploadMore={() => setShowUploadZone(true)}
+                  permissions={permissions}
+                />
+              )}
+            </motion.div>
+          ) : (
             <motion.div 
               key="upload-zone"
               initial={{ opacity: 0, scale: 0.95 }}
@@ -297,6 +332,16 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
               onDragLeave={onDragLeave}
               onDrop={onDrop}
             >
+              {/* Back to Specs link when viewing upload zone with existing specs */}
+              {showUploadZone && projectSpecs.length > 0 && (
+                <button
+                  onClick={() => setShowUploadZone(false)}
+                  className="mb-4 inline-flex items-center gap-1 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:underline"
+                >
+                  <ArrowLeft size={12} />
+                  Back to Specs ({projectSpecs.length})
+                </button>
+              )}
               {uploadMutation.isPending ? (
                 <div className="flex flex-col items-center gap-4">
                   <RefreshCw className="w-10 h-10 text-sky-500 animate-spin" />
@@ -316,7 +361,7 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
                     </div>
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-700 dark:text-slate-200">Drag & Drop PDF or XLSX Here</h4>
+                    <h4 className="font-bold text-slate-700 dark:text-slate-200">Drag &amp; Drop PDF or XLSX Here</h4>
                     <p className="text-sm text-slate-500 mt-1 mb-4">or click to browse your computer</p>
                     <input 
                       type="file" 
@@ -356,23 +401,10 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
                 </div>
               )}
             </motion.div>
-          ) : (
-            <motion.div
-              key="staging-grid"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-            >
-              <CsiStagingGrid 
-                data={stagingData} 
-                setData={setStagingData} 
-                costCodes={costCodes} 
-              />
-            </motion.div>
           )}
         </AnimatePresence>
       </motion.div>
     </div>
   );
 }
+

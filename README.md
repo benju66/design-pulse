@@ -17,6 +17,7 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 - **Advanced Multi-Select Filtering:** Powerful data exploration capabilities allowing for multiple concurrent selections across Building Areas, Cost Codes, and Disciplines.
 - **Role-Based Access Control (RBAC):** Dynamic, granular permissions (Owner, GC Admin, Design Team, Viewer) controlled securely at the database level via PostgreSQL Row Level Security (RLS).
 - **Financial Immutability & Audit Trails:** A robust soft-delete architecture paired with strict database triggers to lock approved budgets, ensure financial calculation accuracy, and track comprehensive historical changes.
+- **CSI Specification Management:** A multi-tiered CSI-to-cost-code mapping system spanning company-wide defaults, project-level overrides, and ML-assisted suggestions. Platform admins maintain a centralized "Rosetta Stone" library with Excel bulk upload/download, which is atomically seeded into new projects. Project teams can view, search, edit, and extend mappings with full source lineage tracking (Company Default → Project Override → ML Suggested).
 
 ## 3. Interactive Drawings & Extraction Engine
 
@@ -94,6 +95,68 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
 
 ## 7. Release Notes
+
+---
+
+### v0.13 — Company CSI Default Library & Project Specification Management
+**Released:** 2026-05-15
+
+This release introduces a complete organizational CSI specification management system — from company-wide default libraries to project-level viewing and editing — closing the loop on CSI-to-cost-code mapping across the entire platform.
+
+#### New Features
+
+**Company CSI Default Library (Global Settings)**
+Platform admins can now manage a centralized company-wide CSI-to-cost-code mapping library — the organizational "Rosetta Stone" that standardizes how specifications translate to financial cost codes:
+- _3-way segmented control:_ The CSI Mapping tab in Global Settings now features three sub-views: **ML Flywheel** (cross-project learning), **Company Defaults** (admin-managed library), and **Rosetta Stone** (cross-project override aggregation).
+- _Excel upload/download:_ Admins can bulk-upload CSI defaults via a structured `.xlsx` template with validated cost code dropdowns. The **Download Template** button pre-populates the spreadsheet with all existing defaults for easy auditing and re-import.
+- _Search & delete:_ Inline search filtering and row-level deletion for managing the library incrementally.
+- _Mutation:_ `bulk_upsert_company_csi_defaults` RPC — SECURITY DEFINER, platform-admin-gated, set-based `jsonb_array_elements` insert with `ON CONFLICT (csi_number) DO UPDATE`.
+
+**One-Click Project Seeding**
+When a project's CSI & Specs tab is empty and company defaults exist, a prominent "Seed from N Company Defaults" button appears in the upload zone:
+- _Atomic copy:_ `seed_project_from_company_defaults` RPC copies all defaults into `project_csi_specs` with `source = 'company_default'`, using `ON CONFLICT DO NOTHING` to preserve existing project-specific overrides.
+- _Lineage tracking:_ Every seeded spec carries `source = 'company_default'`. Editing any field automatically transitions it to `source = 'project'`.
+
+**Project CSI Specs Viewer/Editor**
+After seeding or uploading specs, the CSI & Specs tab now displays a full interactive table instead of reverting to the empty upload zone:
+- _Source badges:_ Each row displays a color-coded pill — 🏢 Default (indigo), 📌 Project (emerald), 🤖 ML (amber) — providing instant lineage visibility.
+- _Inline cost code editing:_ Editable `<select>` dropdown with `formatCostCode()` display, gated behind `can_edit_records` permission. Changes fire `onChange` (AGENTS.md C23 — atomic dropdown mutations).
+- _Row deletion:_ Trash icon gated behind `can_delete_records` permission (project admins only).
+- _Search bar:_ Instant filtering by CSI number, description, or cost code.
+- _Header stats:_ "{X} specs · {Y} company defaults · {Z} project-specific".
+- _Upload More:_ Toggle back to the upload zone for incremental spec additions without losing existing data.
+
+**Rosetta Stone Cross-Project View**
+A read-only aggregation view in Global Settings showing company defaults alongside project-specific overrides as green pills per cost code:
+- _Powered by:_ `get_company_csi_rosetta_view` RPC which filters to `source = 'project'` overrides only.
+- _Purpose:_ Audit trail showing exactly which projects deviated from company standards and how.
+
+**ML Flywheel Training Guards**
+The `trg_update_global_csi_training_data` trigger on `project_csi_specs` now explicitly skips records with `source = 'company_default'`:
+- _Rationale:_ Prevents seeded data from inflating ML confidence scores — only genuine user decisions (source = `'project'`) feed the training model.
+
+#### Database Schema
+
+| Table | Purpose |
+|-------|---------|
+| `company_csi_defaults` | Global company-wide CSI-to-cost-code default mappings. `UNIQUE(csi_number)`, loose-text FK to `cost_codes.code` (`ON DELETE SET NULL`). RLS: `SELECT` open to all authenticated; write restricted to platform admins. |
+| `project_csi_specs.source` | New column (`'company_default' \| 'project' \| 'ml_suggested'`) for lineage tracking. |
+| `global_csi_training_data` | ML Flywheel training table with `is_default` guard excluding company defaults from training. |
+
+#### Internal / Architecture
+
+| Item | Detail |
+|------|--------|
+| `companyDefaultsTemplate.ts` | `src/lib/excel/` — ExcelJS template generator with pre-population of existing defaults and validated cost code dropdowns |
+| `useCompanyCsiQueries.ts` | `src/hooks/` — TanStack hooks for company defaults CRUD, seeding, and Rosetta Stone queries |
+| `useCsiQueries.ts` | `src/hooks/` — Added `useUpdateProjectCsiSpec` and `useDeleteProjectCsiSpec` single-row mutation hooks |
+| `ProjectCsiSpecsTable.tsx` | `src/components/project/` — New searchable, permission-gated viewer/editor table |
+| `CsiMappingTab.tsx` | `src/components/project/` — 3-way conditional rendering: staging grid / specs table / upload zone |
+| `GlobalSettingsModal.tsx` | `src/components/dashboard/` — CSI Mapping sub-view architecture with 3-way segmented control |
+| `seed_company_defaults.sql` | `designpulse-next/` — 151-row SQL seed script for initial database population |
+| Migration | `supabase_migrations/20260516_company_csi_defaults.sql` — Full schema, RPCs, RLS, and triggers |
+| AGENTS.md §4 | New CSI Mapping Sub-View Architecture bullet |
+| AGENTS.md §5 | New `company_csi_defaults`, `project_csi_specs`, `global_csi_training_data` schema entries |
 
 ---
 

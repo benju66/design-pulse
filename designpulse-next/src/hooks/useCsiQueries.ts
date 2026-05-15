@@ -79,3 +79,60 @@ export function useBulkUpsertProjectCsiSpecs(projectId: string) {
   });
 }
 
+/**
+ * Update a single project CSI spec's cost_code mapping.
+ * Sets source = 'project' to mark it as a project-specific override.
+ * Triggers cascade_csi_spec_update to propagate to linked opportunities.
+ */
+export function useUpdateProjectCsiSpec(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ specId, costCode }: { specId: string; costCode: string | null }) => {
+      const { error } = await supabase
+        .from('project_csi_specs')
+        .update({ cost_code: costCode, source: 'project' })
+        .eq('id', specId);
+      if (error) {
+        const msg = error.message || error.details || error.hint || JSON.stringify(error);
+        throw new Error(msg);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_csi_specs', projectId] });
+      toast.success('CSI mapping updated.');
+    },
+    onError: (err: Error) => {
+      console.error('Update CSI Spec Error:', err);
+      toast.error(`Failed to update mapping: ${err.message}`);
+    },
+  });
+}
+
+/**
+ * Delete a single project CSI spec row.
+ * RLS requires can_delete_records — gated in UI by permissions check.
+ */
+export function useDeleteProjectCsiSpec(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (specId: string) => {
+      const { error } = await supabase
+        .from('project_csi_specs')
+        .delete()
+        .eq('id', specId);
+      if (error) {
+        const msg = error.message || error.details || error.hint || JSON.stringify(error);
+        throw new Error(msg);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_csi_specs', projectId] });
+      toast.success('CSI mapping removed.');
+    },
+    onError: (err: Error) => {
+      console.error('Delete CSI Spec Error:', err);
+      toast.error(`Failed to delete mapping: ${err.message}`);
+    },
+  });
+}
+

@@ -188,7 +188,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   return (
     <div className="flex flex-col m-4 border border-slate-300 dark:border-slate-700 rounded-xl shadow-lg bg-slate-50 dark:bg-slate-900/50 whitespace-normal overflow-hidden">
       {/* Tab Bar */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-800/30 px-4">
+      <div className="flex flex-wrap items-center justify-between gap-y-1 border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-800/30 px-4">
         <div className="flex space-x-1 py-2">
           {['Details', 'Attachments', 'Activity'].map(tab => {
             const Icon = tab === 'Details' ? List : tab === 'Attachments' ? Paperclip : MessageSquare;
@@ -243,7 +243,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               {buildingAreas.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             
-            {row.original.record_type === 'VE' && (row.original.coordination_status === 'Not Required' || !row.original.coordination_status) && (
+            {(row.original.record_type === 'VE' || !row.original.record_type || row.original.record_type === null) && row.original.record_type !== 'Coordination' && (row.original.coordination_status === 'Not Required' || !row.original.coordination_status) && (
               <>
                 <button
                   onClick={() => {

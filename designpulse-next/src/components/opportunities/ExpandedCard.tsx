@@ -16,7 +16,7 @@ import { ActivityFeed } from './ActivityFeed';
 import { SortableFieldCard } from './SortableFieldCard';
 import { AssigneeSelect } from './AssigneeSelect';
 import { Row } from '@tanstack/react-table';
-import { Opportunity } from '@/types/models';
+import { Opportunity, CoordinationDetailsMap } from '@/types/models';
 
 interface ExpandedCardProps {
   row: Row<Opportunity>;
@@ -189,7 +189,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
     <div className="flex flex-col m-4 border border-slate-300 dark:border-slate-700 rounded-xl shadow-lg bg-slate-50 dark:bg-slate-900/50 whitespace-normal overflow-hidden">
       {/* Tab Bar */}
       <div className="flex flex-wrap items-center justify-between gap-y-1 border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-800/30 px-4">
-        <div className="flex space-x-1 py-2">
+        <div className="flex items-center space-x-1 py-2">
           {['Details', 'Attachments', 'Activity'].map(tab => {
             const Icon = tab === 'Details' ? List : tab === 'Attachments' ? Paperclip : MessageSquare;
             return (
@@ -207,6 +207,42 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               </button>
             )
           })}
+          {/* Begin Coordination / Coordination Active — positioned after tabs for discoverability */}
+          {(row.original.record_type || 'VE') !== 'Coordination' && (row.original.coordination_status === 'Not Required' || !row.original.coordination_status) ? (
+            <>
+              <div className="w-px h-5 bg-slate-300 dark:bg-slate-700 mx-1" />
+              <button
+                onClick={() => {
+                  const projectDisciplines = (settings?.disciplines as {id: string, label: string}[]) || [];
+                  const scaffold: CoordinationDetailsMap = {};
+                  projectDisciplines.forEach(d => {
+                    scaffold[d.id] = { status: 'Not Required', notes: '' };
+                  });
+                  updateData.mutate({
+                    id: row.original.id,
+                    updates: {
+                      coordination_status: 'Draft',
+                      coordination_details: scaffold as unknown as Opportunity['coordination_details']
+                    }
+                  });
+                }}
+                disabled={updateData.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-sky-100 dark:hover:bg-sky-900/30 text-sky-600 dark:text-sky-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Begin design coordination for this item before financial locking"
+              >
+                <Play size={14} />
+                Begin Coordination
+              </button>
+            </>
+          ) : (row.original.record_type || 'VE') !== 'Coordination' && row.original.coordination_status && row.original.coordination_status !== 'Not Required' ? (
+            <>
+              <div className="w-px h-5 bg-slate-300 dark:bg-slate-700 mx-1" />
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-sm font-semibold" title="This item is active on the Coordination Board">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Coordination Active
+              </span>
+            </>
+          ) : null}
         </div>
         {activeTab === 'Details' && (
           <div className="relative flex items-center gap-3">
@@ -242,34 +278,6 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               <option value="" disabled>Select Building Area...</option>
               {buildingAreas.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-            
-            {(row.original.record_type === 'VE' || !row.original.record_type || row.original.record_type === null) && row.original.record_type !== 'Coordination' && (row.original.coordination_status === 'Not Required' || !row.original.coordination_status) && (
-              <>
-                <button
-                  onClick={() => {
-                    const projectDisciplines = (settings?.disciplines as {id: string, label: string}[]) || [];
-                    const scaffold: Record<string, any> = {};
-                    projectDisciplines.forEach(d => {
-                      scaffold[d.id] = { status: 'Not Required', notes: '' };
-                    });
-                    updateData.mutate({
-                      id: row.original.id,
-                      updates: {
-                        coordination_status: 'Draft',
-                        coordination_details: scaffold
-                      }
-                    });
-                  }}
-                  disabled={updateData.isPending}
-                  className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-sky-100 dark:hover:bg-sky-900/30 text-sky-600 dark:text-sky-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Begin design coordination for this item before financial locking"
-                >
-                  <Play size={16} />
-                  <span className="text-sm font-semibold">Begin Coordination</span>
-                </button>
-                <div className="w-px h-5 bg-slate-300 dark:bg-slate-700" />
-              </>
-            )}
 
             <button 
               onClick={() => setShowSettings(!showSettings)}

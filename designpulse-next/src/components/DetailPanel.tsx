@@ -80,9 +80,16 @@ export default function DetailPanel({ projectId, opportunities, viewMode }: Deta
         />
       )}
       <div className="flex items-center p-4 border-b border-slate-200 dark:border-slate-800 relative w-full h-16 shrink-0">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate pr-28 min-w-0 flex-1">
-          {isBudgetRow ? `Budget Detail: ${selectedOpportunityId.replace('budget-', '')}` : (opportunity?.title || 'Untitled Opportunity')}
-        </h3>
+        <div className="flex items-center gap-2.5 pr-28 min-w-0 flex-1">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate min-w-0">
+            {isBudgetRow ? `Budget Detail: ${selectedOpportunityId.replace('budget-', '')}` : (opportunity?.title || 'Untitled Opportunity')}
+          </h3>
+          {!isBudgetRow && opportunity?.display_id && (
+            <span className="shrink-0 text-xs font-mono font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+              {opportunity.display_id}
+            </span>
+          )}
+        </div>
         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white dark:bg-slate-900 pl-2">
           <button 
             onClick={() => window.open(`/project/${projectId}/item/${selectedOpportunityId}`, '_blank')}

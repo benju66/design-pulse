@@ -288,10 +288,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   // Shared base filter — no currentView dependency, so sidebar switches don't trigger recomputation
   // NOTE: activeStatus is NOT included here — it's view-specific (only Value Matrix uses it).
   // Including it here caused a ghost filter where status set in VM silently leaked into the Budget Ledger.
+  // Normalize record_type: items created in the Value Matrix have record_type: null,
+  // only Coordination Board items explicitly set 'Coordination'. Treat null/undefined as 'VE'.
+  const effectiveRecordType = (opp: Opportunity) => opp.record_type || 'VE';
+
   const applyBaseFilters = React.useCallback((items: Opportunity[]) => {
     return items.filter(opp => {
-      if (opp.record_type === 'VE') return true;
-      if (opp.record_type === 'Coordination') {
+      const rt = effectiveRecordType(opp);
+      if (rt === 'VE') return true;
+      if (rt === 'Coordination') {
         const cost = Number(opp.cost_impact) || 0;
         const days = Number(opp.days_impact) || 0;
         const isEscalated = (opp.coordination_details as Record<string, unknown>)?.is_escalated === true;
@@ -365,11 +370,12 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   const coordinationOpportunities = React.useMemo(() => {
     return opportunities.filter(opp => {
-      if (opp.record_type === 'Coordination') return true;
-      // Approved VE items with coordination needs
-      if (opp.record_type === 'VE' && opp.status === 'Approved' && opp.coordination_status !== 'Not Required') return true;
-      // Unlocked VE items with preserved coordination progress or early-start coordination
-      if (opp.record_type === 'VE' && opp.status === 'Draft' && opp.coordination_status !== 'Not Required' && opp.coordination_status !== null) {
+      const rt = effectiveRecordType(opp);
+      if (rt === 'Coordination') return true;
+      // Any VE item with an active coordination_status (not null, not 'Not Required')
+      // should appear on the Coordination Board — regardless of its VE status
+      // (Draft = early-start, Pending Review = in-flight, Approved = locked decision)
+      if (rt === 'VE' && opp.coordination_status && opp.coordination_status !== 'Not Required') {
         return true;
       }
       return false;

@@ -53,7 +53,7 @@ export function useCreateOpportunity(projectId: string) {
     mutationFn: async (newRow) => {
       const { data, error } = await supabase
         .from('opportunities')
-        .insert([{ project_id: projectId, status: 'Draft', cost_impact: 0, title: 'New Option', building_area: null, ...newRow }])
+        .insert([{ project_id: projectId, status: 'Draft', cost_impact: 0, title: 'New Option', building_area: null, coordination_status: null, ...newRow }])
         .select()
         .single();
       if (error) throw new Error(error.message || JSON.stringify(error));

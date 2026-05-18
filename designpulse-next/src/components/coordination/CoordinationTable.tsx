@@ -343,7 +343,20 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       accessorKey: 'display_id',
       header: 'ID',
       size: 80,
-      cell: ({ getValue }) => <div className="px-2 py-1.5 text-xs font-mono text-slate-500 dark:text-slate-400">{getValue<string>()}</div>,
+      cell: ({ getValue, row }: CellContext<Opportunity, unknown>) => {
+        const value = getValue<string>();
+        const recordType = row.original.record_type || 'Coordination';
+        if (recordType === 'VE') {
+          return (
+            <div className="px-2 py-1.5 flex items-center h-full">
+              <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400" title="Value Engineering item">
+                {value}
+              </span>
+            </div>
+          );
+        }
+        return <div className="px-2 py-1.5 text-xs font-mono text-slate-500 dark:text-slate-400">{value}</div>;
+      },
     },
     {
       accessorKey: 'record_type',

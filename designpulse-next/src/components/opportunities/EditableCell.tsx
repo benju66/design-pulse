@@ -561,33 +561,28 @@ export const DisplayIdCell = React.memo(({ getValue, row, column }: CellContext<
   const recordType = row.original.record_type;
   const displayValue = value || '';
 
-  if (recordType === 'Coordination') {
-    return (
-      <CellWrapper
-        disabled={true}
-        row={row}
-        column={column}
-        className="w-full h-full flex items-center cursor-default"
-        displayValue={
-          <span 
-            className="px-1.5 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-            title="Escalated from Design Coordination"
-          >
-            {displayValue}
-          </span>
-        }
-        inputElement={() => null}
-      />
-    );
-  }
+  const badgeClass = recordType === 'Coordination'
+    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+    : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400';
+
+  const titleText = recordType === 'Coordination'
+    ? 'Design Coordination item'
+    : 'Value Engineering item';
 
   return (
     <CellWrapper
       disabled={true}
       row={row}
       column={column}
-      className="text-slate-600 dark:text-slate-400 font-mono text-sm cursor-default"
-      displayValue={displayValue}
+      className="w-full h-full flex items-center cursor-default"
+      displayValue={
+        <span 
+          className={`px-1.5 py-0.5 rounded text-xs font-bold ${badgeClass}`}
+          title={titleText}
+        >
+          {displayValue}
+        </span>
+      }
       inputElement={() => null}
     />
   );

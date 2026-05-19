@@ -371,6 +371,7 @@ export interface EstimateComparisonRow {
   old_amount: number;
   new_amount: number;
   delta_amount: number;
+  variance_note_b: string | null;
 }
 
 export interface MultiVersionMatrixRow {
@@ -380,6 +381,7 @@ export interface MultiVersionMatrixRow {
   version_name: string;
   version_date: string; // ISO date
   budget_amount: number;
+  variance_note: string | null;
 }
 
 // ── Lessons Learned ──────────────────────────────────────────────────────────

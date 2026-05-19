@@ -34,6 +34,8 @@ interface BudgetLedgerViewProps {
   navigateToSettings: (tab: SettingsTab) => void;
   // Variance notes
   varianceNoteMap: Record<string, string>;
+  // Phase 2: active version ID for version-scoped note editing
+  activeVersionId?: string | null;
 }
 
 export function BudgetLedgerView({
@@ -57,6 +59,7 @@ export function BudgetLedgerView({
   uniqueCostCodes,
   navigateToSettings,
   varianceNoteMap,
+  activeVersionId,
 }: BudgetLedgerViewProps) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const isMapVisible = useUIStore(state => state.isMapVisible);
@@ -112,6 +115,7 @@ export function BudgetLedgerView({
           onClearFilters={onClearFilters}
           navigateToSettings={navigateToSettings}
           allLedgerItems={allOpportunities}
+          varianceNoteMap={varianceNoteMap}
         />
 
         {/* Grid — hidden when analytics is fullscreen */}
@@ -200,6 +204,7 @@ export function BudgetLedgerView({
                 </>
               }
               varianceNoteMap={varianceNoteMap}
+              activeVersionId={activeVersionId}
               onFilterDrawerToggle={handleFilterDrawerToggle}
             />
           )}

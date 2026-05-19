@@ -24,9 +24,12 @@ import {
   useUpdateEstimateAssumptions,
   useVarianceHistoryByCostCode,
 } from "@/hooks/useEstimateQueries";
-import { FileText, History, Save, Loader2, Database, AlertCircle, Layers } from "lucide-react";
+import { FileText, History, Save, Loader2, Database, AlertCircle, Layers, Pencil, Copy, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Opportunity } from "@/types/models";
+import { useUpsertVarianceNote } from "@/hooks/useUpsertVarianceNote";
+import { useProjectEstimateVersions } from "@/hooks/useEstimateQueries";
+import React from 'react';
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat("en-US", {
@@ -42,6 +45,18 @@ const formatShortDate = (iso: string) =>
     year: "numeric",
   }).format(new Date(iso));
 
+const relativeTime = (dateStr: string) => {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return formatShortDate(dateStr);
+};
+
 interface BudgetDetailViewProps {
   projectId: string;
   costCode: string;
@@ -53,6 +68,27 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
   const { permissions } = useCurrentUserPermissions(projectId);
   const { data: varianceNotes, isLoading: varianceLoading } = useVarianceHistoryByCostCode(projectId, costCode);
   const updateAssumptions = useUpdateEstimateAssumptions(projectId);
+  const { data: estimateVersions = [] } = useProjectEstimateVersions(projectId);
+  const upsertVarianceNote = useUpsertVarianceNote(projectId);
+
+  // Active version detection for version-scoped note editing
+  const activeVersionId = React.useMemo(
+    () => estimateVersions.find(v => v.is_active)?.id ?? null,
+    [estimateVersions]
+  );
+  const activeVersionName = React.useMemo(
+    () => estimateVersions.find(v => v.is_active)?.version_name ?? null,
+    [estimateVersions]
+  );
+
+  // Variance note editing state (only for active version's note)
+  const activeNote = React.useMemo(
+    () => varianceNotes?.find(n => n.estimate_version_id === activeVersionId) ?? null,
+    [varianceNotes, activeVersionId]
+  );
+  const [isEditingNote, setIsEditingNote] = React.useState(false);
+  const [noteDraft, setNoteDraft] = React.useState('');
+  const noteTextareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   // ── Audit Fix #2 & #3: Draft state with overwrite protection ──────────────
   const [draftAssumptions, setDraftAssumptions] = useState("");
@@ -353,36 +389,191 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
 
       {/* ── Section 3: Variance History ── */}
       <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden shrink-0">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <History size={16} className="text-slate-500 dark:text-slate-400" />
-          <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Variance History
-          </h4>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+          <div className="flex items-center gap-2">
+            <History size={16} className="text-slate-500 dark:text-slate-400" />
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Variance History
+            </h4>
+            {varianceNotes && varianceNotes.length > 0 && (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+                {varianceNotes.length}
+              </span>
+            )}
+          </div>
+          {/* Copy to clipboard */}
+          {varianceNotes && varianceNotes.length > 0 && (
+            <button
+              onClick={() => {
+                const text = varianceNotes
+                  .map(n => `[${n.version_name}] ${formatShortDate(n.created_at)}\n${n.variance_note}`)
+                  .join('\n\n');
+                navigator.clipboard.writeText(text);
+                toast.success('Variance notes copied to clipboard');
+              }}
+              className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-slate-400 hover:text-sky-500 transition-colors rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+              title="Copy all notes to clipboard"
+            >
+              <Copy size={11} />
+              Copy All
+            </button>
+          )}
         </div>
-        <div className="p-4 max-h-60 overflow-y-auto">
+        <div className="p-4 max-h-80 overflow-y-auto">
           {varianceLoading ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
             </div>
           ) : !varianceNotes || varianceNotes.length === 0 ? (
-            <p className="text-sm italic text-slate-400 dark:text-slate-500">
-              No variance notes recorded for this cost code.
-            </p>
+            <div className="text-center py-4">
+              <p className="text-sm italic text-slate-400 dark:text-slate-500">
+                No variance notes recorded for this cost code.
+              </p>
+              {permissions.can_edit_project_settings && activeVersionId && (
+                <button
+                  onClick={() => {
+                    setNoteDraft('');
+                    setIsEditingNote(true);
+                    setTimeout(() => noteTextareaRef.current?.focus(), 50);
+                  }}
+                  className="mt-2 text-xs font-medium text-sky-500 hover:text-sky-600 transition-colors"
+                >
+                  + Add note for current version
+                </button>
+              )}
+            </div>
           ) : (
             <div className="space-y-3">
-              {varianceNotes.map((note) => (
-                <div key={note.id} className="border-l-2 border-sky-300 dark:border-sky-700 pl-3 py-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      {note.version_name}
-                    </span>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">
-                      {formatShortDate(note.created_at)}
-                    </span>
+              {varianceNotes.map((note) => {
+                const isActiveVersion = note.estimate_version_id === activeVersionId;
+                const canEdit = isActiveVersion && permissions.can_edit_project_settings;
+
+                return (
+                  <div
+                    key={note.id}
+                    className={`border-l-2 pl-3 py-1 ${
+                      isActiveVersion
+                        ? 'border-sky-400 dark:border-sky-600'
+                        : 'border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          {note.version_name}
+                        </span>
+                        {isActiveVersion && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 px-1.5 py-0.5 rounded-full">
+                            <CheckCircle2 size={8} />
+                            Current
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums cursor-help"
+                          title={new Date(note.updated_at || note.created_at).toLocaleString()}
+                        >
+                          {relativeTime(note.updated_at || note.created_at)}
+                        </span>
+                        {canEdit && !isEditingNote && (
+                          <button
+                            onClick={() => {
+                              setNoteDraft(note.variance_note);
+                              setIsEditingNote(true);
+                              setTimeout(() => noteTextareaRef.current?.focus(), 50);
+                            }}
+                            className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-sky-500 transition-colors"
+                            title="Edit note"
+                          >
+                            <Pencil size={11} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isActiveVersion && isEditingNote ? (
+                      <div>
+                        <textarea
+                          ref={noteTextareaRef}
+                          rows={3}
+                          value={noteDraft}
+                          maxLength={500}
+                          onChange={e => setNoteDraft(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Escape') {
+                              setIsEditingNote(false);
+                              setNoteDraft(activeNote?.variance_note ?? '');
+                            }
+                            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                              upsertVarianceNote.mutate(
+                                { costCode, note: noteDraft.trim() },
+                                {
+                                  onSuccess: () => {
+                                    setIsEditingNote(false);
+                                    toast.success('Note saved');
+                                  },
+                                  onError: (err) => toast.error(`Failed: ${err.message}`),
+                                }
+                              );
+                            }
+                          }}
+                          placeholder="Explain this variance…"
+                          className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-sky-300 dark:border-sky-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-sky-400 text-slate-700 dark:text-slate-200 placeholder-slate-400 resize-none"
+                        />
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className="text-[10px] text-slate-400">{noteDraft.length}/500</span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setIsEditingNote(false);
+                                setNoteDraft(activeNote?.variance_note ?? '');
+                              }}
+                              className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => {
+                                upsertVarianceNote.mutate(
+                                  { costCode, note: noteDraft.trim() },
+                                  {
+                                    onSuccess: () => {
+                                      setIsEditingNote(false);
+                                      toast.success('Note saved');
+                                    },
+                                    onError: (err) => toast.error(`Failed: ${err.message}`),
+                                  }
+                                );
+                              }}
+                              disabled={upsertVarianceNote.isPending}
+                              className="text-[10px] font-medium text-sky-600 hover:text-sky-700 disabled:opacity-50 transition-colors"
+                            >
+                              {upsertVarianceNote.isPending ? 'Saving…' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">{note.variance_note}</p>
+                    )}
                   </div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">{note.variance_note}</p>
-                </div>
-              ))}
+                );
+              })}
+
+              {/* Add note CTA — only if no active version note exists yet */}
+              {!activeNote && permissions.can_edit_project_settings && activeVersionId && (
+                <button
+                  onClick={() => {
+                    setNoteDraft('');
+                    setIsEditingNote(true);
+                    setTimeout(() => noteTextareaRef.current?.focus(), 50);
+                  }}
+                  className="w-full mt-1 py-2 text-xs font-medium text-sky-500 hover:text-sky-600 border border-dashed border-sky-200 dark:border-sky-800 rounded-lg hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors"
+                >
+                  + Add note for {activeVersionName || 'current version'}
+                </button>
+              )}
             </div>
           )}
         </div>

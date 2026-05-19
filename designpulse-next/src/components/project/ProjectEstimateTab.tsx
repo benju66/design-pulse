@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { Upload, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, BarChart3, Trash2, Star, Search, X } from 'lucide-react';
+import { Upload, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, BarChart3, Trash2, Star, Search, X, MessageSquare } from 'lucide-react';
 import { useProjectEstimateVersions, useImportEstimateMutation, useActivateEstimateVersion, useDeleteEstimateVersion, useProjectEstimateLines, useCompareEstimateVersions } from '@/hooks/useEstimateQueries';
 import { usePendingEstimateUpdates } from '@/hooks/useOpportunityQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
@@ -32,9 +32,12 @@ function formatPairCurrency(n: number) {
 }
 
 /** Inlined from VersionComparisonViewer.tsx (FIX #7) — preserved for Settings → Estimate 1-to-1 compare modal. */
-function VersionPairCompare({ projectId, versionAId, versionBId }: { projectId: string; versionAId: string; versionBId: string }) {
+function VersionPairCompare({ projectId, versionAId, versionBId, showNotes = false }: { projectId: string; versionAId: string; versionBId: string; showNotes?: boolean }) {
   const { data: rows, isLoading, error } = useCompareEstimateVersions(projectId, versionAId, versionBId);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'cost_code', desc: false }]);
+
+  // F3 fix: track which cost codes have already shown their note
+  const seenNoteCodes = useMemo(() => new Set<string>(), [rows]);
 
   const columns = useMemo(
     () => [
@@ -71,14 +74,43 @@ function VersionPairCompare({ projectId, versionAId, versionBId }: { projectId: 
           return <span className="font-mono text-sm font-bold text-rose-600 dark:text-rose-500">+{formatPairCurrency(delta)}</span>;
         },
       }),
+      pairColumnHelper.accessor('variance_note_b', {
+        header: 'Note',
+        size: 200,
+        enableHiding: true,
+        cell: (info) => {
+          const note = info.getValue();
+          const code = info.row.original.cost_code;
+          const delta = info.row.original.delta_amount;
+          const baseline = info.row.original.old_amount;
+          const pct = baseline > 0 ? Math.abs(delta) / baseline : 0;
+          const needsNote = pct >= 0.1 && !note;
+
+          // F3 fix: only show note on first row per cost_code group
+          if (note && seenNoteCodes.has(code)) return null;
+          if (note) seenNoteCodes.add(code);
+
+          if (!note && !needsNote) return null;
+
+          return (
+            <div className={`px-2 py-1 text-xs leading-relaxed truncate max-w-[200px] ${
+              note
+                ? 'text-slate-600 dark:text-slate-400'
+                : 'text-amber-500 dark:text-amber-400 italic'
+            }`} title={note || 'No variance note — ≥10% change'}>
+              {note || '⚠ Missing note'}
+            </div>
+          );
+        },
+      }),
     ],
-    []
+    [seenNoteCodes]
   );
 
   const table = useReactTable({
     data: rows ?? [],
     columns,
-    state: { sorting },
+    state: { sorting, columnVisibility: { variance_note_b: showNotes } },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -312,11 +344,17 @@ function StagingRow({
   costCodes,
   onAssign,
   onBudgetChange,
+  onNoteChange,
+  priorBudget,
+  showNoteColumn,
 }: {
   row: EstimateStagingRow;
   costCodes: Parameters<typeof SmartCostCodeCombobox>[0]['rawCostCodes'];
   onAssign: (id: string, costCode: string, costType: EstimateCostType) => void;
   onBudgetChange: (id: string, value: number) => void;
+  onNoteChange?: (id: string, note: string) => void;
+  priorBudget?: number;
+  showNoteColumn?: boolean;
 }) {
   const [budgetFocused, setBudgetFocused] = useState(false);
   // Tracks value at focus time so Escape can cancel the edit (AGENTS.md C18 — inline grid cells
@@ -393,6 +431,29 @@ function StagingRow({
           className="w-full text-right text-sm font-mono bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:border-sky-400 rounded-lg px-2 py-1 outline-none text-slate-800 dark:text-slate-200 transition-colors"
         />
       </td>
+      {/* Variance Note — only shown for subsequent imports */}
+      {showNoteColumn && (
+        <td className="px-3 py-2.5 w-56">
+          {(() => {
+            // Auto-prompt: highlight when delta >= 10% vs prior version
+            const hasSigDelta = priorBudget != null && priorBudget > 0
+              && Math.abs(row.budget_amount - priorBudget) / priorBudget >= 0.1;
+            return (
+              <textarea
+                rows={1}
+                value={row.variance_note ?? ''}
+                onChange={e => onNoteChange?.(row.id, e.target.value)}
+                placeholder={hasSigDelta ? 'Explain this cost change…' : 'Optional note'}
+                className={`w-full text-xs bg-transparent border rounded-lg px-2 py-1.5 outline-none resize-none text-slate-700 dark:text-slate-300 placeholder-slate-400 transition-colors focus:border-sky-400 focus:ring-1 focus:ring-sky-400/30 ${
+                  hasSigDelta && !row.variance_note
+                    ? 'border-amber-300 dark:border-amber-600 bg-amber-50/50 dark:bg-amber-900/10'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                }`}
+              />
+            );
+          })()}
+        </td>
+      )}
     </tr>
   );
 }
@@ -410,6 +471,7 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
   const [viewingVersionId, setViewingVersionId] = useState<string | null>(null);
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([]);
   const [comparingVersionIds, setComparingVersionIds] = useState<[string, string] | null>(null);
+  const [showCompareNotes, setShowCompareNotes] = useState(false);
   const [versionToDelete, setVersionToDelete] = useState<string | null>(null);
 
   const [isDragging, setIsDragging]   = useState(false);
@@ -446,6 +508,30 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
   // unresolvedBudgetCount: rows where both Manual Calculation and formula cache returned 0 (NOCACHE).
   // Uses is_budget_resolved (not budget_amount === 0) to distinguish NOCACHE from intentional $0.
   const unresolvedBudgetCount = stagingRows.filter(r => !r.is_budget_resolved).length;
+
+  // Phase 1: Variance Note Capture —
+  // Only show the note column when importing a subsequent estimate (versions exist).
+  const isSubsequentImport = versions.length > 0;
+  const activeVersion = useMemo(
+    () => versions.find(v => v.is_active),
+    [versions]
+  );
+  const { data: priorLines = [] } = useProjectEstimateLines(activeVersion?.id ?? null);
+  // Build a lookup of prior cost_code → budget_amount for delta detection
+  const priorBudgetMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const line of priorLines) {
+      if (line.cost_code) {
+        // Aggregate by cost_code (same code may have multiple cost_types)
+        map[line.cost_code] = (map[line.cost_code] ?? 0) + line.budget_amount;
+      }
+    }
+    return map;
+  }, [priorLines]);
+
+  // Bulk annotate state
+  const [bulkNoteOpen, setBulkNoteOpen] = useState(false);
+  const [bulkNoteText, setBulkNoteText] = useState('');
 
   // Search filter — iOS-safe: no regex, simple toLowerCase includes
   const sq = stagingSearch.toLowerCase().trim();
@@ -508,6 +594,39 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
       r.id === id ? { ...r, budget_amount: value, is_budget_resolved: true } : r
     ));
   }, []);
+
+  // Phase 1: Variance note change handler — lazy UUID minting on first character
+  const handleNoteChange = useCallback((id: string, note: string) => {
+    setStagingRows(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      return {
+        ...r,
+        variance_note: note || undefined,
+        // Mint UUID on first character, keep it stable after that (AGENTS.md C8)
+        variance_note_id: note ? (r.variance_note_id ?? crypto.randomUUID()) : undefined,
+      };
+    }));
+  }, []);
+
+  // Bulk annotate: apply one note to all rows with a significant delta
+  const applyBulkNote = useCallback(() => {
+    if (!bulkNoteText.trim()) return;
+    setStagingRows(prev => prev.map(r => {
+      const priorAmt = r.cost_code ? priorBudgetMap[r.cost_code] : undefined;
+      const hasSigDelta = priorAmt != null && priorAmt > 0
+        && Math.abs(r.budget_amount - priorAmt) / priorAmt >= 0.1;
+      if (!hasSigDelta) return r;
+      // Only apply if user hasn't already written a custom note
+      if (r.variance_note) return r;
+      return {
+        ...r,
+        variance_note: bulkNoteText.trim(),
+        variance_note_id: crypto.randomUUID(),
+      };
+    }));
+    setBulkNoteText('');
+    setBulkNoteOpen(false);
+  }, [bulkNoteText, priorBudgetMap]);
 
   // Column picker: remap all budget_amount values from the cached _rawCols.
   // No re-parse needed — _rawCols captured every column during initial parse.
@@ -671,18 +790,32 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
                 <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Compare Estimate Versions</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Comparing variances between two budget snapshots.</p>
               </div>
-              <button
-                onClick={() => setComparingVersionIds(null)}
-                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowCompareNotes(!showCompareNotes)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                    showCompareNotes
+                      ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 border-sky-300 dark:border-sky-700'
+                      : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-sky-300'
+                  }`}
+                >
+                  <MessageSquare size={13} />
+                  {showCompareNotes ? 'Hide Notes' : 'Show Notes'}
+                </button>
+                <button
+                  onClick={() => setComparingVersionIds(null)}
+                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
             <div className="p-6 overflow-auto">
               <VersionPairCompare
                 projectId={projectId}
                 versionAId={comparingVersionIds[0]}
                 versionBId={comparingVersionIds[1]}
+                showNotes={showCompareNotes}
               />
             </div>
           </div>
@@ -823,6 +956,17 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
                   </span>
                 )}
               </div>
+              {/* Bulk Annotate button — only for subsequent imports */}
+              {isSubsequentImport && (
+                <button
+                  id="bulk-annotate-btn"
+                  onClick={() => setBulkNoteOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/40 transition-colors shrink-0"
+                >
+                  <MessageSquare size={12} />
+                  Bulk Annotate
+                </button>
+              )}
               {/* Column picker — shown when the sheet has multiple numeric columns.
                    Lets the user point the parser at the column that holds their budget data
                    without re-uploading the file. Only visible in staging mode. */}
@@ -877,6 +1021,59 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
             </div>
           </div>
 
+          {/* Bulk Annotate Modal */}
+          {bulkNoteOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Bulk Annotate Variances</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Apply one note to all cost codes with &ge;10% budget variance. Rows with existing notes are skipped.</p>
+                  </div>
+                  <button
+                    onClick={() => { setBulkNoteOpen(false); setBulkNoteText(''); }}
+                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="p-6">
+                  <textarea
+                    rows={3}
+                    value={bulkNoteText}
+                    onChange={e => setBulkNoteText(e.target.value)}
+                    placeholder="e.g. Scope revised per owner direction 05/15…"
+                    className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400/30 text-slate-800 dark:text-slate-200 placeholder-slate-400 resize-none"
+                    autoFocus
+                  />
+                  <div className="flex items-center justify-between mt-4">
+                    <span className="text-xs text-slate-400">
+                      {stagingRows.filter(r => {
+                        const prior = r.cost_code ? priorBudgetMap[r.cost_code] : undefined;
+                        return prior != null && prior > 0 && Math.abs(r.budget_amount - prior) / prior >= 0.1 && !r.variance_note;
+                      }).length} rows will be annotated
+                    </span>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => { setBulkNoteOpen(false); setBulkNoteText(''); }}
+                        className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={applyBulkNote}
+                        disabled={!bulkNoteText.trim()}
+                        className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-bold text-white transition-colors"
+                      >
+                        Apply Note
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Table — sticky header freezes on scroll (overflow-x on outer, overflow-y on inner) */}
           <div className="overflow-x-auto">
             <div className="max-h-[60vh] overflow-y-auto">
@@ -889,12 +1086,20 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
                     <th className="px-3 py-2.5 w-28">Cost Type</th>
                     <th className="px-3 py-2.5">Description</th>
                     <th className="pl-3 pr-5 py-2.5 w-36 text-right">Budget Amount</th>
+                    {isSubsequentImport && (
+                      <th className="px-3 py-2.5 w-56">
+                        <div className="flex items-center gap-1.5">
+                          <MessageSquare size={11} className="text-sky-500" />
+                          Variance Note
+                        </div>
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
+                      <td colSpan={isSubsequentImport ? 7 : 6} className="px-5 py-8 text-center text-sm text-slate-400">
                         No rows match &ldquo;{stagingSearch}&rdquo;
                       </td>
                     </tr>
@@ -906,6 +1111,9 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
                         costCodes={allCostCodes}
                         onAssign={handleAssign}
                         onBudgetChange={handleBudgetChange}
+                        onNoteChange={isSubsequentImport ? handleNoteChange : undefined}
+                        priorBudget={row.cost_code ? priorBudgetMap[row.cost_code] : undefined}
+                        showNoteColumn={isSubsequentImport}
                       />
                     ))
                   )}

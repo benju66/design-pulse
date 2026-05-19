@@ -653,6 +653,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               uniqueCostCodes={uniqueCostCodes}
               navigateToSettings={navigateToSettings}
               varianceNoteMap={varianceNoteMap}
+              activeVersionId={activeVersionId}
             />
           )}
 

@@ -10,6 +10,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { List, Paperclip, MessageSquare, Settings, ChevronDown, Play } from 'lucide-react';
 import { ALL_PRIMARY_FIELDS, ADVANCED_FIELD_IDS } from '@/lib/constants';
+import { toast } from 'sonner';
 
 import { ContendersMatrix } from './ContendersMatrix';
 import { ActivityFeed } from './ActivityFeed';
@@ -213,17 +214,56 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               <div className="w-px h-5 bg-slate-300 dark:bg-slate-700 mx-1" />
               <button
                 onClick={() => {
-                  const projectDisciplines = (settings?.disciplines as {id: string, label: string}[]) || [];
-                  const scaffold: CoordinationDetailsMap = {};
-                  projectDisciplines.forEach(d => {
-                    scaffold[d.id] = { status: 'Not Required', notes: '' };
-                  });
-                  updateData.mutate({
-                    id: row.original.id,
-                    updates: {
-                      coordination_status: 'Draft',
-                      coordination_details: scaffold as unknown as Opportunity['coordination_details']
-                    }
+                  toast('Begin Coordination?', {
+                    description: 'This item will appear on the Coordination Board for design tracking.',
+                    action: {
+                      label: 'Confirm',
+                      onClick: () => {
+                        const projectDisciplines = (settings?.disciplines as {id: string, label: string}[]) || [];
+                        const scaffold: CoordinationDetailsMap = {};
+                        projectDisciplines.forEach(d => {
+                          scaffold[d.id] = { status: 'Not Required', notes: '' };
+                        });
+                        updateData.mutate(
+                          {
+                            id: row.original.id,
+                            updates: {
+                              coordination_status: 'Draft',
+                              coordination_details: scaffold as unknown as Opportunity['coordination_details'],
+                            },
+                          },
+                          {
+                            onSuccess: () => {
+                              toast.success('Coordination started', {
+                                description: `${row.original.display_id || 'Item'} is now on the Coordination Board.`,
+                                action: {
+                                  label: 'Undo',
+                                  onClick: () => {
+                                    updateData.mutate({
+                                      id: row.original.id,
+                                      updates: {
+                                        coordination_status: null,
+                                        coordination_details: null,
+                                      },
+                                    });
+                                    toast.info('Coordination undone');
+                                  },
+                                },
+                                duration: 5000,
+                              });
+                            },
+                            onError: (err) => {
+                              toast.error(`Failed to start coordination: ${err.message}`);
+                            },
+                          }
+                        );
+                      },
+                    },
+                    cancel: {
+                      label: 'Cancel',
+                      onClick: () => {},
+                    },
+                    duration: 10000,
                   });
                 }}
                 disabled={updateData.isPending}

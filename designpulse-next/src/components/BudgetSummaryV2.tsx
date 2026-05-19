@@ -17,27 +17,30 @@ import VarianceWaterfallChart from './analytics/VarianceWaterfallChart';
 import CostConcentrationSunburst from './analytics/CostConcentrationSunburst';
 import RiskExposureTrend from './analytics/RiskExposureTrend';
 import BudgetTreemap from './analytics/BudgetTreemap';
+import VarianceAnnotationChart from './analytics/VarianceAnnotationChart';
 import { TabInfoTooltip } from './analytics/TabInfoTooltip';
 import { useUIStore } from '@/stores/useUIStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronUp, ChevronDown, BarChart3, Layers, TrendingUp, Maximize2, Minimize2, PieChart, LayoutGrid, ArrowUpRight } from 'lucide-react';
+import { ChevronUp, ChevronDown, BarChart3, Layers, TrendingUp, Maximize2, Minimize2, PieChart, LayoutGrid, ArrowUpRight, MessageSquare } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Opportunity } from '@/types/models';
 import type { SettingsTab } from '@/stores/useUIStore';
 
-type BudgetDashboardTab = 'waterfall' | 'allocation' | 'risk-trend';
+type BudgetDashboardTab = 'waterfall' | 'allocation' | 'risk-trend' | 'coverage';
 type AllocationSubView = 'sunburst' | 'treemap';
 
 const TAB_DESCRIPTIONS: Record<BudgetDashboardTab, string> = {
   'waterfall': 'Horizontal bar chart comparing each trade\'s baseline budget against locked VE savings and pending exposure. Sorted by net impact.',
   'allocation': 'Proportional budget allocation by division and cost code. Toggle between sunburst overview and interactive treemap drill-down.',
   'risk-trend': 'Timeline showing how your budget baseline and VE position relate across estimate versions.',
+  'coverage': 'Variance note annotation coverage across cost codes. Highlights unexplained budget swings requiring documentation.',
 };
 
 const DASHBOARD_TABS: { id: BudgetDashboardTab; label: string; icon: LucideIcon }[] = [
   { id: 'waterfall', label: 'Financial Bridge', icon: BarChart3 },
   { id: 'allocation', label: 'Budget Allocation', icon: Layers },
   { id: 'risk-trend', label: 'Risk Trend', icon: TrendingUp },
+  { id: 'coverage', label: 'Variance Coverage', icon: MessageSquare },
 ];
 
 interface BudgetSummaryProps {
@@ -49,6 +52,8 @@ interface BudgetSummaryProps {
   onClearFilters?: () => void;
   navigateToSettings?: (tab: SettingsTab) => void;
   allLedgerItems?: Opportunity[];
+  // Phase 5: variance note map for coverage tab
+  varianceNoteMap?: Record<string, string>;
 }
 
 export default function BudgetSummaryV2({
@@ -60,6 +65,7 @@ export default function BudgetSummaryV2({
   onClearFilters,
   navigateToSettings,
   allLedgerItems,
+  varianceNoteMap = {},
 }: BudgetSummaryProps) {
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<BudgetDashboardTab>('waterfall');
@@ -376,6 +382,18 @@ export default function BudgetSummaryV2({
                           rows={timelineRows}
                           isFiltered={hasActiveFilters}
                           isLoading={timelineLoading}
+                        />
+                      )}
+                      {activeTab === 'coverage' && (
+                        <VarianceAnnotationChart
+                          data={waterfallRows.map(row => ({
+                            costCode: row.cost_code,
+                            description: row.description || '',
+                            baseline: Number(row.budget_amount) || 0,
+                            revised: (Number(row.budget_amount) || 0) + (Number(row.ve_impact) || 0),
+                            hasNote: !!varianceNoteMap[row.cost_code],
+                          }))}
+                          isLoading={waterfallLoading}
                         />
                       )}
                     </div>

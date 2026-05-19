@@ -4,6 +4,7 @@ import { CellContext } from '@tanstack/react-table';
 import { FileText, MessageSquare } from 'lucide-react';
 import { Opportunity, OpportunityOption } from '@/types/models';
 import { formatCostCode } from '@/lib/formatCostCode';
+import { VarianceNotePopover } from '@/components/opportunities/VarianceNotePopover';
 
 const isZero = (v: number) => Math.abs(v) < 0.001;
 
@@ -23,7 +24,7 @@ const deltaCellComparator = (prevProps: CellContext<Opportunity, unknown>, nextP
   if (!prevCode) return true;
   
   const prevNote = prevProps.table.options.meta?.varianceNoteMap?.[prevCode];
-  const nextNote = nextProps.table.options.meta?.varianceNoteMap?.[prevCode];
+  const nextNote = nextProps.table.options.meta?.varianceNoteMap?.[nextCode!];
   
   return prevNote === nextNote;
 };
@@ -318,13 +319,15 @@ export const LedgerFinancialAggregatedCell = React.memo(({ getValue }: CellConte
   return <ReadOnlyWrapper className="justify-end tabular-nums font-bold text-slate-800 dark:text-slate-100">{currencyFmt.format(val)}</ReadOnlyWrapper>;
 }, commonComparator);
 
-/** Delta cell — green for savings (negative), red for overruns (positive) */
-export const LedgerDeltaCell = React.memo(({ getValue, row, table }: CellContext<Opportunity, unknown>) => {
+/** Delta cell — green for savings (negative), red for overruns (positive).
+ *  Renders a clickable note icon that opens the VarianceNotePopover. */
+export const LedgerDeltaCell = React.memo(function LedgerDeltaCell({ getValue, row, table }: CellContext<Opportunity, unknown>) {
   const val = Number(getValue()) || 0;
   const varianceNoteMap = table.options.meta?.varianceNoteMap;
   const noteText = varianceNoteMap
     ? varianceNoteMap[row.original.cost_code ?? ''] ?? null
     : null;
+  const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
 
   if (!row.original.is_budget_line || (isZero(val) && !noteText)) {
     return <ReadOnlyWrapper className="text-slate-400 dark:text-slate-600 justify-end">—</ReadOnlyWrapper>;
@@ -336,20 +339,38 @@ export const LedgerDeltaCell = React.memo(({ getValue, row, table }: CellContext
     ? 'text-rose-600 dark:text-rose-400 font-medium'
     : 'text-slate-400 dark:text-slate-600';
 
+  const projectId = table.options.meta?.projectId;
+  const activeVersionId = table.options.meta?.activeVersionId ?? null;
+  const costCode = row.original.cost_code ?? '';
+
   return (
-    <ReadOnlyWrapper className={`justify-end tabular-nums ${colorClass}`}>
-      <span className="flex items-center gap-1">
+    <div className="relative w-full h-full px-3 py-2 text-sm min-h-[28px] flex items-center justify-end">
+      <span className={`flex items-center gap-1 tabular-nums ${colorClass}`}>
         {isZero(val) ? '—' : (val >= 0 ? '+' : '') + currencyFmt.format(val)}
-        {noteText && (
-          <span title={noteText.length > 120 ? noteText.substring(0, 120) + '…' : noteText}>
-            <MessageSquare
-              size={12}
-              className="shrink-0 text-sky-500 dark:text-sky-400"
-            />
-          </span>
-        )}
+        {/* Note icon — always visible if note exists, faint on hover if no note */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setIsPopoverOpen(prev => !prev); }}
+          className={`shrink-0 p-0.5 rounded transition-colors ${
+            noteText
+              ? 'text-sky-500 dark:text-sky-400 hover:text-sky-600 dark:hover:text-sky-300'
+              : 'text-transparent group-hover:text-slate-300 dark:group-hover:text-slate-600 hover:!text-sky-400'
+          }`}
+          title={noteText ? 'View/edit variance note' : 'Add variance note'}
+        >
+          <MessageSquare size={12} />
+        </button>
       </span>
-    </ReadOnlyWrapper>
+
+      {/* Popover — rendered inside the cell's relative container */}
+      {isPopoverOpen && projectId && costCode && (
+        <VarianceNotePopover
+          projectId={projectId}
+          costCode={costCode}
+          activeVersionId={activeVersionId}
+          onClose={() => setIsPopoverOpen(false)}
+        />
+      )}
+    </div>
   );
 }, deltaCellComparator);
 

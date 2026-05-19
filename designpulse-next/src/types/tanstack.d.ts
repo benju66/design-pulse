@@ -36,6 +36,9 @@ declare module '@tanstack/react-table' {
     buildingAreas?: string[];
     // Phase 2: pre-computed variance note lookup (cost_code → note text) for active estimate version
     varianceNoteMap?: Record<string, string>;
+    // Phase 2: active estimate version ID — used by VarianceNotePopover to determine
+    // which notes are editable (only the active version's note can be edited)
+    activeVersionId?: string | null;
     // Phase 3: Ledger mode flag — used by ImpactCell to de-emphasize VE cost_impact values
     isLedgerView?: boolean;
     // Client Brand Standards grid meta (AGENTS.md C1 — global TableMeta, no local interfaces)

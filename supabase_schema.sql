@@ -1582,6 +1582,23 @@ BEGIN
         INSERT INTO item_activity (project_id, opportunity_id, option_id, activity_type, content, author_id)
         VALUES (v_project_id, v_opportunity_id, v_option_id, 'system_log', v_summary, auth.uid());
       END IF;
+
+      IF NEW.coordination_status IS DISTINCT FROM OLD.coordination_status THEN
+        v_summary := 'Coordination status changed from ' || COALESCE(OLD.coordination_status, 'None') || ' to ' || COALESCE(NEW.coordination_status, 'None');
+        INSERT INTO item_activity (project_id, opportunity_id, option_id, activity_type, content, author_id)
+        VALUES (v_project_id, v_opportunity_id, v_option_id, 'system_log', v_summary, auth.uid());
+      END IF;
+
+      IF (NEW.coordination_details->>'is_escalated')::boolean IS DISTINCT FROM
+         (OLD.coordination_details->>'is_escalated')::boolean THEN
+        IF (NEW.coordination_details->>'is_escalated')::boolean = true THEN
+          v_summary := 'Escalated to Value Matrix for financial evaluation';
+        ELSE
+          v_summary := 'Recalled from Value Matrix — returned to Coordination Board only';
+        END IF;
+        INSERT INTO item_activity (project_id, opportunity_id, option_id, activity_type, content, author_id)
+        VALUES (v_project_id, v_opportunity_id, v_option_id, 'system_log', v_summary, auth.uid());
+      END IF;
     END IF;
 
   ELSIF TG_TABLE_NAME = 'opportunity_options' THEN
@@ -2636,7 +2653,8 @@ CREATE OR REPLACE FUNCTION public.compare_estimate_versions(
   description text,
   old_amount numeric,
   new_amount numeric,
-  delta_amount numeric
+  delta_amount numeric,
+  variance_note_b text
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF NOT has_project_permission(p_project_id, 'can_view_project') THEN
@@ -2657,7 +2675,8 @@ BEGIN
     COALESCE(b.description, a.description) as description,
     COALESCE(a.budget_amount, 0) as old_amount,
     COALESCE(b.budget_amount, 0) as new_amount,
-    COALESCE(b.budget_amount, 0) - COALESCE(a.budget_amount, 0) as delta_amount
+    COALESCE(b.budget_amount, 0) - COALESCE(a.budget_amount, 0) as delta_amount,
+    evn.variance_note as variance_note_b
   FROM 
     (SELECT e.cost_code, e.cost_type, MAX(e.description) as description, SUM(e.budget_amount) as budget_amount 
      FROM project_estimates e WHERE e.version_id = p_version_a_id 
@@ -2667,6 +2686,10 @@ BEGIN
      FROM project_estimates e WHERE e.version_id = p_version_b_id 
      GROUP BY e.cost_code, e.cost_type) b
   ON a.cost_code = b.cost_code AND a.cost_type = b.cost_type
+  LEFT JOIN estimate_variance_notes evn
+    ON evn.estimate_version_id = p_version_b_id
+    AND evn.cost_code = COALESCE(a.cost_code, b.cost_code)
+    AND COALESCE(a.cost_code, b.cost_code) IS NOT NULL
   ORDER BY cost_code ASC, cost_type ASC;
 END;
 $$;
@@ -2889,7 +2912,8 @@ CREATE OR REPLACE FUNCTION public.get_multi_version_matrix(
   version_id     uuid,
   version_name   text,
   version_date   date,
-  budget_amount  numeric
+  budget_amount  numeric,
+  variance_note  text
 ) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS 
 BEGIN
   -- RBAC gate (matches existing compare_estimate_versions pattern)
@@ -2915,9 +2939,14 @@ BEGIN
     v.id                                        AS version_id,
     v.version_name::text                        AS version_name,
     v.version_date                              AS version_date,
-    SUM(e.budget_amount)                        AS budget_amount
+    SUM(e.budget_amount)                        AS budget_amount,
+    MAX(evn.variance_note)::text                AS variance_note
   FROM project_estimates e
   JOIN project_estimate_versions v ON v.id = e.version_id
+  LEFT JOIN estimate_variance_notes evn
+    ON evn.estimate_version_id = v.id
+    AND evn.cost_code = e.cost_code
+    AND e.cost_code IS NOT NULL
   WHERE v.id = ANY(p_version_ids)
     AND v.project_id = p_project_id
   GROUP BY e.cost_code, v.id, v.version_name, v.version_date

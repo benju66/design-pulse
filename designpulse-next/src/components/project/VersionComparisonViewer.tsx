@@ -22,7 +22,7 @@ import {
   type SortingState,
   type ExpandedState,
 } from '@tanstack/react-table';
-import { GitCompareArrows, Check, ChevronDown, ChevronRight, Loader2, AlertCircle, Star } from 'lucide-react';
+import { GitCompareArrows, Check, ChevronDown, ChevronRight, Loader2, AlertCircle, Star, MessageSquare } from 'lucide-react';
 import { useProjectEstimateVersions, useMultiVersionMatrix } from '@/hooks/useEstimateQueries';
 import type { ProjectEstimateVersion } from '@/types/models';
 
@@ -120,6 +120,7 @@ function VersionChipPicker({
 export function VersionComparisonViewer({ projectId }: { projectId: string }) {
   const { data: versions = [], isLoading: versionsLoading } = useProjectEstimateVersions(projectId);
   const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([]);
+  const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
 
   // Selection handlers
   const selectedSet = useMemo(() => new Set(selectedVersionIds), [selectedVersionIds]);
@@ -169,6 +170,10 @@ export function VersionComparisonViewer({ projectId }: { projectId: string }) {
       }
       const row = rowMap.get(r.cost_code)!;
       row[r.version_id] = Number(r.budget_amount) || 0;
+      // Store variance note keyed by `${versionId}_note`
+      if (r.variance_note) {
+        row[`${r.version_id}_note`] = r.variance_note;
+      }
     }
     return Array.from(rowMap.values());
   }, [rawData]);
@@ -223,6 +228,8 @@ export function VersionComparisonViewer({ projectId }: { projectId: string }) {
       cell: (info: { getValue: () => unknown; row: { original: MatrixRow } }) => {
         const amount = info.getValue() as number;
         const baselineAmount = baselineVersionId ? (info.row.original[baselineVersionId] as number ?? 0) : 0;
+        const noteText = (info.row.original[`${v.id}_note`] as string) || '';
+        const cellKey = `${info.row.original.cost_code}_${v.id}`;
 
         // Calculate percentage change from baseline
         let pctChange = 0;
@@ -232,13 +239,40 @@ export function VersionComparisonViewer({ projectId }: { projectId: string }) {
         const heatClass = v.id === baselineVersionId ? '' : getHeatmapClass(pctChange);
 
         return (
-          <div className={`px-3 py-2 text-right tabular-nums text-sm h-full flex items-center justify-end ${heatClass}`}>
+          <div className={`px-3 py-2 text-right tabular-nums text-sm h-full flex items-center justify-end gap-1 relative ${heatClass}`}>
             {amount !== 0 ? (
               <span className="font-mono text-slate-700 dark:text-slate-300">
                 {formatCurrency(amount)}
               </span>
             ) : (
               <span className="text-slate-300 dark:text-slate-600">—</span>
+            )}
+            {amount !== 0 && noteText && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setExpandedNoteKey(expandedNoteKey === cellKey ? null : cellKey); }}
+                className={`p-0.5 rounded transition-colors shrink-0 ${
+                  expandedNoteKey === cellKey
+                    ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400'
+                    : 'text-sky-400 dark:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30'
+                }`}
+                title="View variance note"
+              >
+                <MessageSquare size={11} />
+              </button>
+            )}
+            {/* Click-to-expand overlay panel (F1 fix — absolute, no sibling tr) */}
+            {expandedNoteKey === cellKey && noteText && (
+              <div
+                className="absolute top-full right-0 mt-1 z-[100] w-[22rem] p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl text-left animate-in fade-in slide-in-from-top-1 duration-150"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider text-sky-500 block mb-1">
+                  {v.version_name} — Variance Note
+                </span>
+                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  {noteText}
+                </p>
+              </div>
             )}
           </div>
         );

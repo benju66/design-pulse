@@ -69,6 +69,8 @@ interface OpportunityGridProps {
   onClearFilters?: () => void;
   // Phase 2: pre-computed variance note lookup (cost_code → note text)
   varianceNoteMap?: Record<string, string>;
+  // Phase 2: active estimate version ID for version-scoped note editing
+  activeVersionId?: string | null;
   /** Fires when the internal filter drawer opens/closes — lets parent views react (e.g. auto-collapse analytics) */
   onFilterDrawerToggle?: (isOpen: boolean) => void;
 }
@@ -176,6 +178,38 @@ const MemoizedGroupedRow = React.memo(function MemoizedGroupedRow({ row, virtual
                     })()
                 }
               </span>
+              {/* Phase 4: Division-level summary chips */}
+              {isDivisionLevel && isLedgerView && (() => {
+                // Collect all leaf rows across nested sub-groups
+                const leaves: Row<Opportunity>[] = [];
+                const collectLeaves = (rows: Row<Opportunity>[]) => {
+                  for (const r of rows) {
+                    if (r.subRows.length > 0) collectLeaves(r.subRows);
+                    else leaves.push(r);
+                  }
+                };
+                collectLeaves(row.subRows);
+                const baseline = leaves
+                  .filter(r => r.original.is_budget_line)
+                  .reduce((s, r) => s + (Number(r.original.baseline_budget) || 0), 0);
+                const variance = leaves
+                  .filter(r => !r.original.is_budget_line)
+                  .reduce((s, r) => s + (Number(r.original.cost_impact) || 0), 0);
+                const fmtDiv = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0, notation: 'compact' }).format(n);
+                if (baseline === 0 && variance === 0) return null;
+                return (
+                  <span className="flex items-center gap-1.5 ml-2 shrink-0">
+                    {baseline > 0 && (
+                      <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 tabular-nums">{fmtDiv(baseline)}</span>
+                    )}
+                    {Math.abs(variance) > 0.001 && (
+                      <span className={`text-[10px] font-bold tabular-nums ${variance < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {variance >= 0 ? '+' : ''}{fmtDiv(variance)}
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
             </span>
           </td>
           {/* Remaining cells: financial ones render aggregated values, others render empty */}
@@ -297,7 +331,16 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
             : (isSubRow 
                 ? 'border-l border-sky-200 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-900/20' 
                 : row.original.is_budget_line
-                   ? 'bg-amber-50/30 dark:bg-amber-900/10 hover:bg-amber-50/60 dark:hover:bg-amber-900/20 border-l-[3px] border-amber-400' 
+                   ? (() => {
+                       // Phase 4: Variance severity color bands
+                       const bl = Number(row.original.baseline_budget) || 0;
+                       const rv = Number(row.original.revised_budget) || 0;
+                       const delta = rv - bl;
+                       const pct = bl > 0 ? delta / bl : 0;
+                       if (pct >= 0.1) return 'bg-rose-50/30 dark:bg-rose-900/10 hover:bg-rose-50/60 dark:hover:bg-rose-900/20 border-l-[3px] border-rose-400';
+                       if (pct <= -0.1) return 'bg-emerald-50/30 dark:bg-emerald-900/10 hover:bg-emerald-50/60 dark:hover:bg-emerald-900/20 border-l-[3px] border-emerald-400';
+                       return 'bg-amber-50/30 dark:bg-amber-900/10 hover:bg-amber-50/60 dark:hover:bg-amber-900/20 border-l-[3px] border-amber-400';
+                     })() 
                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
         }`}
       >
@@ -382,7 +425,7 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
   );
 });
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {}, onFilterDrawerToggle }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {}, activeVersionId, onFilterDrawerToggle }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -611,6 +654,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       permissions,
       // Phase 2: variance note lookup for LedgerDeltaCell icon
       varianceNoteMap,
+      // Phase 2: active version ID for version-scoped note editing
+      activeVersionId,
       // Phase 3: Ledger mode flag — used by ImpactCell to de-emphasize VE cost_impact
       isLedgerView,
     },

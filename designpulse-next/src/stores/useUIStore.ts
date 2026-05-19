@@ -134,6 +134,12 @@ export interface UIState {
   }>;
   setPermitFilters: (projectId: string, filters: { status?: string[]; type?: string[]; assignee?: string[]; ahj?: string[] }) => void;
   
+  permitColumnVisibility: Record<string, import('@tanstack/react-table').VisibilityState>;
+  setPermitColumnVisibility: (projectId: string, updater: import('@tanstack/react-table').VisibilityState | ((old: import('@tanstack/react-table').VisibilityState) => import('@tanstack/react-table').VisibilityState)) => void;
+  
+  permitColumnOrder: Record<string, string[]>;
+  setPermitColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
+  
   isMapVisible: boolean;
   toggleMapVisibility: () => void;
 }
@@ -339,6 +345,22 @@ export const useUIStore = create<UIState>()(
           [projectId]: filters
         }
       })),
+
+      permitColumnVisibility: {},
+      setPermitColumnVisibility: (projectId, updater) => set(state => ({
+        permitColumnVisibility: {
+          ...state.permitColumnVisibility,
+          [projectId]: typeof updater === 'function' ? updater(state.permitColumnVisibility[projectId] || {}) : updater
+        }
+      })),
+
+      permitColumnOrder: {},
+      setPermitColumnOrder: (projectId, updater) => set(state => ({
+        permitColumnOrder: {
+          ...state.permitColumnOrder,
+          [projectId]: typeof updater === 'function' ? updater(state.permitColumnOrder[projectId] || []) : updater
+        }
+      })),
       
       setCardOrder: (newOrder) => set({ cardOrder: newOrder }),
       
@@ -386,8 +408,10 @@ export const useUIStore = create<UIState>()(
         dashboardViewMode: state.dashboardViewMode ?? 'card',
         lessonsViewMode: state.lessonsViewMode ?? 'split',
         lessonsColumnVisibility: state.lessonsColumnVisibility ?? {},
+        permitColumnVisibility: state.permitColumnVisibility ?? {},
+        permitColumnOrder: state.permitColumnOrder ?? {},
       }),
-      version: 7,
+      version: 8,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -445,6 +469,14 @@ export const useUIStore = create<UIState>()(
             ...state,
             lessonsViewMode: 'split',
             lessonsColumnVisibility: {}
+          } as UIState;
+        }
+        if (version < 8) {
+          // v7 → v8: added permitColumnVisibility and permitColumnOrder
+          return {
+            ...state,
+            permitColumnVisibility: {},
+            permitColumnOrder: {}
           } as UIState;
         }
         return state as UIState;

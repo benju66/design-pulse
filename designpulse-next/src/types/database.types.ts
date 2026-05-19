@@ -355,6 +355,47 @@ export interface Database {
           updated_at?: string
         }
       }
+      permit_comments: {
+        Row: {
+          id: string
+          project_id: string
+          permit_id: string
+          discipline: string | null
+          comment_number: string | null
+          comment_text: string | null
+          response_text: string | null
+          status: string | null
+          assignee: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          permit_id: string
+          discipline?: string | null
+          comment_number?: string | null
+          comment_text?: string | null
+          response_text?: string | null
+          status?: string | null
+          assignee?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          permit_id?: string
+          discipline?: string | null
+          comment_number?: string | null
+          comment_text?: string | null
+          response_text?: string | null
+          status?: string | null
+          assignee?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       permit_task_links: {
         Row: {
           permit_id: string

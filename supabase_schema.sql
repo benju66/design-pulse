@@ -181,16 +181,35 @@ CREATE TABLE IF NOT EXISTS permits (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+DROP TRIGGER IF EXISTS trg_set_permit_display_id ON permits;
+CREATE TRIGGER trg_set_permit_display_id
+  BEFORE INSERT ON permits
+  FOR EACH ROW
+  EXECUTE FUNCTION generate_permit_display_id();
+
+-- [FIX BUG #1] Clean up any stale duplicate trigger (the one without 'trg_' prefix)
 DROP TRIGGER IF EXISTS set_permit_display_id ON permits;
-CREATE TRIGGER set_permit_display_id
-BEFORE INSERT ON permits
-FOR EACH ROW EXECUTE FUNCTION generate_permit_display_id();
 
 -- 4.6 Permit Task Links (Junction Table)
 CREATE TABLE IF NOT EXISTS permit_task_links (
   permit_id uuid NOT NULL REFERENCES permits(id) ON DELETE CASCADE,
   coordination_task_id uuid NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
   PRIMARY KEY (permit_id, coordination_task_id)
+);
+
+-- 4.7 Permit Comments Table
+CREATE TABLE IF NOT EXISTS permit_comments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  permit_id uuid NOT NULL REFERENCES permits(id) ON DELETE CASCADE,
+  discipline text,
+  comment_number text,
+  comment_text text,
+  response_text text,
+  status text DEFAULT 'Open' CHECK (status IN ('Open', 'Addressed', 'Approved')),
+  assignee text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- 5. Global Cost Codes Table
@@ -246,6 +265,7 @@ ALTER TABLE cost_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permit_task_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE permit_comments ENABLE ROW LEVEL SECURITY;
 
 -- 8. Security Policies
 
@@ -583,8 +603,17 @@ BEGIN
     v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
   ELSIF TG_TABLE_NAME = 'opportunity_options' THEN
     SELECT project_id INTO v_project_id FROM opportunities WHERE id = CASE WHEN TG_OP = 'DELETE' THEN OLD.opportunity_id ELSE NEW.opportunity_id END;
-  ELSIF TG_TABLE_NAME = 'estimate_variance_notes' THEN
+  ELSIF TG_TABLE_NAME = 'project_estimate_versions' THEN
     v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
+  ELSIF TG_TABLE_NAME IN ('permits', 'permit_comments') THEN
+    v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
+  ELSE
+    -- For project_settings, projects, etc., fall back to looking for an id column
+    BEGIN
+      v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END;
+    EXCEPTION WHEN OTHERS THEN 
+      v_project_id := NULL;
+    END;
   END IF;
 
   SELECT enable_audit_logging INTO v_audit_enabled FROM project_settings WHERE project_id = v_project_id;
@@ -646,6 +675,18 @@ CREATE TRIGGER trg_audit_opportunities AFTER INSERT OR UPDATE OR DELETE ON oppor
 
 DROP TRIGGER IF EXISTS trg_audit_opportunity_options ON opportunity_options;
 CREATE TRIGGER trg_audit_opportunity_options AFTER INSERT OR UPDATE OR DELETE ON opportunity_options FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+DROP TRIGGER IF EXISTS trg_audit_permits ON permits;
+CREATE TRIGGER trg_audit_permits AFTER INSERT OR UPDATE OR DELETE ON permits FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+DROP TRIGGER IF EXISTS trg_audit_permit_comments ON permit_comments;
+CREATE TRIGGER trg_audit_permit_comments AFTER INSERT OR UPDATE OR DELETE ON permit_comments FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+DROP TRIGGER IF EXISTS trg_permits_updated_at ON permits;
+CREATE TRIGGER trg_permits_updated_at BEFORE UPDATE ON permits FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
+
+DROP TRIGGER IF EXISTS trg_permit_comments_updated_at ON permit_comments;
+CREATE TRIGGER trg_permit_comments_updated_at BEFORE UPDATE ON permit_comments FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
 
 CREATE OR REPLACE FUNCTION trg_auto_update_coordination_status_fn()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -1093,7 +1134,10 @@ CREATE POLICY "Project Admins can view project audit logs"
 DO $$
 BEGIN
   BEGIN
-    ALTER PUBLICATION supabase_realtime ADD TABLE opportunities, opportunity_options;
+    ALTER PUBLICATION supabase_realtime ADD TABLE opportunities;
+    ALTER PUBLICATION supabase_realtime ADD TABLE opportunity_options;
+    ALTER PUBLICATION supabase_realtime ADD TABLE permits;
+    ALTER PUBLICATION supabase_realtime ADD TABLE permit_comments;
   EXCEPTION
     WHEN duplicate_object THEN NULL;
   END;
@@ -2226,7 +2270,8 @@ CREATE TABLE IF NOT EXISTS project_brand_standards (
   standard_description text NOT NULL,
   is_verified boolean DEFAULT false,
   is_deleted boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Unique constraint: prevent duplicate standard syncs per project (N-4)
@@ -2914,7 +2959,7 @@ CREATE OR REPLACE FUNCTION public.get_multi_version_matrix(
   version_date   date,
   budget_amount  numeric,
   variance_note  text
-) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS 
+) LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   -- RBAC gate (matches existing compare_estimate_versions pattern)
   IF NOT (is_platform_admin() OR get_user_project_role(p_project_id) IS NOT NULL) THEN
@@ -2952,7 +2997,7 @@ BEGIN
   GROUP BY e.cost_code, v.id, v.version_name, v.version_date
   ORDER BY cost_code ASC, v.version_date ASC, v.id ASC;
 END;
-;
+$$;
 
 REVOKE EXECUTE ON FUNCTION public.get_multi_version_matrix(uuid, uuid[])
   FROM PUBLIC, anon;

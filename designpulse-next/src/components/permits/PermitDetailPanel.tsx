@@ -1,7 +1,8 @@
 "use client";
 import { useState, useRef } from 'react';
 import { PermitRevision } from '@/types/models';
-import { useLogPermitRevision, usePermits, usePermitTaskLinks, useLinkPermitTask, useUnlinkPermitTask } from '@/hooks/usePermitQueries';
+import { useLogPermitRevision, usePermits, usePermitTaskLinks, useLinkPermitTask, useUnlinkPermitTask, usePermitComments } from '@/hooks/usePermitQueries';
+import { PermitCommentGrid } from './PermitCommentGrid';
 import { useOpportunities } from '@/hooks/useOpportunityQueries';
 import { X, Save, Clock, Link as LinkIcon, Unlink, Maximize, Minimize, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
@@ -11,6 +12,9 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
   const { data: permits } = usePermits(projectId);
   const permit = permits?.find(p => p.id === permitId);
   
+  const { data: commentsData } = usePermitComments(projectId);
+  const comments = commentsData?.filter(c => c.permit_id === permitId) || [];
+
   const { data: tasks } = usePermitTaskLinks(projectId);
   const { data: opportunities } = useOpportunities(projectId);
   const logRevision = useLogPermitRevision(projectId);
@@ -184,6 +188,15 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
           </div>
         </section>
 
+        {/* Plan Review Comments */}
+        <section>
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+            <Clock size={16} />
+            Plan Review Comments
+          </h3>
+          <PermitCommentGrid projectId={projectId} permitId={permitId} comments={comments} />
+        </section>
+
         {/* Linked Coordination Tasks */}
         <section>
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
@@ -229,7 +242,7 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
                 defaultValue=""
               >
                 <option value="" disabled>Select task to link...</option>
-                {opportunities?.filter(o => o.record_type === 'CD' && !linkedTaskIds.includes(o.id)).map(o => (
+                {opportunities?.filter(o => o.record_type === 'Coordination' && !linkedTaskIds.includes(o.id)).map(o => (
                   <option key={o.id} value={o.id}>
                     {o.display_id} - {o.title}
                   </option>

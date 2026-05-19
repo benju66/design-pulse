@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { toast } from 'sonner';
-import { Permit, PermitTaskLink } from '@/types/models';
+import { Permit, PermitTaskLink, PermitRevision, PermitComment } from '@/types/models';
 
 export function usePermits(projectId: string | null) {
   return useQuery<Permit[], Error>({
@@ -50,7 +50,7 @@ export function useCreatePermit(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<Permit, Error, Partial<Permit>, { previousPermits: Permit[] | undefined }>({
     mutationFn: async (newRow) => {
-      const realUUID = (newRow as any).id; // Minted on client
+      const realUUID = (newRow as Record<string, unknown>).id as string | undefined; // Minted on client
       const { data, error } = await supabase
         .from('permits')
         .insert([{ 
@@ -70,7 +70,7 @@ export function useCreatePermit(projectId: string) {
       const previousPermits = queryClient.getQueryData<Permit[]>(['permits', projectId]);
       
       const realUUID = crypto.randomUUID();
-      (newRow as any).id = realUUID;
+      (newRow as Record<string, unknown>).id = realUUID;
 
       queryClient.setQueryData<Permit[]>(['permits', projectId], old => {
         const optimisticPermit: Permit = {
@@ -197,7 +197,7 @@ export function useLogPermitRevision(projectId: string) {
   return useMutation<
     unknown, 
     Error, 
-    { permitId: string; newRevision: any },
+    { permitId: string; newRevision: PermitRevision },
     { previousPermits: Permit[] | undefined }
   >({
     mutationFn: async ({ permitId, newRevision }) => {
@@ -219,7 +219,7 @@ export function useLogPermitRevision(projectId: string) {
             const currentHistory = Array.isArray(p.revision_history) ? p.revision_history : [];
             return {
               ...p,
-              revision_history: [...currentHistory, newRevision],
+              revision_history: [...currentHistory, newRevision as any],
               revision_number: (p.revision_number || 0) + 1,
               status: newRevision.status || p.status
             };
@@ -289,6 +289,91 @@ export function useUnlinkPermitTask(projectId: string) {
     },
     onError: (err) => {
       toast.error(`Failed to unlink task: ${err.message}`);
+    }
+  });
+}
+
+export function usePermitComments(projectId: string | null) {
+  return useQuery<PermitComment[], Error>({
+    queryKey: ['permit_comments', projectId],
+    queryFn: async () => {
+      if (!projectId) return [];
+      const { data, error } = await supabase
+        .from('permit_comments')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: true });
+      if (error) {
+        console.warn("Supabase Error:", error);
+        return [];
+      }
+      return data as PermitComment[];
+    },
+    enabled: !!projectId
+  });
+}
+
+export function useCreatePermitComment(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<PermitComment, Error, Partial<PermitComment>>({
+    mutationFn: async (newRow) => {
+      const { data, error } = await supabase
+        .from('permit_comments')
+        .insert([{ ...newRow, project_id: projectId }])
+        .select()
+        .single();
+      if (error) throw new Error(error.message || JSON.stringify(error));
+      return data as PermitComment;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['permit_comments', projectId] });
+    },
+    onError: (err) => {
+      console.error('Create Permit Comment Error:', err);
+      toast.error(`Failed to add comment: ${err.message || 'Unknown error'}`);
+    }
+  });
+}
+
+export function useUpdatePermitComment(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<PermitComment, Error, { id: string; updates: Partial<PermitComment> }>({
+    mutationFn: async ({ id, updates }) => {
+      const { data, error } = await supabase
+        .from('permit_comments')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw new Error(error.message || JSON.stringify(error));
+      return data as PermitComment;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['permit_comments', projectId] });
+    },
+    onError: (err) => {
+      console.error('Update Permit Comment Error:', err);
+      toast.error(`Failed to update comment: ${err.message || 'Unknown error'}`);
+    }
+  });
+}
+
+export function useDeletePermitComment(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (id) => {
+      const { error } = await supabase
+        .from('permit_comments')
+        .delete()
+        .eq('id', id);
+      if (error) throw new Error(error.message || JSON.stringify(error));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['permit_comments', projectId] });
+    },
+    onError: (err) => {
+      console.error('Delete Permit Comment Error:', err);
+      toast.error(`Failed to delete comment: ${err.message || 'Unknown error'}`);
     }
   });
 }

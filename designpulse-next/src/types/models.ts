@@ -46,6 +46,7 @@ export type OpportunityOption = Database['public']['Tables']['opportunity_option
 export type CostCode = Database['public']['Tables']['cost_codes']['Row'];
 export type Permit = Database['public']['Tables']['permits']['Row'];
 export type PermitTaskLink = Database['public']['Tables']['permit_task_links']['Row'];
+export type PermitComment = Database['public']['Tables']['permit_comments']['Row'];
 
 export interface PermitRevision {
   status: string;

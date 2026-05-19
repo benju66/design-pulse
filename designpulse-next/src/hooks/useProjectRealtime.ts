@@ -18,6 +18,8 @@ export function useProjectRealtime(projectId: string | null) {
         queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId], refetchType: 'active' });
+        queryClient.invalidateQueries({ queryKey: ['permits', projectId], refetchType: 'active' });
+        queryClient.invalidateQueries({ queryKey: ['permit_comments', projectId], refetchType: 'active' });
       }, 300);
     };
 
@@ -35,6 +37,16 @@ export function useProjectRealtime(projectId: string | null) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'opportunity_options', filter: `project_id=eq.${projectId}` },
+        debouncedInvalidate
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'permits', filter: `project_id=eq.${projectId}` },
+        debouncedInvalidate
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'permit_comments', filter: `project_id=eq.${projectId}` },
         debouncedInvalidate
       )
       .subscribe();

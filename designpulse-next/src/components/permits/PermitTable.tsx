@@ -15,7 +15,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronUp, ChevronDown, PanelRight, MapIcon, SlidersHorizontal, AlertTriangle } from 'lucide-react';
 import { Permit, PermitTypeConfig, PermitAHJConfig } from '@/types/models';
-import { useUpdatePermit, useDeletePermit, useCreatePermit, usePermitComments } from '@/hooks/usePermitQueries';
+import { useUpdatePermit, useDeletePermit, useCreatePermit, usePermitComments, useUpdatePermitStatusWithLog } from '@/hooks/usePermitQueries';
 import { useProjectSettings, useProjectMembers } from '@/hooks/useProjectCoreQueries';
 import { useUIStore } from '@/stores/useUIStore';
 import { useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
@@ -257,7 +257,7 @@ const OpenCommentsCell = React.memo(({ row, table }: CellContext<Permit, unknown
 {/* eslint-disable-next-line react/display-name */}
 const PermitStatusCell = React.memo(({ getValue, row, column, table }: CellContext<Permit, unknown>) => {
   const initialValue = getValue() as string;
-  const updateData = table.options.meta?.updateData;
+  const updateStatusWithLog = (table.options.meta as any)?.updateStatusWithLog;
   const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
   const setActiveCell = useUIStore(state => state.setActiveCell);
   const setGridMode = useUIStore(state => state.setGridMode);
@@ -276,23 +276,23 @@ const PermitStatusCell = React.memo(({ getValue, row, column, table }: CellConte
   else if (initialValue === 'Approved') colorClass = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
 
   return (
-    <div className="w-full h-full p-0 flex items-center">
+    <div className={`w-full h-full p-0 flex items-center relative ${isCellActive ? 'ring-2 ring-sky-400 z-10' : ''}`}>
       <select
         ref={selectRef}
         onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
         value={initialValue || 'Preparing'}
         disabled={!permissions.can_edit_records}
         onChange={e => {
-          if (updateData && e.target.value !== initialValue) {
-            updateData.mutate({ id: row.original.id, updates: { [column.id]: e.target.value } });
+          if (updateStatusWithLog && e.target.value !== initialValue) {
+            updateStatusWithLog(row.original.id, e.target.value);
           }
           setGridMode('navigate');
         }}
-        className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm font-medium cursor-pointer ${colorClass} ${isCellActive ? 'ring-2 ring-sky-400' : ''}`}
+        className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 px-2 py-1 text-sm font-medium cursor-pointer ${colorClass}`}
       >
+        <option value="None">None</option>
         <option value="Preparing">Preparing</option>
         <option value="Submitted">Submitted</option>
-        <option value="Under Review">Under Review</option>
         <option value="Comments Received">Comments Received</option>
         <option value="Approved">Approved</option>
       </select>
@@ -317,24 +317,26 @@ const PermitDropdownCell = React.memo(({ getValue, row, column, table, options }
   }, [isCellActive]);
 
   return (
-    <select
-      ref={selectRef}
-      onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
-      value={initialValue || ''}
-      disabled={!permissions.can_edit_records}
-      onChange={e => {
-        if (updateData && e.target.value !== initialValue) {
-          updateData.mutate({ id: row.original.id, updates: { [column.id]: e.target.value || null } });
-        }
-        setGridMode('navigate');
-      }}
-      className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm cursor-pointer text-slate-900 dark:text-slate-100 ${isCellActive ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20' : ''}`}
-    >
+    <div className={`w-full h-full p-0 flex items-center relative ${isCellActive ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20 z-10' : ''}`}>
+      <select
+        ref={selectRef}
+        onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
+        value={initialValue || ''}
+        disabled={!permissions.can_edit_records}
+        onChange={e => {
+          if (updateData && e.target.value !== initialValue) {
+            updateData.mutate({ id: row.original.id, updates: { [column.id]: e.target.value || null } });
+          }
+          setGridMode('navigate');
+        }}
+        className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 px-2 py-1 text-sm cursor-pointer text-slate-900 dark:text-slate-100`}
+      >
       <option value="" className="text-slate-400">None</option>
       {options.map(opt => (
         <option key={opt.id} value={opt.label}>{opt.label}</option>
       ))}
     </select>
+    </div>
   );
 }, commonCellComparator);
 
@@ -485,6 +487,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
   const deletePermit = useDeletePermit(projectId);
   const { permissions: rawPermissions } = useCurrentUserPermissions(projectId);
   const permissions = rawPermissions || { can_edit_records: false, can_delete_records: false };
+  const updateStatusWithLog = useUpdatePermitStatusWithLog(projectId);
   const { data: settings } = useProjectSettings(projectId);
   const { data: members } = useProjectMembers(projectId);
 
@@ -644,6 +647,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
     meta: {
       projectId,
       updateData,
+      updateStatusWithLog,
       permissions,
       projectMembers: members || [],
       moveActiveCellRef,

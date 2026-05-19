@@ -235,6 +235,7 @@ export interface ItemActivity {
   opportunity_id: string | null;
   option_id: string | null;
   lesson_id: string | null;
+  permit_id: string | null;
   activity_type: 'system_log' | 'user_comment';
   content: string;
   mentions: string[]; // UUIDs

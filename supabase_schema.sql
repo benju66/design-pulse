@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS permits (
   title text NOT NULL,
   permit_type text,
   ahj text,
-  status text DEFAULT 'Preparing' CHECK (status IN ('Preparing', 'Submitted', 'Under Review', 'Comments Received', 'Approved')),
+  status text DEFAULT 'Preparing' CHECK (status IN ('None', 'Preparing', 'Submitted', 'Comments Received', 'Approved')),
   assignee text,
   date_submitted timestamp with time zone,
   target_approval_date timestamp with time zone,
@@ -389,6 +389,31 @@ CREATE POLICY "Members can update permits"
 DROP POLICY IF EXISTS "Admins can delete permits" ON permits;
 CREATE POLICY "Admins can delete permits" 
   ON permits FOR DELETE USING (
+    public.has_project_permission(project_id, 'can_delete_records')
+  );
+
+-- Permit Comments
+DROP POLICY IF EXISTS "Members can view permit comments" ON permit_comments;
+CREATE POLICY "Members can view permit comments" 
+  ON permit_comments FOR SELECT USING (
+    is_platform_admin() OR public.get_user_project_role(project_id) IS NOT NULL
+  );
+
+DROP POLICY IF EXISTS "Members can insert permit comments" ON permit_comments;
+CREATE POLICY "Members can insert permit comments" 
+  ON permit_comments FOR INSERT WITH CHECK (
+    public.get_user_project_role(project_id) IS NOT NULL
+  );
+
+DROP POLICY IF EXISTS "Members can update permit comments" ON permit_comments;
+CREATE POLICY "Members can update permit comments" 
+  ON permit_comments FOR UPDATE USING (
+    public.get_user_project_role(project_id) IS NOT NULL
+  );
+
+DROP POLICY IF EXISTS "Members can delete permit comments" ON permit_comments;
+CREATE POLICY "Members can delete permit comments" 
+  ON permit_comments FOR DELETE USING (
     public.has_project_permission(project_id, 'can_delete_records')
   );
 
@@ -1380,30 +1405,43 @@ AFTER UPDATE OF is_deleted ON opportunities
 FOR EACH ROW EXECUTE FUNCTION cascade_soft_delete_opportunities();
 
 -- 8. Atomic Permit Revision Logging
-CREATE OR REPLACE FUNCTION log_permit_revision(
+CREATE OR REPLACE FUNCTION log_permit_activity(
   p_permit_id UUID,
-  p_new_revision JSONB
+  p_event_type TEXT,
+  p_note TEXT,
+  p_new_status TEXT DEFAULT NULL
 ) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_project_id UUID;
-  v_current_history JSONB;
+  v_old_status TEXT;
+  v_new_rev_num INTEGER;
 BEGIN
-  SELECT project_id, COALESCE(revision_history, '[]'::jsonb) INTO v_project_id, v_current_history
+  SELECT project_id, status INTO v_project_id, v_old_status
   FROM permits WHERE id = p_permit_id FOR UPDATE;
 
   IF NOT public.has_project_permission(v_project_id, 'can_edit_records') THEN
-    RAISE EXCEPTION 'Unauthorized: Insufficient privileges to log revisions';
+    RAISE EXCEPTION 'Unauthorized: Insufficient privileges to log activity';
   END IF;
 
-  IF jsonb_typeof(COALESCE(v_current_history, '[]'::jsonb)) != 'array' THEN
-    v_current_history := '[]'::jsonb;
-  END IF;
+  IF p_event_type = 'submission' THEN
+    UPDATE permits
+    SET revision_number = revision_number + 1,
+        status = 'Submitted'
+    WHERE id = p_permit_id
+    RETURNING revision_number INTO v_new_rev_num;
 
-  UPDATE permits
-  SET revision_history = v_current_history || p_new_revision,
-      revision_number = revision_number + 1,
-      status = COALESCE(p_new_revision->>'status', status)
-  WHERE id = p_permit_id;
+    INSERT INTO item_activity (id, project_id, permit_id, activity_type, content, author_id)
+    VALUES (gen_random_uuid(), v_project_id, p_permit_id, 'system_log', 'Revision ' || v_new_rev_num || ' Submitted: ' || p_note, auth.uid());
+    
+  ELSIF p_event_type = 'status_change' AND p_new_status IS NOT NULL THEN
+    IF v_old_status IS DISTINCT FROM p_new_status THEN
+      UPDATE permits SET status = p_new_status WHERE id = p_permit_id;
+      INSERT INTO item_activity (id, project_id, permit_id, activity_type, content, author_id)
+      VALUES (gen_random_uuid(), v_project_id, p_permit_id, 'system_log', 'System: Status changed to ' || p_new_status, auth.uid());
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'Invalid event_type or missing arguments';
+  END IF;
 END;
 $$;
 
@@ -1521,12 +1559,15 @@ CREATE TABLE IF NOT EXISTS item_activity (
 
 ALTER TABLE item_activity ALTER COLUMN opportunity_id DROP NOT NULL;
 ALTER TABLE item_activity ADD COLUMN IF NOT EXISTS lesson_id uuid REFERENCES project_lessons(id) ON DELETE CASCADE;
+ALTER TABLE item_activity ADD COLUMN IF NOT EXISTS permit_id uuid REFERENCES permits(id) ON DELETE CASCADE;
 
 ALTER TABLE item_activity REPLICA IDENTITY FULL;
 
 -- 2. Indexes
 CREATE INDEX IF NOT EXISTS idx_item_activity_opportunity_id ON item_activity(opportunity_id);
 CREATE INDEX IF NOT EXISTS idx_item_activity_project_id ON item_activity(project_id);
+CREATE INDEX IF NOT EXISTS idx_item_activity_lesson_id ON item_activity(lesson_id);
+CREATE INDEX IF NOT EXISTS idx_item_activity_permit_id ON item_activity(permit_id);
 
 -- 3. Enable RLS
 ALTER TABLE item_activity ENABLE ROW LEVEL SECURITY;
@@ -1545,7 +1586,11 @@ FOR INSERT WITH CHECK (
   public.has_project_permission(project_id, 'can_edit_records') AND
   activity_type = 'user_comment' AND
   author_id = auth.uid() AND
-  EXISTS (SELECT 1 FROM opportunities o WHERE o.id = opportunity_id AND o.project_id = item_activity.project_id)
+  (
+    (opportunity_id IS NOT NULL AND EXISTS (SELECT 1 FROM opportunities o WHERE o.id = opportunity_id AND o.project_id = item_activity.project_id)) OR
+    (lesson_id IS NOT NULL AND EXISTS (SELECT 1 FROM project_lessons l WHERE l.id = lesson_id AND l.project_id = item_activity.project_id)) OR
+    (permit_id IS NOT NULL AND EXISTS (SELECT 1 FROM permits p WHERE p.id = permit_id AND p.project_id = item_activity.project_id))
+  )
 );
 
 DROP POLICY IF EXISTS "Authors can update their own comments" ON item_activity;
@@ -1570,7 +1615,7 @@ BEGIN
   IF OLD.activity_type = 'system_log' THEN
     RAISE EXCEPTION 'System logs are strictly immutable and cannot be updated.';
   END IF;
-  IF NEW.project_id IS DISTINCT FROM OLD.project_id OR NEW.opportunity_id IS DISTINCT FROM OLD.opportunity_id OR NEW.option_id IS DISTINCT FROM OLD.option_id OR NEW.author_id IS DISTINCT FROM OLD.author_id OR NEW.activity_type IS DISTINCT FROM OLD.activity_type THEN
+  IF NEW.project_id IS DISTINCT FROM OLD.project_id OR NEW.opportunity_id IS DISTINCT FROM OLD.opportunity_id OR NEW.option_id IS DISTINCT FROM OLD.option_id OR NEW.author_id IS DISTINCT FROM OLD.author_id OR NEW.activity_type IS DISTINCT FROM OLD.activity_type OR NEW.lesson_id IS DISTINCT FROM OLD.lesson_id OR NEW.permit_id IS DISTINCT FROM OLD.permit_id THEN
     RAISE EXCEPTION 'Core relational columns on item_activity cannot be mutated after creation.';
   END IF;
   NEW.updated_at = timezone('utc'::text, now());

@@ -1,12 +1,11 @@
 "use client";
 import { useState, useRef } from 'react';
-import { PermitRevision } from '@/types/models';
-import { useLogPermitRevision, usePermits, usePermitTaskLinks, useLinkPermitTask, useUnlinkPermitTask, usePermitComments } from '@/hooks/usePermitQueries';
+import { useLogPermitActivity, usePermits, usePermitTaskLinks, useLinkPermitTask, useUnlinkPermitTask, usePermitComments } from '@/hooks/usePermitQueries';
 import { PermitCommentGrid } from './PermitCommentGrid';
 import { useOpportunities } from '@/hooks/useOpportunityQueries';
-import { X, Save, Clock, Link as LinkIcon, Unlink, Maximize, Minimize, ExternalLink } from 'lucide-react';
-import { format } from 'date-fns';
+import { X, Save, Link as LinkIcon, Unlink, Maximize, Minimize, ExternalLink, List, Paperclip, MessageSquare, Send } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
+import { ActivityFeed } from '@/components/opportunities/ActivityFeed';
 
 export default function PermitDetailPanel({ projectId, permitId }: { projectId: string, permitId: string }) {
   const { data: permits } = usePermits(projectId);
@@ -17,13 +16,18 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
 
   const { data: tasks } = usePermitTaskLinks(projectId);
   const { data: opportunities } = useOpportunities(projectId);
-  const logRevision = useLogPermitRevision(projectId);
+  const logActivity = useLogPermitActivity(projectId);
   const linkTask = useLinkPermitTask(projectId);
   const unlinkTask = useUnlinkPermitTask(projectId);
   
   const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
+  
+  // Tabs state
+  const [activeTab, setActiveTab] = useState('Details');
+  
+  // Submission state
   const [newRevisionNote, setNewRevisionNote] = useState('');
-  const [newStatus, setNewStatus] = useState('Preparing');
+  
   const [isMaximized, setIsMaximized] = useState(false);
   const [panelWidth, setPanelWidth] = useState(40);
   const [isDragging, setIsDragging] = useState(false);
@@ -56,20 +60,15 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
   const currentLinks = tasks?.filter(t => t.permit_id === permit.id) || [];
   const linkedTaskIds = currentLinks.map(l => l.coordination_task_id);
 
-  const handleAddRevision = () => {
+  const handleRecordSubmission = () => {
     if (!newRevisionNote.trim()) return;
-    logRevision.mutate({
+    logActivity.mutate({
       permitId: permit.id,
-      newRevision: {
-        date: new Date().toISOString(),
-        note: newRevisionNote,
-        status: newStatus,
-        author: 'Current User', // In real app, pull from Auth
-      }
+      eventType: 'submission',
+      note: newRevisionNote
     }, {
       onSuccess: () => {
         setNewRevisionNote('');
-        setNewStatus(permit.status || 'Preparing');
       }
     });
   };
@@ -88,6 +87,8 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
           className="absolute left-0 top-0 bottom-0 w-3 -ml-1.5 cursor-col-resize z-20 hover:bg-sky-500/20 active:bg-sky-500/40 transition-colors"
         />
       )}
+      
+      {/* Header */}
       <div className="flex items-center p-4 border-b border-slate-200 dark:border-slate-800 relative w-full h-16 shrink-0 bg-slate-50 dark:bg-slate-950/50">
         <div>
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 truncate pr-4">
@@ -127,130 +128,137 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-8">
-        
-        {/* Revision History */}
-        <section>
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
-            <Clock size={16} />
-            Revision History
-          </h3>
-          
-          <div className="space-y-3 mb-4">
-            {(Array.isArray(permit.revision_history) ? (permit.revision_history as unknown as PermitRevision[]) : []).map((rev: PermitRevision, index: number) => (
-              <div key={index} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Status: {rev.status}
-                  </span>
-                  <span className="text-[10px] text-slate-400">
-                    {format(new Date(rev.date), 'MMM d, yyyy HH:mm')}
-                  </span>
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-                  {rev.note}
-                </p>
-              </div>
-            ))}
-            {(!permit.revision_history || (permit.revision_history as unknown as PermitRevision[]).length === 0) && (
-              <p className="text-sm text-slate-500 italic">No revisions logged yet.</p>
-            )}
-          </div>
-
-          <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700">
-            <h4 className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Log New Revision</h4>
-            <div className="space-y-2">
-              <select 
-                value={newStatus}
-                onChange={e => setNewStatus(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-sky-500 dark:text-white"
-              >
-                <option value="Preparing">Preparing</option>
-                <option value="Submitted">Submitted</option>
-                <option value="Under Review">Under Review</option>
-                <option value="Comments Received">Comments Received</option>
-                <option value="Approved">Approved</option>
-              </select>
-              <textarea 
-                value={newRevisionNote}
-                onChange={e => setNewRevisionNote(e.target.value)}
-                placeholder="Revision notes..."
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500 min-h-[80px] dark:text-white"
-              />
+      {/* Tab Bar */}
+      <div className="flex flex-wrap items-center gap-y-1 border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-800/30 px-4">
+        <div className="flex items-center space-x-1 py-2">
+          {['Details', 'Attachments', 'Activity'].map(tab => {
+            const Icon = tab === 'Details' ? List : tab === 'Attachments' ? Paperclip : MessageSquare;
+            return (
               <button 
-                onClick={handleAddRevision}
-                disabled={!newRevisionNote.trim() || logRevision.isPending}
-                className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-lg px-4 py-2 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                  activeTab === tab 
+                    ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
+                }`}
               >
-                <Save size={16} /> Save Revision
+                <Icon size={16} />
+                {tab}
               </button>
-            </div>
-          </div>
-        </section>
+            )
+          })}
+        </div>
+      </div>
 
-        {/* Plan Review Comments */}
-        <section>
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
-            <Clock size={16} />
-            Plan Review Comments
-          </h3>
-          <PermitCommentGrid projectId={projectId} permitId={permitId} comments={comments} />
-        </section>
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50 dark:bg-slate-900/50">
+        
+        {activeTab === 'Details' && (
+          <div className="space-y-8">
+            {/* Record Submission Section */}
+            <section className="p-4 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+                <Send size={16} className="text-sky-500" />
+                Record Submission
+              </h3>
+              <div className="space-y-3">
+                <textarea 
+                  value={newRevisionNote}
+                  onChange={e => setNewRevisionNote(e.target.value)}
+                  placeholder="Submission notes, link to plans, etc..."
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500 min-h-[80px] dark:text-white"
+                />
+                <button 
+                  onClick={handleRecordSubmission}
+                  disabled={!newRevisionNote.trim() || logActivity.isPending}
+                  className="w-full bg-sky-500 hover:bg-sky-600 text-white rounded-lg px-4 py-2 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                >
+                  <Save size={16} /> Submit & Increment Revision
+                </button>
+              </div>
+            </section>
 
-        {/* Linked Coordination Tasks */}
-        <section>
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
-            <LinkIcon size={16} />
-            Linked Tasks
-          </h3>
-          <div className="space-y-2">
-            {currentLinks.map(link => {
-              const task = opportunities?.find(o => o.id === link.coordination_task_id);
-              if (!task) return null;
-              return (
-                <div key={link.coordination_task_id} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <span className="text-xs font-medium text-slate-500 bg-slate-200 dark:bg-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded shrink-0">
-                      {task.display_id}
-                    </span>
-                    <span className="text-sm text-slate-700 dark:text-slate-300 truncate">
-                      {task.title}
-                    </span>
-                  </div>
-                  <button 
-                    onClick={() => unlinkTask.mutate({ permitId: permit.id, taskId: task.id })}
-                    disabled={unlinkTask.isPending}
-                    className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded transition-colors"
-                    title="Unlink Task"
+            {/* Plan Review Comments */}
+            <section>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+                <MessageSquare size={16} className="text-slate-400" />
+                Plan Review Comments
+              </h3>
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+                <PermitCommentGrid projectId={projectId} permitId={permitId} comments={comments} />
+              </div>
+            </section>
+
+            {/* Linked Coordination Tasks */}
+            <section>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+                <LinkIcon size={16} className="text-slate-400" />
+                Linked Tasks
+              </h3>
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 space-y-2">
+                {currentLinks.map(link => {
+                  const task = opportunities?.find(o => o.id === link.coordination_task_id);
+                  if (!task) return null;
+                  return (
+                    <div key={link.coordination_task_id} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <span className="text-xs font-medium text-slate-500 bg-slate-200 dark:bg-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded shrink-0">
+                          {task.display_id}
+                        </span>
+                        <span className="text-sm text-slate-700 dark:text-slate-300 truncate">
+                          {task.title}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={() => unlinkTask.mutate({ permitId: permit.id, taskId: task.id })}
+                        disabled={unlinkTask.isPending}
+                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded transition-colors"
+                        title="Unlink Task"
+                      >
+                        <Unlink size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+                
+                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <h4 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Available Tasks</h4>
+                  <select 
+                    onChange={e => {
+                      if (e.target.value) {
+                        linkTask.mutate({ permitId: permit.id, taskId: e.target.value });
+                        e.target.value = ""; // Reset select
+                      }
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500 dark:text-white"
+                    defaultValue=""
                   >
-                    <Unlink size={14} />
-                  </button>
+                    <option value="" disabled>Select task to link...</option>
+                    {opportunities?.filter(o => o.record_type === 'Coordination' && !linkedTaskIds.includes(o.id)).map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.display_id} - {o.title}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              );
-            })}
-            
-            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-              <h4 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">Available Tasks</h4>
-              <select 
-                onChange={e => {
-                  if (e.target.value) {
-                    linkTask.mutate({ permitId: permit.id, taskId: e.target.value });
-                    e.target.value = ""; // Reset select
-                  }
-                }}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500 dark:text-white"
-                defaultValue=""
-              >
-                <option value="" disabled>Select task to link...</option>
-                {opportunities?.filter(o => o.record_type === 'Coordination' && !linkedTaskIds.includes(o.id)).map(o => (
-                  <option key={o.id} value={o.id}>
-                    {o.display_id} - {o.title}
-                  </option>
-                ))}
-              </select>
-            </div>
+              </div>
+            </section>
           </div>
-        </section>
+        )}
+
+        {activeTab === 'Attachments' && (
+          <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-12 flex flex-col items-center justify-center text-slate-500 bg-white dark:bg-slate-800/50">
+            <Paperclip size={32} className="mb-3 text-slate-400" />
+            <p className="font-medium text-slate-600 dark:text-slate-300">Drag and drop files here, or click to browse</p>
+            <p className="text-sm mt-1 text-slate-400">Supports PDF, JPG, PNG, DOCX</p>
+          </div>
+        )}
+
+        {activeTab === 'Activity' && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 min-h-[400px]">
+            <ActivityFeed permitId={permit.id} projectId={projectId} />
+          </div>
+        )}
 
       </div>
     </div>

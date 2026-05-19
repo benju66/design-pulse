@@ -192,23 +192,25 @@ export function useDeletePermit(projectId: string) {
   });
 }
 
-export function useLogPermitRevision(projectId: string) {
+export function useLogPermitActivity(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation<
     unknown, 
     Error, 
-    { permitId: string; newRevision: PermitRevision },
+    { permitId: string; eventType: 'submission' | 'status_change'; note: string; newStatus?: string },
     { previousPermits: Permit[] | undefined }
   >({
-    mutationFn: async ({ permitId, newRevision }) => {
-      const { data, error } = await supabase.rpc('log_permit_revision', {
+    mutationFn: async ({ permitId, eventType, note, newStatus }) => {
+      const { data, error } = await supabase.rpc('log_permit_activity', {
         p_permit_id: permitId,
-        p_new_revision: newRevision || null
+        p_event_type: eventType,
+        p_note: note,
+        p_new_status: newStatus || null
       });
       if (error) throw new Error(error.message || JSON.stringify(error));
       return data;
     },
-    onMutate: async ({ permitId, newRevision }) => {
+    onMutate: async ({ permitId, eventType, newStatus }) => {
       await queryClient.cancelQueries({ queryKey: ['permits', projectId] });
       const previousPermits = queryClient.getQueryData<Permit[]>(['permits', projectId]);
       
@@ -216,12 +218,10 @@ export function useLogPermitRevision(projectId: string) {
         if (!old) return old;
         return old.map(p => {
           if (p.id === permitId) {
-            const currentHistory = Array.isArray(p.revision_history) ? p.revision_history : [];
             return {
               ...p,
-              revision_history: [...currentHistory, newRevision as any],
-              revision_number: (p.revision_number || 0) + 1,
-              status: newRevision.status || p.status
+              revision_number: eventType === 'submission' ? (p.revision_number || 0) + 1 : p.revision_number,
+              status: eventType === 'submission' ? 'Submitted' : (newStatus || p.status)
             };
           }
           return p;
@@ -234,13 +234,25 @@ export function useLogPermitRevision(projectId: string) {
       if (context?.previousPermits) {
         queryClient.setQueryData(['permits', projectId], context.previousPermits);
       }
-      console.error('Log Permit Revision Error:', err);
-      toast.error(`Failed to log revision: ${err.message || 'Unknown error'}`);
+      console.error('Log Permit Activity Error:', err);
+      toast.error(`Failed to log activity: ${err.message || 'Unknown error'}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['permits', projectId] });
     }
   });
+}
+
+export function useUpdatePermitStatusWithLog(projectId: string) {
+  const logActivity = useLogPermitActivity(projectId);
+  return (permitId: string, newStatus: string) => {
+    logActivity.mutate({
+      permitId,
+      eventType: 'status_change',
+      note: `System: Status changed to ${newStatus}`,
+      newStatus
+    });
+  };
 }
 
 export function useLinkPermitTask(projectId: string) {

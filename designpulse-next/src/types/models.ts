@@ -95,6 +95,7 @@ export interface ClientBrandStandard {
   client_id: string;
   source_project_id: string | null;
   cost_code: string | null;
+  division: string | null;
   normalized_csi_number: string | null;
   standard_description: string;
   category: string | null;

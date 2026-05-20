@@ -45,5 +45,12 @@ declare module '@tanstack/react-table' {
     // Client Brand Standards grid meta (AGENTS.md C1 — global TableMeta, no local interfaces)
     onUpdateBrandStandard?: (params: { id: string; updates: Record<string, unknown> }) => void;
     onDeleteBrandStandard?: (id: string) => void;
+    canEdit?: boolean;
+    newlyCreatedId?: string | null;
+    setNewlyCreatedId?: (id: string | null) => void;
+    existingCategories?: string[];
+    attachmentCounts?: Record<string, number>;
+    companyCsiDefaults?: import('./models').CompanyCsiDefault[];
+    clientProjects?: import('./models').Project[];
   }
 }

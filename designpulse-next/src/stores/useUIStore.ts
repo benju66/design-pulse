@@ -144,6 +144,12 @@ export interface UIState {
   
   isMapVisible: boolean;
   toggleMapVisibility: () => void;
+  
+  brandStandardsColumnVisibility: Record<string, import('@tanstack/react-table').VisibilityState>;
+  setBrandStandardsColumnVisibility: (clientId: string, updater: import('@tanstack/react-table').VisibilityState | ((old: import('@tanstack/react-table').VisibilityState) => import('@tanstack/react-table').VisibilityState)) => void;
+  
+  brandStandardsColumnOrder: Record<string, string[]>;
+  setBrandStandardsColumnOrder: (clientId: string, updater: string[] | ((old: string[]) => string[])) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -384,6 +390,22 @@ export const useUIStore = create<UIState>()(
       
       setCompareQueue: (queue) => set({ compareQueue: queue }),
       clearCompareQueue: () => set({ compareQueue: [] }),
+      
+      brandStandardsColumnVisibility: {},
+      setBrandStandardsColumnVisibility: (clientId, updater) => set(state => ({
+        brandStandardsColumnVisibility: {
+          ...state.brandStandardsColumnVisibility,
+          [clientId]: typeof updater === 'function' ? updater(state.brandStandardsColumnVisibility[clientId] || {}) : updater
+        }
+      })),
+
+      brandStandardsColumnOrder: {},
+      setBrandStandardsColumnOrder: (clientId, updater) => set(state => ({
+        brandStandardsColumnOrder: {
+          ...state.brandStandardsColumnOrder,
+          [clientId]: typeof updater === 'function' ? updater(state.brandStandardsColumnOrder[clientId] || []) : updater
+        }
+      })),
     }),
     {
       name: 'design-pulse-ui-prefs',
@@ -412,8 +434,10 @@ export const useUIStore = create<UIState>()(
         lessonsColumnVisibility: state.lessonsColumnVisibility ?? {},
         permitColumnVisibility: state.permitColumnVisibility ?? {},
         permitColumnOrder: state.permitColumnOrder ?? {},
+        brandStandardsColumnVisibility: state.brandStandardsColumnVisibility ?? {},
+        brandStandardsColumnOrder: state.brandStandardsColumnOrder ?? {},
       }),
-      version: 8,
+      version: 9,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -479,6 +503,14 @@ export const useUIStore = create<UIState>()(
             ...state,
             permitColumnVisibility: {},
             permitColumnOrder: {}
+          } as UIState;
+        }
+        if (version < 9) {
+          // v8 → v9: added brandStandardsColumnVisibility and brandStandardsColumnOrder
+          return {
+            ...state,
+            brandStandardsColumnVisibility: {},
+            brandStandardsColumnOrder: {}
           } as UIState;
         }
         return state as UIState;

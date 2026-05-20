@@ -1,13 +1,17 @@
 "use client";
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Plus, Trash2, Search, Paperclip } from 'lucide-react';
+import { Plus, Trash2, Search, Paperclip, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
+  getSortedRowModel,
   flexRender,
   createColumnHelper,
   ColumnDef,
+  SortingState,
+  VisibilityState,
+  ColumnOrderState,
 } from '@tanstack/react-table';
 import { ClientBrandStandard } from '@/types/models';
 import {
@@ -22,6 +26,8 @@ import { SmartCsiCombobox } from '@/components/ui/SmartCsiCombobox';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useCompanyCsiDefaults } from '@/hooks/useCompanyCsiQueries';
 import { useProjects } from '@/hooks/useProjectCoreQueries';
+import { useUIStore } from '@/stores/useUIStore';
+import { BrandStandardsColumnChooser } from './BrandStandardsColumnChooser';
 
 interface BrandStandardsGridProps {
   clientId: string;
@@ -194,6 +200,7 @@ const CostCodeCell = ({ row, table }: any) => {
           id: row.original.id, 
           updates: {
             cost_code: updates.cost_code ?? null,
+            ...(updates.division ? { division: updates.division } : {}),
           }
         });
       }}
@@ -201,6 +208,39 @@ const CostCodeCell = ({ row, table }: any) => {
       disabled={!canEdit}
       showCostTypeSegment={false}
     />
+  );
+};
+
+const DivisionCell = ({ row, table }: any) => {
+  const { canEdit, rawCostCodes, onUpdateBrandStandard } = table.options.meta;
+  const divisions = rawCostCodes.filter((c: any) => c.is_division);
+  const value = row.original.division || '';
+
+  if (!canEdit) {
+    const div = divisions.find((d: any) => d.code === value);
+    return (
+      <div className="px-2 py-1 text-xs text-slate-700 dark:text-slate-200 truncate">
+        {div ? div.description : (value || '—')}
+      </div>
+    );
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={e => {
+        const val = e.target.value || null;
+        onUpdateBrandStandard({ id: row.original.id, updates: { division: val } });
+      }}
+      className="w-full h-full px-2 py-1 text-xs bg-transparent border-none focus:ring-0 focus:outline-none text-slate-900 dark:text-slate-100"
+    >
+      <option value="">—</option>
+      {divisions.map((d: any) => (
+        <option key={d.code} value={d.code}>
+          {d.code} - {d.description}
+        </option>
+      ))}
+    </select>
   );
 };
 
@@ -291,10 +331,13 @@ const ActionsCell = ({ row, table }: any) => {
       className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded transition-colors opacity-0 group-hover:opacity-100"
       title="Remove standard"
     >
-      <Trash2 size={14} />
+        <Trash2 size={14} />
     </button>
   );
 };
+
+const EMPTY_VISIBILITY = {};
+const EMPTY_ORDER: string[] = [];
 
 export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProps) {
   const { data: standards = [], isLoading } = useBrandStandards(clientId);
@@ -392,6 +435,11 @@ export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProp
         size: 200,
         cell: CostCodeCell,
       }),
+      columnHelper.accessor('division', {
+        header: 'Division',
+        size: 150,
+        cell: DivisionCell,
+      }),
       columnHelper.accessor('normalized_csi_number', {
         header: 'CSI Code',
         size: 120,
@@ -420,12 +468,24 @@ export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProp
     return cols as ColumnDef<ClientBrandStandard, unknown>[];
   }, [canEdit]);
 
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const columnVisibility = useUIStore(state => state.brandStandardsColumnVisibility[clientId] || EMPTY_VISIBILITY);
+  const setColumnVisibility = useUIStore(state => state.setBrandStandardsColumnVisibility);
+  const columnOrder = useUIStore(state => state.brandStandardsColumnOrder[clientId] || EMPTY_ORDER);
+  const setColumnOrder = useUIStore(state => state.setBrandStandardsColumnOrder);
+
   const table = useReactTable({
     data: filteredData,
     columns,
+    state: { sorting, columnVisibility, columnOrder },
+    onSortingChange: setSorting,
+    onColumnVisibilityChange: (updater) => setColumnVisibility(clientId, updater),
+    onColumnOrderChange: (updater) => setColumnOrder(clientId, updater),
+    columnResizeMode: 'onChange',
     getRowId: row => row.id, // Stable row IDs
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     meta: {
       onUpdateBrandStandard: (params: { id: string; updates: Record<string, unknown> }) => handleUpdate(params.id, params.updates),
       onDeleteBrandStandard: handleDelete,
@@ -499,15 +559,18 @@ export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProp
               })}
             </div>
           </div>
-          {canEdit && (
-            <button
-              onClick={handleAddStandard}
-              disabled={isCreatePending}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl bg-sky-500 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 shrink-0"
-            >
-              <Plus size={16} /> Add Standard
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <BrandStandardsColumnChooser table={table} clientId={clientId} />
+            {canEdit && (
+              <button
+                onClick={handleAddStandard}
+                disabled={isCreatePending}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl bg-sky-500 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 shrink-0"
+              >
+                <Plus size={16} /> Add Standard
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -537,7 +600,7 @@ export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProp
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-separate border-spacing-0">
+            <table className="w-full border-separate border-spacing-0" style={{ tableLayout: 'fixed', width: '100%', minWidth: table.getTotalSize() }}>
               <thead>
                 {table.getHeaderGroups().map(headerGroup => (
                   <tr key={headerGroup.id}>
@@ -545,9 +608,29 @@ export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProp
                       <th
                         key={header.id}
                         style={{ width: header.getSize() }}
-                        className="px-2 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800 first:pl-4"
+                        className="group/header relative px-2 py-2.5 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800 first:pl-4"
                       >
-                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.isPlaceholder ? null : (
+                          <div 
+                            className={`flex items-center gap-1 ${header.column.getCanSort() ? 'cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300' : ''}`}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {{
+                              asc: <ChevronUp className="w-3 h-3 text-sky-500" />,
+                              desc: <ChevronDown className="w-3 h-3 text-sky-500" />,
+                            }[header.column.getIsSorted() as string] ?? null}
+                          </div>
+                        )}
+                        {header.column.getCanResize() && (
+                          <div
+                            onMouseDown={header.getResizeHandler()}
+                            onTouchStart={header.getResizeHandler()}
+                            className={`absolute right-0 top-0 h-full w-4 cursor-col-resize select-none touch-none bg-transparent flex justify-center items-center group-hover/header:opacity-100 transition-opacity ${header.column.getIsResizing() ? 'opacity-100 bg-sky-500/20' : 'opacity-0'}`}
+                          >
+                            <div className="w-[2px] h-4 bg-slate-300 dark:bg-slate-600 group-hover/header:bg-sky-400 rounded-full" />
+                          </div>
+                        )}
                       </th>
                     ))}
                   </tr>

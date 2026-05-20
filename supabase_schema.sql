@@ -2283,6 +2283,7 @@ CREATE TABLE IF NOT EXISTS client_brand_standards (
   client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   source_project_id uuid REFERENCES projects(id) ON DELETE SET NULL,
   cost_code text,
+  division text,
   normalized_csi_number text,
   standard_description text NOT NULL,
   is_deleted boolean DEFAULT false,

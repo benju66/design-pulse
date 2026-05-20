@@ -98,7 +98,8 @@ export function SmartCsiCombobox({
   };
 
   const isEmpty = !value;
-  const displayValue = companyDefaults.find(d => d.normalized_csi_number === value)?.csi_number || value;
+  const match = companyDefaults.find(d => d.normalized_csi_number === value);
+  const displayValue = match ? `${match.csi_number} - ${match.description}` : value;
 
   return (
     <div ref={containerRef} className="relative w-full h-full">

@@ -46,7 +46,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
         <div className="flex-1 p-8">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-[1600px] mx-auto">
             <div className="h-8 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse mb-8" />
             <div className="h-96 w-full bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl animate-pulse" />
           </div>
@@ -138,7 +138,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
 
         {/* Tab Content */}
         <div className="p-8">
-          <div className="max-w-4xl mx-auto pb-24">
+          <div className="max-w-[1600px] mx-auto pb-24">
             {activeTab === 'profile' && (
               <ClientProfileTab client={client} canEdit={canEdit} />
             )}

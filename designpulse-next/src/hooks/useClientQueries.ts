@@ -222,6 +222,7 @@ export function useCreateBrandStandard() {
           client_id: vars.client_id,
           standard_description: vars.standard_description,
           cost_code: vars.cost_code ?? null,
+          division: vars.division ?? null,
           normalized_csi_number: vars.normalized_csi_number ?? null,
           category: vars.category ?? null,
         }])
@@ -239,8 +240,10 @@ export function useCreateBrandStandard() {
         {
           id: vars.id,
           client_id: vars.client_id,
+          source_project_id: null,
           standard_description: vars.standard_description,
           cost_code: vars.cost_code ?? null,
+          division: vars.division ?? null,
           normalized_csi_number: vars.normalized_csi_number ?? null,
           category: vars.category ?? null,
           is_deleted: false,
@@ -290,7 +293,7 @@ export function useUpdateBrandStandard(clientId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brand_standards', clientId] });
     },
-    onError: (err, vars, context) => {
+    onError: (err, _vars, context) => {
       console.error('Update Brand Standard Error:', err);
       toast.error(`Failed to update standard: ${err.message}`);
       if (context?.previous) {

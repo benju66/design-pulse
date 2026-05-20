@@ -32,6 +32,7 @@ The heavy technical guardrails for this project have been extracted into modular
 
 When working on this project, rely on the following modular skills stored in `.agent/skills/`:
 - **Frontend/UI/State:** invoke `frontend-architecture`
+- **Data Tables/Grid Components:** invoke `data-table-architecture`
 - **Database/SQL/RLS:** invoke `database-guardrails`
 - **API/Python/Microservice:** invoke `api-and-integration`
 - **Code Reviews:** invoke `deep-review`

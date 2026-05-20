@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import {
   useReactTable,
@@ -12,15 +12,15 @@ import {
   SortingState,
   VisibilityState,
   Row,
+  RowSelectionState,
   getExpandedRowModel
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
-import { Map as MapIcon, ChevronDown, ChevronUp, AlertTriangle, SlidersHorizontal, PanelRight } from 'lucide-react';
+import { Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, PanelRight } from 'lucide-react';
 import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity } from '@/hooks/useOpportunityQueries';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
-import { CoordinationGhostRow } from './CoordinationGhostRow';
 import { TextCell, PriorityCell, BuildingAreaCell, CostCodeCell, CsiSpecCell, DivisionCell } from '@/components/opportunities/EditableCell';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useProjectCsiSpecs } from '@/hooks/useCsiQueries';
@@ -29,6 +29,8 @@ import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
 import { DEFAULT_DISCIPLINES, DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
+import { CheckboxCell, CheckboxHeader } from '@/components/data-table/cells';
+import { BulkActionBar, DeleteConfirmModal, GhostRow, TableEmptyState } from '@/components/data-table';
 
 interface Props {
   projectId: string;
@@ -136,24 +138,8 @@ const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: Cel
   );
 });
 
-const CheckboxCell = ({ row }: { row: Row<Opportunity> }) => {
-  const isSelected = useUIStore(state => state.compareQueue.includes(row.original.id));
-  const toggleCompareItem = useUIStore(state => state.toggleCompareItem);
-  return (
-    <div className="flex items-center justify-center py-2 px-1">
-      <input 
-        type="checkbox" 
-        checked={isSelected}
-        onChange={(e) => {
-          e.stopPropagation();
-          toggleCompareItem(row.original.id);
-        }}
-        onClick={(e) => e.stopPropagation()}
-        className="w-4 h-4 text-sky-600 bg-slate-100 border-slate-300 rounded focus:ring-sky-500 dark:focus:ring-sky-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer"
-      />
-    </div>
-  );
-};
+// CheckboxCell is now imported from @/components/data-table/cells
+// Uses TanStack native rowSelection instead of Zustand compareQueue
 
 const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
@@ -265,19 +251,13 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   const { data: rawCostCodes = [] } = useCostCodes();
   const { data: csiSpecs = [] } = useProjectCsiSpecs(projectId);
 
-  const compareQueue = useUIStore(state => state.compareQueue);
-  const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
-  const setCompareQueue = useUIStore(state => state.setCompareQueue);
-
-  // Auto-remove deleted items from the compare queue
-  useEffect(() => {
-    if (compareQueue.length > 0) {
-      const validQueue = compareQueue.filter(id => opportunities.some(opp => opp.id === id));
-      if (validQueue.length !== compareQueue.length) {
-        setCompareQueue(validQueue);
-      }
-    }
-  }, [opportunities, compareQueue, setCompareQueue]);
+  // TanStack native row selection — replaces Zustand compareQueue
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const selectedRows = useMemo(
+    () => Object.keys(rowSelection).filter(id => rowSelection[id]),
+    [rowSelection]
+  );
+  const clearSelection = useCallback(() => setRowSelection({}), []);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -285,10 +265,10 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   const handleBulkDelete = async () => {
     setIsDeleting(true);
     try {
-      for (const id of compareQueue) {
+      for (const id of selectedRows) {
         await deleteMutation.mutateAsync(id);
       }
-      clearCompareQueue();
+      clearSelection();
       setIsDeleteModalOpen(false);
     } catch (error) {
       console.error('Failed to bulk delete:', error);
@@ -329,8 +309,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   const columns = useMemo<ColumnDef<Opportunity, unknown>[]>(() => [
     {
       id: 'select',
-      header: () => null,
-      cell: CheckboxCell,
+      header: ({ table }) => <CheckboxHeader table={table} disabled={!permissions.can_edit_records} />,
+      cell: (info) => <CheckboxCell info={info} disabled={!permissions.can_edit_records} />,
       size: 40,
     },
     {
@@ -483,11 +463,13 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   const table = useReactTable({
     data: opportunities,
     columns: activeColumns,
-    state: { sorting, globalFilter, columnVisibility: coordColumnVisibility, columnOrder: coordColumnOrder },
+    state: { sorting, globalFilter, columnVisibility: coordColumnVisibility, columnOrder: coordColumnOrder, rowSelection },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     onColumnVisibilityChange: setCoordColumnVisibility,
     onColumnOrderChange: setCoordColumnOrder,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: true,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -673,85 +655,54 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             
             {opportunities.length === 0 && (
               <tbody>
-                <tr>
-                  <td colSpan={columns.length} className="px-4 py-8 text-center text-slate-500">
-                    No items in Coordination Board. Add one below!
-                  </td>
-                </tr>
+                <TableEmptyState
+                  colSpan={columns.length}
+                  message="No items in Coordination Board. Add one below!"
+                />
               </tbody>
             )}
 
             <tbody>
               {permissions.can_edit_records && (
-                <CoordinationGhostRow table={table as any} createMutation={createMutation} />
+                <GhostRow
+                  table={table as any}
+                  createMutation={createMutation}
+                  placeholder="Type new coordination task and press Enter..."
+                  defaultValues={{
+                    record_type: 'Coordination',
+                    cost_impact: 0,
+                    days_impact: 0,
+                    status: 'Draft',
+                    coordination_status: 'Draft',
+                    priority: 'Set Priority',
+                  }}
+                  staticFields={[
+                    { columnId: 'display_id', displayValue: 'New' },
+                    { columnId: 'record_type', displayValue: 'Coordination' },
+                  ]}
+                />
               )}
             </tbody>
           </table>
 
-          {compareQueue.length > 0 && (
-            <div className="sticky bottom-0 w-full bg-slate-900 text-white p-4 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.2)] z-50 rounded-b-xl border-t border-slate-800">
-              <div className="flex items-center gap-4">
-                <div className="bg-sky-500 text-white text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full">
-                  {compareQueue.length}
-                </div>
-                <span className="font-medium text-sm text-slate-200">Items Selected</span>
-              </div>
-              <div className="flex gap-3">
-                {permissions.can_delete_records && (
-                  <button 
-                    onClick={() => setIsDeleteModalOpen(true)}
-                    className="px-4 py-2 text-sm font-semibold text-rose-400 hover:text-rose-300 transition-colors"
-                  >
-                    Delete ({compareQueue.length})
-                  </button>
-                )}
-                <button 
-                  onClick={clearCompareQueue}
-                  className="px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
+          <BulkActionBar
+            selectedCount={selectedRows.length}
+            entityLabel="Tasks"
+            onClear={clearSelection}
+            onDelete={() => setIsDeleteModalOpen(true)}
+            canDelete={permissions.can_delete_records}
+          />
         </div>
 
-        {isDeleteModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden">
-              <div className="p-6">
-                <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center mb-4 text-rose-600 dark:text-rose-400">
-                  <AlertTriangle size={24} />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Delete {compareQueue.length} Tasks?</h2>
-                <p className="text-slate-600 dark:text-slate-400">
-                  Are you sure you want to delete these coordination tasks? This action will move them to the trash.
-                </p>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  onClick={() => setIsDeleteModalOpen(false)}
-                  disabled={isDeleting}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleBulkDelete}
-                  disabled={isDeleting}
-                  className="px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isDeleting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Deleting...
-                    </>
-                  ) : 'Delete Tasks'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <DeleteConfirmModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={handleBulkDelete}
+          isDeleting={isDeleting}
+          count={selectedRows.length}
+          entityName="Tasks"
+          description="Are you sure you want to delete these coordination tasks? This action will move them to the trash."
+        />
 
       </div>
     </div>

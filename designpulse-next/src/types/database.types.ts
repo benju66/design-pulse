@@ -308,6 +308,7 @@ export interface Database {
           project_id: string
           display_id: string | null
           title: string
+          description: string | null
           permit_type: string | null
           ahj: string | null
           status: string | null
@@ -325,6 +326,7 @@ export interface Database {
           project_id: string
           display_id?: string | null
           title: string
+          description?: string | null
           permit_type?: string | null
           ahj?: string | null
           status?: string | null
@@ -342,6 +344,7 @@ export interface Database {
           project_id?: string
           display_id?: string | null
           title?: string
+          description?: string | null
           permit_type?: string | null
           ahj?: string | null
           status?: string | null

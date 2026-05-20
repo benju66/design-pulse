@@ -7,6 +7,7 @@ declare module '@tanstack/react-table' {
   interface TableMeta<TData extends RowData> {
     // Generic mutation result — supports both Opportunity and Permit grids
     updateData?: UseMutationResult<unknown, Error, { id: string; updates: Record<string, unknown> }>;
+    updateStatusWithLog?: (id: string, status: string) => void;
     optionsMap?: Record<string, OpportunityOption[]>;
     createOption?: (params: { opportunityId: string; option: Partial<OpportunityOption> }) => void;
     updateOption?: (params: { id: string; updates: Partial<OpportunityOption> }) => void;

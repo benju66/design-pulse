@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS permits (
   project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   display_id text,
   title text NOT NULL,
+  description text,
   permit_type text,
   ahj text,
   status text DEFAULT 'Preparing' CHECK (status IN ('None', 'Preparing', 'Submitted', 'Comments Received', 'Approved')),
@@ -183,10 +184,10 @@ CREATE TABLE IF NOT EXISTS permits (
 
 DROP TRIGGER IF EXISTS trg_set_permit_display_id ON permits;
 CREATE TRIGGER trg_set_permit_display_id
-  BEFORE INSERT ON permits
-  FOR EACH ROW
-  EXECUTE FUNCTION generate_permit_display_id();
-
+BEFORE INSERT ON permits
+FOR EACH ROW
+WHEN (NEW.display_id IS NULL OR NEW.display_id = 'Pending...')
+EXECUTE FUNCTION generate_permit_display_id();
 -- [FIX BUG #1] Clean up any stale duplicate trigger (the one without 'trg_' prefix)
 DROP TRIGGER IF EXISTS set_permit_display_id ON permits;
 
@@ -1416,11 +1417,17 @@ DECLARE
   v_current_status TEXT;
 BEGIN
   SELECT project_id, status INTO v_project_id, v_current_status
-  FROM permits WHERE id = p_permit_id FOR UPDATE;
+  FROM permits WHERE id = p_permit_id AND is_deleted = false FOR UPDATE;
+
+  IF v_project_id IS NULL THEN
+    RAISE EXCEPTION 'Permit not found or is deleted';
+  END IF;
 
   IF NOT public.has_project_permission(v_project_id, 'can_edit_records') THEN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to log activity';
   END IF;
+
+  PERFORM set_config('designpulse.bypass_immutability', 'true', true);
 
   -- Logic 1: Handle a structured "Record Submission"
   IF p_event_type = 'submission' THEN

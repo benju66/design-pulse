@@ -36,6 +36,13 @@ export type VEGridViewMode = 'split' | 'flat' | 'card';
 // Flat view mode for Projects / Clients dashboard
 export type DashboardViewMode = 'card' | 'table';
 
+export interface PermitFilters {
+  status?: string[];
+  type?: string[];
+  assignee?: string[];
+  ahj?: string[];
+}
+
 export interface UIState {
   selectedOpportunityId: string | null;
   setSelectedOpportunityId: (id: string | null) => void;
@@ -126,13 +133,8 @@ export interface UIState {
   permitViewMode: 'board' | 'table-split';
   setPermitViewMode: (mode: 'board' | 'table-split') => void;
   
-  permitFilters: Record<string, {
-    status?: string[];
-    type?: string[];
-    assignee?: string[];
-    ahj?: string[];
-  }>;
-  setPermitFilters: (projectId: string, filters: { status?: string[]; type?: string[]; assignee?: string[]; ahj?: string[] }) => void;
+  permitFilters: Record<string, PermitFilters>;
+  setPermitFilters: (projectId: string, filters: PermitFilters) => void;
   
   permitColumnVisibility: Record<string, import('@tanstack/react-table').VisibilityState>;
   setPermitColumnVisibility: (projectId: string, updater: import('@tanstack/react-table').VisibilityState | ((old: import('@tanstack/react-table').VisibilityState) => import('@tanstack/react-table').VisibilityState)) => void;

@@ -1,11 +1,14 @@
 "use client";
-import { useState, useRef } from 'react';
-import { useLogPermitActivity, usePermits, usePermitTaskLinks, useLinkPermitTask, useUnlinkPermitTask, usePermitComments } from '@/hooks/usePermitQueries';
+import { useState, useRef, useEffect } from 'react';
+import { useLogPermitActivity, usePermits, usePermitTaskLinks, useLinkPermitTask, useUnlinkPermitTask, usePermitComments, useUpdatePermit } from '@/hooks/usePermitQueries';
 import { PermitCommentGrid } from './PermitCommentGrid';
 import { useOpportunities } from '@/hooks/useOpportunityQueries';
-import { X, Save, Link as LinkIcon, Unlink, Maximize, Minimize, ExternalLink, List, Paperclip, MessageSquare, Send } from 'lucide-react';
+import { X, Save, Link as LinkIcon, Unlink, Maximize, Minimize, ExternalLink, List, Paperclip, MessageSquare, Send, ChevronDown } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
 import { ActivityFeed } from '@/components/opportunities/ActivityFeed';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { hasDescriptionContent } from '@/lib/htmlUtils';
+import { useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 
 export default function PermitDetailPanel({ projectId, permitId }: { projectId: string, permitId: string }) {
   const { data: permits } = usePermits(projectId);
@@ -19,6 +22,8 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
   const logActivity = useLogPermitActivity(projectId);
   const linkTask = useLinkPermitTask(projectId);
   const unlinkTask = useUnlinkPermitTask(projectId);
+  const updatePermit = useUpdatePermit(projectId);
+  const { permissions } = useCurrentUserPermissions(projectId);
   
   const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
   
@@ -32,6 +37,14 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
   const [panelWidth, setPanelWidth] = useState(40);
   const [isDragging, setIsDragging] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Controlled accordion
+  const [descOpen, setDescOpen] = useState(
+    () => hasDescriptionContent(permit?.description)
+  );
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { setDescOpen(hasDescriptionContent(permit?.description)); }, [permit?.id]);
 
   if (!permit) return null;
 
@@ -155,6 +168,52 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
         
         {activeTab === 'Details' && (
           <div className="space-y-8">
+            {/* Pinned Description / Notes Accordion */}
+            <details 
+              className="group border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm"
+              open={descOpen}
+              onToggle={(e) => setDescOpen(e.newState === 'open')}
+            >
+              <summary className="flex items-center justify-between p-3 cursor-pointer select-none outline-none bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/50 dark:hover:bg-slate-800 transition-colors rounded-xl group-open:rounded-b-none group-open:border-b group-open:border-slate-200 dark:group-open:border-slate-700">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+                    Description / Notes
+                  </span>
+                  {/* Subtle Visual Indicator if content exists */}
+                  {hasDescriptionContent(permit?.description) && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 dark:bg-sky-400"></span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-3 pr-2">
+                  {/* Text preview when collapsed and empty */}
+                  {!hasDescriptionContent(permit?.description) && (
+                    <span className="text-xs text-slate-400 dark:text-slate-500 group-open:hidden">
+                      + Add description...
+                    </span>
+                  )}
+                  <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                </div>
+              </summary>
+              
+              <div className="p-2 bg-white dark:bg-slate-800 rounded-b-xl">
+                <RichTextEditor
+                  key={permit.id + '-desc'}
+                  content={permit.description || ''}
+                  disabled={!permissions?.can_edit_records}
+                  placeholder="Add description, scope notes, or context..."
+                  onSave={(html) => {
+                    if (html !== (permit.description || '')) {
+                      updatePermit.mutate({
+                        id: permit.id,
+                        updates: { description: html }
+                      });
+                    }
+                  }}
+                />
+              </div>
+            </details>
+
             {/* Record Submission Section */}
             <section className="p-4 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">

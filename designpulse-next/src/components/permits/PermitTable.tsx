@@ -42,7 +42,7 @@ const cellClass = "w-full h-full px-2 py-1 text-sm outline-none focus:ring-2 foc
 
 {/* eslint-disable-next-line react/display-name */}
 const PermitCheckboxCell = React.memo(({ row, table }: CellContext<Permit, unknown>) => {
-  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const permissions = table.options.meta?.permissions || { can_edit_records: false };
   return (
     <div className="w-full h-full flex items-center justify-center px-1">
       <input
@@ -61,7 +61,7 @@ const PermitTextCell = React.memo(({ getValue, row, column, table }: CellContext
   const initialValue = getValue() as string;
   const [value, setValue] = useState(initialValue);
   const updateData = table.options.meta?.updateData;
-  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const permissions = table.options.meta?.permissions || { can_edit_records: false };
   const disabled = !permissions.can_edit_records;
 
   const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
@@ -97,7 +97,7 @@ const PermitTextCell = React.memo(({ getValue, row, column, table }: CellContext
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const moveActiveCell = (table.options.meta as any)?.moveActiveCellRef?.current;
+    const moveActiveCell = table.options.meta?.moveActiveCellRef?.current;
     if (e.key === 'Enter') {
       e.preventDefault();
       onBlur();
@@ -152,7 +152,7 @@ const PermitTextCell = React.memo(({ getValue, row, column, table }: CellContext
 const PermitDateCell = React.memo(({ getValue, row, column, table }: CellContext<Permit, unknown>) => {
   const initialValue = getValue() as string;
   const updateData = table.options.meta?.updateData;
-  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const permissions = table.options.meta?.permissions || { can_edit_records: false };
   const disabled = !permissions.can_edit_records;
 
   const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
@@ -184,7 +184,7 @@ const PermitDateCell = React.memo(({ getValue, row, column, table }: CellContext
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const moveActiveCell = (table.options.meta as any)?.moveActiveCellRef?.current;
+    const moveActiveCell = table.options.meta?.moveActiveCellRef?.current;
     if (e.key === 'Enter') {
       e.preventDefault();
       if (e.currentTarget.value !== initialValue && updateData) {
@@ -239,7 +239,7 @@ const PermitDateCell = React.memo(({ getValue, row, column, table }: CellContext
 
 {/* eslint-disable-next-line react/display-name */}
 const OpenCommentsCell = React.memo(({ row, table }: CellContext<Permit, unknown>) => {
-  const projectId = (table.options.meta as any)?.projectId;
+  const projectId = table.options.meta?.projectId;
   const { data: comments } = usePermitComments(projectId);
   const openCount = comments?.filter(c => c.permit_id === row.original.id && c.status === 'Open').length || 0;
   
@@ -257,11 +257,11 @@ const OpenCommentsCell = React.memo(({ row, table }: CellContext<Permit, unknown
 {/* eslint-disable-next-line react/display-name */}
 const PermitStatusCell = React.memo(({ getValue, row, column, table }: CellContext<Permit, unknown>) => {
   const initialValue = getValue() as string;
-  const updateStatusWithLog = (table.options.meta as any)?.updateStatusWithLog;
+  const updateStatusWithLog = table.options.meta?.updateStatusWithLog;
   const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
   const setActiveCell = useUIStore(state => state.setActiveCell);
   const setGridMode = useUIStore(state => state.setGridMode);
-  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const permissions = table.options.meta?.permissions || { can_edit_records: false };
   const selectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
@@ -307,7 +307,7 @@ const PermitDropdownCell = React.memo(({ getValue, row, column, table, options }
   const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
   const setActiveCell = useUIStore(state => state.setActiveCell);
   const setGridMode = useUIStore(state => state.setGridMode);
-  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
+  const permissions = table.options.meta?.permissions || { can_edit_records: false };
   const selectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
@@ -344,8 +344,8 @@ const PermitDropdownCell = React.memo(({ getValue, row, column, table, options }
 const PermitAssigneeCell = React.memo(({ getValue, row, column, table }: CellContext<Permit, unknown>) => {
   const initialValue = getValue() as string | null | undefined;
   const updateData = table.options.meta?.updateData;
-  const permissions = (table.options.meta as any)?.permissions || { can_edit_records: false };
-  const projectMembers = (table.options.meta as any)?.projectMembers || [];
+  const permissions = table.options.meta?.permissions || { can_edit_records: false };
+  const projectMembers = table.options.meta?.projectMembers || [];
   const disabled = !permissions.can_edit_records;
 
   const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
@@ -516,7 +516,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
       {
         id: 'select',
         header: ({ table }) => {
-          const perms = (table.options.meta as any)?.permissions || { can_edit_records: false };
+          const perms = table.options.meta?.permissions || { can_edit_records: false };
           return (
             <div className="w-full h-full flex items-center justify-center px-1">
               <input
@@ -774,7 +774,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
                   {headerGroup.headers.map((header) => (
                     <th 
                       key={header.id} 
-                      className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900"
+                      className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900 overflow-hidden"
                       style={{ width: header.getSize() }}
                     >
                       <div 
@@ -933,7 +933,7 @@ const MemoizedPermitRow = React.memo(({ row, virtualRow, selectedOpportunityId, 
       {row.getVisibleCells().map(cell => (
         <td
           key={cell.id}
-          className="p-0 border-r border-b border-slate-200 dark:border-slate-800 relative align-middle"
+          className="p-0 border-r border-b border-slate-200 dark:border-slate-800 relative align-middle overflow-hidden"
           style={{ width: cell.column.getSize() }}
         >
           {flexRender(cell.column.columnDef.cell, cell.getContext())}

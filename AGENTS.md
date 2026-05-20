@@ -13,7 +13,7 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 * **Drag-and-Drop:** `@dnd-kit` (Used for Jira-style customizable widgets and reordering items).
 * **Spatial / Canvas:** `react-konva` (Renders high-fidelity floor plans with interactive vector markups).
 * **Backend / Database:** Supabase (PostgreSQL with Row Level Security, Auth, Storage, and Realtime subscriptions).
-* **Microservice:** Python/FastAPI using `PyMuPDF` (`fitz`) to handle heavy PDF parsing, vector extraction, and status mapping exports.
+* **Microservice:** Python/FastAPI located in `designpulse-backend/` (and `designpulse-map-module/`) using `PyMuPDF` (`fitz`) to handle heavy PDF parsing, vector extraction, and status mapping exports.
 
 ## 3. Core Domain Logic & Terminology
 * **Opportunities (The Parent Row):** A single design element or VE item (e.g., "Countertop Material"). 
@@ -53,6 +53,13 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 * `company_csi_defaults`: Global company-wide CSI-to-cost-code default mappings (the "Rosetta Stone"). Contains `csi_number` (UNIQUE constraint — 1:1 mapping per company), `description`, and `cost_code` (loose text FK to `cost_codes.code`, `ON DELETE SET NULL`). RLS: `SELECT` open to all authenticated users; `INSERT/UPDATE/DELETE` restricted to platform admins via `is_platform_admin()`. Mutation via `bulk_upsert_company_csi_defaults` RPC (SECURITY DEFINER, platform-admin-gated, set-based `jsonb_array_elements` insert with `ON CONFLICT (csi_number) DO UPDATE`). Seeding into projects via `seed_project_from_company_defaults` RPC which copies defaults into `project_csi_specs` with `source = 'company_default'` using `ON CONFLICT DO NOTHING` to preserve existing project-specific overrides.
 * `project_csi_specs`: Project-level CSI specification mappings. Contains `source` column (`'company_default' | 'project' | 'ml_suggested'`) for lineage tracking. When a user modifies a seeded spec, the source transitions from `'company_default'` to `'project'` via upsert. The `trg_update_global_csi_training_data` trigger explicitly skips records with `source = 'company_default'` to prevent seeded data from polluting ML Flywheel training metrics. The Rosetta Stone aggregation RPC (`get_company_csi_rosetta_view`) filters to `source = 'project'` overrides only.
 * `global_csi_training_data`: ML Flywheel training table storing CSI-to-cost-code mapping frequency data. Populated by `trg_update_global_csi_training_data` trigger on `project_csi_specs`. Protected by `is_default` guard — `company_default` source records are excluded from training. Cross-project aggregation available via `get_company_csi_rosetta_view` RPC.
+* `project_sequences`: Stores sequence logic for project task ordering.
+* `permits`, `permit_task_links`, `permit_comments`: Manages municipal permit applications, task associations, and commentary.
+* `audit_logs`, `item_activity`: Centralized tables for tracking activity and granular changes across project items.
+* `role_permissions`: Granular capability mappings extending the base user roles.
+* `project_drawing_sets`, `project_sheets`, `sheet_markups`: Core schema for the Map Module. Stores uploaded PDF sheets, parsed vector markups, and drawing revisions.
+* `client_documents`: Stores client-level attachments and standards documentation.
+* `project_lessons`, `lesson_opportunity_links`, `lesson_attachments`: Manages lessons-learned capture across projects, linking them directly to VE opportunities and storing associated attachments.
 
 ---
 

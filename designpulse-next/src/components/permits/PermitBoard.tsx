@@ -1,89 +1,33 @@
 "use client";
-import { useMemo } from 'react';
-import { usePermits, useCreatePermit } from '@/hooks/usePermitQueries';
 import { useUIStore } from '@/stores/useUIStore';
 import { PermitTable } from './PermitTable';
 import PermitKanban from './PermitKanban';
 import PermitDetailPanel from './PermitDetailPanel';
 import { PermitSummary } from './PermitSummary';
-import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
+import { Permit } from '@/types/models';
 
-const EMPTY_FILTERS: any = {};
+interface PermitBoardProps {
+  projectId: string;
+  permits: Permit[];
+  isLoading: boolean;
+  filterSlot?: React.ReactNode;
+  filterActiveCount?: number;
+  onClearFilters?: () => void;
+  createMutation: any;
+}
 
-export default function PermitBoard({ projectId }: { projectId: string }) {
-  const { data: permits = [], isLoading } = usePermits(projectId);
-  const createMutation = useCreatePermit(projectId);
-  
+export default function PermitBoard({ 
+  projectId,
+  permits,
+  isLoading,
+  filterSlot,
+  filterActiveCount,
+  onClearFilters,
+  createMutation
+}: PermitBoardProps) {
   const viewMode = useUIStore(state => state.permitViewMode);
-  const permitFilters = useUIStore(state => state.permitFilters[projectId] || EMPTY_FILTERS);
-  const _setPermitFilters = useUIStore(state => state.setPermitFilters);
-  const setPermitFilters = useMemo(() => (filters: any) => _setPermitFilters(projectId, filters), [projectId, _setPermitFilters]);
   const selectedPermitId = useUIStore(state => state.selectedOpportunityId);
   
-  const filteredPermits = useMemo(() => {
-    return permits.filter(permit => {
-      // Filters
-      if (permitFilters.status?.length && (!permit.status || !permitFilters.status.includes(permit.status))) {
-        return false;
-      }
-      if (permitFilters.type?.length && (!permit.permit_type || !permitFilters.type.includes(permit.permit_type))) {
-        return false;
-      }
-      if (permitFilters.ahj?.length && (!permit.ahj || !permitFilters.ahj.includes(permit.ahj))) {
-        return false;
-      }
-      
-      // Assignee (comma separated string)
-      if (permitFilters.assignee?.length) {
-        if (!permit.assignee) return false;
-        const assignees = permit.assignee.split(',').map(a => a.trim());
-        const hasMatch = permitFilters.assignee.some(filterEmail => assignees.includes(filterEmail));
-        if (!hasMatch) return false;
-      }
-
-      return true;
-    });
-  }, [permits, permitFilters]);
-
-  const uniqueStatuses = useMemo(() => Array.from(new Set(permits.map(p => p.status).filter(Boolean) as string[])).sort(), [permits]);
-  const uniqueTypes = useMemo(() => Array.from(new Set(permits.map(p => p.permit_type).filter(Boolean) as string[])).sort(), [permits]);
-  const uniqueAHJs = useMemo(() => Array.from(new Set(permits.map(p => p.ahj).filter(Boolean) as string[])).sort(), [permits]);
-
-  const clearFilters = () => setPermitFilters({});
-
-  const activeFilterCount = (permitFilters.status?.length || 0) + 
-                            (permitFilters.type?.length || 0) + 
-                            (permitFilters.ahj?.length || 0) + 
-                            (permitFilters.assignee?.length || 0);
-
-  const filterSlot = (
-    <div className="flex flex-col gap-1.5 pt-2">
-      <MultiSelectFilter
-        label="Status"
-        options={uniqueStatuses}
-        selected={permitFilters.status || []}
-        onChange={(s) => setPermitFilters({ ...permitFilters, status: s })}
-        placeholder="Search statuses..."
-      />
-      
-      <MultiSelectFilter
-        label="Type"
-        options={uniqueTypes}
-        selected={permitFilters.type || []}
-        onChange={(t) => setPermitFilters({ ...permitFilters, type: t })}
-        placeholder="Search types..."
-      />
-
-      <MultiSelectFilter
-        label="AHJ"
-        options={uniqueAHJs}
-        selected={permitFilters.ahj || []}
-        onChange={(a) => setPermitFilters({ ...permitFilters, ahj: a })}
-        placeholder="Search AHJs..."
-      />
-    </div>
-  );
-
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -99,7 +43,7 @@ export default function PermitBoard({ projectId }: { projectId: string }) {
           
           <div className="shrink-0 mb-4">
             <PermitSummary 
-              permits={filteredPermits} 
+              permits={permits} 
               forceCollapse={viewMode === 'table-split' && !!selectedPermitId} 
             />
           </div>
@@ -108,14 +52,14 @@ export default function PermitBoard({ projectId }: { projectId: string }) {
             {viewMode.startsWith('table') ? (
               <PermitTable 
                 projectId={projectId} 
-                permits={filteredPermits} 
+                permits={permits} 
                 filterSlot={filterSlot}
-                filterActiveCount={activeFilterCount}
-                onClearFilters={clearFilters}
+                filterActiveCount={filterActiveCount}
+                onClearFilters={onClearFilters}
                 createMutation={createMutation}
               />
             ) : (
-              <PermitKanban projectId={projectId} permits={filteredPermits} />
+              <PermitKanban projectId={projectId} permits={permits} />
             )}
           </div>
         </div>

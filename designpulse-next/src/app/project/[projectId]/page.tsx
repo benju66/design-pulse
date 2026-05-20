@@ -12,6 +12,7 @@ import { ValueMatrixView } from '@/components/views/ValueMatrixView';
 import { BudgetLedgerView } from '@/components/views/BudgetLedgerView';
 import { CoordinationView } from '@/components/views/CoordinationView';
 import { LessonsLearnedView } from '@/components/views/LessonsLearnedView';
+import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
 // Lazy-loaded views — only loaded when the user navigates to them
 const AnalyticsDashboard = dynamic(() => import('@/components/analytics/AnalyticsDashboard'));
 const MyDeskDashboard = dynamic(() => import('@/components/mydesk/MyDeskDashboard'));
@@ -23,13 +24,13 @@ const VersionComparisonViewer = dynamic(
 import PermitBoard from '@/components/permits/PermitBoard';
 import { useOpportunities, useCreateOpportunity } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
-import { useCreatePermit } from '@/hooks/usePermitQueries';
+import { usePermits, useCreatePermit } from '@/hooks/usePermitQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useMasterLedgerGrid, useProjectEstimateVersions, useEstimateVarianceNotes } from '@/hooks/useEstimateQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import DrawingDetailPanel from '@/components/drawings/DrawingDetailPanel';
-import { useUIStore, ProjectView, SettingsTab } from '@/stores/useUIStore';
+import { useUIStore, ProjectView, SettingsTab, PermitFilters } from '@/stores/useUIStore';
 import { useMapStore } from '@/stores/useMapStore';
 import { useProjectRealtime } from '@/hooks/useProjectRealtime';
 import { useProjectSheets, useSheetMarkups, markupsToZones, useUpdateSheetMarkups } from '@/hooks/useMapQueries';
@@ -56,6 +57,8 @@ function isSettingsTab(v: string | undefined): v is SettingsTab {
   return !!v && VALID_SETTINGS_TABS.has(v as SettingsTab);
 }
 
+const EMPTY_PERMIT_FILTERS: PermitFilters = {};
+
 interface ProjectPageProps {
   params: Promise<{ projectId: string }>;
 }
@@ -69,6 +72,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const { data: settings } = useProjectSettings(projectId);
   const { data: globalCostCodes = [] } = useCostCodes();
   const createMutation = useCreateOpportunity(projectId);
+  const { data: permits = [], isLoading: isPermitsLoading } = usePermits(projectId);
   const createPermitMutation = useCreatePermit(projectId);
   
   // ── Estimate hooks ────────────────────────────────────────────────────────────
@@ -128,6 +132,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
   const permitViewMode = useUIStore(state => state.permitViewMode);
   const setPermitViewMode = useUIStore(state => state.setPermitViewMode);
+
+  const permitFilters = useUIStore(state => state.permitFilters[projectId] || EMPTY_PERMIT_FILTERS);
+  const _setPermitFilters = useUIStore(state => state.setPermitFilters);
+  const setPermitFilters = React.useCallback((filters: PermitFilters) => _setPermitFilters(projectId, filters), [projectId, _setPermitFilters]);
 
   const handleExport = async () => {
     try {
@@ -424,6 +432,60 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       return true;
     });
   }, [coordinationOpportunities, coordActiveType, coordActiveStatus, coordActiveBuildingAreas, coordActiveCostCodes, coordActiveDisciplines, projectDisciplines]);
+
+  const filteredPermits = React.useMemo(() => {
+    return permits.filter(permit => {
+      if (permitFilters.status?.length && (!permit.status || !permitFilters.status.includes(permit.status))) {
+        return false;
+      }
+      if (permitFilters.type?.length && (!permit.permit_type || !permitFilters.type.includes(permit.permit_type))) {
+        return false;
+      }
+      if (permitFilters.ahj?.length && (!permit.ahj || !permitFilters.ahj.includes(permit.ahj))) {
+        return false;
+      }
+      return true;
+    });
+  }, [permits, permitFilters]);
+
+  const permitFilterActiveCount = (permitFilters.status?.length || 0) + 
+                                  (permitFilters.type?.length || 0) + 
+                                  (permitFilters.ahj?.length || 0);
+
+  const clearPermitFilters = React.useCallback(() => {
+    setPermitFilters({});
+  }, [setPermitFilters]);
+
+  const permitTypes = (settings?.permit_types as {id: string, label: string}[]) || [];
+  const permitAHJs = (settings?.permit_ahjs as {id: string, label: string}[]) || [];
+  const permitTypeOptions = React.useMemo(() => permitTypes.map(t => t.label), [permitTypes]);
+  const permitAHJOptions = React.useMemo(() => permitAHJs.map(a => a.label), [permitAHJs]);
+
+  const permitFilterSlot = (
+    <div className="flex flex-col gap-1.5 pt-2">
+      <MultiSelectFilter 
+        label="Status"
+        options={['Preparing', 'Submitted', 'Comments Received', 'Approved']}
+        selected={permitFilters.status || []}
+        onChange={(s) => setPermitFilters({ ...permitFilters, status: s })}
+        placeholder="Filter statuses..."
+      />
+      <MultiSelectFilter 
+        label="Type"
+        options={permitTypeOptions}
+        selected={permitFilters.type || []}
+        onChange={(t) => setPermitFilters({ ...permitFilters, type: t })}
+        placeholder="Search permit types..."
+      />
+      <MultiSelectFilter 
+        label="AHJ"
+        options={permitAHJOptions}
+        selected={permitFilters.ahj || []}
+        onChange={(a) => setPermitFilters({ ...permitFilters, ahj: a })}
+        placeholder="Search AHJs..."
+      />
+    </div>
+  );
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -809,7 +871,15 @@ export default function ProjectPage({ params }: ProjectPageProps) {
           )}
 
           {currentView === 'permits' && (
-            <PermitBoard projectId={projectId} />
+            <PermitBoard 
+              projectId={projectId}
+              permits={filteredPermits}
+              isLoading={isPermitsLoading}
+              filterSlot={permitFilterSlot}
+              filterActiveCount={permitFilterActiveCount}
+              onClearFilters={clearPermitFilters}
+              createMutation={createPermitMutation}
+            />
           )}
 
           {currentView === 'lessons' && (

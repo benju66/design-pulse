@@ -240,7 +240,7 @@ const PermitDateCell = React.memo(({ getValue, row, column, table }: CellContext
 {/* eslint-disable-next-line react/display-name */}
 const OpenCommentsCell = React.memo(({ row, table }: CellContext<Permit, unknown>) => {
   const projectId = table.options.meta?.projectId;
-  const { data: comments } = usePermitComments(projectId);
+  const { data: comments } = usePermitComments(projectId ?? null);
   const openCount = comments?.filter(c => c.permit_id === row.original.id && c.status === 'Open').length || 0;
   
   if (openCount === 0) return <div className="w-full h-full px-2 py-1 text-slate-400 text-sm flex items-center">--</div>;

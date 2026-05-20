@@ -1,4 +1,3 @@
-import React from 'react';
 import { PermitComment } from '@/types/models';
 import { useUpdatePermitComment, useDeletePermitComment } from '@/hooks/usePermitQueries';
 import { PermitCommentGhostRow } from './PermitCommentGhostRow';

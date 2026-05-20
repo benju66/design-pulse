@@ -18,7 +18,7 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   description?: string | null;
   cost_type?: CostType | null;
   spec_number_id?: string | null;
-  estimate_sync_status?: 'Draft' | 'Pending Estimate Update' | 'Incorporated';
+  estimate_sync_status?: 'Draft' | 'Pending Estimate Update' | 'Incorporated' | 'Returned';
   incorporated_version_id?: string | null;
   locked_variance?: number | null;
   estimator_assignee?: string | null;

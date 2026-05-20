@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { toast } from 'sonner';
-import { Permit, PermitTaskLink, PermitRevision, PermitComment } from '@/types/models';
+import { Permit, PermitTaskLink, PermitComment } from '@/types/models';
 
 export function usePermits(projectId: string | null) {
   return useQuery<Permit[], Error>({

@@ -3,11 +3,10 @@ import { useAuth } from '@/providers/AuthProvider';
 import { Opportunity } from '@/types/models';
 import OpportunityGrid from '@/components/OpportunityGrid';
 import { Inbox, ArrowLeft, Calculator } from 'lucide-react';
-import { usePendingEstimateUpdates, useUpdateOpportunity } from '@/hooks/useOpportunityQueries';
+import { usePendingEstimateUpdates } from '@/hooks/useOpportunityQueries';
 import { useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { ReconcileValueModal } from '@/components/opportunities/ReconcileValueModal';
 import { ReturnVEModal } from '@/components/mydesk/ReturnVEModal';
-import { toast } from 'sonner';
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
@@ -29,7 +28,6 @@ export default function MyDeskDashboard({ projectId, opportunities }: MyDeskDash
   const [returnOppId, setReturnOppId] = useState<string | null>(null);
   
   const { data: pendingEstimates = [] } = usePendingEstimateUpdates(projectId);
-  const updateMutation = useUpdateOpportunity(projectId);
 
   const { permissions, isLoading: permsLoading } = useCurrentUserPermissions(projectId);
 

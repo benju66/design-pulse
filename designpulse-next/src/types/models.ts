@@ -24,6 +24,8 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   estimator_assignee?: string | null;
   is_budget_line?: boolean;
   item_assumptions?: string | null;
+  // Populated when Supabase query joins opportunity_options (e.g. usePendingEstimateUpdates)
+  opportunity_options?: OpportunityOption[];
   // Ledger financial columns (populated only for is_budget_line=true rows from get_master_ledger_grid)
   baseline_budget?: number;
   approved_changes?: number;

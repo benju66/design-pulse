@@ -265,7 +265,7 @@ export function useCreateBrandStandard() {
 
 export function useUpdateBrandStandard(clientId: string) {
   const queryClient = useQueryClient();
-  return useMutation<ClientBrandStandard, Error, { id: string; updates: Record<string, unknown> }>({
+  return useMutation<ClientBrandStandard, Error, { id: string; updates: Record<string, unknown> }, BrandStandardContext>({
     mutationFn: async ({ id, updates }) => {
       const { data, error } = await supabase
         .from('client_brand_standards')
@@ -276,12 +276,26 @@ export function useUpdateBrandStandard(clientId: string) {
       if (error) throw error;
       return data as ClientBrandStandard;
     },
+    onMutate: async ({ id, updates }) => {
+      const key = ['brand_standards', clientId];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ClientBrandStandard[]>(key);
+      if (previous) {
+        queryClient.setQueryData<ClientBrandStandard[]>(key, old => 
+          old?.map(item => item.id === id ? { ...item, ...updates } : item)
+        );
+      }
+      return { previous };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['brand_standards', clientId] });
     },
-    onError: (err) => {
+    onError: (err, vars, context) => {
       console.error('Update Brand Standard Error:', err);
       toast.error(`Failed to update standard: ${err.message}`);
+      if (context?.previous) {
+        queryClient.setQueryData(['brand_standards', clientId], context.previous);
+      }
     }
   });
 }

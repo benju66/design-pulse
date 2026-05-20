@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, Lock } from 'lucide-react';
 import { CostType, CostCode, ProjectCsiSpec } from '@/types/models';
 import { formatCostCode } from '@/lib/formatCostCode';
@@ -99,14 +100,39 @@ export function SmartCostCodeCombobox({
 }: SmartCostCodeComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [rect, setRect] = useState<DOMRect | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Position updates for Portal
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const updatePosition = () => {
+        if (containerRef.current) {
+          setRect(containerRef.current.getBoundingClientRect());
+        }
+      };
+      updatePosition();
+      // Use capture phase to catch scroll events from any scrollable container (like the table wrapper)
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition, true);
+      return () => {
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition, true);
+      };
+    }
+  }, [isOpen]);
 
   // Rule C16: useRef containment for click-outside — NEVER stopPropagation
   useEffect(() => {
     if (!isOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current && !containerRef.current.contains(target) &&
+        popoverRef.current && !popoverRef.current.contains(target)
+      ) {
         setIsOpen(false);
         setSearchQuery('');
       }
@@ -244,10 +270,18 @@ export function SmartCostCodeCombobox({
         )}
       </div>
 
-      {/* ── Smart Popover ── */}
-      {isOpen && (
-        <div className="absolute left-0 top-full mt-0.5 z-[200] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-80 overflow-hidden flex flex-col">
-
+      {/* ── Smart Popover (Portaled to escape table overflow) ── */}
+      {isOpen && rect && typeof document !== 'undefined' && createPortal(
+        <div 
+          ref={popoverRef}
+          className="fixed z-[200] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-80 overflow-hidden flex flex-col"
+          style={{
+            top: rect.bottom + 4,
+            left: rect.left,
+            // Ensure it doesn't extend beyond the right edge of the screen
+            maxWidth: 'calc(100vw - 16px)',
+          }}
+        >
           {/* Search input */}
           <div className="p-2 border-b border-slate-100 dark:border-slate-800">
             <div className="relative">
@@ -372,7 +406,8 @@ export function SmartCostCodeCombobox({
               </div>
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

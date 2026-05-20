@@ -2281,13 +2281,13 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_id uuid REFERENCES clients(
 CREATE TABLE IF NOT EXISTS client_brand_standards (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id uuid NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  source_project_id uuid REFERENCES projects(id) ON DELETE SET NULL,
   cost_code text,
   normalized_csi_number text,
   standard_description text NOT NULL,
   is_deleted boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  CHECK (cost_code IS NOT NULL OR normalized_csi_number IS NOT NULL)
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- 2. Project Brand Standards Table (Project Snapshot)

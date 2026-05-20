@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Plus, Trash2, Search, Paperclip } from 'lucide-react';
 import {
   useReactTable,
@@ -18,7 +18,10 @@ import {
   useClientDocuments,
 } from '@/hooks/useClientQueries';
 import { SmartCostCodeCombobox } from '@/components/ui/SmartCostCodeCombobox';
+import { SmartCsiCombobox } from '@/components/ui/SmartCsiCombobox';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
+import { useCompanyCsiDefaults } from '@/hooks/useCompanyCsiQueries';
+import { useProjects } from '@/hooks/useProjectCoreQueries';
 
 interface BrandStandardsGridProps {
   clientId: string;
@@ -31,14 +34,25 @@ function EditableTextCell({
   onSave,
   disabled,
   placeholder,
+  autoEdit,
+  onBlurAction,
 }: {
   value: string;
   onSave: (val: string) => void;
   disabled: boolean;
   placeholder?: string;
+  autoEdit?: boolean;
+  onBlurAction?: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(autoEdit || false);
   const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    if (autoEdit && !disabled) {
+      setEditing(true);
+      setDraft(value);
+    }
+  }, [autoEdit, disabled, value]);
 
   if (!editing) {
     return (
@@ -61,9 +75,14 @@ function EditableTextCell({
       onBlur={() => {
         if (draft !== value) onSave(draft);
         setEditing(false);
+        if (onBlurAction) onBlurAction();
       }}
       onKeyDown={e => {
-        if (e.key === 'Escape') { setDraft(value); setEditing(false); } // C18: cancel
+        if (e.key === 'Escape') { 
+          setDraft(value); 
+          setEditing(false); 
+          if (onBlurAction) onBlurAction();
+        } // C18: cancel
         if (e.key === 'Enter') { e.currentTarget.blur(); }
       }}
       className="w-full px-2 py-1 text-xs bg-white dark:bg-slate-900 border border-sky-400 rounded outline-none ring-2 ring-sky-500/20 text-slate-900 dark:text-white"
@@ -134,16 +153,166 @@ function CategoryCell({
 
 const columnHelper = createColumnHelper<ClientBrandStandard>();
 
+const DescriptionCell = ({ row, table }: any) => {
+  const { canEdit, newlyCreatedId, setNewlyCreatedId, onUpdateBrandStandard } = table.options.meta;
+  return (
+    <EditableTextCell
+      value={row.original.standard_description}
+      onSave={val => onUpdateBrandStandard({ id: row.original.id, updates: { standard_description: val } })}
+      disabled={!canEdit}
+      placeholder="New Standard"
+      autoEdit={row.original.id === newlyCreatedId}
+      onBlurAction={() => {
+        if (row.original.id === newlyCreatedId) {
+          setNewlyCreatedId(null);
+        }
+      }}
+    />
+  );
+};
+
+const CategoryCellRenderer = ({ row, table }: any) => {
+  const { canEdit, existingCategories, onUpdateBrandStandard } = table.options.meta;
+  return (
+    <CategoryCell
+      value={row.original.category}
+      onSave={val => onUpdateBrandStandard({ id: row.original.id, updates: { category: val } })}
+      disabled={!canEdit}
+      existingCategories={existingCategories}
+    />
+  );
+};
+
+const CostCodeCell = ({ row, table }: any) => {
+  const { canEdit, rawCostCodes, onUpdateBrandStandard } = table.options.meta;
+  return (
+    <SmartCostCodeCombobox
+      value={row.original.cost_code}
+      mode="cost_code_only"
+      onChange={updates => {
+        onUpdateBrandStandard({
+          id: row.original.id, 
+          updates: {
+            cost_code: updates.cost_code ?? null,
+          }
+        });
+      }}
+      rawCostCodes={rawCostCodes}
+      disabled={!canEdit}
+      showCostTypeSegment={false}
+    />
+  );
+};
+
+const CsiCell = ({ row, table }: any) => {
+  const { canEdit, companyCsiDefaults, onUpdateBrandStandard } = table.options.meta;
+  return (
+    <SmartCsiCombobox
+      value={row.original.normalized_csi_number || ''}
+      companyDefaults={companyCsiDefaults}
+      onChange={selection => {
+        const updates: Record<string, unknown> = {
+          normalized_csi_number: selection.normalized_csi_number || null,
+        };
+        if (!row.original.cost_code && selection.cost_code) {
+          updates.cost_code = selection.cost_code;
+        }
+        onUpdateBrandStandard({ id: row.original.id, updates });
+      }}
+      disabled={!canEdit}
+    />
+  );
+};
+
+const DateAddedCell = ({ row }: any) => {
+  const date = new Date(row.original.created_at);
+  return (
+    <div className="px-2 py-1 text-[11px] text-slate-500 truncate">
+      {date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+    </div>
+  );
+};
+
+const SourceProjectCell = ({ row, table }: any) => {
+  const { canEdit, clientProjects, onUpdateBrandStandard } = table.options.meta;
+  const value = row.original.source_project_id || '';
+  
+  if (!canEdit) {
+    const proj = clientProjects.find((p: any) => p.id === value);
+    return (
+      <div className="px-2 py-1 text-xs text-slate-700 dark:text-slate-200 truncate">
+        {proj ? proj.project_name : '—'}
+      </div>
+    );
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={e => {
+        const val = e.target.value || null;
+        onUpdateBrandStandard({ id: row.original.id, updates: { source_project_id: val } });
+      }}
+      className="w-full px-2 py-1 text-xs bg-transparent border-0 focus:ring-2 focus:ring-sky-500 rounded outline-none text-slate-900 dark:text-white dark:bg-slate-900 appearance-none cursor-pointer"
+      title="Select Source Project"
+    >
+      <option value="">None</option>
+      {clientProjects.map((p: any) => (
+        <option key={p.id} value={p.id}>
+          {p.project_settings?.[0]?.project_name || p.name || 'Unnamed Project'}
+        </option>
+      ))}
+    </select>
+  );
+};
+
+const AttachmentsCell = ({ row, table }: any) => {
+  const { attachmentCounts } = table.options.meta;
+  const count = attachmentCounts[row.original.id] || 0;
+  return (
+    <div className="flex items-center justify-center">
+      <span title={`${count} attachment${count !== 1 ? 's' : ''}`} className="relative">
+        <Paperclip size={14} className={count > 0 ? 'text-sky-500' : 'text-slate-300 dark:text-slate-600'} />
+        {count > 0 && (
+          <span className="absolute -top-1.5 -right-2 text-[9px] font-bold bg-sky-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center">
+            {count}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+};
+
+const ActionsCell = ({ row, table }: any) => {
+  const { onDeleteBrandStandard } = table.options.meta;
+  return (
+    <button
+      onClick={() => onDeleteBrandStandard(row.original.id)}
+      className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded transition-colors opacity-0 group-hover:opacity-100"
+      title="Remove standard"
+    >
+      <Trash2 size={14} />
+    </button>
+  );
+};
+
 export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProps) {
   const { data: standards = [], isLoading } = useBrandStandards(clientId);
   const { data: allDocuments = [] } = useClientDocuments(clientId);
   const { data: rawCostCodes = [] } = useCostCodes();
-  const createStandard = useCreateBrandStandard();
-  const updateStandard = useUpdateBrandStandard(clientId);
-  const deleteStandard = useDeleteBrandStandard(clientId);
+  const { data: companyCsiDefaults = [] } = useCompanyCsiDefaults();
+  const { data: allProjects = [] } = useProjects();
+  
+  // Filter projects to only those associated with this client
+  const clientProjects = useMemo(() => allProjects.filter(p => p.client_id === clientId), [allProjects, clientId]);
+  
+  const { mutate: createMutate, isPending: isCreatePending } = useCreateBrandStandard();
+  const { mutate: updateMutate } = useUpdateBrandStandard(clientId);
+  const { mutate: deleteMutate } = useDeleteBrandStandard(clientId);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [newlyCreatedId, setNewlyCreatedId] = useState<string | null>(null);
 
   // Pre-compute document counts per standard for the attachment badge
   const attachmentCounts = useMemo(() => {
@@ -183,122 +352,91 @@ export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProp
   }, [standards, categoryFilter, searchQuery]);
 
   const handleUpdate = useCallback((id: string, updates: Record<string, unknown>) => {
-    updateStandard.mutate({ id, updates });
-  }, [updateStandard]);
+    updateMutate({ id, updates });
+  }, [updateMutate]);
 
   const handleDelete = useCallback((id: string) => {
-    deleteStandard.mutate(id);
-  }, [deleteStandard]);
+    deleteMutate(id);
+  }, [deleteMutate]);
 
   const handleAddStandard = () => {
-    createStandard.mutate({
-      id: crypto.randomUUID(), // C8: client-minted UUID
+    const newId = crypto.randomUUID();
+    setNewlyCreatedId(newId);
+    createMutate({
+      id: newId, // C8: client-minted UUID
       client_id: clientId,
-      standard_description: 'New Standard',
+      standard_description: '', // Empty string for ghost text placeholder
       category: categoryFilter || null,
     });
   };
 
-  const columns = useMemo<ColumnDef<ClientBrandStandard, unknown>[]>(() => [
-    columnHelper.accessor('standard_description', {
-      header: 'Description',
-      size: 280,
-      cell: ({ row }) => (
-        <EditableTextCell
-          value={row.original.standard_description}
-          onSave={val => handleUpdate(row.original.id, { standard_description: val })}
-          disabled={!canEdit}
-          placeholder="Standard description…"
-        />
-      ),
-    }),
-    columnHelper.accessor('category', {
-      header: 'Category',
-      size: 130,
-      cell: ({ row }) => (
-        <CategoryCell
-          value={row.original.category}
-          onSave={val => handleUpdate(row.original.id, { category: val })}
-          disabled={!canEdit}
-          existingCategories={existingCategories}
-        />
-      ),
-    }),
-    columnHelper.accessor('cost_code', {
-      header: 'Cost Code',
-      size: 200,
-      cell: ({ row }) => (
-        <SmartCostCodeCombobox
-          value={row.original.cost_code}
-          mode="cost_code_only"
-          onChange={updates => {
-            handleUpdate(row.original.id, {
-              cost_code: updates.cost_code ?? null,
-              ...(updates.division ? { division: updates.division } : {}),
-            });
-          }}
-          rawCostCodes={rawCostCodes}
-          disabled={!canEdit}
-          showCostTypeSegment={false} // C30: grid cells never show segmented control
-        />
-      ),
-    }),
-    columnHelper.accessor('normalized_csi_number', {
-      header: 'CSI Code',
-      size: 120,
-      cell: ({ row }) => (
-        <EditableTextCell
-          value={row.original.normalized_csi_number || ''}
-          onSave={val => handleUpdate(row.original.id, { normalized_csi_number: val || null })}
-          disabled={!canEdit}
-          placeholder="e.g. 09 65 16"
-        />
-      ),
-    }),
-    columnHelper.display({
-      id: 'attachments',
-      header: () => <span title="Attachments"><Paperclip size={14} /></span>,
-      size: 60,
-      cell: ({ row }) => {
-        const count = attachmentCounts[row.original.id] || 0;
-        return (
-          <div className="flex items-center justify-center">
-            <span title={`${count} attachment${count !== 1 ? 's' : ''}`} className="relative">
-              <Paperclip size={14} className={count > 0 ? 'text-sky-500' : 'text-slate-300 dark:text-slate-600'} />
-              {count > 0 && (
-                <span className="absolute -top-1.5 -right-2 text-[9px] font-bold bg-sky-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                  {count}
-                </span>
-              )}
-            </span>
-          </div>
-        );
-      },
-    }),
-    ...(canEdit ? [columnHelper.display({
-      id: 'actions',
-      header: '',
-      size: 50,
-      cell: ({ row }: { row: { original: ClientBrandStandard } }) => (
-        <button
-          onClick={() => handleDelete(row.original.id)}
-          className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded transition-colors opacity-0 group-hover:opacity-100"
-          title="Remove standard"
-        >
-          <Trash2 size={14} />
-        </button>
-      ),
-    })] : []),
-  ] as ColumnDef<ClientBrandStandard, unknown>[], [canEdit, existingCategories, rawCostCodes, attachmentCounts, handleUpdate, handleDelete]);
+  const columns = useMemo<ColumnDef<ClientBrandStandard, unknown>[]>(() => {
+    const cols = [
+      columnHelper.accessor('created_at', {
+        header: 'Date Added',
+        size: 90,
+        cell: DateAddedCell,
+      }),
+      columnHelper.accessor('standard_description', {
+        header: 'Description',
+        size: 280,
+        cell: DescriptionCell,
+      }),
+      columnHelper.accessor('category', {
+        header: 'Category',
+        size: 130,
+        cell: CategoryCellRenderer,
+      }),
+      columnHelper.accessor('cost_code', {
+        header: 'Cost Code',
+        size: 200,
+        cell: CostCodeCell,
+      }),
+      columnHelper.accessor('normalized_csi_number', {
+        header: 'CSI Code',
+        size: 120,
+        cell: CsiCell,
+      }),
+      columnHelper.accessor('source_project_id', {
+        header: 'Source Project',
+        size: 160,
+        cell: SourceProjectCell,
+      }),
+      columnHelper.display({
+        id: 'attachments',
+        header: () => <span title="Attachments"><Paperclip size={14} /></span>,
+        size: 60,
+        cell: AttachmentsCell,
+      }),
+    ];
+    if (canEdit) {
+      cols.push(columnHelper.display({
+        id: 'actions',
+        header: '',
+        size: 50,
+        cell: ActionsCell,
+      }));
+    }
+    return cols as ColumnDef<ClientBrandStandard, unknown>[];
+  }, [canEdit]);
 
   const table = useReactTable({
     data: filteredData,
     columns,
+    getRowId: row => row.id, // Stable row IDs
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     meta: {
       onUpdateBrandStandard: (params: { id: string; updates: Record<string, unknown> }) => handleUpdate(params.id, params.updates),
       onDeleteBrandStandard: handleDelete,
+      canEdit,
+      newlyCreatedId,
+      setNewlyCreatedId,
+      existingCategories,
+      rawCostCodes,
+      attachmentCounts,
+      companyCsiDefaults,
+      clientProjects,
     },
   });
 
@@ -364,7 +502,7 @@ export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProp
           {canEdit && (
             <button
               onClick={handleAddStandard}
-              disabled={createStandard.isPending}
+              disabled={isCreatePending}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl bg-sky-500 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 shrink-0"
             >
               <Plus size={16} /> Add Standard

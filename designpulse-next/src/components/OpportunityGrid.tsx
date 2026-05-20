@@ -48,6 +48,7 @@ interface OpportunityGridProps {
   filterSlot?: ReactNode;
   filterActiveCount?: number;
   onClearFilters?: () => void;
+  activeStatus?: string;
 }
 
 interface GridRowProps {
@@ -120,7 +121,7 @@ const MemoizedGridRow = React.memo(({ row, virtualRow, isSelected, viewMode, mea
   );
 });
 
-export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, filterSlot, filterActiveCount = 0, onClearFilters }: OpportunityGridProps) {
+export default function OpportunityGrid({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, filterSlot, filterActiveCount = 0, onClearFilters, activeStatus }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -193,12 +194,12 @@ export default function OpportunityGrid({ projectId, data, viewMode = 'flat', on
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState<string>('');
   
-const EMPTY_VISIBILITY: VisibilityState = {};
+const EMPTY_VISIBILITY: VisibilityState = { estimate_sync_status: false };
 
   const globalColumnVisibility = useUIStore(state => state.gridColumnVisibility[projectId] || EMPTY_VISIBILITY) as VisibilityState;
   const _setGridColumnVisibility = useUIStore(state => state.setGridColumnVisibility);
   
-  const [localColumnVisibility, setLocalColumnVisibility] = useState<VisibilityState>({});
+  const [localColumnVisibility, setLocalColumnVisibility] = useState<VisibilityState>(EMPTY_VISIBILITY);
   
   const globalColumnVisibilitySetter = React.useCallback(
     (updater: VisibilityState | ((old: VisibilityState) => VisibilityState)) => 
@@ -208,6 +209,13 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   
   const columnVisibility = isolateState ? localColumnVisibility : globalColumnVisibility;
   const setColumnVisibility = isolateState ? setLocalColumnVisibility : globalColumnVisibilitySetter;
+
+  // Auto-show estimate_sync_status when looking at Approved items
+  useEffect(() => {
+    if (activeStatus === 'Approved' && columnVisibility['estimate_sync_status'] !== true) {
+      setColumnVisibility((prev: VisibilityState) => ({ ...prev, estimate_sync_status: true }));
+    }
+  }, [activeStatus, columnVisibility, setColumnVisibility]);
   
   const columns = useOpportunityColumns(viewMode, maxOptionCount);
   const { data: settings } = useProjectSettings(projectId);

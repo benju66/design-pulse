@@ -663,7 +663,7 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
         },
       }
     );
-  }, [versionName, versionDate, setAsActive, stagingRows, importMutation]);
+  }, [versionName, versionDate, setAsActive, stagingRows, importMutation, selectedVeIds]);
 
   const resetToIdle = useCallback(() => {
     setStagingRows([]);

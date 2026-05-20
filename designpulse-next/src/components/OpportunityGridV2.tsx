@@ -341,7 +341,9 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
                        if (pct <= -0.1) return 'bg-emerald-50/30 dark:bg-emerald-900/10 hover:bg-emerald-50/60 dark:hover:bg-emerald-900/20 border-l-[3px] border-emerald-400';
                        return 'bg-amber-50/30 dark:bg-amber-900/10 hover:bg-amber-50/60 dark:hover:bg-amber-900/20 border-l-[3px] border-amber-400';
                      })() 
-                   : 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
+                   : (row.original as any).is_incorporated
+                     ? 'opacity-60 bg-emerald-50/10 dark:bg-emerald-900/10 border-l-[3px] border-emerald-500 hover:opacity-100 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/20 transition-all'
+                     : 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
         }`}
       >
         {row.getVisibleCells().map((cell: Cell<Opportunity, unknown>) => {

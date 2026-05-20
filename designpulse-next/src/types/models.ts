@@ -20,6 +20,7 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   spec_number_id?: string | null;
   estimate_sync_status?: 'Draft' | 'Pending Estimate Update' | 'Incorporated';
   incorporated_version_id?: string | null;
+  locked_variance?: number | null;
   estimator_assignee?: string | null;
   is_budget_line?: boolean;
   item_assumptions?: string | null;
@@ -36,6 +37,8 @@ export interface DisciplineDetails {
   notes: string;
 }
 export type OpportunityOption = Database['public']['Tables']['opportunity_options']['Row'] & {
+  is_returned?: boolean | null;
+  return_note?: string | null;
   requires_coordination?: boolean | null;
   coordination_requirements?: Record<string, { required: boolean; notes?: string }> | null;
   cost_code?: string | null;

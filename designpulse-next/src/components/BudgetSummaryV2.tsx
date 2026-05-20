@@ -12,6 +12,7 @@
  */
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useProjectEstimateVersions, useProjectBudgetWaterfall, useBudgetVersionTimeline } from '@/hooks/useEstimateQueries';
+import { usePendingEstimateUpdates } from '@/hooks/useOpportunityQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import VarianceWaterfallChart from './analytics/VarianceWaterfallChart';
 import CostConcentrationSunburst from './analytics/CostConcentrationSunburst';
@@ -124,6 +125,11 @@ export default function BudgetSummaryV2({
     };
   }, [waterfallRows]);
 
+  // ── Pending VE Incorporation KPI ──
+  const { data: pendingUpdates = [] } = usePendingEstimateUpdates(projectId);
+  const pendingIncorporationCount = pendingUpdates.length;
+  const pendingIncorporationValue = pendingUpdates.reduce((sum, opp) => sum + (Number(opp.cost_impact) || 0), 0);
+
   // ── Filtered KPIs (only when grid filters are active) ──
   const hasActiveFilters = filteredCostCodes && filteredCostCodes.length > 0 && totalFilteredCodes !== totalCodes;
   const filteredKPIs = useMemo(() => {
@@ -207,6 +213,13 @@ export default function BudgetSummaryV2({
               <span className={`text-sm font-extrabold ${revisedBudget > totalOriginal ? 'text-rose-600 dark:text-rose-400' : revisedBudget < totalOriginal ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
                 {formatCurrency(revisedBudget)}
               </span>
+            </div>
+
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">To Incorporate:</span>
+              <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">{pendingIncorporationCount} items ({formatCurrency(pendingIncorporationValue, true)})</span>
             </div>
           </div>
 

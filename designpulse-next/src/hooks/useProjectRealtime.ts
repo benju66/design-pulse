@@ -18,6 +18,7 @@ export function useProjectRealtime(projectId: string | null) {
         queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId], refetchType: 'active' });
+        queryClient.invalidateQueries({ queryKey: ['pending_estimate_updates', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['permits', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['permit_comments', projectId], refetchType: 'active' });
       }, 300);

@@ -19,6 +19,8 @@ interface ValueMatrixViewProps {
   // Filter state
   activeStatus: string;
   setActiveStatus: (s: string) => void;
+  activeEstimateSyncStatus: string;
+  setActiveEstimateSyncStatus: (s: string) => void;
   activeBuildingAreas: string[];
   setActiveBuildingAreas: (a: string[]) => void;
   activeCostCodes: string[];
@@ -38,6 +40,8 @@ export function ValueMatrixView({
   onOpenCompare,
   activeStatus,
   setActiveStatus,
+  activeEstimateSyncStatus,
+  setActiveEstimateSyncStatus,
   activeBuildingAreas,
   setActiveBuildingAreas,
   activeCostCodes,
@@ -87,8 +91,9 @@ export function ValueMatrixView({
               data={filteredOpportunities} 
               viewMode={viewMode} 
               onOpenCompare={onOpenCompare}
-              filterActiveCount={(activeStatus !== 'All' ? 1 : 0) + activeBuildingAreas.length + activeCostCodes.length}
-              onClearFilters={() => { setActiveStatus('All'); setActiveBuildingAreas([]); setActiveCostCodes([]); }}
+              activeStatus={activeStatus}
+              filterActiveCount={(activeStatus !== 'All' ? 1 : 0) + (activeEstimateSyncStatus !== 'All' ? 1 : 0) + activeBuildingAreas.length + activeCostCodes.length}
+              onClearFilters={() => { setActiveStatus('All'); setActiveEstimateSyncStatus('All'); setActiveBuildingAreas([]); setActiveCostCodes([]); }}
               filterSlot={
                 <>
                   <div className="flex flex-col gap-1.5">
@@ -102,6 +107,19 @@ export function ValueMatrixView({
                       {uniqueStatuses.map(status => (
                         <option key={status} value={status}>{status}</option>
                       ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Est. Status</label>
+                    <select
+                      value={activeEstimateSyncStatus}
+                      onChange={(e) => setActiveEstimateSyncStatus(e.target.value)}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 cursor-pointer"
+                    >
+                      <option value="All">All</option>
+                      <option value="Draft">Draft</option>
+                      <option value="Pending Estimate Update">Pending Update</option>
+                      <option value="Incorporated">Incorporated</option>
                     </select>
                   </div>
                   <div className="flex flex-col gap-1.5">

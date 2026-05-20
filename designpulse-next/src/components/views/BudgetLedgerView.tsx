@@ -26,6 +26,8 @@ interface BudgetLedgerViewProps {
   setVarianceThreshold: (n: number) => void;
   showVeOnly: boolean;
   setShowVeOnly: (v: boolean) => void;
+  showIncorporated: boolean;
+  setShowIncorporated: (v: boolean) => void;
   // Centralized filter count + clear (computed in page.tsx — single source of truth)
   filterActiveCount: number;
   onClearFilters: () => void;
@@ -53,6 +55,8 @@ export function BudgetLedgerView({
   setVarianceThreshold,
   showVeOnly,
   setShowVeOnly,
+  showIncorporated,
+  setShowIncorporated,
   filterActiveCount,
   onClearFilters,
   dynamicBuildingAreas,
@@ -197,6 +201,25 @@ export function BudgetLedgerView({
                       }`}>
                         <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform ${
                           showVeOnly ? 'translate-x-[16px]' : 'translate-x-[2px]'
+                        }`} />
+                      </div>
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-1.5 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                      onClick={() => setShowIncorporated(!showIncorporated)}
+                      className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        showIncorporated
+                          ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
+                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      <span>Show Incorporated Items</span>
+                      <div className={`relative w-8 h-[18px] rounded-full transition-colors ${
+                        showIncorporated ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-600'
+                      }`}>
+                        <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform ${
+                          showIncorporated ? 'translate-x-[16px]' : 'translate-x-[2px]'
                         }`} />
                       </div>
                     </button>

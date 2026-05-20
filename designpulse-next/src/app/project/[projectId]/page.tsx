@@ -116,8 +116,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [activeBuildingAreas, setActiveBuildingAreas] = React.useState<string[]>([]);
   const [activeCostCodes, setActiveCostCodes] = React.useState<string[]>([]);
   const [activeStatus, setActiveStatus] = React.useState('All');
+  const [activeEstimateSyncStatus, setActiveEstimateSyncStatus] = React.useState('All');
   const [varianceThreshold, setVarianceThreshold] = React.useState<number>(0);
   const [showVeOnly, setShowVeOnly] = React.useState(false);
+  const [showIncorporated, setShowIncorporated] = React.useState(false);
   const [coordActiveBuildingAreas, setCoordActiveBuildingAreas] = React.useState<string[]>([]);
   const [coordActiveCostCodes, setCoordActiveCostCodes] = React.useState<string[]>([]);
   const [coordActiveType, setCoordActiveType] = React.useState('All');
@@ -176,7 +178,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   };
 
   const handleExportCSV = () => {
-    const headers = ['ID', 'Title', 'Priority', 'Location', 'Scope', 'Status', 'Cost Impact', 'Days Impact'];
+    const headers = ['ID', 'Title', 'Priority', 'Location', 'Scope', 'Status', 'Sync Status', 'Incorporated Version', 'Locked Variance', 'Cost Impact', 'Days Impact'];
     
     const escapeCSV = (value: any) => {
       if (value === null || value === undefined) return '';
@@ -187,16 +189,26 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       return stringValue;
     };
 
-    const rows = opportunities.map(opp => [
-      opp.display_id,
-      opp.title,
-      opp.priority,
-      opp.location,
-      opp.building_area,
-      opp.status,
-      opp.cost_impact,
-      opp.days_impact
-    ].map(escapeCSV).join(','));
+    const rows = opportunities.map(opp => {
+      // For CSV export, look up the version name if possible, else use ID
+      const versionName = opp.incorporated_version_id 
+        ? estimateVersions.find(v => v.id === opp.incorporated_version_id)?.version_name || opp.incorporated_version_id
+        : '';
+        
+      return [
+        opp.display_id,
+        opp.title,
+        opp.priority,
+        opp.location,
+        opp.building_area,
+        opp.status,
+        opp.estimate_sync_status || 'Draft',
+        versionName,
+        opp.locked_variance,
+        opp.cost_impact,
+        opp.days_impact
+      ].map(escapeCSV).join(',');
+    });
 
     const csvContent = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -323,10 +335,16 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const filteredOpportunities = React.useMemo(
     () => {
       const base = applyBaseFilters(opportunities);
-      if (activeStatus === 'All') return base;
-      return base.filter(opp => opp.status === activeStatus);
+      let filtered = base;
+      if (activeStatus !== 'All') {
+        filtered = filtered.filter(opp => opp.status === activeStatus);
+      }
+      if (activeEstimateSyncStatus !== 'All') {
+        filtered = filtered.filter(opp => (opp.estimate_sync_status || 'Draft') === activeEstimateSyncStatus);
+      }
+      return filtered;
     },
-    [opportunities, applyBaseFilters, activeStatus]
+    [opportunities, applyBaseFilters, activeStatus, activeEstimateSyncStatus]
   );
 
   // Budget Ledger filtered items (from merged dataset, with variance threshold + VE focus)
@@ -337,7 +355,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
     let veCostCodes: Set<string> | null = null;
     if (showVeOnly) {
       veCostCodes = new Set(
-        base.filter(o => !o.is_budget_line && o.cost_code).map(o => o.cost_code as string)
+        base.filter(o => !o.is_budget_line && o.cost_code && (!o.incorporated_version_id || showIncorporated)).map(o => o.cost_code as string)
       );
     }
 
@@ -351,14 +369,27 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         );
         if (totalVariance < varianceThreshold) return false;
       }
+      
+      // Filter out incorporated items unless showIncorporated is true
+      if (!opp.is_budget_line) {
+        const isInc = opp.incorporated_version_id != null || opp.estimate_sync_status === 'Incorporated';
+        if (isInc && !showIncorporated) return false;
+      }
+      
       return true;
+    }).map(opp => {
+      // Tag incorporated items for the UI renderer
+      if (!opp.is_budget_line && (opp.incorporated_version_id != null || opp.estimate_sync_status === 'Incorporated')) {
+        return { ...opp, is_incorporated: true } as Opportunity;
+      }
+      return opp;
     });
-  }, [mergedOpportunities, applyBaseFilters, varianceThreshold, showVeOnly]);
+  }, [mergedOpportunities, applyBaseFilters, varianceThreshold, showVeOnly, showIncorporated]);
 
   // Centralized ledger filter count + clear handler (single source of truth — not duplicated in the view)
-  const ledgerFilterActiveCount = activeBuildingAreas.length + activeCostCodes.length + (varianceThreshold > 0 ? 1 : 0) + (showVeOnly ? 1 : 0);
+  const ledgerFilterActiveCount = activeBuildingAreas.length + activeCostCodes.length + (varianceThreshold > 0 ? 1 : 0) + (showVeOnly ? 1 : 0) + (showIncorporated ? 1 : 0);
   const ledgerClearFilters = React.useCallback(() => {
-    setActiveBuildingAreas([]); setActiveCostCodes([]); setVarianceThreshold(0); setShowVeOnly(false);
+    setActiveBuildingAreas([]); setActiveCostCodes([]); setVarianceThreshold(0); setShowVeOnly(false); setShowIncorporated(false);
   }, []);
 
   const uniqueCostCodes = React.useMemo(() => {
@@ -682,6 +713,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               onOpenCompare={() => setIsCompareModalOpen(true)}
               activeStatus={activeStatus}
               setActiveStatus={setActiveStatus}
+              activeEstimateSyncStatus={activeEstimateSyncStatus}
+              setActiveEstimateSyncStatus={setActiveEstimateSyncStatus}
               activeBuildingAreas={activeBuildingAreas}
               setActiveBuildingAreas={setActiveBuildingAreas}
               activeCostCodes={activeCostCodes}
@@ -709,6 +742,8 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               setVarianceThreshold={setVarianceThreshold}
               showVeOnly={showVeOnly}
               setShowVeOnly={setShowVeOnly}
+              showIncorporated={showIncorporated}
+              setShowIncorporated={setShowIncorporated}
               filterActiveCount={ledgerFilterActiveCount}
               onClearFilters={ledgerClearFilters}
               dynamicBuildingAreas={dynamicBuildingAreas}

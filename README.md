@@ -99,6 +99,27 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 
 ---
 
+### v0.15 — VE Estimate Incorporation Pipeline
+**Released:** 2026-05-19
+
+This release introduces the complete workflow for trueing-up Value Engineering decisions against formal estimate updates, closing the loop between the Estimating inbox and the unified Budget Ledger.
+
+#### New Features
+
+**Reconciliation Workflow**
+- _Estimate Sync Status:_ A new tracking metric on the Value Matrix (`Draft`, `Pending Estimate Update`, `Incorporated`) automatically tracks where locked VE options stand relative to the baseline estimate.
+- _Reconciliation Modal:_ Project Estimators can reconcile locked variance against updated external estimate files via the new Reconcile modal natively embedded in the `ExpandedCard` detail panel.
+- _Dashboard Integration:_ A new "To Incorporate" KPI widget appears directly on the project dashboards summarizing total unresolved locked variance.
+
+**Estimator Inbox & Ledger Tracking**
+- _RBAC Enforcement:_ The workflow is gated by the `can_manage_budget` role, protecting financial baselines.
+- _Budget Ledger Visibility:_ A "Show Incorporated" toggle lets estimators view historically incorporated VE items seamlessly interleaved within the live estimate grid, styled with a persistent emerald border to prevent data obfuscation.
+
+**Robust Data Auditing**
+- _Database Triggers:_ The PostgreSQL `trg_log_opportunity_changes` trigger natively captures all changes to variance tracking and outputs them into the `ActivityFeed` for deep forensic compliance.
+
+---
+
 ### v0.14 — Client Profile Hub & Global Brand Standards
 **Released:** 2026-05-15
 

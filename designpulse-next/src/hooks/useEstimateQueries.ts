@@ -23,6 +23,7 @@
 
 import { useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { supabase } from '@/supabaseClient';
 import type {
   ProjectEstimateVersion,
@@ -219,7 +220,7 @@ export function useImportEstimateMutation(projectId: string) {
       qc.invalidateQueries({ queryKey: estimateKeys.versions(projectId) });
     },
 
-    onSuccess: () => {
+    onSuccess: (_versionId, variables) => {
       // Invalidate both version list and project settings (original_budget may have changed)
       // KEY: useProjectSettings uses 'project_settings' (underscore) — must match exactly.
       qc.invalidateQueries({ queryKey: estimateKeys.versions(projectId) });
@@ -227,6 +228,13 @@ export function useImportEstimateMutation(projectId: string) {
       qc.invalidateQueries({ queryKey: estimateKeys.waterfall(projectId) });
       qc.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
       qc.invalidateQueries({ queryKey: estimateKeys.timeline(projectId) });
+      qc.invalidateQueries({ queryKey: ['pending_estimate_updates', projectId] });
+      qc.invalidateQueries({ queryKey: ['opportunities', projectId] });
+
+      const veCount = variables.incorporated_ve_ids?.length || 0;
+      if (veCount > 0) {
+        toast.success(`${veCount} VE item${veCount !== 1 ? 's' : ''} marked as Incorporated`);
+      }
     },
   });
 }

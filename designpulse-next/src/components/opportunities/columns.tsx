@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell } from './EditableCell';
+import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell, EstimateSyncStatusCell } from './EditableCell';
 import { OptionsCell } from './OptionsCell';
 import { InlineOptionCell } from './InlineOptionCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
@@ -121,6 +121,7 @@ export const useOpportunityColumns = (viewMode: string, maxOptionCount: number =
       { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell, aggregationFn: 'sum' as any },
       { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell, aggregationFn: 'sum' as any },
       { accessorKey: 'status', header: 'VE Status', cell: StatusCell },
+      { accessorKey: 'estimate_sync_status', header: 'Est. Status', cell: EstimateSyncStatusCell, size: 140 },
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
       { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
       { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
@@ -160,6 +161,7 @@ export const useOpportunityColumns = (viewMode: string, maxOptionCount: number =
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 150 },
       { accessorKey: 'spec_number_id', header: 'CSI Spec', cell: CsiSpecCell, size: 150 },
       { accessorKey: 'status', header: 'VE Status', cell: StatusCell },
+      { accessorKey: 'estimate_sync_status', header: 'Est. Status', cell: EstimateSyncStatusCell, size: 140 },
       { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
       { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },

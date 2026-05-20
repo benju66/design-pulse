@@ -661,3 +661,29 @@ export const AssigneeCell = React.memo(({ getValue, row, column, table }: CellCo
     />
   );
 }, (prev, next) => commonComparator(prev, next, false));
+
+export const EstimateSyncStatusCell = React.memo(({ getValue }: CellContext<Opportunity, unknown>) => {
+  const value = getValue() as string | null | undefined;
+  if (!value) return <div className="w-full h-full" />;
+
+  let badgeClass = '';
+  if (value === 'Draft') {
+    badgeClass = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
+  } else if (value === 'Pending Estimate Update') {
+    badgeClass = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+  } else if (value === 'Incorporated') {
+    badgeClass = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+  }
+
+  return (
+    <div className="w-full h-full px-2 py-1 flex items-center justify-center min-h-[28px]">
+      {badgeClass ? (
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide whitespace-nowrap ${badgeClass}`}>
+          {value === 'Pending Estimate Update' ? 'Pending Update' : value}
+        </span>
+      ) : (
+        <span className="text-xs text-slate-500">{value}</span>
+      )}
+    </div>
+  );
+}, (prev, next) => prev.getValue() === next.getValue());

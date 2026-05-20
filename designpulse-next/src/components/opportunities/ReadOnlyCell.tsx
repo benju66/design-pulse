@@ -495,33 +495,49 @@ export const CostClassificationCell = React.memo(({ row, table }: CellContext<Op
   );
 }, commonComparator);
 
-/** Management — merges assignee + priority + due_date */
+/** Management — merges assignee + priority + due_date + sync_status */
 export const ManagementCell = React.memo(({ row, table }: CellContext<Opportunity, unknown>) => {
   const assigneeRaw = row.original.assignee;
   const priority = row.original.priority;
   const dueDate = row.original.due_date;
+  const syncStatus = (row.original as any).estimate_sync_status;
   const projectMembers = (table.options.meta?.projectMembers ?? []) as Array<{ email: string; name: string | null }>;
   const priorityDot: Record<string, string> = { Critical: 'bg-rose-500', High: 'bg-amber-500', Medium: 'bg-sky-500', Low: 'bg-slate-400' };
   const avatars = assigneeRaw ? assigneeRaw.split(',').map(e => e.trim()).filter(Boolean).slice(0, 2) : [];
+  
+  let syncBadge = null;
+  if (syncStatus === 'Draft') {
+    syncBadge = <span className="text-[9px] px-1 py-0.5 rounded bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 font-bold uppercase tracking-wider whitespace-nowrap">Draft</span>;
+  } else if (syncStatus === 'Pending Estimate Update') {
+    syncBadge = <span className="text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-bold uppercase tracking-wider whitespace-nowrap">Pending Update</span>;
+  } else if (syncStatus === 'Incorporated') {
+    syncBadge = <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-bold uppercase tracking-wider whitespace-nowrap">Incorporated</span>;
+  }
+
   return (
-    <div className="w-full h-full px-3 py-2 min-h-[36px] flex items-center gap-2">
-      <div className="flex -space-x-1.5 shrink-0">
-        {avatars.map((email, i) => {
-          const m = projectMembers.find(pm => pm.email === email);
-          const initials = (m?.name || email).substring(0, 2).toUpperCase();
-          return (
-            <div key={i} className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400 flex items-center justify-center text-[10px] font-bold shrink-0 shadow-sm border border-white dark:border-slate-800">
-              {initials}
+    <div className="w-full h-full px-3 py-2 min-h-[36px] flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          {avatars.length > 0 && (
+            <div className="flex -space-x-1.5 shrink-0">
+              {avatars.map((email, i) => {
+                const m = projectMembers.find(pm => pm.email === email);
+                const initials = (m?.name || email).substring(0, 2).toUpperCase();
+                return (
+                  <div key={i} className="w-5 h-5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400 flex items-center justify-center text-[9px] font-bold shrink-0 shadow-sm border border-white dark:border-slate-800">
+                    {initials}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <div className="flex items-center gap-1">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${priorityDot[priority || ''] || 'bg-slate-300'}`} />
-          <span className="text-[11px] text-slate-600 dark:text-slate-400">{priority || '—'}</span>
+          )}
+          {syncBadge}
         </div>
-        {dueDate && <span className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">{dueDate}</span>}
+        <div className="flex items-center gap-1">
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityDot[priority || ''] || 'bg-slate-300'}`} />
+          <span className="text-[10px] text-slate-600 dark:text-slate-400">{priority || '—'}</span>
+          {dueDate && <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums before:content-['•'] before:mx-1 before:text-slate-300">{dueDate}</span>}
+        </div>
       </div>
     </div>
   );

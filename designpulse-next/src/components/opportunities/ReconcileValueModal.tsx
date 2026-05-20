@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useReconcileOpportunity } from "@/hooks/useOpportunityQueries";
 import { useProjectEstimateVersions } from "@/hooks/useEstimateQueries";
+import { toast } from 'sonner';
 
 const formatCurrency = (val: number) => 
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
@@ -45,6 +46,9 @@ export function ReconcileValueModal({ isOpen, onClose, projectId, opportunityId,
       note
     }, {
       onSuccess: () => {
+        toast.success(`Realized ${formatCurrency(realizedCost)} — merged into ${activeVersion.version_name}`, {
+          description: `The locked variance of ${formatCurrency(pendingVariance)} was reconciled with a final realized impact of ${formatCurrency(realizedCost)}.`
+        });
         onClose();
       }
     });

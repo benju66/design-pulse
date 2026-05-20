@@ -122,6 +122,8 @@ export const SortableContenderCard = ({
       className={`shrink-0 w-80 flex flex-col bg-white dark:bg-slate-900 border-2 rounded-xl p-4 shadow-sm transition-all group relative ${
         opt.is_locked
           ? 'border-emerald-500 ring-2 ring-emerald-500/20 dark:ring-emerald-500/30'
+          : opt.is_returned
+          ? 'border-amber-400 ring-2 ring-amber-400/20 dark:ring-amber-400/30 bg-amber-50/30 dark:bg-amber-900/10'
           : 'border-slate-200 dark:border-slate-800 hover:border-sky-300 dark:hover:border-sky-700'
       }`}
     >

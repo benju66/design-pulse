@@ -681,6 +681,7 @@ export function useLockOption(opportunityId: string, projectId: string) {
       queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
       queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
       queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['pending_estimate_updates', projectId] });
     },
     onError: (err, _optionId, context) => {
       if (context?.previousOptions) {
@@ -856,7 +857,7 @@ export function usePendingEstimateUpdates(projectId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('opportunities')
-        .select('*')
+        .select('*, opportunity_options(*)')
         .eq('project_id', projectId!)
         .eq('estimate_sync_status', 'Pending Estimate Update')
         .eq('is_deleted', false)
@@ -889,11 +890,30 @@ export function useReconcileOpportunity(projectId: string) {
       queryClient.invalidateQueries({ queryKey: ['pending_estimate_updates', projectId] });
       queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
       queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
-      toast.success('Opportunity reconciled and incorporated successfully.');
     },
     onError: (err) => {
       console.error('Reconciliation Error:', err);
       toast.error(`Failed to reconcile opportunity: ${err.message}`);
     },
+  });
+}
+export function useReturnOpportunity(projectId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { opportunityId: string; revisedCost: number; note: string }>({
+    mutationFn: async ({ opportunityId, revisedCost, note }) => {
+      const { error } = await supabase.rpc('return_opportunity_to_design', {
+        p_opp_id: opportunityId,
+        p_revised_cost: revisedCost,
+        p_note: note
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['pending_estimate_updates', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
+    }
   });
 }

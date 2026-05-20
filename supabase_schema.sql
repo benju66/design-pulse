@@ -135,6 +135,8 @@ CREATE TABLE IF NOT EXISTS opportunity_options (
   category text,
   order_index integer DEFAULT 0,
   is_locked boolean DEFAULT false,
+  is_returned boolean DEFAULT false,
+  return_note text,
   include_in_budget boolean DEFAULT false,
   requires_coordination boolean DEFAULT true,
   coordination_requirements jsonb DEFAULT '{}'::jsonb,
@@ -945,7 +947,7 @@ BEGIN
   UPDATE opportunities SET status = 'Draft' WHERE id = p_opp_id;
   UPDATE opportunity_options SET is_locked = false WHERE opportunity_id = p_opp_id;
   
-  UPDATE opportunity_options SET is_locked = true WHERE id = p_option_id 
+  UPDATE opportunity_options SET is_locked = true, is_returned = false WHERE id = p_option_id 
   RETURNING title, cost_impact, days_impact, cost_code, division, COALESCE(requires_coordination, true), COALESCE(coordination_requirements, '{}'::jsonb) 
   INTO v_option_title, v_option_cost, v_option_days, v_option_cost_code, v_option_division, v_requires_coord, v_coord_reqs;
   
@@ -1700,6 +1702,16 @@ BEGIN
         INSERT INTO item_activity (project_id, opportunity_id, option_id, activity_type, content, author_id)
         VALUES (v_project_id, v_opportunity_id, v_option_id, 'system_log', v_summary, auth.uid());
       END IF;
+
+      IF NEW.estimate_sync_status = 'Incorporated' AND OLD.estimate_sync_status = 'Pending Estimate Update' THEN
+        v_summary := 'Reconciled & Incorporated. Locked: $' || COALESCE(NEW.locked_variance::text, '0') || ' → Realized: $' || COALESCE(NEW.cost_impact::text, '0');
+        INSERT INTO item_activity (project_id, opportunity_id, option_id, activity_type, content, author_id)
+        VALUES (v_project_id, v_opportunity_id, v_option_id, 'system_log', v_summary, auth.uid());
+      ELSIF NEW.estimate_sync_status IS DISTINCT FROM OLD.estimate_sync_status THEN
+        v_summary := 'Estimate sync status changed from ' || COALESCE(OLD.estimate_sync_status, 'Draft') || ' to ' || COALESCE(NEW.estimate_sync_status, 'Draft');
+        INSERT INTO item_activity (project_id, opportunity_id, option_id, activity_type, content, author_id)
+        VALUES (v_project_id, v_opportunity_id, v_option_id, 'system_log', v_summary, auth.uid());
+      END IF;
     END IF;
 
   ELSIF TG_TABLE_NAME = 'opportunity_options' THEN
@@ -2125,45 +2137,6 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.bulk_append_estimate_lines(uuid, uuid, jsonb) FROM PUBLIC, anon;
 GRANT  EXECUTE ON FUNCTION public.bulk_append_estimate_lines(uuid, uuid, jsonb) TO authenticated;
-
--- ── RPC 3: finalize_estimate_version ────────────────────────────────────────
--- Called once after all chunks complete. Computes total_budget and stamps is_finalized=true.
--- Only syncs original_budget when version is_active (AGENTS.md C33).
--- Row-lock on project_settings prevents concurrent sync races (AGENTS.md C7).
-CREATE OR REPLACE FUNCTION public.finalize_estimate_version(
-  p_version_id uuid,
-  p_project_id uuid
-) RETURNS numeric LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_total numeric; v_is_active boolean;
-BEGIN
-  IF NOT has_project_permission(p_project_id, 'can_edit_project_settings') THEN
-    RAISE EXCEPTION 'Unauthorized';
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM project_estimate_versions
-    WHERE id = p_version_id AND project_id = p_project_id
-  ) THEN
-    RAISE EXCEPTION 'Version % does not belong to project %', p_version_id, p_project_id;
-  END IF;
-  SELECT ROUND(COALESCE(SUM(budget_amount), 0), 2) INTO v_total
-  FROM project_estimates WHERE version_id = p_version_id;
-  SELECT is_active INTO v_is_active
-  FROM project_estimate_versions WHERE id = p_version_id;
-  -- Stamp is_finalized=true and persist total_budget atomically
-  UPDATE project_estimate_versions
-  SET total_budget = v_total, is_finalized = true
-  WHERE id = p_version_id;
-  IF v_is_active THEN
-    -- Row-lock on project_settings to prevent concurrent budget sync races (AGENTS.md C7).
-    -- project_settings uses project_id as PK, not id — use PERFORM 1, not PERFORM id.
-    PERFORM 1 FROM project_settings WHERE project_id = p_project_id FOR UPDATE;
-    UPDATE project_settings SET original_budget = v_total WHERE project_id = p_project_id;
-  END IF;
-  RETURN v_total;
-END;
-$$;
-REVOKE EXECUTE ON FUNCTION public.finalize_estimate_version(uuid, uuid) FROM PUBLIC, anon;
-GRANT  EXECUTE ON FUNCTION public.finalize_estimate_version(uuid, uuid) TO authenticated;
 
 -- ── RPC 4: activate_estimate_version ────────────────────────────────────────
 -- Atomic swap: deactivates all others, activates target, syncs budget.
@@ -2806,7 +2779,8 @@ GRANT EXECUTE ON FUNCTION public.compare_estimate_versions(uuid, uuid, uuid) TO 
 ALTER TABLE public.opportunities
   ADD COLUMN IF NOT EXISTS estimate_sync_status text DEFAULT 'Draft',
   ADD COLUMN IF NOT EXISTS incorporated_version_id uuid REFERENCES public.project_estimate_versions(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS estimator_assignee text;
+  ADD COLUMN IF NOT EXISTS estimator_assignee text,
+  ADD COLUMN IF NOT EXISTS locked_variance numeric;
 
 -- 3. Master Ledger Grid RPC
 CREATE OR REPLACE FUNCTION public.get_master_ledger_grid(p_project_id UUID)
@@ -2912,6 +2886,7 @@ BEGIN
 
   UPDATE public.opportunities
   SET 
+    locked_variance = cost_impact,
     cost_impact = p_realized_cost,
     estimate_sync_status = 'Incorporated',
     incorporated_version_id = p_version_id,
@@ -2923,6 +2898,8 @@ REVOKE EXECUTE ON FUNCTION public.reconcile_and_incorporate_opportunity(uuid, uu
 GRANT EXECUTE ON FUNCTION public.reconcile_and_incorporate_opportunity(uuid, uuid, numeric, text) TO authenticated;
 
 -- 6. Atomic Linking: Finalize Estimate Version
+DROP FUNCTION IF EXISTS public.finalize_estimate_version(uuid, uuid);
+
 CREATE OR REPLACE FUNCTION public.finalize_estimate_version(
   p_version_id UUID, 
   p_incorporated_ve_ids UUID[] DEFAULT NULL
@@ -2931,6 +2908,7 @@ RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_project_id uuid;
   v_total_amount numeric;
+  v_is_active boolean;
 BEGIN
   SELECT project_id INTO v_project_id FROM public.project_estimate_versions WHERE id = p_version_id;
   
@@ -2942,9 +2920,18 @@ BEGIN
   FROM public.project_estimates 
   WHERE version_id = p_version_id;
 
+  SELECT is_active INTO v_is_active
+  FROM project_estimate_versions WHERE id = p_version_id;
+
   UPDATE public.project_estimate_versions 
   SET is_finalized = true, total_budget = v_total_amount
   WHERE id = p_version_id;
+
+  IF v_is_active THEN
+    -- Row-lock on project_settings to prevent concurrent budget sync races
+    PERFORM 1 FROM project_settings WHERE project_id = v_project_id FOR UPDATE;
+    UPDATE project_settings SET original_budget = v_total_amount WHERE project_id = v_project_id;
+  END IF;
 
   IF p_incorporated_ve_ids IS NOT NULL AND array_length(p_incorporated_ve_ids, 1) > 0 THEN
     -- B5 Guardrail required if we are modifying locked items
@@ -2952,6 +2939,7 @@ BEGIN
 
     UPDATE public.opportunities 
     SET 
+      locked_variance = cost_impact,
       estimate_sync_status = 'Incorporated',
       incorporated_version_id = p_version_id
     WHERE id = ANY(p_incorporated_ve_ids) AND project_id = v_project_id;
@@ -3343,5 +3331,46 @@ BEGIN
     AND pl.is_deleted = false
     AND public.get_user_project_role(pl.project_id) IS NOT NULL
   GROUP BY pl.cost_code;
+END;
+$$;
+CREATE OR REPLACE FUNCTION public.return_opportunity_to_design(
+  p_opp_id UUID,
+  p_revised_cost numeric,
+  p_note text
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_project_id uuid;
+  v_option_id uuid;
+BEGIN
+  SELECT project_id INTO v_project_id FROM public.opportunities WHERE id = p_opp_id;
+  IF NOT (public.has_project_permission(v_project_id, 'can_manage_budget') OR public.has_project_permission(v_project_id, 'can_unlock_options')) THEN
+    RAISE EXCEPTION 'Unauthorized: Insufficient privileges';
+  END IF;
+
+  PERFORM set_config('designpulse.bypass_immutability', 'true', true);
+
+  SELECT id INTO v_option_id FROM public.opportunity_options WHERE opportunity_id = p_opp_id AND is_locked = true LIMIT 1;
+
+  IF v_option_id IS NOT NULL THEN
+    UPDATE public.opportunity_options SET cost_impact = p_revised_cost, is_returned = true, return_note = p_note WHERE id = v_option_id;
+  END IF;
+
+  UPDATE public.opportunity_options SET is_locked = false WHERE opportunity_id = p_opp_id;
+
+  UPDATE public.opportunities SET
+    status = 'Pending Review',
+    estimate_sync_status = 'Returned',
+    final_direction = NULL,
+    coordination_status = CASE 
+      WHEN COALESCE(coordination_details, '{}'::jsonb) != '{}'::jsonb 
+      THEN 'Draft' 
+      ELSE 'Not Required' 
+    END
+  WHERE id = p_opp_id;
+
+  IF v_option_id IS NOT NULL THEN
+    INSERT INTO public.item_activity (project_id, opportunity_id, option_id, activity_type, content, author_id)
+    VALUES (v_project_id, p_opp_id, v_option_id, 'system_log', 'Returned by Estimator (Revised Cost: $' || p_revised_cost::text || '). Note: ' || p_note, auth.uid());
+  END IF;
 END;
 $$;

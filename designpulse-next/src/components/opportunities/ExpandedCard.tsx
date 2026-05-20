@@ -8,7 +8,7 @@ import { useUpdateOpportunity, useDeleteOpportunity, useDeEscalateOpportunity } 
 import { useProjectSettings, useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
-import { List, Paperclip, MessageSquare, Settings, ChevronDown, Play } from 'lucide-react';
+import { List, Paperclip, MessageSquare, Settings, ChevronDown, Play, Hourglass, CheckCircle, AlertCircle } from 'lucide-react';
 import { ALL_PRIMARY_FIELDS, ADVANCED_FIELD_IDS } from '@/lib/constants';
 import { toast } from 'sonner';
 
@@ -18,6 +18,12 @@ import { SortableFieldCard } from './SortableFieldCard';
 import { AssigneeSelect } from './AssigneeSelect';
 import { Row } from '@tanstack/react-table';
 import { Opportunity, CoordinationDetailsMap } from '@/types/models';
+
+import { ReconcileValueModal } from './ReconcileValueModal';
+import { useProjectEstimateVersions } from '@/hooks/useEstimateQueries';
+
+const formatCurrency = (val: number) => 
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
 interface ExpandedCardProps {
   row: Row<Opportunity>;
@@ -47,8 +53,13 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
   const setCardOrder = useUIStore(state => state.setCardOrder);
   const visibleCards = useUIStore(state => state.visibleCards);
   const toggleCardVisibility = useUIStore(state => state.toggleCardVisibility);
+  const navigateToSettings = useUIStore(state => state.navigateToSettings);
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState('Details');
+  const [isReconcileOpen, setIsReconcileOpen] = useState(false);
+  const { data: estimateVersions = [] } = useProjectEstimateVersions(projectId);
+  
+  const incorporatedVersion = estimateVersions.find(v => v.id === row.original.incorporated_version_id);
 
   // Controlled accordion: eliminates React vs browser DOM fight on <details open>
   const [descOpen, setDescOpen] = useState(
@@ -382,9 +393,84 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
       </div>
 
       {/* Tab Content */}
-      <div className="p-4 bg-slate-50 dark:bg-slate-900/50">
+      <div className="p-4 bg-slate-50 dark:bg-slate-900/50 relative">
         {activeTab === 'Details' && (
           <>
+            {/* Status Banner for Estimate Sync */}
+            {row.original.estimate_sync_status && row.original.estimate_sync_status !== 'Draft' && (
+              <div className={`mb-6 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm ${
+                row.original.estimate_sync_status === 'Returned'
+                  ? 'bg-rose-50/80 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800/50'
+                  : row.original.estimate_sync_status === 'Pending Estimate Update'
+                  ? 'bg-amber-50/80 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50'
+                  : 'bg-emerald-50/80 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50'
+              }`}>
+                <div className="flex items-start gap-3.5">
+                  <div className="mt-0.5">
+                    {row.original.estimate_sync_status === 'Returned' ? (
+                      <AlertCircle className="w-5 h-5 text-rose-500" />
+                    ) : row.original.estimate_sync_status === 'Pending Estimate Update' ? (
+                      <Hourglass className="w-5 h-5 text-amber-500" />
+                    ) : (
+                      <CheckCircle className="w-5 h-5 text-emerald-500" />
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {row.original.estimate_sync_status === 'Returned' ? (
+                      <>
+                        <h4 className="text-[13px] font-bold text-rose-900 dark:text-rose-400">Returned by Estimator</h4>
+                        <p className="text-[11px] text-rose-700 dark:text-rose-500/80 leading-snug">
+                          {(() => {
+                            const returnedOpt = (row.original as any).opportunity_options?.find((o: any) => o.is_returned);
+                            return returnedOpt?.return_note || "This item's variance was rejected and returned to the design team.";
+                          })()}
+                        </p>
+                      </>
+                    ) : row.original.estimate_sync_status === 'Pending Estimate Update' ? (
+                      <>
+                        <h4 className="text-[13px] font-bold text-amber-900 dark:text-amber-400">Awaiting estimate incorporation</h4>
+                        <p className="text-[11px] text-amber-700 dark:text-amber-500/80 leading-snug">
+                          This item's variance has not yet been merged into the active budget.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <h4 className="text-[13px] font-bold text-emerald-900 dark:text-emerald-400">
+                          Incorporated into {incorporatedVersion?.version_name || 'Estimate'}
+                        </h4>
+                        {(row.original as any).locked_variance !== undefined && (row.original as any).locked_variance !== null && (
+                          <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-emerald-700/80 dark:text-emerald-500/80 mt-0.5 font-medium tabular-nums">
+                            <span><span className="opacity-70 font-normal">Locked:</span> {formatCurrency((row.original as any).locked_variance)}</span>
+                            <span className="text-emerald-400">→</span>
+                            <span><span className="opacity-70 font-normal">Realized:</span> {formatCurrency(Number(row.original.cost_impact) || 0)}</span>
+                            <span className="opacity-40">•</span>
+                            <span><span className="opacity-70 font-normal">Variance:</span> {formatCurrency((Number(row.original.cost_impact) || 0) - (row.original as any).locked_variance)}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                {row.original.estimate_sync_status === 'Pending Estimate Update' && permissions?.can_manage_budget && (
+                  <div className="flex items-center gap-2.5 shrink-0 sm:ml-auto">
+                    <button 
+                      onClick={() => navigateToSettings(projectId, 'estimate')}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-amber-700 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-900/30 hover:bg-amber-200/50 dark:hover:bg-amber-900/50 transition-colors"
+                    >
+                      View Budget
+                    </button>
+                    <button 
+                      onClick={() => setIsReconcileOpen(true)}
+                      className="text-[11px] font-bold px-3.5 py-1.5 rounded-lg text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 transition-colors shadow-sm"
+                    >
+                      Reconcile & Incorporate
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Pinned Description / Notes Accordion */}
             <details 
               className="group border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm mb-6"
@@ -496,6 +582,13 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
           </div>
         )}
       </div>
+      <ReconcileValueModal 
+        isOpen={isReconcileOpen}
+        onClose={() => setIsReconcileOpen(false)}
+        projectId={projectId}
+        opportunityId={row.original.id}
+        pendingVariance={Number(row.original.cost_impact) || 0}
+      />
     </div>
   );
 };

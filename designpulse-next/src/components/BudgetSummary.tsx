@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
-import { useAllProjectOptions } from '@/hooks/useOpportunityQueries';
+import { useAllProjectOptions, usePendingEstimateUpdates } from '@/hooks/useOpportunityQueries';
 import { Opportunity } from '@/types/models';
 import { useUIStore } from '@/stores/useUIStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -44,6 +44,10 @@ export default function BudgetSummary({ projectId, opportunities = [], forceColl
   const toggleBudgetSummary = useUIStore(state => state.toggleBudgetSummary);
   
   const isBudgetSummaryCollapsed = forceCollapse || storeCollapsed;
+
+  const { data: pendingUpdates = [] } = usePendingEstimateUpdates(projectId);
+  const pendingIncorporationCount = pendingUpdates.length;
+  const pendingIncorporationValue = pendingUpdates.reduce((sum, opp) => sum + (Number(opp.cost_impact) || 0), 0);
 
   const { approvedChanges, pendingChanges, potentialExposure } = useMemo(() => {
     let approved = 0;
@@ -175,6 +179,14 @@ export default function BudgetSummary({ projectId, opportunities = [], forceColl
                 <span className="text-sm font-bold text-amber-700 dark:text-amber-300">{formatCurrency(potentialExposure, true)}</span>
                 <TooltipPopover align="right" title="Potential Exposure" description="The worst-case cost scenario for all early-stage draft items not yet under formal review." />
               </div>
+
+              <div className="w-px h-4 bg-slate-200 dark:bg-slate-700" />
+              
+              <div className="relative group flex items-center gap-2">
+                <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">To Incorporate:</span>
+                <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">{pendingIncorporationCount} items ({formatCurrency(pendingIncorporationValue, true)})</span>
+                <TooltipPopover align="right" title="Pending VE Incorporation" description="VE items that are Approved but have not yet been formally true-up'd into the budget baseline." />
+              </div>
             </div>
             
             {!forceCollapse && (
@@ -251,7 +263,7 @@ export default function BudgetSummary({ projectId, opportunities = [], forceColl
             {/* Cluster 2: Risk & Forecast */}
             <div className="flex flex-col border-2 border-dashed border-slate-300 dark:border-slate-600 bg-amber-50/20 dark:bg-amber-900/5 rounded-2xl p-4">
               <h3 className="text-sm font-bold text-amber-600/80 dark:text-amber-500/80 uppercase tracking-wider mb-4 px-1">Risk & Forecast</h3>
-              <div className="grid grid-cols-1 @3xl:grid-cols-3 gap-4 h-full">
+              <div className="grid grid-cols-1 @3xl:grid-cols-4 gap-4 h-full">
                 {/* Pending Changes */}
                 <div className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col">
                   <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Pending Changes</span>
@@ -282,6 +294,26 @@ export default function BudgetSummary({ projectId, opportunities = [], forceColl
                     align="right"
                     title="Potential Exposure" 
                     description="The worst-case cost scenario for all early-stage draft items not yet under formal review." 
+                  />
+                </div>
+
+                {/* Pending VE Incorporation */}
+                <div className="relative group bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4 flex flex-col">
+                  <span className="text-sm text-indigo-600 dark:text-indigo-400 font-medium flex justify-between items-center">
+                    To Incorporate
+                    {pendingIncorporationCount > 0 && (
+                      <span className="bg-indigo-200 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        {pendingIncorporationCount} items
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">
+                    {formatCurrency(pendingIncorporationValue, true)}
+                  </span>
+                  <TooltipPopover 
+                    align="right"
+                    title="Pending VE Incorporation" 
+                    description="VE items that are Approved but have not yet been formally true-up'd into the budget baseline." 
                   />
                 </div>
               </div>

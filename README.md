@@ -131,6 +131,7 @@ This release introduces a centralized **Client Hub** to manage client profiles, 
 The Client detail page has been completely rewritten into a state-management shell following the Master-Detail pattern:
 - _Profile Tab:_ Editable client identity and contact information with floating save/discard state bar.
 - _Brand Standards Tab:_ Full CRUD TanStack Table for managing client-specific design requirements, complete with inline editing, category filter pills, and a Smart Cost Code combobox.
+- _Enterprise Table Mechanics:_ The Brand Standards grid features click-to-sort headers, draggable column resizing, and a drag-and-drop settings panel to toggle/reorder columns, all backed by client-scoped Zustand persistence.
 - _Documents Tab:_ Secure file management with a drag-and-drop upload zone, type-specific file icons, and standard-based filtering. Uses signed URLs for secure downloads.
 - _Projects Tab:_ Read-only aggregation view showing all projects linked to the client, summarizing total budget, locked variance, and potential exposure.
 - _Lessons Learned Tab:_ Architectural runway for tracking cross-project insights.

@@ -276,7 +276,7 @@ const PermitStatusCell = React.memo(({ getValue, row, column, table }: CellConte
   else if (initialValue === 'Approved') colorClass = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
 
   return (
-    <div className={`w-full h-full p-0 flex items-center relative ${isCellActive ? 'ring-2 ring-sky-400 z-10' : ''}`}>
+    <div className="w-full h-full p-0 flex items-center relative focus-within:ring-2 focus-within:ring-sky-400 focus-within:z-10">
       <select
         ref={selectRef}
         onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
@@ -317,7 +317,7 @@ const PermitDropdownCell = React.memo(({ getValue, row, column, table, options }
   }, [isCellActive]);
 
   return (
-    <div className={`w-full h-full p-0 flex items-center relative ${isCellActive ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20 z-10' : ''}`}>
+    <div className="w-full h-full p-0 flex items-center relative focus-within:ring-2 focus-within:ring-sky-400 focus-within:bg-sky-50/50 dark:focus-within:bg-sky-900/20 focus-within:z-10">
       <select
         ref={selectRef}
         onFocus={() => setActiveCell({ rowIndex: row.index, columnId: column.id })}
@@ -536,7 +536,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
       },
       {
         id: 'open_panel',
-        header: '',
+        header: () => null,
         cell: (info) => <OpenPanelCell row={info.row} />,
         size: 40,
         enableSorting: false,
@@ -643,6 +643,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    columnResizeMode: 'onChange',
     enableRowSelection: true,
     meta: {
       projectId,
@@ -698,9 +699,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
     : 0;
 
   return (
-    <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative flex flex-col">
-        
+    <div className="w-full h-full flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
         <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Permit Log</span>
@@ -779,10 +778,10 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
                       style={{ width: header.getSize() }}
                     >
                       <div 
-                        className={`min-w-0 flex items-center justify-between ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}
+                        className={`min-w-0 flex items-center ${header.id === 'select' || header.id === 'open_panel' ? 'justify-center w-full' : 'justify-between'} ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}
                         onClick={header.column.getToggleSortingHandler()}
                       >
-                        <span className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                        <span className={`truncate ${header.id === 'select' || header.id === 'open_panel' ? 'w-full flex justify-center' : ''}`}>{flexRender(header.column.columnDef.header, header.getContext())}</span>
                         {{
                           asc: <ChevronUp size={14} className="ml-1 inline-block shrink-0" />,
                           desc: <ChevronDown size={14} className="ml-1 inline-block shrink-0" />,
@@ -906,7 +905,6 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
           </div>
         )}
       </div>
-    </div>
   );
 };
 

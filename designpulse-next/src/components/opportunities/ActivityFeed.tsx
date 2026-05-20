@@ -10,13 +10,14 @@ import { useAuth } from '@/providers/AuthProvider';
 interface ActivityFeedProps {
   opportunityId?: string;
   lessonId?: string;
+  permitId?: string;
   projectId: string;
 }
 
-export const ActivityFeed = ({ opportunityId, lessonId, projectId }: ActivityFeedProps) => {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useActivityFeed({ opportunityId, lessonId });
-  const addComment = useAddComment({ opportunityId, lessonId }, projectId);
-  const deleteComment = useDeleteComment({ opportunityId, lessonId });
+export const ActivityFeed = ({ opportunityId, lessonId, permitId, projectId }: ActivityFeedProps) => {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useActivityFeed({ opportunityId, lessonId, permitId });
+  const addComment = useAddComment({ opportunityId, lessonId, permitId }, projectId);
+  const deleteComment = useDeleteComment({ opportunityId, lessonId, permitId });
   const { data: members = [] } = useProjectMembers(projectId);
   const { permissions } = useCurrentUserPermissions(projectId);
   const { session } = useAuth();

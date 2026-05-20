@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { PermitComment } from '@/types/models';
 import { useCreatePermitComment } from '@/hooks/usePermitQueries';
 
 interface PermitCommentGhostRowProps {

@@ -1413,32 +1413,37 @@ CREATE OR REPLACE FUNCTION log_permit_activity(
 ) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_project_id UUID;
-  v_old_status TEXT;
-  v_new_rev_num INTEGER;
+  v_current_status TEXT;
 BEGIN
-  SELECT project_id, status INTO v_project_id, v_old_status
+  SELECT project_id, status INTO v_project_id, v_current_status
   FROM permits WHERE id = p_permit_id FOR UPDATE;
 
   IF NOT public.has_project_permission(v_project_id, 'can_edit_records') THEN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to log activity';
   END IF;
 
+  -- Logic 1: Handle a structured "Record Submission"
   IF p_event_type = 'submission' THEN
-    UPDATE permits
-    SET revision_number = revision_number + 1,
+    UPDATE permits 
+    SET revision_number = COALESCE(revision_number, 0) + 1,
         status = 'Submitted'
-    WHERE id = p_permit_id
-    RETURNING revision_number INTO v_new_rev_num;
+    WHERE id = p_permit_id;
 
-    INSERT INTO item_activity (id, project_id, permit_id, activity_type, content, author_id)
-    VALUES (gen_random_uuid(), v_project_id, p_permit_id, 'system_log', 'Revision ' || v_new_rev_num || ' Submitted: ' || p_note, auth.uid());
-    
+    -- Log the submission and the resulting status change securely
+    INSERT INTO item_activity (project_id, permit_id, activity_type, content, author_id)
+    VALUES 
+      (v_project_id, p_permit_id, 'system_log', 'Status changed to Submitted.', NULL),
+      (v_project_id, p_permit_id, 'user_comment', p_note, auth.uid());
+
+  -- Logic 2: Handle a direct UI status dropdown change
   ELSIF p_event_type = 'status_change' AND p_new_status IS NOT NULL THEN
-    IF v_old_status IS DISTINCT FROM p_new_status THEN
-      UPDATE permits SET status = p_new_status WHERE id = p_permit_id;
-      INSERT INTO item_activity (id, project_id, permit_id, activity_type, content, author_id)
-      VALUES (gen_random_uuid(), v_project_id, p_permit_id, 'system_log', 'System: Status changed to ' || p_new_status, auth.uid());
-    END IF;
+    UPDATE permits 
+    SET status = p_new_status
+    WHERE id = p_permit_id;
+
+    -- Inject immutable system log
+    INSERT INTO item_activity (project_id, permit_id, activity_type, content, author_id)
+    VALUES (v_project_id, p_permit_id, 'system_log', 'Status changed from ' || COALESCE(v_current_status, 'None') || ' to ' || p_new_status || '.', NULL);
   ELSE
     RAISE EXCEPTION 'Invalid event_type or missing arguments';
   END IF;

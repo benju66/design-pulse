@@ -126,6 +126,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
   const [coordActiveStatus, setCoordActiveStatus] = React.useState('All');
   const [coordActiveDisciplines, setCoordActiveDisciplines] = React.useState<string[]>([]);
   const [isCompareModalOpen, setIsCompareModalOpen] = React.useState(false);
+  const [compareSelectedIds, setCompareSelectedIds] = React.useState<string[]>([]);
   const [isBulkImportOpen, setIsBulkImportOpen] = React.useState(false);
   const [isPdfImportOpen, setIsPdfImportOpen] = React.useState(false);
   const drawingGridViewMode = useUIStore(state => state.drawingGridViewMode);
@@ -710,7 +711,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               filteredOpportunities={filteredOpportunities}
               viewMode={viewMode}
               isLoading={isLoading}
-              onOpenCompare={() => setIsCompareModalOpen(true)}
+              onOpenCompare={(ids) => { setCompareSelectedIds(ids || []); setIsCompareModalOpen(true); }}
               activeStatus={activeStatus}
               setActiveStatus={setActiveStatus}
               activeEstimateSyncStatus={activeEstimateSyncStatus}
@@ -733,7 +734,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
               allOpportunities={mergedOpportunities}
               viewMode={viewMode}
               isLoading={isLoading || isLedgerLoading}
-              onOpenCompare={() => setIsCompareModalOpen(true)}
+              onOpenCompare={(ids) => { setCompareSelectedIds(ids || []); setIsCompareModalOpen(true); }}
               activeBuildingAreas={activeBuildingAreas}
               setActiveBuildingAreas={setActiveBuildingAreas}
               activeCostCodes={activeCostCodes}
@@ -931,6 +932,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
         onClose={() => setIsCompareModalOpen(false)}
         projectId={projectId}
         opportunities={opportunities}
+        selectedIds={compareSelectedIds}
       />
 
       <BulkImportModal

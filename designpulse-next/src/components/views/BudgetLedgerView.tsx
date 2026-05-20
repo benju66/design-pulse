@@ -16,7 +16,7 @@ interface BudgetLedgerViewProps {
   allOpportunities: Opportunity[];  // Unfiltered — for DetailPanel VE Impact lookup
   viewMode: string;
   isLoading: boolean;
-  onOpenCompare: () => void;
+  onOpenCompare: (selectedIds?: string[]) => void;
   // Filter state
   activeBuildingAreas: string[];
   setActiveBuildingAreas: (a: string[]) => void;

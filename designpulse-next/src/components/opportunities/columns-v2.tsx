@@ -6,26 +6,10 @@ import { OptionsCell } from './OptionsCell';
 import { InlineOptionCell } from './InlineOptionCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
+import { CheckboxCell as SharedCheckboxCell, CheckboxHeader } from '@/components/data-table/cells';
 
-const CheckboxCell = ({ row }: { row: Row<Opportunity> }) => {
-  const isSelected = useUIStore(state => state.compareQueue.includes(row.original.id));
-  const toggleCompareItem = useUIStore(state => state.toggleCompareItem);
-  
-  if (row.original.is_budget_line) {
-    return <div className="flex items-center justify-center py-2 px-1 text-slate-300 dark:text-slate-600">-</div>;
-  }
-
-  return (
-    <div className="flex items-center justify-center py-2 px-1">
-      <input 
-        type="checkbox" 
-        checked={isSelected}
-        onChange={() => toggleCompareItem(row.original.id)}
-        className="w-4 h-4 text-sky-600 bg-slate-100 border-slate-300 rounded focus:ring-sky-500 dark:focus:ring-sky-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer"
-      />
-    </div>
-  );
-};
+// CheckboxCell now uses TanStack native rowSelection via shared component.
+// Budget line guard is handled by `enableRowSelection: (row) => !row.original.is_budget_line` on the table.
 
 const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
@@ -57,8 +41,8 @@ const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
 export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number = 0): ColumnDef<Opportunity, unknown>[] => {
   const checkboxColumn: ColumnDef<Opportunity, unknown> = useMemo(() => ({
     id: 'select',
-    header: () => null,
-    cell: CheckboxCell,
+    header: ({ table }) => <CheckboxHeader table={table} />,
+    cell: (info) => <SharedCheckboxCell info={info} />,
     size: 40,
   }), []);
 

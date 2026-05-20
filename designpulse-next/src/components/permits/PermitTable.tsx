@@ -13,7 +13,7 @@ import {
   FilterFn,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronUp, ChevronDown, PanelRight, MapIcon, SlidersHorizontal, AlertTriangle } from 'lucide-react';
+import { ChevronUp, ChevronDown, PanelRight, MapIcon, SlidersHorizontal } from 'lucide-react';
 import { Permit, PermitTypeConfig, PermitAHJConfig } from '@/types/models';
 import { useUpdatePermit, useDeletePermit, useCreatePermit, usePermitComments, useUpdatePermitStatusWithLog } from '@/hooks/usePermitQueries';
 import { useProjectSettings, useProjectMembers } from '@/hooks/useProjectCoreQueries';
@@ -21,9 +21,10 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
-import { PermitGhostRow } from './PermitGhostRow';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { AssigneeSelect } from '@/components/opportunities/AssigneeSelect';
+import { CheckboxCell, CheckboxHeader, commonCellComparator } from '@/components/data-table/cells';
+import { BulkActionBar, DeleteConfirmModal, GhostRow, TableEmptyState } from '@/components/data-table';
 
 // Common comparator for deep row memoization
 const permitComparator = (prevProps: { row: Row<Permit> }, nextProps: { row: Row<Permit> }) => {
@@ -31,30 +32,11 @@ const permitComparator = (prevProps: { row: Row<Permit> }, nextProps: { row: Row
          prevProps.row.getIsSelected() === nextProps.row.getIsSelected();
 };
 
-const commonCellComparator = (prevProps: CellContext<Permit, unknown>, nextProps: CellContext<Permit, unknown>) => {
-  if (prevProps.getValue() !== nextProps.getValue()) return false;
-  if (prevProps.row.original !== nextProps.row.original) return false;
-  return true;
-};
+// commonCellComparator is now imported from @/components/data-table/cells
+// PermitCheckboxCell replaced by shared CheckboxCell
 
 // --- Cell Components ---
 const cellClass = "w-full h-full px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-sky-500 rounded text-slate-900 dark:text-slate-100 transition-all";
-
-{/* eslint-disable-next-line react/display-name */}
-const PermitCheckboxCell = React.memo(({ row, table }: CellContext<Permit, unknown>) => {
-  const permissions = table.options.meta?.permissions || { can_edit_records: false };
-  return (
-    <div className="w-full h-full flex items-center justify-center px-1">
-      <input
-        type="checkbox"
-        checked={row.getIsSelected()}
-        disabled={!permissions.can_edit_records}
-        onChange={row.getToggleSelectedHandler()}
-        className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 disabled:opacity-50"
-      />
-    </div>
-  );
-}, commonCellComparator);
 
 {/* eslint-disable-next-line react/display-name */}
 const PermitTextCell = React.memo(({ getValue, row, column, table }: CellContext<Permit, unknown>) => {
@@ -515,21 +497,8 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
     return [
       {
         id: 'select',
-        header: ({ table }) => {
-          const perms = table.options.meta?.permissions || { can_edit_records: false };
-          return (
-            <div className="w-full h-full flex items-center justify-center px-1">
-              <input
-                type="checkbox"
-                checked={table.getIsAllPageRowsSelected()}
-                disabled={!perms.can_edit_records}
-                onChange={table.getToggleAllPageRowsSelectedHandler()}
-                className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 disabled:opacity-50"
-              />
-            </div>
-          );
-        },
-        cell: PermitCheckboxCell,
+        header: ({ table }) => <CheckboxHeader table={table} disabled={!permissions.can_edit_records} />,
+        cell: (info) => <CheckboxCell info={info} disabled={!permissions.can_edit_records} />,
         size: 40,
         enableSorting: false,
         enableHiding: false,
@@ -821,7 +790,19 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
                 );
               })}
               {permissions.can_edit_records && (
-                <PermitGhostRow table={table} createMutation={createMutation} />
+                <GhostRow
+                  table={table}
+                  createMutation={createMutation}
+                  placeholder="Type new permit title and press Enter..."
+                  defaultValues={{
+                    status: 'Preparing',
+                    revision_number: 0,
+                    revision_history: [],
+                  }}
+                  staticFields={[
+                    { columnId: 'display_id', displayValue: 'New' },
+                  ]}
+                />
               )}
             </tbody>
             
@@ -831,79 +812,32 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
             
             {permits.length === 0 && (
               <tbody>
-                <tr>
-                  <td colSpan={columns.length} className="px-4 py-8 text-center text-slate-500">
-                    No permits found. Add one below!
-                  </td>
-                </tr>
+                <TableEmptyState
+                  colSpan={columns.length}
+                  message="No permits found. Add one below!"
+                />
               </tbody>
             )}
           </table>
 
-          {compareQueue.length > 0 && (
-            <div className="sticky bottom-0 w-full bg-slate-900 text-white p-4 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.2)] z-50 rounded-b-xl border-t border-slate-800">
-              <div className="flex items-center gap-4">
-                <div className="bg-sky-500 text-white text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full">
-                  {compareQueue.length}
-                </div>
-                <span className="font-medium text-sm text-slate-200">Permits Selected</span>
-              </div>
-              <div className="flex gap-3">
-                {permissions.can_delete_records && (
-                  <button 
-                    onClick={() => setIsDeleteModalOpen(true)}
-                    className="px-4 py-2 text-sm font-semibold text-rose-400 hover:text-rose-300 transition-colors"
-                  >
-                    Delete ({compareQueue.length})
-                  </button>
-                )}
-                <button 
-                  onClick={clearCompareQueue}
-                  className="px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
+          <BulkActionBar
+            selectedCount={compareQueue.length}
+            entityLabel="Permits"
+            onClear={clearCompareQueue}
+            onDelete={() => setIsDeleteModalOpen(true)}
+            canDelete={permissions.can_delete_records}
+          />
         </div>
 
-        {isDeleteModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden">
-              <div className="p-6">
-                <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center mb-4 text-rose-600 dark:text-rose-400">
-                  <AlertTriangle size={24} />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Delete {compareQueue.length} Permits?</h2>
-                <p className="text-slate-600 dark:text-slate-400">
-                  Are you sure you want to delete these permits? This action cannot be undone.
-                </p>
-              </div>
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  onClick={() => setIsDeleteModalOpen(false)}
-                  disabled={isDeleting}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleBulkDelete}
-                  disabled={isDeleting}
-                  className="px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isDeleting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Deleting...
-                    </>
-                  ) : 'Delete Permits'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <DeleteConfirmModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={handleBulkDelete}
+          isDeleting={isDeleting}
+          count={compareQueue.length}
+          entityName="Permits"
+          description="Are you sure you want to delete these permits? This action cannot be undone."
+        />
       </div>
   );
 };

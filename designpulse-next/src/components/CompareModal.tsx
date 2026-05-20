@@ -1,6 +1,5 @@
 "use client";
 import { X } from 'lucide-react';
-import { useUIStore } from '@/stores/useUIStore';
 import { ExpandedCard } from './opportunities/ExpandedCard';
 import { Opportunity } from '@/types/models';
 import { Row } from '@tanstack/react-table';
@@ -10,14 +9,14 @@ interface CompareModalProps {
   onClose: () => void;
   projectId: string;
   opportunities: Opportunity[];
+  /** IDs of items to compare — derived from TanStack rowSelection at click time */
+  selectedIds?: string[];
 }
 
-export default function CompareModal({ isOpen, onClose, projectId: _projectId, opportunities }: CompareModalProps) {
-  const compareQueue = useUIStore(state => state.compareQueue);
-
+export default function CompareModal({ isOpen, onClose, projectId: _projectId, opportunities, selectedIds = [] }: CompareModalProps) {
   if (!isOpen) return null;
 
-  const compareItems = opportunities.filter(opp => compareQueue.includes(opp.id));
+  const compareItems = opportunities.filter(opp => selectedIds.includes(opp.id));
   
   const createMockRow = (opp: Opportunity) => ({
     original: opp,

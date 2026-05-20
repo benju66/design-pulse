@@ -15,7 +15,7 @@ interface ValueMatrixViewProps {
   filteredOpportunities: Opportunity[];
   viewMode: string;
   isLoading: boolean;
-  onOpenCompare: () => void;
+  onOpenCompare: (selectedIds?: string[]) => void;
   // Filter state
   activeStatus: string;
   setActiveStatus: (s: string) => void;

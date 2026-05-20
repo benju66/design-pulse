@@ -14,11 +14,12 @@ import {
   VisibilityState,
   ColumnOrderState,
   GroupingState,
+  RowSelectionState,
   Row,
   Cell,
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
-import { AlertTriangle, ChevronDown, ChevronUp, Map as MapIcon, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronUp, Map as MapIcon, SlidersHorizontal } from 'lucide-react';
 import {
   useUpdateOpportunity,
   useCreateOpportunity,
@@ -41,6 +42,7 @@ import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { Opportunity, OpportunityOption } from '@/types/models';
 import { useVirtualGridKeyboardNavigation } from '@/hooks/useVirtualGridKeyboardNavigation';
 import { formatCostCode } from '@/lib/formatCostCode';
+import { BulkActionBar, DeleteConfirmModal } from '@/components/data-table';
 
 // IDs of the five ledger financial narrative columns.
 // Excluded from ve_column_order persistence — ledger column order is fixed by design.
@@ -60,7 +62,7 @@ interface OpportunityGridProps {
   projectId: string;
   data: Opportunity[];
   viewMode?: string;
-  onOpenCompare?: () => void;
+  onOpenCompare?: (selectedIds?: string[]) => void;
   isolateState?: boolean;
   hideGhostRow?: boolean;
   isLedgerView?: boolean;
@@ -435,19 +437,14 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const updateOptionMutation = useUpdateOption(projectId);
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
-  const compareQueue = useUIStore(state => state.compareQueue);
-  const clearCompareQueue = useUIStore(state => state.clearCompareQueue);
-  const setCompareQueue = useUIStore(state => state.setCompareQueue);
 
-  // Auto-remove deleted items from the compare queue
-  useEffect(() => {
-    if (compareQueue.length > 0) {
-      const validQueue = compareQueue.filter(id => data.some(opp => opp.id === id));
-      if (validQueue.length !== compareQueue.length) {
-        setCompareQueue(validQueue);
-      }
-    }
-  }, [data, compareQueue, setCompareQueue]);
+  // TanStack native row selection — replaces Zustand compareQueue
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const selectedIds = useMemo(
+    () => Object.keys(rowSelection).filter(id => rowSelection[id]),
+    [rowSelection]
+  );
+  const clearSelection = useCallback(() => setRowSelection({}), []);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -462,10 +459,10 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   const handleBulkDelete = async () => {
     setIsDeleting(true);
     try {
-      for (const id of compareQueue) {
+      for (const id of selectedIds) {
         await deleteMutation.mutateAsync(id);
       }
-      clearCompareQueue();
+      clearSelection();
       setIsDeleteModalOpen(false);
     } catch (error) {
       console.error('Failed to bulk delete:', error);
@@ -615,7 +612,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   const table = useReactTable<Opportunity>({
     data,
     columns: activeColumns,
-    state: { expanded, columnVisibility, columnOrder, sorting, globalFilter, grouping, columnPinning },
+    state: { expanded, columnVisibility, columnOrder, sorting, globalFilter, grouping, columnPinning, rowSelection },
     getSubRows: (row) => {
       // Ledger view: hierarchy is entirely managed by getGroupedRowModel via grouping state.
       // getSubRows must be disabled to avoid corrupting the grouped row tree (F1 fix).
@@ -636,6 +633,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     onGroupingChange: setGrouping,
+    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getRowCanExpand: () => true,
@@ -783,15 +781,10 @@ const EMPTY_VISIBILITY: VisibilityState = {};
         if (row.getCanExpand()) row.getToggleExpandedHandler()();
         return;
       }
-      // Any other cell toggles the Compare Queue.
+      // Any other cell toggles the TanStack row selection.
       // Must explicitly block sub-rows (Options) and Budget Lines to prevent data corruption.
       if (!('opportunity_id' in row.original) && !row.original.is_budget_line) {
-        const id = row.original.id;
-        if (compareQueue.includes(id)) {
-          setCompareQueue(compareQueue.filter(x => x !== id));
-        } else {
-          setCompareQueue([...compareQueue, id]);
-        }
+        row.toggleSelected();
       }
     },
     getValidColumnIds: (row, visibleCols) => {
@@ -1161,75 +1154,31 @@ const EMPTY_VISIBILITY: VisibilityState = {};
           )}
         </table>
 
-      {compareQueue.length > 0 && onOpenCompare && (
-        <div className="sticky bottom-0 w-full bg-slate-900 text-white p-4 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.2)] z-50 rounded-b-xl border-t border-slate-800">
-          <div className="flex items-center gap-4">
-            <div className="bg-sky-500 text-white text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full">
-              {compareQueue.length}
-            </div>
-            <span className="font-medium text-sm text-slate-200">Options Selected</span>
-          </div>
-          <div className="flex gap-3">
-            {permissions.can_delete_records && (
+      <BulkActionBar
+            selectedCount={selectedIds.length}
+            entityLabel="Options"
+            onClear={clearSelection}
+            onDelete={() => setIsDeleteModalOpen(true)}
+            canDelete={permissions.can_delete_records}
+            extraActions={onOpenCompare ? (
               <button 
-                onClick={() => setIsDeleteModalOpen(true)}
-                className="px-4 py-2 text-sm font-semibold text-rose-400 hover:text-rose-300 transition-colors"
+                onClick={() => onOpenCompare(selectedIds)}
+                className="px-6 py-2 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded-lg shadow-sm transition-colors text-sm"
               >
-                Delete ({compareQueue.length})
+                Compare Options
               </button>
-            )}
-            <button 
-              onClick={clearCompareQueue}
-              className="px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
-            >
-              Clear
-            </button>
-            <button 
-              onClick={onOpenCompare}
-              className="px-6 py-2 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded-lg shadow-sm transition-colors text-sm"
-            >
-              Compare Options
-            </button>
-          </div>
-        </div>
-      )}
+            ) : undefined}
+          />
 
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <div className="p-6">
-              <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center mb-4 text-rose-600 dark:text-rose-400">
-                <AlertTriangle size={24} />
-              </div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Delete {compareQueue.length} Items?</h2>
-              <p className="text-slate-600 dark:text-slate-400">
-                Are you sure you want to delete these items? This action will move them to the trash.
-              </p>
-            </div>
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {isDeleting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Deleting...
-                  </>
-                ) : 'Delete Items'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        <DeleteConfirmModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={handleBulkDelete}
+          isDeleting={isDeleting}
+          count={selectedIds.length}
+          entityName="Items"
+          description="Are you sure you want to delete these items? This action will move them to the trash."
+        />
 
       </div>
     </div>

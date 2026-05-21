@@ -138,6 +138,9 @@ export interface UIState {
   
   brandStandardsColumnOrder: Record<string, string[]>;
   setBrandStandardsColumnOrder: (clientId: string, updater: string[] | ((old: string[]) => string[])) => void;
+
+  versionMatrixColumnVisibility: Record<string, Record<string, boolean>>;
+  setVersionMatrixColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -361,6 +364,18 @@ export const useUIStore = create<UIState>()(
           [clientId]: typeof updater === 'function' ? updater(state.brandStandardsColumnOrder[clientId] || []) : updater
         }
       })),
+      
+      versionMatrixColumnVisibility: {},
+      setVersionMatrixColumnVisibility: (projectId, updater) => set((state) => {
+        const oldState = state.versionMatrixColumnVisibility?.[projectId] || {};
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          versionMatrixColumnVisibility: {
+            ...state.versionMatrixColumnVisibility,
+            [projectId]: newState
+          }
+        };
+      }),
     }),
     {
       name: 'design-pulse-ui-prefs',
@@ -390,8 +405,9 @@ export const useUIStore = create<UIState>()(
         permitColumnOrder: state.permitColumnOrder ?? {},
         brandStandardsColumnVisibility: state.brandStandardsColumnVisibility ?? {},
         brandStandardsColumnOrder: state.brandStandardsColumnOrder ?? {},
+        versionMatrixColumnVisibility: state.versionMatrixColumnVisibility ?? {},
       }),
-      version: 10,
+      version: 11,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -473,7 +489,15 @@ export const useUIStore = create<UIState>()(
           delete s.compareQueue;
           delete s.gridColumnVisibility;
           delete s.gridColumnOrder;
+          s.versionMatrixColumnVisibility = {};
           return s as unknown as UIState;
+        }
+        if (version < 11) {
+          // v10 → v11: added versionMatrixColumnVisibility
+          return {
+            ...state,
+            versionMatrixColumnVisibility: {},
+          } as UIState;
         }
         return state as UIState;
       },

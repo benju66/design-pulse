@@ -3,6 +3,7 @@ import { useState, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/supabaseClient';
 import { Loader2, Building2 } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 
 function LoginContent() {
   const [email, setEmail] = useState('');
@@ -149,13 +150,15 @@ function LoginContent() {
             </div>
 
             <div>
-              <button
+              <Button
+                size="lg"
                 type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-sky-500 hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 transition-colors"
+                className="w-full"
+                isLoading={loading}
+                loadingText="Signing in..."
               >
-                {loading ? <Loader2 className="animate-spin" size={20} /> : 'Sign in'}
-              </button>
+                Sign in
+              </Button>
             </div>
           </form>
         </div>

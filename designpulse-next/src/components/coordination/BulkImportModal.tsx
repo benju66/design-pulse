@@ -10,6 +10,8 @@ import {
   type CellContext,
 } from '@tanstack/react-table';
 import { X, UploadCloud, AlertCircle, Check, Download, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { ModalShell } from '@/components/ui/ModalShell';
 import { DraftCoordinationTask, parseCoordinationExcel } from '@/lib/excel/coordinationParser';
 import { generateCoordinationTemplate } from '@/lib/excel/coordinationTemplate';
 import { useBulkImportCoordinationTasks } from '@/hooks/useOpportunityQueries';
@@ -274,14 +276,13 @@ export function BulkImportModal({ isOpen, onClose, projectId, projectSettings, c
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 dark:border-gray-800">
+    <ModalShell isOpen={isOpen} onClose={onClose} size="lg" closeOnBackdropClick={false}>
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Smart Excel Bulk Import</h2>
-          <button onClick={onClose} className="p-2 text-gray-500 hover:text-gray-900 dark:hover:text-white rounded-md transition-colors">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 rounded-xl transition-colors">
+            <X size={18} />
           </button>
         </div>
 
@@ -321,14 +322,17 @@ export function BulkImportModal({ isOpen, onClose, projectId, projectSettings, c
                 ref={fileInputRef}
                 onChange={handleFileUpload}
               />
-              <button
+              <Button
+                intent="coordination"
+                size="sm"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isParsing}
-                className="flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors disabled:opacity-50"
+                isLoading={isParsing}
+                loadingText="Parsing..."
               >
-                <UploadCloud className="w-4 h-4 mr-2" />
-                {isParsing ? 'Parsing...' : 'Select File'}
-              </button>
+                <UploadCloud className="w-4 h-4" />
+                Select File
+              </Button>
             </div>
           </div>
 
@@ -375,20 +379,21 @@ export function BulkImportModal({ isOpen, onClose, projectId, projectSettings, c
             )}
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+            <Button variant="ghost" onClick={onClose}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              intent="coordination"
               onClick={handleFinalize}
               disabled={!isValidToImport || isImporting}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              isLoading={isImporting}
+              loadingText="Importing..."
             >
-              {isImporting ? 'Importing...' : 'Finalize Import'}
-            </button>
+              Finalize Import
+            </Button>
           </div>
         </div>
 
-      </div>
-    </div>
+    </ModalShell>
   );
 }

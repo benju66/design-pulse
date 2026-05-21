@@ -1,6 +1,8 @@
 'use client';
 
 import { AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { ModalShell } from '@/components/ui/ModalShell';
 
 /**
  * Shared delete confirmation modal for DataTable grids.
@@ -31,15 +33,9 @@ export function DeleteConfirmModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
+    <ModalShell isOpen={isOpen} onClose={onClose} size="sm">
       {/* Modal */}
-      <div className="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 border border-slate-200 dark:border-slate-700">
+      <div className="p-6">
         {/* Warning icon */}
         <div className="flex items-center gap-3 mb-4">
           <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
@@ -58,35 +54,23 @@ export function DeleteConfirmModal({
 
         {/* Actions */}
         <div className="flex justify-end gap-3">
-          <button
+          <Button
+            variant="secondary"
             onClick={onClose}
             disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300
-                       bg-slate-100 dark:bg-slate-800 rounded-lg
-                       hover:bg-slate-200 dark:hover:bg-slate-700
-                       disabled:opacity-50 transition-colors"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="destructive"
             onClick={onConfirm}
-            disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium text-white
-                       bg-red-600 rounded-lg
-                       hover:bg-red-700 disabled:opacity-50
-                       transition-colors flex items-center gap-2"
+            isLoading={isDeleting}
+            loadingText="Deleting..."
           >
-            {isDeleting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Deleting...
-              </>
-            ) : (
-              `Delete (${count})`
-            )}
-          </button>
+            {`Delete (${count})`}
+          </Button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

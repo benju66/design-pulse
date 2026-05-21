@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { X, CheckCircle, AlertCircle } from "lucide-react";
+import { Button } from '@/components/ui/Button';
+import { ModalShell } from '@/components/ui/ModalShell';
 import { useReconcileOpportunity } from "@/hooks/useOpportunityQueries";
 import { useProjectEstimateVersions } from "@/hooks/useEstimateQueries";
 import { toast } from 'sonner';
@@ -55,14 +57,13 @@ export function ReconcileValueModal({ isOpen, onClose, projectId, opportunityId,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
+    <ModalShell isOpen={isOpen} onClose={onClose} size="sm">
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
             <CheckCircle className="text-indigo-500 w-5 h-5" />
             Reconcile VE Value
           </h2>
-          <button onClick={onClose} className="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md">
+          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 rounded-xl transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -115,25 +116,24 @@ export function ReconcileValueModal({ isOpen, onClose, projectId, opportunityId,
           </div>
 
           <div className="flex justify-end gap-3 mt-2">
-            <button 
-              type="button" 
+            <Button
+              variant="ghost"
               onClick={onClose}
               disabled={isPending}
-              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
             >
               Cancel
-            </button>
-            <button 
-              type="submit" 
-              disabled={!activeVersion || isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            </Button>
+            <Button
+              type="submit"
+              intent="coordination"
+              disabled={!activeVersion}
+              isLoading={isPending}
+              loadingText="Incorporating..."
             >
-              {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              {isPending ? 'Incorporating...' : 'True-Up & Incorporate'}
-            </button>
+              True-Up & Incorporate
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

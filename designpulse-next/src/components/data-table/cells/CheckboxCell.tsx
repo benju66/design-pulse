@@ -1,9 +1,14 @@
 'use client';
 
 import { CellContext, Table } from '@tanstack/react-table';
+import { Check, Minus } from 'lucide-react';
 
 /**
  * Generic CheckboxCell — standardizes on TanStack native `rowSelection`.
+ *
+ * Uses a custom visual checkbox (button + Lucide icon) instead of native
+ * `<input type="checkbox">` to avoid Tailwind v4 preflight/utility conflicts
+ * that strip native checkbox appearance without replacement styling.
  *
  * Replaces:
  *   - columns.tsx CheckboxCell (Zustand compareQueue)
@@ -29,17 +34,29 @@ export function CheckboxCell<TData>({ info, disabled }: CheckboxCellProps<TData>
   // If row selection is disabled for this row, render nothing
   if (!row.getCanSelect()) return null;
 
+  const isSelected = row.getIsSelected();
+
   return (
     <div className="flex items-center justify-center py-2 px-1">
-      <input
-        type="checkbox"
-        checked={row.getIsSelected()}
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={isSelected}
         disabled={disabled}
-        onChange={row.getToggleSelectedHandler()}
-        className="w-4 h-4 rounded border-slate-300 text-sky-600
-                   focus:ring-sky-500 cursor-pointer disabled:opacity-50
-                   dark:border-slate-600 dark:bg-slate-800"
-      />
+        onClick={row.getToggleSelectedHandler()}
+        className={`
+          w-4 h-4 rounded flex items-center justify-center flex-shrink-0
+          border transition-colors duration-100 cursor-pointer
+          focus-visible:outline-2 focus-visible:outline-sky-400 focus-visible:outline-offset-1
+          disabled:opacity-50 disabled:cursor-not-allowed
+          ${isSelected
+            ? 'bg-sky-600 border-sky-600 text-white'
+            : 'bg-white border-slate-300 dark:bg-slate-800 dark:border-slate-600'
+          }
+        `}
+      >
+        {isSelected && <Check size={12} strokeWidth={3} />}
+      </button>
     </div>
   );
 }
@@ -54,17 +71,31 @@ export interface CheckboxHeaderProps<TData> {
 }
 
 export function CheckboxHeader<TData>({ table, disabled }: CheckboxHeaderProps<TData>) {
+  const isAllSelected = table.getIsAllPageRowsSelected();
+  const isSomeSelected = table.getIsSomePageRowsSelected();
+
   return (
     <div className="w-full h-full flex items-center justify-center px-1">
-      <input
-        type="checkbox"
-        checked={table.getIsAllPageRowsSelected()}
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={isAllSelected ? true : isSomeSelected ? 'mixed' : false}
         disabled={disabled}
-        onChange={table.getToggleAllPageRowsSelectedHandler()}
-        className="w-4 h-4 rounded border-slate-300 text-sky-600
-                   focus:ring-sky-500 disabled:opacity-50
-                   dark:border-slate-600 dark:bg-slate-800"
-      />
+        onClick={table.getToggleAllPageRowsSelectedHandler()}
+        className={`
+          w-4 h-4 rounded flex items-center justify-center flex-shrink-0
+          border transition-colors duration-100 cursor-pointer
+          focus-visible:outline-2 focus-visible:outline-sky-400 focus-visible:outline-offset-1
+          disabled:opacity-50 disabled:cursor-not-allowed
+          ${isAllSelected || isSomeSelected
+            ? 'bg-sky-600 border-sky-600 text-white'
+            : 'bg-white border-slate-300 dark:bg-slate-800 dark:border-slate-600'
+          }
+        `}
+      >
+        {isAllSelected && <Check size={12} strokeWidth={3} />}
+        {!isAllSelected && isSomeSelected && <Minus size={12} strokeWidth={3} />}
+      </button>
     </div>
   );
 }

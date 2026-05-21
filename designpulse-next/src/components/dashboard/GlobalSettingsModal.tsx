@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
+import { ModalShell } from '@/components/ui/ModalShell';
 import {
   useReactTable, getCoreRowModel, getFilteredRowModel,
   getPaginationRowModel, getSortedRowModel, flexRender,
@@ -42,21 +43,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
   const updatePermission = useUpdateRolePermission();
   const { data: projects, isLoading: projectsLoading } = useProjects();
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isDirty) {
-          if (window.confirm('You have unsaved changes. Are you sure you want to close?')) {
-            onClose();
-          }
-        } else {
-          onClose();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isDirty, onClose]);
+
 
   if (!isOpen) return null;
 
@@ -98,9 +85,13 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
     }
   };
 
+  const handleClose = () => {
+    if (isDirty && !window.confirm('You have unsaved changes. Are you sure you want to close?')) return;
+    onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl w-full max-w-5xl h-[90vh] max-h-[1000px] overflow-hidden flex flex-col">
+    <ModalShell isOpen={isOpen} onClose={handleClose} size="lg" className="h-[90vh] max-h-[1000px]">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white">Platform Administration</h2>
@@ -111,11 +102,8 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
             </span>
           </div>
           <button 
-            onClick={() => {
-              if (isDirty && !window.confirm('You have unsaved changes. Are you sure you want to close?')) return;
-              onClose();
-            }} 
-            className="p-2 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-colors"
+            onClick={handleClose}
+            className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 rounded-xl transition-colors"
           >
             <X size={18} />
           </button>
@@ -427,8 +415,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
             <CsiMappingWithSubViews costCodes={costCodes} />
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 

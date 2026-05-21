@@ -176,7 +176,8 @@ const MemoizedCoordinationRow = React.memo(({
   virtualRow, 
   selectedOpportunityId, 
   viewMode,
-  measureElement
+  measureElement,
+  isRowSelected
 }: { 
   row: Row<Opportunity>; 
   virtualRow: VirtualItem; 
@@ -185,6 +186,7 @@ const MemoizedCoordinationRow = React.memo(({
   measureElement: (element: Element | null) => void;
   visibleColumnIds: string;
   pinnedColumnOffsets: string;
+  isRowSelected: boolean;
 }) => {
   return (
     <tbody 
@@ -194,6 +196,7 @@ const MemoizedCoordinationRow = React.memo(({
     >
       <tr 
         id={`row-${row.original.id}`}
+        data-selected={isRowSelected}
         className={`transition-colors ${
           row.original.id === selectedOpportunityId 
             ? 'bg-sky-50 dark:bg-sky-900/20 border-l-2 border-sky-500' 
@@ -222,6 +225,7 @@ const MemoizedCoordinationRow = React.memo(({
   if (prevProps.visibleColumnIds !== nextProps.visibleColumnIds) return false;
   if (prevProps.pinnedColumnOffsets !== nextProps.pinnedColumnOffsets) return false;
   if (prevProps.row.getIsExpanded() !== nextProps.row.getIsExpanded()) return false;
+  if (prevProps.isRowSelected !== nextProps.isRowSelected) return false;
   return true;
 });
 
@@ -427,7 +431,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       size: 150,
       cell: DisciplineStatusCell,
     }
-  ], []);
+  ], [permissions]);
 
   const activeColumns = useMemo(() => {
     if (!settings?.coord_column_order || typeof settings.coord_column_order[0] === 'string') return columns;
@@ -645,6 +649,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                   measureElement={virtualizer.measureElement}
                   visibleColumnIds={visibleColumnIds}
                   pinnedColumnOffsets={pinnedColumnOffsets}
+                  isRowSelected={row.getIsSelected()}
                 />
               );
             })}

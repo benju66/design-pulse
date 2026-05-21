@@ -30,6 +30,7 @@ import {
   X, Upload, AlertCircle,
   Loader2, CheckCircle, ChevronRight, Calendar
 } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { supabase } from '@/supabaseClient';
 import { InspectPdfResponse } from '@/types/map.types';
 import { inspectAndStagePdfService } from '@/services/api';
@@ -600,36 +601,42 @@ export function PdfImportModal({ projectId, onClose }: PdfImportModalProps) {
           <div className="flex items-center justify-between px-6 py-4 border-t border-white/10 shrink-0 bg-slate-950">
             {(phase === 'global_assignment' || phase === 'wizard') ? (
               <>
-                <button
+                <Button
+                  variant="ghost"
                   onClick={() => {
                     if (phase === 'wizard') setPhase('global_assignment');
                     else { setPhase('uploading'); setInspectResult(null); }
                   }}
-                  className="text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors"
+                  className="text-slate-400 hover:text-slate-200"
                 >
                   ← Back
-                </button>
+                </Button>
                 {phase === 'wizard' && (
-                   <button
+                   <Button
                      id="pdf-import-submit"
+                     intent="drawings"
+                     size="lg"
+                     className="shadow-lg shadow-teal-500/20"
                      disabled={selectedCount === 0 || bulkImport.isPending}
                      onClick={handleImportSelected}
-                     className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold transition-colors disabled:opacity-50 shadow-lg shadow-teal-500/20"
+                     isLoading={bulkImport.isPending}
+                     loadingText={`Import ${selectedCount} Sheet${selectedCount !== 1 ? 's' : ''}`}
                    >
-                     {bulkImport.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                     <Upload className="h-4 w-4" />
                      Import {selectedCount} Sheet{selectedCount !== 1 ? 's' : ''}
-                   </button>
+                   </Button>
                 )}
               </>
             ) : (
-              <button
+              <Button
                 id="pdf-import-done"
+                intent="drawings"
+                size="lg"
+                className="ml-auto"
                 onClick={onClose}
-                className="ml-auto px-5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400
-                           text-white text-sm font-medium transition-colors"
               >
                 Done
-              </button>
+              </Button>
             )}
           </div>
         )}

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, Paintbrush } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { ModalShell } from '@/components/ui/ModalShell';
 import { supabase } from '@/supabaseClient';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -83,18 +85,14 @@ export default function UserProfileModal({ isOpen, onClose, currentMeta }: UserP
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div 
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
+    <ModalShell isOpen={isOpen} onClose={onClose} size="sm" nested>
         <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">Account Settings</h2>
           <button 
             onClick={onClose}
-            className="text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 p-2 rounded-full transition-colors"
+            className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 rounded-xl transition-colors"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
@@ -181,28 +179,24 @@ export default function UserProfileModal({ isOpen, onClose, currentMeta }: UserP
           </div>
           
           <div className="pt-6 mt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={onClose}
               disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-2 text-sm font-bold bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center min-w-[100px]"
+              isLoading={isSaving}
+              loadingText="Saving..."
+              className="min-w-[100px]"
             >
-              {isSaving ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                'Save Changes'
-              )}
-            </button>
+              Save Changes
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

@@ -309,6 +309,7 @@ interface GridRowV2Props {
   row: Row<Opportunity>;
   virtualRow: VirtualItem;
   isSelected: boolean;
+  isRowSelected: boolean;
   viewMode: string;
   measureElement: (el: Element | null) => void;
   visibleColumnIds: string;
@@ -423,6 +424,7 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
   return (
     prev.row.original === next.row.original &&
     prev.isSelected === next.isSelected &&
+    prev.isRowSelected === next.isRowSelected &&
     prev.viewMode === next.viewMode &&
     prev.isExpanded === next.isExpanded &&
     prev.virtualRow.index === next.virtualRow.index &&
@@ -517,10 +519,23 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
   
 const EMPTY_VISIBILITY: VisibilityState = { estimate_sync_status: false };
 
+// Compute mode-specific column visibility defaults — used for both initial state
+// and the isLedgerView sync effect. Extracted to avoid duplicating the logic.
+const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
+  estimate_sync_status: false,
+  baseline_budget: ledger, approved_changes: ledger,
+  revised_budget: ledger, pending_changes: ledger, projected_final: ledger,
+  item_definition: ledger, cost_classification: ledger, management: false,
+  display_id: !ledger, title: !ledger, building_area: !ledger,
+  spec_number_id: !ledger, assignee: !ledger, priority: !ledger,
+  due_date: !ledger, division: !ledger, cost_code: !ledger,
+  expander: !ledger, options: !ledger,
+});
+
   const globalColumnVisibility = useUIStore(state => state.gridV2ColumnVisibility[projectId] || EMPTY_VISIBILITY) as VisibilityState;
   const _setGridColumnVisibility = useUIStore(state => state.setGridV2ColumnVisibility);
   
-  const [localColumnVisibility, setLocalColumnVisibility] = useState<VisibilityState>({});
+  const [localColumnVisibility, setLocalColumnVisibility] = useState<VisibilityState>(() => getVisibilityDefaults(isLedgerView));
   
   const globalColumnVisibilitySetter = React.useCallback(
     (updater: VisibilityState | ((old: VisibilityState) => VisibilityState)) => 
@@ -676,31 +691,11 @@ const EMPTY_VISIBILITY: VisibilityState = { estimate_sync_status: false };
   useEffect(() => {
     setColumnVisibility(prev => ({
       ...prev,
-      // Show ledger financial columns
-      baseline_budget: isLedgerView,
-      approved_changes: isLedgerView,
-      revised_budget: isLedgerView,
-      pending_changes: isLedgerView,
-      projected_final: isLedgerView,
-      // Phase 2: Compound cells ON in ledger, OFF in matrix
-      item_definition: isLedgerView,
-      cost_classification: isLedgerView,
-      management: false, // hidden by default — opt-in via Column Chooser
-      // Individual columns replaced by compounds — OFF in ledger, ON in matrix
-      display_id: !isLedgerView,
-      title: !isLedgerView,
-      building_area: !isLedgerView,
-      spec_number_id: !isLedgerView,
-      assignee: !isLedgerView,
-      priority: !isLedgerView,
-      due_date: !isLedgerView,
-      // Already hidden in ledger (grouping columns)
-      division: !isLedgerView,
-      cost_code: !isLedgerView,
-      expander: !isLedgerView,
-      options: !isLedgerView,
+      ...getVisibilityDefaults(isLedgerView),
     }));
-  }, [isLedgerView, setColumnVisibility]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps — intentionally skips initial mount;
+    // initial state is seeded via useState initializer with getVisibilityDefaults.
+  }, [isLedgerView]);
 
   // Auto-show estimate_sync_status when looking at Approved items (matches V1 behavior)
   useEffect(() => {
@@ -714,16 +709,7 @@ const EMPTY_VISIBILITY: VisibilityState = { estimate_sync_status: false };
     table.setColumnVisibility({});
     table.setColumnOrder([]);
     // Re-apply the ledger/matrix visibility defaults since isLedgerView hasn't changed
-    setColumnVisibility({
-      baseline_budget: isLedgerView, approved_changes: isLedgerView,
-      revised_budget: isLedgerView, pending_changes: isLedgerView, projected_final: isLedgerView,
-      item_definition: isLedgerView, cost_classification: isLedgerView, management: false,
-      display_id: !isLedgerView, title: !isLedgerView, building_area: !isLedgerView,
-      spec_number_id: !isLedgerView, assignee: !isLedgerView, priority: !isLedgerView,
-      due_date: !isLedgerView, division: !isLedgerView, cost_code: !isLedgerView,
-      expander: !isLedgerView, options: !isLedgerView,
-      estimate_sync_status: false,
-    });
+    setColumnVisibility(getVisibilityDefaults(isLedgerView));
   }, [isLedgerView, table]);
 
 
@@ -1133,6 +1119,7 @@ const EMPTY_VISIBILITY: VisibilityState = { estimate_sync_status: false };
                 row={row}
                 virtualRow={virtualRow}
                 isSelected={isSelected}
+                isRowSelected={row.getIsSelected()}
                 viewMode={viewMode}
                 measureElement={virtualizer.measureElement}
                 visibleColumnIds={visibleColumnIds}

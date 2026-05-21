@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateClient } from '@/hooks/useClientQueries';
 import { X } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { ModalShell } from '@/components/ui/ModalShell';
 
 interface CreateClientModalProps {
   isOpen: boolean;
@@ -41,15 +43,13 @@ export default function CreateClientModal({ isOpen, onClose }: CreateClientModal
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}></div>
-      <div className="relative bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95">
+    <ModalShell isOpen={isOpen} onClose={onClose} size="sm">
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
             Add New Client
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-            <X size={24} />
+          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 rounded-xl transition-colors">
+            <X size={18} />
           </button>
         </div>
 
@@ -101,23 +101,24 @@ export default function CreateClientModal({ isOpen, onClose }: CreateClientModal
           </div>
 
           <div className="pt-4 flex gap-3 justify-end">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="lg"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              disabled={createClient.isPending || !newClientData.name.trim()}
-              className="bg-sky-500 hover:bg-sky-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition-all disabled:opacity-50"
+              size="lg"
+              disabled={!newClientData.name.trim()}
+              isLoading={createClient.isPending}
+              loadingText="Creating..."
             >
-              {createClient.isPending ? 'Creating...' : 'Create Client'}
-            </button>
+              Create Client
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

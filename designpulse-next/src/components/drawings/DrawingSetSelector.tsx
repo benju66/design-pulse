@@ -16,6 +16,7 @@
 
 import React, { useState, useRef } from 'react';
 import { ChevronDown, Plus, Check, Calendar, Layers } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { useDrawingSets, useCreateDrawingSet, useActivateDrawingSet } from '@/hooks/useDrawingSetQueries';
 
 interface DrawingSetSelectorProps {
@@ -178,23 +179,23 @@ export function DrawingSetSelector({ projectId, onSetActivated }: DrawingSetSele
                 Make active immediately
               </label>
               <div className="flex gap-2 pt-1">
-                <button
+                <Button
+                  intent="drawings"
                   type="submit"
+                  className="flex-1"
                   disabled={!setName.trim() || createSet.isPending}
-                  className="flex-1 py-2 rounded-lg bg-teal-500 hover:bg-teal-400
-                             text-sm font-medium text-white disabled:opacity-50
-                             transition-colors"
+                  isLoading={createSet.isPending}
+                  loadingText="Creating…"
                 >
-                  {createSet.isPending ? 'Creating…' : 'Create Set'}
-                </button>
-                <button
-                  type="button"
+                  Create Set
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-white/10 text-slate-400 hover:text-slate-200"
                   onClick={() => setShowForm(false)}
-                  className="px-3 py-2 rounded-lg border border-white/10
-                             text-sm text-slate-400 hover:text-slate-200 transition-colors"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </form>
           ) : (

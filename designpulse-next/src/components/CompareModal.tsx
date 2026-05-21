@@ -1,6 +1,7 @@
 "use client";
 import { X } from 'lucide-react';
 import { ExpandedCard } from './opportunities/ExpandedCard';
+import { ModalShell } from '@/components/ui/ModalShell';
 import { Opportunity } from '@/types/models';
 import { Row } from '@tanstack/react-table';
 
@@ -25,8 +26,7 @@ export default function CompareModal({ isOpen, onClose, projectId: _projectId, o
   } as unknown as Row<Opportunity>);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-6">
-      <div className="bg-white dark:bg-slate-900 w-full h-full max-w-[1600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800">
+    <ModalShell isOpen={isOpen} onClose={onClose} size="full" className="max-w-[1600px] h-full">
         
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
@@ -36,9 +36,9 @@ export default function CompareModal({ isOpen, onClose, projectId: _projectId, o
           </div>
           <button 
             onClick={onClose}
-            className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500"
+            className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 rounded-xl transition-colors"
           >
-            <X size={24} />
+            <X size={18} />
           </button>
         </div>
 
@@ -69,7 +69,6 @@ export default function CompareModal({ isOpen, onClose, projectId: _projectId, o
           </div>
         </div>
         
-      </div>
-    </div>
+    </ModalShell>
   );
 }

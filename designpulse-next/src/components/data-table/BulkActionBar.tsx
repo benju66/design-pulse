@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Trash2, X } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 
 /**
  * Shared bulk action bar for DataTable grids.
@@ -52,25 +53,26 @@ export function BulkActionBar({
 
       {/* Delete button */}
       {canDelete && onDelete && (
-        <button
+        <Button
+          variant="destructive"
+          size="sm"
           onClick={onDelete}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium
-                     bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
         >
           <Trash2 size={14} />
           Delete ({selectedCount})
-        </button>
+        </Button>
       )}
 
       {/* Clear selection */}
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={onClear}
-        className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium
-                   text-slate-300 hover:text-white transition-colors"
+        className="shadow-none text-slate-300 hover:text-white"
       >
         <X size={14} />
         Clear
-      </button>
+      </Button>
     </div>
   );
 }

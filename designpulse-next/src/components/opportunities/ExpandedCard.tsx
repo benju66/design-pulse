@@ -9,6 +9,7 @@ import { useProjectSettings, useProjectMembers, useCurrentUserPermissions } from
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { List, Paperclip, MessageSquare, Settings, ChevronDown, Play, Hourglass, CheckCircle, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { ALL_PRIMARY_FIELDS, ADVANCED_FIELD_IDS } from '@/lib/constants';
 import { toast } from 'sonner';
 
@@ -223,7 +224,9 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
           {(row.original.record_type || 'VE') !== 'Coordination' && (row.original.coordination_status === 'Not Required' || !row.original.coordination_status) ? (
             <>
               <div className="w-px h-5 bg-slate-300 dark:bg-slate-700 mx-1" />
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   toast('Begin Coordination?', {
                     description: 'This item will appear on the Coordination Board for design tracking.',
@@ -278,12 +281,12 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
                   });
                 }}
                 disabled={updateData.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-sky-100 dark:hover:bg-sky-900/30 text-sky-600 dark:text-sky-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/30"
                 title="Begin design coordination for this item before financial locking"
               >
                 <Play size={14} />
                 Begin Coordination
-              </button>
+              </Button>
             </>
           ) : (row.original.record_type || 'VE') !== 'Coordination' && row.original.coordination_status && row.original.coordination_status !== 'Not Required' ? (
             <>
@@ -330,18 +333,21 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
               {buildingAreas.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
 
-            <button 
+            <Button 
+              variant="ghost"
+              size="sm"
               onClick={() => setShowSettings(!showSettings)}
-              className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors"
             >
               <Settings size={18} />
               <span className="text-sm font-semibold">Configure Layout</span>
-            </button>
+            </Button>
             <div className="w-px h-5 bg-slate-300 dark:bg-slate-700" />
             {isEscalatedCoordItem ? (
               // "Remove from Value Matrix" is accurate from both the Value Matrix
               // AND the CoordinationTable card-mode contexts (ExpandedCard renders in both).
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   if (window.confirm(
                     'Remove from Value Matrix?\n\nThis returns the item to the Coordination Board only.\nContender options will be unlocked and financial figures cleared.\nNo data will be deleted.'
@@ -350,25 +356,27 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
                   }
                 }}
                 disabled={deEscalate.isPending}
-                className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30"
                 title="Remove from Value Matrix — returns item to Coordination Board, clears financials, no data deleted"
               >
                 <span className="text-sm font-semibold">
                   {deEscalate.isPending ? 'Removing…' : 'Remove from Value Matrix'}
                 </span>
-              </button>
+              </Button>
             ) : permissions.can_delete_records ? (
-              <button 
+              <Button 
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   if (window.confirm('Are you sure you want to delete this item and all its options? This cannot be undone.')) {
                     deleteData.mutate(row.original.id);
                   }
                 }}
-                className="flex items-center gap-2 p-1.5 px-3 rounded-md hover:bg-rose-100 dark:hover:bg-rose-900/30 text-rose-500 transition-colors"
+                className="text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/30"
                 title="Delete Item"
               >
                 <span className="text-sm font-semibold">Delete</span>
-              </button>
+              </Button>
             ) : null}
             {showSettings && (
               <div className="absolute right-0 top-10 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 p-2 z-20">
@@ -454,18 +462,23 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
                 
                 {row.original.estimate_sync_status === 'Pending Estimate Update' && permissions?.can_manage_budget && (
                   <div className="flex items-center gap-2.5 shrink-0 sm:ml-auto">
-                    <button 
+                    <Button 
+                      variant="ghost"
+                      intent="amber"
+                      size="sm"
                       onClick={() => navigateToSettings(projectId, 'estimate')}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-amber-700 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-900/30 hover:bg-amber-200/50 dark:hover:bg-amber-900/50 transition-colors"
+                      className="text-[11px] bg-amber-100/50 dark:bg-amber-900/30 hover:bg-amber-200/50 dark:hover:bg-amber-900/50"
                     >
                       View Budget
-                    </button>
-                    <button 
+                    </Button>
+                    <Button 
+                      intent="amber"
+                      size="sm"
                       onClick={() => setIsReconcileOpen(true)}
-                      className="text-[11px] font-bold px-3.5 py-1.5 rounded-lg text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 transition-colors shadow-sm"
+                      className="text-[11px]"
                     >
                       Reconcile & Incorporate
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>

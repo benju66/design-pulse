@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { Upload, FileText, Download, Trash2, Search, Paperclip, FileSpreadsheet, Image, File as FileIcon } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { ClientDocument, ClientBrandStandard } from '@/types/models';
 import { useClientDocuments, useUploadClientDocument, useDeleteClientDocument } from '@/hooks/useClientQueries';
 import { supabase } from '@/supabaseClient';
@@ -124,13 +125,13 @@ export function ClientDocumentsTab({ clientId, canEdit, brandStandards }: Client
             {isDragging ? 'Drop files to upload' : 'Drag & drop files here'}
           </p>
           <p className="text-xs text-slate-400 mb-3">or</p>
-          <button
+          <Button
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploadMutation.isPending}
-            className="px-4 py-2 text-sm font-bold rounded-xl bg-sky-500 hover:bg-sky-600 text-white transition-colors disabled:opacity-50"
+            isLoading={uploadMutation.isPending}
+            loadingText="Uploading..."
           >
-            {uploadMutation.isPending ? 'Uploading...' : 'Choose Files'}
-          </button>
+            Choose Files
+          </Button>
           <input
             ref={fileInputRef}
             type="file"

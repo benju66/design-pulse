@@ -4,6 +4,8 @@ import { useParams } from 'next/navigation';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { ModalShell } from '@/components/ui/ModalShell';
 import {
   useAllProjectOptions,
   useCreateOption,
@@ -146,31 +148,32 @@ export const ContendersMatrix = ({
         </SortableContext>
       </DndContext>
 
-      {unlockConfirmOppId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full overflow-hidden p-6 border border-slate-200 dark:border-slate-800">
+      {!!unlockConfirmOppId && (
+        <ModalShell isOpen={!!unlockConfirmOppId} onClose={() => setUnlockConfirmOppId(null)} size="sm">
+          <div className="p-6">
             <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Unlock Decision</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
               Are you sure you want to unlock this item? This will revert the Opportunity to &apos;Draft&apos; status, clear the final direction, and shift the locked cost back into Pending/Potential exposure. Any coordination progress will be preserved and restored when the item is re-locked.
             </p>
             <div className="flex items-center justify-end gap-3">
-              <button 
+              <Button 
+                variant="ghost"
                 onClick={() => setUnlockConfirmOppId(null)}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 disabled={unlockMutation.isPending}
               >
                 Cancel
-              </button>
-              <button 
+              </Button>
+              <Button 
+                variant="destructive"
                 onClick={() => unlockMutation.mutate(unlockConfirmOppId, { onSuccess: () => setUnlockConfirmOppId(null) })}
-                className="px-4 py-2 text-sm font-bold bg-rose-500 hover:bg-rose-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                disabled={unlockMutation.isPending}
+                isLoading={unlockMutation.isPending}
+                loadingText="Unlocking..."
               >
-                {unlockMutation.isPending ? 'Unlocking...' : 'Yes, Unlock'}
-              </button>
+                Yes, Unlock
+              </Button>
             </div>
           </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from 'react';
 import { Building2, Plus, Settings, X, Briefcase, LayoutGrid, List, AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/hooks/useProjectCoreQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useUserProjectMembers } from '@/hooks/useGlobalQueries';
@@ -89,34 +90,35 @@ export default function DashboardPage() {
           ) : (
             <>
               {canAccessSettings && (
-                <button
+                <Button
+                  variant="secondary"
+                  size="lg"
                   onClick={() => setIsSettingsOpen(true)}
-                  className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 h-10 rounded-xl font-bold transition-colors shadow-sm"
                   title="Global Settings & Master Data"
                 >
                   <Settings size={20} />
                   <span className="hidden sm:inline">Global Settings</span>
-                </button>
+                </Button>
               )}
               {isSuperAdmin && activeTab === 'projects' && (
-                <button
+                <Button
+                  size="lg"
                   onClick={() => setIsCreateProjectModalOpen(true)}
-                  className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 h-10 rounded-xl font-bold transition-colors shadow-sm"
                 >
                   <Plus size={20} />
                   <span className="hidden sm:inline">New Project</span>
                   <span className="sm:hidden">New</span>
-                </button>
+                </Button>
               )}
               {isSuperAdmin && activeTab === 'clients' && (
-                <button
+                <Button
+                  size="lg"
                   onClick={() => setIsCreateClientModalOpen(true)}
-                  className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-5 h-10 rounded-xl font-bold transition-colors shadow-sm"
                 >
                   <Plus size={20} />
                   <span className="hidden sm:inline">New Client</span>
                   <span className="sm:hidden">New</span>
-                </button>
+                </Button>
               )}
             </>
           )}

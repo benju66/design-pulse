@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Plus, Trash2, Search, Paperclip, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,8 +11,6 @@ import {
   createColumnHelper,
   ColumnDef,
   SortingState,
-  VisibilityState,
-  ColumnOrderState,
 } from '@tanstack/react-table';
 import { ClientBrandStandard } from '@/types/models';
 import {
@@ -562,13 +561,12 @@ export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProp
           <div className="flex items-center gap-2">
             <BrandStandardsColumnChooser table={table} clientId={clientId} />
             {canEdit && (
-              <button
+              <Button
                 onClick={handleAddStandard}
                 disabled={isCreatePending}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl bg-sky-500 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 shrink-0"
               >
                 <Plus size={16} /> Add Standard
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -590,12 +588,12 @@ export function BrandStandardsGrid({ clientId, canEdit }: BrandStandardsGridProp
                 : 'Try adjusting your search or category filter.'}
             </p>
             {canEdit && standards.length === 0 && (
-              <button
+              <Button
                 onClick={handleAddStandard}
-                className="mt-4 flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl bg-sky-500 hover:bg-sky-600 text-white transition-colors"
+                className="mt-4"
               >
                 <Plus size={16} /> Add First Standard
-              </button>
+              </Button>
             )}
           </div>
         ) : (

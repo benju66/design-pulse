@@ -22,6 +22,8 @@ import { useUpdateProjectSheet, useDeleteProjectSheet } from '@/hooks/useMapQuer
 import { useUIStore } from '@/stores/useUIStore';
 import { DrawingColumnChooser } from './DrawingColumnChooser';
 import { useDrawingSets } from '@/hooks/useDrawingSetQueries';
+import { Button } from '@/components/ui/Button';
+import { ModalShell } from '@/components/ui/ModalShell';
 
 const columnHelper = createColumnHelper<ProjectSheet>();
 
@@ -586,20 +588,22 @@ export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: Dr
                 <option key={d.id} value={d.id}>{d.label}</option>
               ))}
             </select>
-            <button
+            <Button
+              size="sm"
               onClick={handleBulkAssign}
               disabled={!bulkDisciplineId || updateSheetMutation.isPending}
-              className="px-4 py-1.5 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded-lg shadow-sm transition-colors text-sm disabled:opacity-50"
             >
               Apply
-            </button>
+            </Button>
             <div className="w-px h-6 bg-slate-700 mx-1" />
-            <button 
+            <Button 
+              variant="ghost"
+              size="sm"
               onClick={() => setIsDeleteModalOpen(true)}
-              className="px-4 py-1.5 text-sm font-semibold text-rose-400 hover:text-rose-300 transition-colors"
+              className="text-rose-400 hover:text-rose-300 shadow-none"
             >
               Delete ({selectedCount})
-            </button>
+            </Button>
             <button 
               onClick={() => setRowSelection({})}
               className="px-4 py-1.5 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
@@ -612,8 +616,7 @@ export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: Dr
 
       {/* Bulk Delete Modal */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <ModalShell isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} size="sm">
             <div className="p-6">
               <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center mb-4 text-rose-600 dark:text-rose-400">
                 <AlertTriangle size={24} />
@@ -624,28 +627,24 @@ export function DrawingGrid({ projectId, sheets, disciplines, onOpenViewer }: Dr
               </p>
             </div>
             <div className="p-4 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => setIsDeleteModalOpen(false)}
                 disabled={isDeleting}
-                className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="destructive"
                 onClick={handleBulkDelete}
                 disabled={isDeleting}
-                className="px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2"
+                isLoading={isDeleting}
+                loadingText="Deleting..."
               >
-                {isDeleting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Deleting...
-                  </>
-                ) : 'Delete Items'}
-              </button>
+                Delete Items
+              </Button>
             </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

@@ -2,7 +2,9 @@
 import { useState, useEffect } from 'react';
 import { OpportunityOption } from '@/types/models';
 import { useReturnOpportunity } from '@/hooks/useOpportunityQueries';
-import { AlertCircle, X, Loader2 } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { ModalShell } from '@/components/ui/ModalShell';
 import { toast } from 'sonner';
 
 interface ReturnVEModalProps {
@@ -49,8 +51,7 @@ export function ReturnVEModal({ isOpen, onClose, opportunityId, projectId, locke
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
+    <ModalShell isOpen={isOpen} onClose={onClose} size="sm">
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
           <h2 className="text-lg font-semibold text-rose-600 dark:text-rose-500 flex items-center gap-2">
             <AlertCircle className="w-5 h-5" />
@@ -58,9 +59,9 @@ export function ReturnVEModal({ isOpen, onClose, opportunityId, projectId, locke
           </h2>
           <button 
             onClick={onClose}
-            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 rounded-xl transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X size={18} />
           </button>
         </div>
 
@@ -112,25 +113,24 @@ export function ReturnVEModal({ isOpen, onClose, opportunityId, projectId, locke
           </div>
           
           <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3 bg-slate-50 dark:bg-slate-900/50 mt-auto">
-            <button 
-              type="button" 
-              onClick={onClose} 
+            <Button
+              variant="ghost"
+              onClick={onClose}
               disabled={returnMutation.isPending}
-              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors border border-transparent disabled:opacity-50"
             >
               Cancel
-            </button>
-            <button 
-              type="submit" 
-              disabled={returnMutation.isPending || !note.trim()}
-              className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg flex items-center gap-2 shadow-sm transition-colors disabled:opacity-50"
+            </Button>
+            <Button
+              variant="destructive"
+              type="submit"
+              disabled={!note.trim()}
+              isLoading={returnMutation.isPending}
+              loadingText="Returning..."
             >
-              {returnMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              {returnMutation.isPending ? 'Returning...' : 'Return Item'}
-            </button>
+              Return Item
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

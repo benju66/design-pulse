@@ -462,11 +462,11 @@ design-pulse/                           # Informal monorepo (no workspace manage
 │   │   │   ├── lessons/ (3)            #     Detail panel, columns, templates
 │   │   │   ├── layout/ (2)             #     Sidebar, account dropdown
 │   │   │   ├── mydesk/ (2)             #     Personal dashboard
-│   │   │   └── ui/ (5)                 #     Comboboxes, filters, rich text
+│   │   │   └── ui/ (7)                 #     Button, ModalShell, comboboxes, filters, rich text
 │   │   ├── hooks/ (23)                 #   React Query hooks (domain-organized)
 │   │   ├── stores/ (3)                 #   Zustand: UIStore, MapStore, ColumnSlice
 │   │   ├── types/ (5)                  #   database.types, models, map.types, tanstack.d, exceljs.d
-│   │   ├── lib/ (7+)                   #   Constants, utilities, excel parsers
+│   │   ├── lib/ (8+)                   #   Constants, utilities, cn.ts, excel parsers
 │   │   ├── providers/ (3)              #   Auth, Query, Theme
 │   │   ├── services/ (1)              #   api.ts (FastAPI proxy client)
 │   │   ├── utils/ (2)                  #   financialMath, geometry
@@ -647,7 +647,7 @@ Data revealed based on workflow stage. Once a decision is locked in Pre-Con, coo
 
 # Appendix C — Dependency Inventory
 
-### C.1 Frontend Production (31 packages)
+### C.1 Frontend Production (32 packages)
 
 | Category | Package | Version |
 |----------|---------|---------|
@@ -678,6 +678,7 @@ Data revealed based on workflow stage. Once a decision is locked in Pre-Con, coo
 | | `exceljs` | `^4.4.0` |
 | **Utilities** | `date-fns` | `^4.1.0` |
 | | `qs` | `^6.15.1` |
+| | `clsx` | `^2.1.1` |
 
 ### C.2 Frontend Dev (7 packages)
 

@@ -7,6 +7,7 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 
 ## 2. Tech Stack
 * **Frontend:** Next.js (App Router, React 19), TypeScript (Strict Mode, 100% Coverage), Tailwind CSS v4, Lucide React.
+* **UI Primitives:** Shared `Button` component (`src/components/ui/Button.tsx`) with variant/intent/size system. Shared `ModalShell` component (`src/components/ui/ModalShell.tsx`) for all overlay dialogs. `clsx` via `cn()` utility for conditional class merging. All action buttons must use the shared Button; all overlay modals must use ModalShell.
 * **State Management:** Zustand (UI state, view modes, compare queues).
 * **Data & Caching:** `@tanstack/react-query` for high-performance frontend caching, utilizing atomic Supabase RPC-based state management.
 * **Data Grid:** `@tanstack/react-table` (Headless UI, configured for Excel-style fixed-layout resizing).

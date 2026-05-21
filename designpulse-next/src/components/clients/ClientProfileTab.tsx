@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import { Save, RotateCcw } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Client } from '@/types/models';
 import { useUpdateClient } from '@/hooks/useClientQueries';
@@ -188,13 +189,14 @@ export function ClientProfileTab({ client, canEdit }: ClientProfileTabProps) {
             >
               <RotateCcw size={14} /> Discard
             </button>
-            <button
+            <Button
+              size="sm"
               onClick={handleSave}
-              disabled={updateClient.isPending}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-sm font-bold rounded-lg bg-sky-500 hover:bg-sky-600 text-white transition-colors disabled:opacity-50"
+              isLoading={updateClient.isPending}
+              loadingText="Saving..."
             >
-              <Save size={14} /> {updateClient.isPending ? 'Saving...' : 'Save'}
-            </button>
+              <Save size={14} /> Save
+            </Button>
           </motion.div>
         )}
       </AnimatePresence>

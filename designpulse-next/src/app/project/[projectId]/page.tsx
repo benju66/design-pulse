@@ -1,6 +1,7 @@
 "use client";
 import React, { use } from 'react';
 import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid, UploadCloud, Upload } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import dynamic from 'next/dynamic';
 import FloorplanCanvas from '@/components/FloorplanCanvas';
 import { SheetTabStrip } from '@/components/canvas/SheetTabStrip';
@@ -582,25 +583,25 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <LayoutPanelTop size={18} />
                   </button>
                 </div>
-                <button 
+                <Button 
+                  variant="secondary"
                   onClick={handleExportCSV}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold rounded-xl transition-colors shadow-sm"
                 >
                   Export CSV
-                </button>
-                <button 
+                </Button>
+                <Button 
+                  variant="secondary"
                   onClick={handleExport}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold rounded-xl transition-colors shadow-sm"
                 >
                   Export PDF
-                </button>
-                <button 
+                </Button>
+                <Button 
                   onClick={() => createMutation.mutate({ building_area: activeBuildingAreas.length > 0 ? activeBuildingAreas[0] : (dynamicBuildingAreas[0] || 'Corridor / Common') })}
-                  disabled={createMutation.isPending}
-                  className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold rounded-xl shadow-sm transition-colors disabled:opacity-50"
+                  isLoading={createMutation.isPending}
+                  loadingText="Adding..."
                 >
-                  {createMutation.isPending ? 'Adding...' : '+ New Item'}
-                </button>
+                  + New Item
+                </Button>
               </>
             )}
             
@@ -631,35 +632,34 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <LayoutGrid size={18} />
                   </button>
                 </div>
-                <button 
+                <Button 
+                  intent="coordination"
                   onClick={() => setIsBulkImportOpen(true)}
-                  className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-sm transition-colors"
                 >
                   <UploadCloud size={16} className="mr-2" />
                   Bulk Import
-                </button>
+                </Button>
               </>
             )}
 
             {currentView === 'map' && (
               isViewerOpen ? (
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => setIsViewerOpen(false)}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-xl shadow-sm transition-colors"
                 >
                   <List size={16} />
                   Close Drawing
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
+                  intent="drawings"
                   id="drawings-import-btn"
                   onClick={() => setIsPdfImportOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-teal-500 hover:bg-teal-400
-                             text-white text-sm font-bold rounded-xl shadow-sm transition-colors"
                 >
                   <Upload size={16} />
                   Import Drawings
-                </button>
+                </Button>
               )
             )}
 
@@ -690,13 +690,13 @@ export default function ProjectPage({ params }: ProjectPageProps) {
                     <LayoutGrid size={18} />
                   </button>
                 </div>
-                <button 
+                <Button 
                   onClick={() => createPermitMutation.mutate({})}
-                  disabled={createPermitMutation.isPending}
-                  className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold rounded-xl shadow-sm transition-colors disabled:opacity-50 flex items-center gap-2"
+                  isLoading={createPermitMutation.isPending}
+                  loadingText="Adding..."
                 >
-                  {createPermitMutation.isPending ? 'Adding...' : <><Plus size={16} strokeWidth={3} /> New Permit</>}
-                </button>
+                  <Plus size={16} strokeWidth={3} /> New Permit
+                </Button>
               </>
             )}
           </div>

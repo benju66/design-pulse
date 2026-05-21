@@ -27,9 +27,10 @@ import { CheckboxCell, CheckboxHeader, commonCellComparator } from '@/components
 import { BulkActionBar, DeleteConfirmModal, GhostRow, TableEmptyState } from '@/components/data-table';
 
 // Common comparator for deep row memoization
-const permitComparator = (prevProps: { row: Row<Permit> }, nextProps: { row: Row<Permit> }) => {
+const permitComparator = (prevProps: any, nextProps: any) => {
   return prevProps.row.original === nextProps.row.original && 
-         prevProps.row.getIsSelected() === nextProps.row.getIsSelected();
+         prevProps.isRowSelected === nextProps.isRowSelected &&
+         prevProps.selectedOpportunityId === nextProps.selectedOpportunityId;
 };
 
 // commonCellComparator is now imported from @/components/data-table/cells
@@ -588,7 +589,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
         enableSorting: false,
       },
     ];
-  }, [settings?.permit_types, settings?.permit_ahjs]);
+  }, [settings?.permit_types, settings?.permit_ahjs, permissions]);
 
   const [rowSelection, setRowSelection] = useState({});
 
@@ -786,6 +787,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
                     virtualRow={virtualRow}
                     selectedOpportunityId={selectedOpportunityId}
                     measureElement={virtualizer.measureElement}
+                    isRowSelected={row.getIsSelected()}
                   />
                 );
               })}
@@ -843,19 +845,21 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
 };
 
 {/* eslint-disable-next-line react/display-name */}
-const MemoizedPermitRow = React.memo(({ row, virtualRow, selectedOpportunityId, measureElement }: {
+const MemoizedPermitRow = React.memo(({ row, virtualRow, selectedOpportunityId, measureElement, isRowSelected }: {
   row: Row<Permit>;
   virtualRow: any;
   selectedOpportunityId: string | null;
   measureElement: (element: HTMLElement | null) => void;
+  isRowSelected: boolean;
 }) => {
   const isSelected = selectedOpportunityId === row.original.id;
-  const isChecked = row.getIsSelected();
+  const isChecked = isRowSelected;
 
   return (
     <tr
       ref={measureElement}
       data-index={virtualRow.index}
+      data-selected={isRowSelected}
       className={`group border-b border-slate-200 dark:border-slate-800 transition-colors ${
         isSelected 
           ? 'bg-sky-50 dark:bg-sky-900/20 shadow-[inset_2px_0_0_0_#0ea5e9]' 

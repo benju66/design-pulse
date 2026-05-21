@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
 import { useMapStore } from '@/stores/useMapStore';
 
@@ -364,6 +364,7 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'design-pulse-ui-prefs',
+      storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         cardOrder: state.cardOrder,
         visibleCards: state.visibleCards,

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/cn';
 
 /* ─────────────────────────────────────────────────────────
@@ -15,12 +16,13 @@ import { cn } from '@/lib/cn';
  *   ✅ Entrance animation: fade-in + zoom-in-95
  *   ✅ Size presets: sm / md / lg / full
  *   ✅ preventClose override (disables Escape + backdrop click)
+ *   ✅ React Portal rendering under document.body (escapes z-index bounds)
  *
  * Does NOT handle:
  *   ❌ Close X button (consumer renders their own in the header)
  *   ❌ Header/footer layout (consumer's children)
  *   ❌ Form state, loading, tabs (consumer's responsibility)
- *   ❌ Focus trapping / portal rendering (not needed yet)
+ *   ❌ Focus trapping (not needed yet)
  * ───────────────────────────────────────────────────────── */
 
 const SIZE_CLASSES: Record<ModalShellProps['size'] & string, string> = {
@@ -66,6 +68,12 @@ export function ModalShell({
   className,
   children,
 }: ModalShellProps) {
+  // Hydration safety guard for Next.js SSR
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // ── Escape key handler ────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen || preventClose || !closeOnEscape) return;
@@ -88,14 +96,14 @@ export function ModalShell({
   }, [isOpen, onClose, preventClose, closeOnEscape]);
 
   // ── Gate ───────────────────────────────────────────────────────────────────
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const handleBackdropClick = () => {
     if (preventClose || !closeOnBackdropClick) return;
     onClose();
   };
 
-  return (
+  return createPortal(
     <div
       className={cn(
         'fixed inset-0 flex items-center justify-center p-4',
@@ -121,6 +129,7 @@ export function ModalShell({
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

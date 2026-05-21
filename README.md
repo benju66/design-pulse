@@ -8,7 +8,7 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 
 ## 2. Core Features
 
-- **Tri-State Master-Detail Grid:** A high-performance Value Engineering matrix featuring an Excel-like keyboard navigation experience. Supports flat dense tables, split detail panels, and pop-out isolated views for rapid data entry and evaluation.
+- **Tri-State Master-Detail Grid:** A unified, high-performance Value Engineering matrix (`OpportunityGridV2`) powering both the Value Matrix (flat dense table with inline editing) and Budget Ledger (grouped financial view with compound cells). Supports split detail panels and pop-out isolated views for rapid data entry and evaluation. All tables across the application share a standardized component system (`src/components/data-table/`) with TanStack-native row selection, virtual scrolling, and shared cell primitives.
 - **Persistent Grid Pinning:** Enterprise-grade column pinning that merges global admin-defined default layouts with local, user-specific browser overrides, utilizing high-performance CSS and zero-JS tooltips.
 - **Enterprise Budget Ledger:** A management-by-exception view that merges VE opportunities with imported estimate line items into a unified financial grid. Features dense compound cells, variance threshold filtering ($0–$500k slider), a VE Focus toggle to isolate cost codes with active VE items, scoped filter pipelines preventing cross-view state leaks, neutral "Budget Line" status styling, and isolated column visibility persistence.
 - **Design Coordination Tracker:** A drag-and-drop Kanban pipeline for managing architectural and MEP drawing updates directly downstream from locked financial decisions.
@@ -96,6 +96,76 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
 
 ## 7. Release Notes
+
+---
+
+### v0.16 — Unified Grid Architecture & Table Standardization
+**Released:** 2026-05-20
+
+This release completes the grid unification effort — deprecating the legacy V1 `OpportunityGrid.tsx` and consolidating all Value Engineering views onto the single `OpportunityGridV2` component. It also formalizes the standardized data table component system that all grids now share.
+
+#### Grid Unification
+
+**V1 Deprecation**
+The legacy `OpportunityGrid.tsx` (579 lines) and its companion `columns.tsx` (176 lines) have been fully deprecated and deleted. `OpportunityGridV2.tsx` now serves as the **single, unified grid** for both the Value Matrix (`isLedgerView=false`) and Budget Ledger (`isLedgerView=true`), controlled via a prop toggle:
+- _Value Matrix Mode:_ Flat table with no grouping, no default sorting, inline cell editing via `EditableCell` components, and a "Matrix View" toolbar label. Budget metric pills are hidden.
+- _Budget Ledger Mode:_ Grouped by division/cost code, sorted by division → cost code, read-only financial cells via `ReadOnlyCell` components, and a "Budget Ledger" toolbar label with Budget Total / VE Impact / Exposure metric pills.
+- _`activeStatus` Prop:_ Enables automatic column visibility toggling — when filtering to "Approved" items, the `estimate_sync_status` column auto-shows to surface reconciliation status.
+
+**Consumer Migration**
+- `ValueMatrixView.tsx` — swapped from V1 `OpportunityGrid` to V2 `OpportunityGridV2` with `activeStatus` prop pass-through.
+- `MyDeskDashboard.tsx` — swapped from V1 `OpportunityGrid` to V2 `OpportunityGridV2`.
+
+#### Store Cleanup
+
+**Dead State Removal (Zustand v10)**
+Seven orphaned Zustand fields were removed from `useUIStore.ts` with a v9→v10 migration that cleans up persisted localStorage data:
+- `compareQueue`, `toggleCompareItem`, `setCompareQueue`, `clearCompareQueue` — replaced by TanStack-native `rowSelection`.
+- `gridColumnVisibility`, `setGridColumnVisibility` — V1-only column visibility; V2 uses `gridV2ColumnVisibility`.
+- `gridColumnOrder`, `setGridColumnOrder` — V1-only column ordering.
+- `PermitFilters.assignee` — dead field with zero consumers.
+
+#### Dead File Cleanup
+
+| File | Reason |
+|------|--------|
+| `OpportunityGrid.tsx` | Superseded by `OpportunityGridV2.tsx` |
+| `columns.tsx` | V1 column definitions; V2 uses `columns-v2.tsx` |
+| `CoordinationGhostRow.tsx` | Replaced by shared `GhostRow<T>` in v0.15 |
+| `PermitGhostRow.tsx` | Replaced by shared `GhostRow<T>` in v0.15 |
+
+#### Standardized Table Component System
+
+All data grids across the application now share a unified component layer in `src/components/data-table/`:
+
+| Component | Purpose |
+|---|---|
+| `DataTable<T>` | Full grid wrapper with scroll container, virtualization, header, and rows |
+| `TableHeader<T>` | `<thead>` with sort indicators, resize handles, and pinned column styles |
+| `MemoizedRow<T>` | `React.memo` row with structural hash comparison |
+| `GhostRow<T>` | Configurable "quick add" row via `placeholder`, `defaultValues`, `staticFields` |
+| `TableToolbar` | Search, column chooser, filter button with active count badge |
+| `BulkActionBar` | Selection count, delete, clear, and `extraActions` slot |
+| `DeleteConfirmModal` | Confirmation dialog with configurable entity name |
+| `CheckboxCell` / `CheckboxHeader` | TanStack-native row selection primitives |
+| `TextCell`, `SelectCell`, `DateCell` | Generic editable cells with blur-save semantics |
+
+**Tables Using This System:**
+- Value Matrix / Budget Ledger (`OpportunityGridV2.tsx`)
+- Coordination Board (`CoordinationTable.tsx`)
+- Permit Board (`PermitTable.tsx`)
+- Lessons Learned (`LessonsTable.tsx`)
+- Brand Standards (`BrandStandardsGrid.tsx`)
+
+#### Internal / Architecture
+
+| Item | Detail |
+|------|--------|
+| `columns-v2.tsx` | Shared cells now import from `EditableCell.tsx` (VM mode) and `ReadOnlyCell.tsx` (ledger mode) |
+| `data-table-architecture/skill.md` | Updated guardrails: compareQueue deprecated, V2 is unified grid |
+| `frontend-architecture/skill.md` | Updated: V1 references removed, unified grid documented, Compare Tray updated |
+| `EMPTY_VISIBILITY` | Default visibility now includes `estimate_sync_status: false` |
+| `handleColumnReset` | Reset handler now includes `estimate_sync_status: false` in defaults |
 
 ---
 
@@ -352,7 +422,7 @@ The canvas (`FloorplanCanvas`) and data grids now communicate seamlessly without
 The legacy `MarkupCanvas` has been completely retired. The new `FloorplanCanvas` suite is written in strict TypeScript, eliminating `any` usage and ensuring robust prop contracts for child components (`MappedZone`, `PendingPolygon`, `MapLegend`).
 
 **Grid Integration & Layout**
-- A new "Drawings" toggle button is available in the toolbar of both the Value Matrix (Grid V1 & V2) and the Design Coordination Board.
+- A new "Drawings" toggle button is available in the toolbar of the Value Matrix and the Design Coordination Board.
 - When toggled, the map mounts in a split horizontal view above the data table, maximizing vertical space while maintaining spatial context.
 - Hardened against React 18 event bubbling issues using `useRef` containment patterns for all click-outside detection (popovers, context menus), safely avoiding `e.stopPropagation()`.
 

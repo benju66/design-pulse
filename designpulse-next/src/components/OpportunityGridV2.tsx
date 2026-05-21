@@ -75,6 +75,8 @@ interface OpportunityGridProps {
   activeVersionId?: string | null;
   /** Fires when the internal filter drawer opens/closes — lets parent views react (e.g. auto-collapse analytics) */
   onFilterDrawerToggle?: (isOpen: boolean) => void;
+  /** Value Matrix status filter — used to auto-show estimate_sync_status column */
+  activeStatus?: string;
 }
 
 interface GroupedRowProps {
@@ -429,7 +431,7 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
   );
 });
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {}, activeVersionId, onFilterDrawerToggle }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {}, activeVersionId, onFilterDrawerToggle, activeStatus }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -499,21 +501,21 @@ export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', 
 
 
   const [expanded, setExpanded] = useState<ExpandedState>({});
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: 'division', desc: false },
-    { id: 'cost_code', desc: false },
-  ]);
+  const [sorting, setSorting] = useState<SortingState>(
+    isLedgerView ? [{ id: 'division', desc: false }, { id: 'cost_code', desc: false }] : []
+  );
   const [globalFilter, setGlobalFilter] = useState<string>('');
   const [grouping, setGrouping] = useState<GroupingState>(
-    isLedgerView ? ['division', 'cost_code'] : ['division']
+    isLedgerView ? ['division', 'cost_code'] : []
   );
 
-  // Sync grouping when isLedgerView changes without remount (e.g., sidebar nav)
+  // Sync grouping/sorting when isLedgerView changes without remount (e.g., sidebar nav)
   useEffect(() => {
-    setGrouping(isLedgerView ? ['division', 'cost_code'] : ['division']);
+    setGrouping(isLedgerView ? ['division', 'cost_code'] : []);
+    setSorting(isLedgerView ? [{ id: 'division', desc: false }, { id: 'cost_code', desc: false }] : []);
   }, [isLedgerView]);
   
-const EMPTY_VISIBILITY: VisibilityState = {};
+const EMPTY_VISIBILITY: VisibilityState = { estimate_sync_status: false };
 
   const globalColumnVisibility = useUIStore(state => state.gridV2ColumnVisibility[projectId] || EMPTY_VISIBILITY) as VisibilityState;
   const _setGridColumnVisibility = useUIStore(state => state.setGridV2ColumnVisibility);
@@ -700,6 +702,13 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     }));
   }, [isLedgerView, setColumnVisibility]);
 
+  // Auto-show estimate_sync_status when looking at Approved items (matches V1 behavior)
+  useEffect(() => {
+    if (activeStatus === 'Approved' && columnVisibility['estimate_sync_status'] !== true) {
+      setColumnVisibility((prev: VisibilityState) => ({ ...prev, estimate_sync_status: true }));
+    }
+  }, [activeStatus, columnVisibility, setColumnVisibility]);
+
   // Bug #8: ColumnChooser reset handler that re-applies ledger/matrix visibility defaults
   const handleColumnReset = useCallback(() => {
     table.setColumnVisibility({});
@@ -713,6 +722,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       spec_number_id: !isLedgerView, assignee: !isLedgerView, priority: !isLedgerView,
       due_date: !isLedgerView, division: !isLedgerView, cost_code: !isLedgerView,
       expander: !isLedgerView, options: !isLedgerView,
+      estimate_sync_status: false,
     });
   }, [isLedgerView, table]);
 
@@ -929,17 +939,18 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20 flex-wrap">
         {/* Left: label + search + metric pills */}
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-2">Budget Ledger</span>
+          <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-2">{isLedgerView ? 'Budget Ledger' : 'Matrix View'}</span>
           <input 
             type="text"
             placeholder="Search items..."
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}
-            className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-48"
+            className="px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 w-64"
           />
         </div>
+        {isLedgerView && (<>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
-        {/* Metric pills */}
+        {/* Metric pills — ledger only */}
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex flex-col items-start px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-none">Budget Total</span>
@@ -964,6 +975,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             }`}>{fmt(budgetMetrics.potentialExposure)}</span>
           </div>
         </div>
+        </>)}
         {/* Right: actions + compare strip */}
         <div className="flex items-center gap-2 ml-auto shrink-0">
           {filterSlot && (

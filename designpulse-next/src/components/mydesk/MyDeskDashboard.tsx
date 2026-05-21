@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { Opportunity } from '@/types/models';
-import OpportunityGrid from '@/components/OpportunityGrid';
+import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import { Inbox, ArrowLeft, Calculator } from 'lucide-react';
 import { usePendingEstimateUpdates } from '@/hooks/useOpportunityQueries';
 import { useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
@@ -88,7 +88,7 @@ export default function MyDeskDashboard({ projectId, opportunities }: MyDeskDash
       
       <div className="flex-1 min-h-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm relative overflow-hidden flex flex-col">
         {activeTab === 'tasks' ? (
-          <OpportunityGrid 
+          <OpportunityGridV2 
             projectId={projectId} 
             data={myTasks} 
             viewMode="flat"

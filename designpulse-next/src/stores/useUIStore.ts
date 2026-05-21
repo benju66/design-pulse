@@ -39,7 +39,6 @@ export type DashboardViewMode = 'card' | 'table';
 export interface PermitFilters {
   status?: string[];
   type?: string[];
-  assignee?: string[];
   ahj?: string[];
 }
 
@@ -56,20 +55,9 @@ export interface UIState {
   visibleCards: Record<string, boolean>;
   toggleCardVisibility: (cardId: string) => void;
   
-  compareQueue: string[];
-  setCompareQueue: (queue: string[]) => void;
-  toggleCompareItem: (id: string) => void;
-  clearCompareQueue: () => void;
-  
-  gridColumnVisibility: Record<string, Record<string, boolean>>;
-  setGridColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
-  
-  // Isolated visibility for OpportunityGridV2 (Budget Ledger) — prevents cross-pollution with V1 Matrix
+  // Unified column visibility for OpportunityGridV2 (serves both Value Matrix and Budget Ledger)
   gridV2ColumnVisibility: Record<string, Record<string, boolean>>;
   setGridV2ColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
-  
-  gridColumnOrder: Record<string, string[]>;
-  setGridColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
   
   gridColumnPinningOverrides: Record<string, { pinned: string[]; unpinned: string[] }>;
   toggleUserColumnPin: (projectId: string, columnId: string, isPinned: boolean) => void;
@@ -193,19 +181,6 @@ export const useUIStore = create<UIState>()(
         design_lock_phase: true,
       },
       
-      compareQueue: [],
-      
-      gridColumnVisibility: {},
-      setGridColumnVisibility: (projectId, updater) => set((state) => {
-        const oldState = state.gridColumnVisibility[projectId] || {};
-        const newState = typeof updater === 'function' ? updater(oldState) : updater;
-        return {
-          gridColumnVisibility: {
-            ...state.gridColumnVisibility,
-            [projectId]: newState
-          }
-        };
-      }),
       
       gridV2ColumnVisibility: {},
       setGridV2ColumnVisibility: (projectId, updater) => set((state) => {
@@ -214,18 +189,6 @@ export const useUIStore = create<UIState>()(
         return {
           gridV2ColumnVisibility: {
             ...state.gridV2ColumnVisibility,
-            [projectId]: newState
-          }
-        };
-      }),
-      
-      gridColumnOrder: {},
-      setGridColumnOrder: (projectId, updater) => set((state) => {
-        const oldState = state.gridColumnOrder[projectId] || [];
-        const newState = typeof updater === 'function' ? updater(oldState) : updater;
-        return {
-          gridColumnOrder: {
-            ...state.gridColumnOrder,
             [projectId]: newState
           }
         };
@@ -382,14 +345,6 @@ export const useUIStore = create<UIState>()(
       isMapVisible: false,
       toggleMapVisibility: () => set((state) => ({ isMapVisible: !state.isMapVisible })),
       
-      toggleCompareItem: (id) => set((state) => ({
-        compareQueue: state.compareQueue.includes(id) 
-          ? state.compareQueue.filter(itemId => itemId !== id)
-          : [...state.compareQueue, id]
-      })),
-      
-      setCompareQueue: (queue) => set({ compareQueue: queue }),
-      clearCompareQueue: () => set({ compareQueue: [] }),
       
       brandStandardsColumnVisibility: {},
       setBrandStandardsColumnVisibility: (clientId, updater) => set(state => ({
@@ -412,8 +367,6 @@ export const useUIStore = create<UIState>()(
       partialize: (state) => ({
         cardOrder: state.cardOrder,
         visibleCards: state.visibleCards,
-        gridColumnVisibility: state.gridColumnVisibility,
-        gridColumnOrder: state.gridColumnOrder,
         coordColumnVisibility: state.coordColumnVisibility,
         coordColumnOrder: state.coordColumnOrder,
         coordinationViewMode: state.coordinationViewMode,
@@ -437,7 +390,7 @@ export const useUIStore = create<UIState>()(
         brandStandardsColumnVisibility: state.brandStandardsColumnVisibility ?? {},
         brandStandardsColumnOrder: state.brandStandardsColumnOrder ?? {},
       }),
-      version: 9,
+      version: 10,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -512,6 +465,14 @@ export const useUIStore = create<UIState>()(
             brandStandardsColumnVisibility: {},
             brandStandardsColumnOrder: {}
           } as UIState;
+        }
+        if (version < 10) {
+          // v9 → v10: V1 OpportunityGrid deprecated — remove compareQueue, gridColumnVisibility, gridColumnOrder
+          const s = state as Record<string, unknown>;
+          delete s.compareQueue;
+          delete s.gridColumnVisibility;
+          delete s.gridColumnOrder;
+          return s as unknown as UIState;
         }
         return state as UIState;
       },

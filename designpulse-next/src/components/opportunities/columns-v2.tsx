@@ -1,7 +1,10 @@
 import { useMemo } from 'react';
 import { PanelRight } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell, CostImpactAggregatedCell, DaysImpactAggregatedCell, LedgerFinancialCell, LedgerFinancialAggregatedCell, LedgerDeltaCell, LedgerDeltaAggregatedCell, LedgerProjectedCell, LedgerProjectedAggregatedCell, ItemDefinitionCell, CostClassificationCell, ManagementCell } from './ReadOnlyCell';
+// Shared cells: EditableCell provides inline editing for Value Matrix mode
+import { TextCell, StatusCell, CoordinationStatusCell, BuildingAreaCell, ImpactCell, PriorityCell, CostCodeCell, CsiSpecCell, DivisionCell, DisplayIdCell, AssigneeCell, EstimateSyncStatusCell } from './EditableCell';
+// Ledger-only cells: ReadOnlyCell provides display-only rendering for Budget Ledger
+import { CostImpactAggregatedCell, DaysImpactAggregatedCell, LedgerFinancialCell, LedgerFinancialAggregatedCell, LedgerDeltaCell, LedgerDeltaAggregatedCell, LedgerProjectedCell, LedgerProjectedAggregatedCell, ItemDefinitionCell, CostClassificationCell, ManagementCell } from './ReadOnlyCell';
 import { OptionsCell } from './OptionsCell';
 import { InlineOptionCell } from './InlineOptionCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
@@ -120,6 +123,7 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { accessorKey: 'pending_changes', header: 'Pending Δ', cell: LedgerDeltaCell, aggregatedCell: LedgerDeltaAggregatedCell, aggregationFn: 'sum', size: 130, enableSorting: false },
       { accessorKey: 'projected_final', header: 'Projected', cell: LedgerProjectedCell, aggregatedCell: LedgerProjectedAggregatedCell, aggregationFn: 'sum', size: 140, enableSorting: false },
       { accessorKey: 'status', header: 'VE Status', cell: StatusCell },
+      { accessorKey: 'estimate_sync_status', header: 'Est. Status', cell: EstimateSyncStatusCell, size: 140 },
       { accessorKey: 'final_direction', header: 'Final Direction', cell: TextCell },
       { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
       { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
@@ -172,6 +176,7 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { accessorKey: 'cost_code', header: 'Cost Code', cell: CostCodeCell, size: 150 },
       { accessorKey: 'spec_number_id', header: 'CSI Spec', cell: CsiSpecCell, size: 150 },
       { accessorKey: 'status', header: 'VE Status', cell: StatusCell },
+      { accessorKey: 'estimate_sync_status', header: 'Est. Status', cell: EstimateSyncStatusCell, size: 140 },
       { accessorKey: 'coordination_status', header: 'Coordination Status', cell: CoordinationStatusCell },
       { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },

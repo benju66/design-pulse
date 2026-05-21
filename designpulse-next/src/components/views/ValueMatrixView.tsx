@@ -1,6 +1,6 @@
 "use client";
 import { Plus } from 'lucide-react';
-import OpportunityGrid from '@/components/OpportunityGrid';
+import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import BudgetSummary from '@/components/BudgetSummary';
 import FloorplanCanvas from '@/components/FloorplanCanvas';
 import DetailPanel from '@/components/DetailPanel';
@@ -86,7 +86,7 @@ export function ValueMatrixView({
           {isLoading ? (
             <div className="h-full flex items-center justify-center text-slate-500">Loading log...</div>
           ) : (
-            <OpportunityGrid 
+            <OpportunityGridV2 
               projectId={projectId} 
               data={filteredOpportunities} 
               viewMode={viewMode} 

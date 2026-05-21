@@ -51,7 +51,7 @@ import { TextCell, SelectCell, CheckboxCell, CheckboxHeader, commonCellComparato
 
 **Pattern: TanStack Native `rowSelection` (NOT Zustand `compareQueue`)**
 
-All new and migrated tables MUST use TanStack's built-in row selection instead of the legacy Zustand `compareQueue`. The `compareQueue` in `useUIStore` is retained only for the unmigrated V1 `OpportunityGrid.tsx`.
+All new and migrated tables MUST use TanStack's built-in row selection. The legacy Zustand `compareQueue` has been fully removed from `useUIStore` (deprecated with V1 `OpportunityGrid.tsx`).
 
 ### Setup
 
@@ -158,7 +158,7 @@ When migrating a table to use shared components:
 
 Per architectural decision, the following cells remain in their original directories:
 
-- **Value Matrix**: `ReadOnlyCell.tsx` (20+ specialized cells), `OptionsCell.tsx`, `InlineOptionCell.tsx`
+- **Value Matrix / Budget Ledger**: `EditableCell.tsx` (shared editable cells for VM), `ReadOnlyCell.tsx` (ledger-only financial cells), `OptionsCell.tsx`, `InlineOptionCell.tsx`
 - **Coordination Board**: `CoordinationTable.tsx` inline cells (discipline status pills, MEP impact)
 - **Permit Board**: `PermitTextCell`, `PermitDateCell`, `PermitStatusCell`, `PermitDropdownCell`, `PermitAssigneeCell`
 
@@ -168,8 +168,9 @@ These have domain-specific rendering logic (custom styling, conditional formatti
 
 ## Guardrails
 
-1. **Never remove `compareQueue` from `useUIStore`** until `OpportunityGrid.tsx` (V1) and `columns.tsx` (V1) are fully migrated or deprecated.
+1. **`compareQueue` is deprecated and removed** — all grids use TanStack `rowSelection`. Do not re-introduce `compareQueue`.
 2. **`gridMode` and `activeCell` are global singletons** — the system assumes only one table is actively navigated at a time.
-3. **Column visibility/order slices** use per-project scoping (`Record<string, T>`). View modes are flat (shared across projects). See frontend-architecture skill §36.
+3. **Column visibility/order slices** use per-project scoping (`Record<string, T>`). `gridV2ColumnVisibility` is the canonical key for Value Matrix and Budget Ledger.
 4. **`enableRowSelection` function guards** are the canonical way to prevent budget lines, sub-rows, or other non-selectable rows from being checked. Never add manual guards inside `CheckboxCell`.
 5. **Keep `extraActions` in `BulkActionBar`** for domain-specific buttons (Compare Options, Export, etc.) — do not fork the component.
+6. **`OpportunityGridV2.tsx` is the unified grid** serving both Value Matrix (`isLedgerView=false`) and Budget Ledger (`isLedgerView=true`). There is no V1 grid.

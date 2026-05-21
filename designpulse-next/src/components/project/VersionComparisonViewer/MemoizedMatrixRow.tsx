@@ -24,13 +24,13 @@ function getHeatmapClass(pctChange: number): string {
   if (abs < 0.01) return ''; // effectively zero
 
   if (pctChange > 0) {
-    if (abs >= 0.20) return 'bg-rose-100/90 dark:bg-rose-900/40 text-slate-900 dark:text-slate-50 font-bold';
-    if (abs >= 0.10) return 'bg-rose-50/90 dark:bg-rose-950/30 text-slate-800 dark:text-slate-200 font-semibold';
-    return 'bg-rose-50/40 dark:bg-rose-950/15 text-slate-700 dark:text-slate-300';
+    if (abs >= 0.20) return 'bg-rose-200/70 dark:bg-rose-900/40 text-rose-950 dark:text-rose-50 font-bold';
+    if (abs >= 0.10) return 'bg-rose-100/60 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200 font-semibold';
+    return 'bg-rose-50/70 dark:bg-rose-950/15 text-rose-800 dark:text-rose-300';
   } else {
-    if (abs >= 0.20) return 'bg-emerald-100/90 dark:bg-emerald-900/40 text-slate-900 dark:text-slate-50 font-bold';
-    if (abs >= 0.10) return 'bg-emerald-50/90 dark:bg-emerald-950/30 text-slate-800 dark:text-slate-200 font-semibold';
-    return 'bg-emerald-50/40 dark:bg-emerald-950/15 text-slate-700 dark:text-slate-300';
+    if (abs >= 0.20) return 'bg-emerald-200/70 dark:bg-emerald-900/40 text-emerald-950 dark:text-emerald-50 font-bold';
+    if (abs >= 0.10) return 'bg-emerald-100/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 font-semibold';
+    return 'bg-emerald-50/70 dark:bg-emerald-950/15 text-emerald-800 dark:text-emerald-300';
   }
 }
 interface MemoizedMatrixRowProps {
@@ -44,6 +44,7 @@ interface MemoizedMatrixRowProps {
   pinnedColumnOffsets: string;
   onOpenVarianceHistory: (costCode: string, description: string) => void;
   selectedOpportunityId: string | null;
+  showStepDeltas?: boolean;
 }
 
 export const MemoizedMatrixRow = React.memo(
@@ -56,7 +57,9 @@ export const MemoizedMatrixRow = React.memo(
     sortedVersionMeta = [],
     onOpenVarianceHistory,
     selectedOpportunityId,
+    showStepDeltas = false,
   }: MemoizedMatrixRowProps) {
+    void showStepDeltas;
     const setSelectedOpportunityId = useUIStore((s) => s.setSelectedOpportunityId);
     const setVeGridViewMode = useUIStore((s) => s.setVeGridViewMode);
     // ── CSI Division Mapping & Formatting ──────────────────────────────────────
@@ -91,6 +94,12 @@ export const MemoizedMatrixRow = React.memo(
 
     // ── Render Group Row (Division Header) ───────────────────────────────────
     if (row.getIsGrouped()) {
+      const hasTotalDelta = sortedVersionMeta.length >= 2;
+      const pinnedColSpan = hasTotalDelta ? 4 : 3;
+
+      const spannedCells = row.getVisibleCells().slice(0, pinnedColSpan);
+      const pinnedColWidth = spannedCells.reduce((acc, cell) => acc + cell.column.getSize(), 0);
+
       return (
         <tr
           ref={measureElement}
@@ -98,10 +107,11 @@ export const MemoizedMatrixRow = React.memo(
           className="bg-slate-100/90 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-750 transition-colors"
           onClick={row.getToggleExpandedHandler()}
         >
-          {/* Label Colspan td: covers sticky pinned columns (open_panel, cost_classification, variance_comment) */}
+          {/* Label Colspan td: covers sticky pinned columns (open_panel, cost_classification, variance_comment, total_delta) */}
           <td
-            colSpan={3}
+            colSpan={pinnedColSpan}
             className="px-3 py-2 sticky left-0 z-10 bg-slate-100 dark:bg-slate-800 bg-clip-padding border-r border-b border-slate-200 dark:border-slate-800 select-none shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)]"
+            style={{ width: pinnedColWidth }}
           >
             <span className="flex items-center gap-2">
               <span className="text-slate-400 dark:text-slate-500 text-[10px] shrink-0">
@@ -116,8 +126,12 @@ export const MemoizedMatrixRow = React.memo(
             </span>
           </td>
           {/* Render aggregated version cells */}
-          {row.getVisibleCells().slice(3).map((cell) => (
-            <td key={cell.id} className="px-0 py-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle bg-clip-padding">
+          {row.getVisibleCells().slice(pinnedColSpan).map((cell) => (
+            <td
+              key={cell.id}
+              className="px-0 py-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle bg-clip-padding"
+              style={{ width: cell.column.getSize() }}
+            >
               {cell.getIsAggregated()
                 ? flexRender(cell.column.columnDef.aggregatedCell, cell.getContext())
                 : null}
@@ -128,13 +142,22 @@ export const MemoizedMatrixRow = React.memo(
     }
 
     // ── Render Leaf Row ──────────────────────────────────────────────────────
-    const isSelected = selectedOpportunityId && row.original.opportunity_id === selectedOpportunityId;
+    const targetId = row.original.opportunity_id || `budget-${row.original.cost_code}`;
+    const isSelected = selectedOpportunityId === targetId;
 
     return (
       <tr
         ref={measureElement}
         data-index={virtualRow.index}
-        className={`border-b border-slate-100 dark:border-slate-800/40 transition-colors ${
+        onDoubleClick={() => {
+          if (selectedOpportunityId === targetId) {
+            setSelectedOpportunityId(null);
+          } else {
+            setSelectedOpportunityId(targetId);
+            setVeGridViewMode('split');
+          }
+        }}
+        className={`border-b border-slate-100 dark:border-slate-800/40 transition-colors select-none cursor-pointer ${
           isSelected
             ? 'bg-sky-50/80 dark:bg-sky-900/40 hover:bg-sky-100/85 dark:hover:bg-sky-900/50'
             : 'hover:bg-slate-50 dark:hover:bg-slate-850/20'
@@ -149,6 +172,7 @@ export const MemoizedMatrixRow = React.memo(
               <td
                 key={cell.id}
                 className="p-0 border-r border-b border-slate-200 dark:border-slate-800 bg-clip-padding"
+                style={{ width: cell.column.getSize() }}
               />
             );
           }
@@ -162,29 +186,26 @@ export const MemoizedMatrixRow = React.memo(
             if (cell.column.id === 'open_panel') {
               cellContent = (
                 <div className="flex items-center justify-center h-full">
-                  {row.original.opportunity_id ? (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (selectedOpportunityId === row.original.opportunity_id) {
-                          setSelectedOpportunityId(null);
-                        } else {
-                          setSelectedOpportunityId(row.original.opportunity_id ?? null);
-                          setVeGridViewMode('split');
-                        }
-                      }}
-                      className={`p-1 rounded transition-colors ${
-                        selectedOpportunityId === row.original.opportunity_id
-                          ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30'
-                          : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30'
-                      }`}
-                      title={selectedOpportunityId === row.original.opportunity_id ? 'Close Details Panel' : 'Open Details Panel'}
-                    >
-                      <PanelRight size={18} />
-                    </button>
-                  ) : (
-                    <span className="text-[10px] text-slate-300 dark:text-slate-700 italic select-none">—</span>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (selectedOpportunityId === targetId) {
+                        setSelectedOpportunityId(null);
+                      } else {
+                        setSelectedOpportunityId(targetId);
+                        setVeGridViewMode('split');
+                      }
+                    }}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                    className={`p-1 rounded transition-colors ${
+                      isSelected
+                        ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30'
+                        : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30'
+                    }`}
+                    title={isSelected ? 'Close Details Panel' : 'Open Details Panel'}
+                  >
+                    <PanelRight size={18} />
+                  </button>
                 </div>
               );
             } else if (cell.column.id === 'cost_classification') {
@@ -229,6 +250,7 @@ export const MemoizedMatrixRow = React.memo(
                           e.stopPropagation();
                           onOpenVarianceHistory(row.original.cost_code, row.original.description);
                         }}
+                        onDoubleClick={(e) => e.stopPropagation()}
                         className="p-1 rounded text-sky-500 hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-300 transition-colors bg-sky-50 dark:bg-sky-950/30 hover:bg-sky-100 dark:hover:bg-sky-950/50"
                         title="Click to view full timeline"
                       >
@@ -261,6 +283,53 @@ export const MemoizedMatrixRow = React.memo(
                   )}
                 </div>
               );
+            } else if (cell.column.id === 'total_delta') {
+              if (sortedVersionMeta.length < 2) {
+                cellContent = (
+                  <div className="flex items-center justify-end h-full px-3">
+                    <span className="text-[10px] text-slate-300 dark:text-slate-700 italic select-none">—</span>
+                  </div>
+                );
+              } else {
+                const baseId = sortedVersionMeta[0].id;
+                const latestId = sortedVersionMeta[sortedVersionMeta.length - 1].id;
+                const baseAmount = Number(row.original[baseId]) || 0;
+                const latestAmount = Number(row.original[latestId]) || 0;
+                const delta = latestAmount - baseAmount;
+                
+                let pct = 0;
+                if (baseAmount !== 0) {
+                  pct = delta / Math.abs(baseAmount);
+                } else if (latestAmount !== 0) {
+                  pct = latestAmount > 0 ? 1 : -1;
+                }
+
+                const deltaText = delta > 0 ? `+${formatCurrency(delta)}` : delta < 0 ? formatCurrency(delta) : '—';
+                const pctText = delta !== 0 ? `${delta > 0 ? '+' : ''}${(pct * 100).toFixed(1)}%` : '';
+
+                cellContent = (
+                  <div className="w-full h-full px-3 py-1 flex flex-col justify-center items-end select-none">
+                    <span className="text-xs font-bold font-mono">{deltaText}</span>
+                    {pctText && <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{pctText}</span>}
+                  </div>
+                );
+              }
+            }
+
+            let cellHeatmapClass = '';
+            if (cell.column.id === 'total_delta' && sortedVersionMeta.length >= 2) {
+              const baseId = sortedVersionMeta[0].id;
+              const latestId = sortedVersionMeta[sortedVersionMeta.length - 1].id;
+              const baseAmount = Number(row.original[baseId]) || 0;
+              const latestAmount = Number(row.original[latestId]) || 0;
+              const delta = latestAmount - baseAmount;
+              let pct = 0;
+              if (baseAmount !== 0) {
+                pct = delta / Math.abs(baseAmount);
+              } else if (latestAmount !== 0) {
+                pct = latestAmount > 0 ? 1 : -1;
+              }
+              cellHeatmapClass = getHeatmapClass(pct);
             }
 
             return (
@@ -271,7 +340,7 @@ export const MemoizedMatrixRow = React.memo(
                 className={`border-r border-b border-slate-200 dark:border-slate-800 align-middle bg-clip-padding sticky left-0 z-10 ${
                   isSelected
                     ? 'bg-sky-50 dark:bg-slate-800'
-                    : 'bg-white dark:bg-slate-900 group-hover:bg-slate-50/80 dark:group-hover:bg-slate-800/80'
+                    : (cellHeatmapClass ? cellHeatmapClass : 'bg-white dark:bg-slate-900 group-hover:bg-slate-50/80 dark:group-hover:bg-slate-800/80')
                 } ${
                   isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2 border-slate-200 dark:border-slate-800' : ''
                 }`}
@@ -285,15 +354,52 @@ export const MemoizedMatrixRow = React.memo(
           // ── Dynamic Version Columns ────────────────────────────────────────
           const versionId = cell.column.id;
           const amount = cell.getValue() as number;
-          
+
+          if (versionId.startsWith('step_delta_')) {
+            const match = versionId.match(/^step_delta_(.+)_vs_(.+)$/);
+            if (match) {
+              const priorId = match[2];
+              const priorAmount = Number(row.original[priorId]) || 0;
+              const delta = amount;
+              
+              let pct = 0;
+              if (priorAmount !== 0) {
+                pct = delta / Math.abs(priorAmount);
+              } else if (delta !== 0) {
+                pct = delta > 0 ? 1 : -1;
+              }
+
+              const deltaText = delta > 0 ? `+${formatCurrency(delta)}` : delta < 0 ? formatCurrency(delta) : '—';
+              const pctText = delta !== 0 ? `${delta > 0 ? '+' : ''}${(pct * 100).toFixed(1)}%` : '';
+              const heatClass = getHeatmapClass(pct);
+
+              return (
+                <td
+                  key={cell.id}
+                  className={`px-3 py-1.5 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-right tabular-nums text-xs font-semibold relative bg-clip-padding ${heatClass}`}
+                  style={{ width: cell.column.getSize() }}
+                >
+                  <div className="flex flex-col justify-center items-end h-full select-none">
+                    <span className="text-xs font-bold font-mono">{deltaText}</span>
+                    {pctText && <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{pctText}</span>}
+                  </div>
+                </td>
+              );
+            }
+          }
+
           const baselineAmount = baselineVersionId 
             ? (row.original[baselineVersionId] as number ?? 0) 
             : 0;
-          
-          // Calculate percentage variance relative to baseline version
+
+          // Calculate percentage variance relative to baseline version with zero-baseline handling
           let pctChange = 0;
-          if (versionId !== baselineVersionId && baselineAmount !== 0) {
-            pctChange = (amount - baselineAmount) / Math.abs(baselineAmount);
+          if (versionId !== baselineVersionId) {
+            if (baselineAmount !== 0) {
+              pctChange = (amount - baselineAmount) / Math.abs(baselineAmount);
+            } else if (amount !== 0) {
+              pctChange = amount > 0 ? 1.0 : -1.0;
+            }
           }
 
           const isBaseline = versionId === baselineVersionId;
@@ -304,6 +410,7 @@ export const MemoizedMatrixRow = React.memo(
             <td
               key={cell.id}
               className={`px-3 py-1.5 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-right tabular-nums text-xs font-semibold relative bg-clip-padding group/cell ${heatClass}`}
+              style={{ width: cell.column.getSize() }}
             >
               <div className="flex items-center justify-end gap-1.5 h-full">
                 {cellNote && (
@@ -340,7 +447,8 @@ export const MemoizedMatrixRow = React.memo(
       prev.baselineVersionId === next.baselineVersionId &&
       prev.rawCostCodes === next.rawCostCodes &&
       prev.selectedOpportunityId === next.selectedOpportunityId &&
-      prev.sortedVersionMeta === next.sortedVersionMeta
+      prev.sortedVersionMeta === next.sortedVersionMeta &&
+      prev.showStepDeltas === next.showStepDeltas
     );
   }
 );

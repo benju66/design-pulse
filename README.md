@@ -99,6 +99,50 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 
 ---
 
+### v0.17.1 — Sizing Locks, Zero-Baselines & Timeline Budget Deltas
+**Released:** 2026-05-21 (Patch)
+
+This patch resolves critical visual layout regressions in the forensic version comparison grid and elevates the slide-out details panel with chronological version budget tracking and step-wise transitions.
+
+#### Layout Sizing Security
+- **Dynamic Pinned Widths:** Pinned the overall width of spanned columns (`colSpan`) in CSI Division Group Rows by dynamically summing active column sizes (`style={{ width: pinnedColWidth }}`), locking horizontal scroll bounds and resolving the column collapsing bug.
+- **Strict Size Locks:** Enforced explicit pixel widths on dynamic version cells, step deltas, placeholders, and virtualized spacers to prevent cells from squeezing under split drawer screens.
+
+#### Color Heatmapping Enhancements
+- **Vibrant Opacity Shading:** Upgraded light-mode and dark-mode Tailwind colors (`bg-rose-200/70`, `bg-emerald-200/70`, etc.) to provide high-contrast, premium, and easily readable heatmaps.
+- **Zero-Baseline Additions:** Rewrote the percentage change calculation to handle zero-baseline items (`baseline === $0`). Introductions of new scope now render beautifully at `+100.0%` (or `-100.0%`) with correct shading.
+
+#### Opportunity Slide-Out Timeline
+- **Chronological Delta Timeline:** Added a project-scoped, tenant-isolated TanStack query fetching absolute cost code line totals from `project_estimates` across all project versions.
+- **Comparative State Pills:** Enhanced the slide-out history timeline with absolute budget pills (e.g., `$150,000`) and color-coded comparative step delta badges (`BASELINE`, `NO CHANGE`, or red/green percentage changes).
+- **Clipboard Rich Text Exporter:** Upgraded the "Copy All" timeline utility to format and copy detailed budget sheet chronologies with exact dollar transitions.
+
+---
+
+### v0.17 — Multi-Version Variance Deltas & Forensic Audit Mode
+**Released:** 2026-05-21
+
+This release implements deep forensic auditing inside the Multi-Version Comparison Matrix, allowing pre-construction teams to track granular estimate changes between versions and audit cumulative delta deviations.
+
+#### Variance Delta (Δ) & Forensic Auditing
+
+**Cumulative Variance Delta Column**
+- _Total Δ Pinned Column:_ A left-pinned summary column (`Total Δ`) comparing the latest selected active version against the earliest selected baseline version.
+- _Dual-Line Metrics:_ Each delta cell displays the absolute cost change on the first line and the percentage shift on the second line.
+- _HSL Background Heatmaps:_ Cells are dynamically tinted using HSL gradients (soft rose-50/40 or rose-950/20 for cost increases, soft emerald-50/40 or emerald-950/20 for cost reductions), preserving the clean grid design with high-contrast text.
+- _Safe Zero-Division Fallbacks:_ Graceful handling of edge cases, showing `+100.0%` for items newly introduced in later versions and `—` if baseline and active are both zero.
+
+**Step-by-Step Forensic Audit Mode**
+- _Interactive Toolbar Toggle:_ A new "Audit Deltas (Δ)" button (using the shared `<Button>` primitive in `'primary'` variant) is shown in the toolbar whenever three or more versions are selected.
+- _Consecutive Release Deltas:_ When enabled, it dynamically interleaves step-by-step delta columns between each consecutive selected version in the matrix. Pre-construction teams can inspect exactly when and why a budget line shifted between mid-design releases.
+
+**Precision Layout Safety & Performance**
+- _TanStack Pinning Safety:_ Adjusted the sticky group row (CSI division summary header) to dynamically adapt its `colSpan` (from `3` to `4`) and column slice bounds (from `.slice(3)` to `.slice(4)`) to match the pinned `Total Δ` column layout. This prevents horizontal cell shifts and layout breaks.
+- _Pure Client-Side Computation:_ Built entirely on the client utilizing the pivoted multi-version dataset from the existing Supabase RPC, requiring zero database migrations, RLS adjustments, or API extensions.
+- _Memoization & Compiler Clean:_ Resolved React.memo boundary checks to prevent unnecessary grid re-renders. The whole codebase compiles clean with no warnings or type errors.
+
+---
+
 ### v0.16 — Unified Grid Architecture & Table Standardization
 **Released:** 2026-05-20
 

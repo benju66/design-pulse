@@ -65,6 +65,7 @@ export function VersionComparisonViewer({
   const [varianceMagnitudeThreshold, setVarianceMagnitudeThreshold] = useState(0);
   const [showNotesOnly, setShowNotesOnly] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [showStepDeltas, setShowStepDeltas] = useState(false);
 
   // Dynamic Division Label Resolver
   const getDivisionLabel = useCallback((divisionVal: string) => {
@@ -294,7 +295,7 @@ export function VersionComparisonViewer({
       {
         id: 'open_panel',
         header: () => (
-          <div className="flex items-center justify-center w-full text-center" title="Open Opportunity Details">
+          <div className="flex items-center justify-center w-full text-center" title="Open Row Details">
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase">Detail</span>
           </div>
         ),
@@ -316,38 +317,107 @@ export function VersionComparisonViewer({
       },
     ];
 
-    const dynamic: ColumnDef<MatrixRow>[] = sortedVersionMeta.map((v) => ({
-      id: v.id,
-      header: () => (
-        <div className="flex flex-col items-end gap-0.5 w-full select-none text-right normal-case">
-          <span className="text-xs font-bold truncate block w-full text-slate-800 dark:text-slate-200" title={v.version_name}>
-            {v.version_name}
-          </span>
-          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block">
-            {new Date(v.version_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-          </span>
-          {v.is_active && (
-            <span className="text-[9px] text-amber-500 font-extrabold tracking-wider uppercase flex items-center gap-0.5">
-              ★ Active
+    if (sortedVersionMeta.length >= 2) {
+      fixed.push({
+        id: 'total_delta',
+        header: () => (
+          <div className="flex flex-col items-end gap-0.5 w-full select-none text-right normal-case">
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+              {sortedVersionMeta.length > 2 ? 'Total Δ' : 'Variance Δ'}
             </span>
-          )}
-        </div>
-      ),
-      accessorFn: (row: MatrixRow) => (row[v.id] as number) ?? 0,
-      size: 155,
-      aggregationFn: 'sum' as const,
-      aggregatedCell: (info: { getValue: () => unknown }) => {
-        const sum = info.getValue() as number;
-        return (
-          <div className="px-3 py-1.5 text-right tabular-nums text-xs font-bold text-slate-800 dark:text-slate-200">
-            {sum !== 0 ? formatCurrency(sum) : '—'}
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block">
+              {sortedVersionMeta.length > 2 ? 'Latest vs Baseline' : 'Diff'}
+            </span>
           </div>
-        );
-      },
-    }));
+        ),
+        size: 110,
+        accessorFn: (row: MatrixRow) => {
+          const baseId = sortedVersionMeta[0].id;
+          const latestId = sortedVersionMeta[sortedVersionMeta.length - 1].id;
+          const baseVal = Number(row[baseId]) || 0;
+          const latestVal = Number(row[latestId]) || 0;
+          return latestVal - baseVal;
+        },
+        aggregationFn: 'sum' as const,
+        aggregatedCell: (info: { getValue: () => unknown }) => {
+          const sum = info.getValue() as number;
+          return (
+            <div className="px-3 py-1.5 text-right tabular-nums text-xs font-bold text-slate-800 dark:text-slate-200">
+              {sum !== 0 ? (sum > 0 ? `+${formatCurrency(sum)}` : formatCurrency(sum)) : '—'}
+            </div>
+          );
+        },
+      });
+    }
+
+    const dynamic: ColumnDef<MatrixRow>[] = [];
+    sortedVersionMeta.forEach((v, index) => {
+      // In dynamic step delta mode, render dynamic step-deltas between adjacent releases
+      if (showStepDeltas && index > 0) {
+        const prior = sortedVersionMeta[index - 1];
+        dynamic.push({
+          id: `step_delta_${v.id}_vs_${prior.id}`,
+          header: () => (
+            <div className="flex flex-col items-end gap-0.5 w-full select-none text-right normal-case">
+              <span className="text-xs font-bold text-sky-600 dark:text-sky-400">
+                Δ vs {prior.version_name}
+              </span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block">
+                Step Change
+              </span>
+            </div>
+          ),
+          accessorFn: (row: MatrixRow) => {
+            const valV = (row[v.id] as number) ?? 0;
+            const valPrior = (row[prior.id] as number) ?? 0;
+            return valV - valPrior;
+          },
+          size: 110,
+          aggregationFn: 'sum' as const,
+          aggregatedCell: (info: { getValue: () => unknown }) => {
+            const sum = info.getValue() as number;
+            return (
+              <div className="px-3 py-1.5 text-right tabular-nums text-xs font-bold text-sky-600 dark:text-sky-400">
+                {sum !== 0 ? (sum > 0 ? `+${formatCurrency(sum)}` : formatCurrency(sum)) : '—'}
+              </div>
+            );
+          },
+        });
+      }
+
+      dynamic.push({
+        id: v.id,
+        header: () => (
+          <div className="flex flex-col items-end gap-0.5 w-full select-none text-right normal-case">
+            <span className="text-xs font-bold truncate block w-full text-slate-800 dark:text-slate-200" title={v.version_name}>
+              {v.version_name}
+            </span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block">
+              {new Date(v.version_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+            </span>
+            {v.is_active && (
+              <span className="text-[9px] text-amber-500 font-extrabold tracking-wider uppercase flex items-center gap-0.5">
+                ★ Active
+              </span>
+            )}
+          </div>
+        ),
+        accessorFn: (row: MatrixRow) => (row[v.id] as number) ?? 0,
+        size: 155,
+        aggregationFn: 'sum' as const,
+        aggregatedCell: (info: { getValue: () => unknown }) => {
+          const sum = info.getValue() as number;
+          return (
+            <div className="px-3 py-1.5 text-right tabular-nums text-xs font-bold text-slate-800 dark:text-slate-200">
+              {sum !== 0 ? formatCurrency(sum) : '—'}
+            </div>
+          );
+        },
+      });
+    });
 
     return [...fixed, ...dynamic];
-  }, [sortedVersionMeta]);
+  }, [sortedVersionMeta, showStepDeltas]);
 
   // TanStack Table states
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -397,7 +467,12 @@ export function VersionComparisonViewer({
       expanded,
       grouping: ['division'],
       columnPinning: {
-        left: ['open_panel', 'cost_classification', 'variance_comment'],
+        left: [
+          'open_panel',
+          'cost_classification',
+          'variance_comment',
+          ...(sortedVersionMeta.length >= 2 ? ['total_delta'] : []),
+        ],
       },
       columnVisibility: {
         division: false,
@@ -528,6 +603,22 @@ export function VersionComparisonViewer({
             )}
           </button>
 
+          {sortedVersionMeta.length >= 3 && (
+            <Button
+              variant={showStepDeltas ? "primary" : "outline"}
+              size="sm"
+              onClick={() => setShowStepDeltas(!showStepDeltas)}
+              className={`text-[11px] font-bold px-3 py-1.5 h-8 transition-all flex items-center gap-1.5 ${
+                showStepDeltas 
+                  ? 'bg-sky-600 hover:bg-sky-700 text-white' 
+                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <GitCompareArrows size={13} className={showStepDeltas ? "text-white" : "text-slate-400 dark:text-slate-500"} />
+              <span>Audit Deltas (Δ)</span>
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="sm"
@@ -590,8 +681,14 @@ export function VersionComparisonViewer({
         ) : (
           <table
             className="text-left text-sm whitespace-nowrap border-separate border-spacing-0"
-            style={{ tableLayout: 'fixed', width: table.getTotalSize() }}
+            style={{ tableLayout: 'fixed', width: '100%', minWidth: table.getTotalSize() }}
           >
+            {/* Lock column widths to prevent shrinking or shifts during expanding/collapsing */}
+            <colgroup>
+              {table.getVisibleLeafColumns().map((col) => (
+                <col key={col.id} style={{ width: col.getSize() }} />
+              ))}
+            </colgroup>
             <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-20">
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id}>
@@ -674,6 +771,7 @@ export function VersionComparisonViewer({
                     pinnedColumnOffsets={pinnedColumnOffsets}
                     onOpenVarianceHistory={handleOpenVarianceHistory}
                     selectedOpportunityId={selectedOpportunityId}
+                    showStepDeltas={showStepDeltas}
                   />
                 );
               })}

@@ -1,4 +1,5 @@
 "use client";
+import { toast } from 'sonner';
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -267,15 +268,39 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleBulkDelete = async () => {
+    // Pre-flight: separate locked (Approved) items from deletable ones.
+    // The DB trigger enforce_financial_immutability blocks soft-delete on Approved rows.
+    const lockedIds: string[] = [];
+    const deletableIds: string[] = [];
+    for (const id of selectedRows) {
+      const row = rows.find(r => r.original.id === id);
+      if (row?.original.status === 'Approved') {
+        lockedIds.push(id);
+      } else {
+        deletableIds.push(id);
+      }
+    }
+
+    if (lockedIds.length > 0 && deletableIds.length === 0) {
+      toast.error(`Cannot delete ${lockedIds.length} locked item${lockedIds.length > 1 ? 's' : ''}. Unlock the contender first.`);
+      setIsDeleteModalOpen(false);
+      return;
+    }
+
+    if (lockedIds.length > 0) {
+      toast.warning(`${lockedIds.length} locked item${lockedIds.length > 1 ? 's were' : ' was'} skipped — unlock the contender first.`);
+    }
+
     setIsDeleting(true);
     try {
-      for (const id of selectedRows) {
+      for (const id of deletableIds) {
         await deleteMutation.mutateAsync(id);
       }
       clearSelection();
       setIsDeleteModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to bulk delete:', error);
+      toast.error(`Delete failed: ${error?.message || 'Unknown error'}`);
     } finally {
       setIsDeleting(false);
     }

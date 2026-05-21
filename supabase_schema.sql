@@ -851,8 +851,11 @@ BEGIN
     IF OLD.status IS DISTINCT FROM NEW.status THEN
       RAISE EXCEPTION 'Financial immutability enforced: Cannot modify status of locked records without explicitly unlocking.';
     END IF;
+    -- Soft-delete: only block if a contender is ACTUALLY locked (source of truth)
     IF OLD.is_deleted = false AND NEW.is_deleted = true THEN
-      RAISE EXCEPTION 'Financial immutability enforced: Cannot delete a locked opportunity. Unlock it first.';
+      IF EXISTS (SELECT 1 FROM opportunity_options WHERE opportunity_id = OLD.id AND is_locked = true AND is_deleted = false) THEN
+        RAISE EXCEPTION 'Financial immutability enforced: Cannot delete a locked opportunity. Unlock it first.';
+      END IF;
     END IF;
     IF OLD.cost_impact IS DISTINCT FROM NEW.cost_impact OR OLD.days_impact IS DISTINCT FROM NEW.days_impact OR OLD.title IS DISTINCT FROM NEW.title THEN
       RAISE EXCEPTION 'Financial immutability enforced: Cannot modify core fields of locked records';

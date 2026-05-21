@@ -125,7 +125,7 @@ export function useDeleteOpportunity(projectId: string) {
         .from('opportunities')
         .update({ is_deleted: true })
         .eq('id', id);
-      if (error) throw error;
+      if (error) throw new Error(error.message || JSON.stringify(error));
       return id;
     },
     onMutate: async (id) => {

@@ -51,6 +51,16 @@ async def process_sheet_job(
       90–95% → vector extraction complete  (now concurrent with tiles via gather)
       95–100% → DB row finalized
     """
+    # Guard: skip if sheet is already processing (prevents duplicate jobs)
+    try:
+        check = get_supabase().table("project_sheets").select("status").eq("id", sheet_id).single().execute()
+        if check.data and check.data.get("status") == "processing":
+            print(f"[worker] Sheet {sheet_id} is already processing — skipping duplicate job")
+            return
+    except Exception as guard_err:
+        print(f"[worker] Guard check failed for sheet {sheet_id}: {guard_err}")
+        # Continue processing if guard check fails — better to process than skip
+
     # Thread-local client — isolated httpx connection pool, never shared.
     # Note: we don't instantiate here anymore, we use get_supabase() so each thread gets its own.
 

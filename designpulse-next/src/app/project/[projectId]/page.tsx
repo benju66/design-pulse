@@ -34,6 +34,7 @@ import DrawingDetailPanel from '@/components/drawings/DrawingDetailPanel';
 import { useUIStore, ProjectView, SettingsTab, PermitFilters } from '@/stores/useUIStore';
 import { useMapStore } from '@/stores/useMapStore';
 import { useProjectRealtime } from '@/hooks/useProjectRealtime';
+import { toast } from 'sonner';
 import { useProjectSheets, useSheetMarkups, markupsToZones, useUpdateSheetMarkups } from '@/hooks/useMapQueries';
 
 import { ProjectSidebar } from '@/components/layout/ProjectSidebar';
@@ -173,9 +174,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       a.href = url;
       a.download = filename;
       a.click();
+      window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export PDF');
+      toast.error('Failed to export PDF');
     }
   };
 

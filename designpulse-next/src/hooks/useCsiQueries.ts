@@ -34,7 +34,7 @@ export function useUploadCsiTOC() {
       const formData = new FormData();
       formData.append('file', file);
       
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/extract-csi-toc`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/extract-csi-toc`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session?.access_token}` },
         body: formData

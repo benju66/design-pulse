@@ -14,10 +14,10 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 1000 * 60 * 5, // 5 minutes
-            gcTime: 1000 * 60 * 60 * 24, // 24 hours
+            gcTime: 1000 * 60 * 30, // 30 minutes
           },
           mutations: {
-            retry: 3,
+            retry: false,
           }
         },
       })

@@ -594,7 +594,7 @@ export const SortableContenderCard = ({
                   console.error('Failed to flush updates before locking:', e);
                 }
               }}
-              disabled={opt.is_locked || isLocked || !permissions.can_lock_options || updateOptionReqs.isPending}
+              disabled={opt.is_locked || isLocked || !permissions.can_lock_options || updateOptionReqs.isPending || lockOption.isPending}
               role="switch"
               aria-checked={opt.is_locked || false}
               className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${

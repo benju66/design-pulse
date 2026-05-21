@@ -691,7 +691,11 @@ export function useLockOption(opportunityId: string, projectId: string) {
         queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
       }
       toast.error(`Failed to lock option: ${err.message || 'Unknown error'}`);
-    }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+    },
   });
 }
 
@@ -914,6 +918,14 @@ export function useReturnOpportunity(projectId: string | null) {
       queryClient.invalidateQueries({ queryKey: ['pending_estimate_updates', projectId] });
       queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
       queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
-    }
+    },
+    onError: (err) => {
+      console.error('Return Opportunity Error:', err);
+      toast.error(`Failed to return opportunity: ${err.message || 'Unknown error'}`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['all_project_options', projectId] });
+    },
   });
 }

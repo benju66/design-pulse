@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { CostCode, GlobalCsiTrainingData, RemapCsiEntryParams } from '@/types/models';
 import { Database } from '@/types/database.types';
+import { toast } from 'sonner';
 
 export function useCostCodes() {
   return useQuery({
@@ -45,6 +46,10 @@ export function useUploadCostCodesCSV() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cost_codes'] });
+    },
+    onError: (err: Error) => {
+      console.error('Upload Cost Codes Error:', err);
+      toast.error(`Failed to upload cost codes: ${err.message || 'Unknown error'}`);
     },
   });
 }
@@ -216,6 +221,10 @@ export function useRemapGlobalCsiEntry() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['global_csi_training_data'] });
     },
+    onError: (err: Error) => {
+      console.error('Remap CSI Entry Error:', err);
+      toast.error(`Failed to remap CSI entry: ${err.message || 'Unknown error'}`);
+    },
   });
 }
 
@@ -283,6 +292,10 @@ export function useBulkUpdateUserProjects() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['project_members', 'user', variables.userId] });
       queryClient.invalidateQueries({ queryKey: ['project_members'] }); // Also invalidate any specific project member queries
+    },
+    onError: (err: Error) => {
+      console.error('Bulk Update User Projects Error:', err);
+      toast.error(`Failed to update user projects: ${err.message || 'Unknown error'}`);
     },
   });
 }

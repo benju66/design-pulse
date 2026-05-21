@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-05-21  
 > **Status:** Living Document  
-> **Application Version:** v0.15 (Lessons Learned + Client DB)  
+> **Application Version:** v0.17.1 (Sizing Locks, Zero-Baselines & Timeline Budget Deltas)  
 > **Architecture Model:** [C4 Model](https://c4model.com/) by Simon Brown
 
 ---
@@ -511,7 +511,7 @@ design-pulse/                           # Informal monorepo (no workspace manage
 │   └── deep-review/ (1.1 KB)
 │
 ├── AGENTS.md                           # AI agent context + routing table
-├── README.md (46 KB)                   # Project docs + release notes (v0.6–v0.15)
+├── README.md (52 KB)                   # Project docs + release notes (v0.6–v0.17)
 └── FUTURE_IDEAS.md (9 KB)              # Roadmap proposals
 ```
 

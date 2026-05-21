@@ -37,6 +37,8 @@ export function useUpsertVarianceNote(projectId: string) {
       });
       // Refresh the master ledger grid so the delta cell icon updates
       qc.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      // Refresh the multi-version forensic matrix so cell-specific notes update instantly
+      qc.invalidateQueries({ queryKey: ['multi-version-matrix', projectId] });
     },
   });
 }

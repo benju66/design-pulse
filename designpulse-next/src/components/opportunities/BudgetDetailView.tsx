@@ -18,6 +18,8 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/supabaseClient";
 import { useCurrentUserPermissions } from "@/hooks/useProjectCoreQueries";
 import {
   useEstimateLineDetails,
@@ -29,6 +31,7 @@ import { toast } from "sonner";
 import type { Opportunity } from "@/types/models";
 import { useUpsertVarianceNote } from "@/hooks/useUpsertVarianceNote";
 import { useProjectEstimateVersions } from "@/hooks/useEstimateQueries";
+import { Button } from "@/components/ui/Button";
 import React from 'react';
 
 const formatCurrency = (val: number) =>
@@ -67,9 +70,78 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
   const { data: lines, isLoading, isError } = useEstimateLineDetails(projectId, costCode);
   const { permissions } = useCurrentUserPermissions(projectId);
   const { data: varianceNotes, isLoading: varianceLoading } = useVarianceHistoryByCostCode(projectId, costCode);
+
   const updateAssumptions = useUpdateEstimateAssumptions(projectId);
   const { data: estimateVersions = [] } = useProjectEstimateVersions(projectId);
   const upsertVarianceNote = useUpsertVarianceNote(projectId);
+
+  // Fast, scoped TanStack query to fetch all line item totals for this cost code belonging strictly to this project's versions
+  const { data: versionAmounts } = useQuery({
+    queryKey: ['cost-code-version-amounts', projectId, costCode],
+    enabled: !!projectId && !!costCode,
+    queryFn: async () => {
+      const { data: versions, error: vError } = await supabase
+        .from('project_estimate_versions')
+        .select('id')
+        .eq('project_id', projectId);
+      if (vError) throw vError;
+      if (!versions || versions.length === 0) return {};
+      
+      const versionIds = versions.map(v => v.id);
+
+      const { data, error } = await supabase
+        .from('project_estimates')
+        .select('version_id, budget_amount')
+        .in('version_id', versionIds)
+        .eq('cost_code', costCode);
+      if (error) throw error;
+      
+      const sums: Record<string, number> = {};
+      data?.forEach(r => {
+        sums[r.version_id] = (sums[r.version_id] || 0) + (Number(r.budget_amount) || 0);
+      });
+      return sums;
+    }
+  });
+
+  // Calculate step deltas and absolute budgets chronologically (oldest-to-newest)
+  const chronologicalVersions = React.useMemo(() => {
+    return [...estimateVersions].reverse();
+  }, [estimateVersions]);
+
+  const versionDeltas = React.useMemo(() => {
+    const deltas: Record<string, { amount: number; prevAmount: number | null; delta: number | null; pct: number | null }> = {};
+    
+    chronologicalVersions.forEach((v, index) => {
+      const amount = versionAmounts?.[v.id] ?? 0;
+      if (index === 0) {
+        deltas[v.id] = {
+          amount,
+          prevAmount: null,
+          delta: null,
+          pct: null
+        };
+      } else {
+        const prevVersion = chronologicalVersions[index - 1];
+        const prevAmount = versionAmounts?.[prevVersion.id] ?? 0;
+        const delta = amount - prevAmount;
+        let pct = null;
+        if (prevAmount !== 0) {
+          pct = delta / Math.abs(prevAmount);
+        } else if (amount !== 0) {
+          pct = amount > 0 ? 1.0 : -1.0;
+        }
+        deltas[v.id] = {
+          amount,
+          prevAmount,
+          delta,
+          pct
+        };
+      }
+    });
+    
+    return deltas;
+  }, [chronologicalVersions, versionAmounts]);
 
   // Active version detection for version-scoped note editing
   const activeVersionId = React.useMemo(
@@ -184,20 +256,16 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
             </h4>
           </div>
           {permissions.can_edit_records && isDirty && (
-            <button
+            <Button
               onClick={handleSaveAssumptions}
-              disabled={updateAssumptions.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md
-                         bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50
-                         transition-colors"
+              isLoading={updateAssumptions.isPending}
+              variant="primary"
+              size="sm"
+              className="rounded-md"
             >
-              {updateAssumptions.isPending ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <Save size={12} />
-              )}
+              <Save size={12} />
               Save
-            </button>
+            </Button>
           )}
         </div>
         <div className="p-4">
@@ -403,20 +471,37 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
           </div>
           {/* Copy to clipboard */}
           {varianceNotes && varianceNotes.length > 0 && (
-            <button
+            <Button
               onClick={() => {
                 const text = varianceNotes
-                  .map(n => `[${n.version_name}] ${formatShortDate(n.created_at)}\n${n.variance_note}`)
+                  .map(n => {
+                    const deltaInfo = versionDeltas[n.estimate_version_id];
+                    let deltaText = '';
+                    if (deltaInfo) {
+                      const hasDelta = deltaInfo.delta !== null;
+                      const amtText = formatCurrency(deltaInfo.amount);
+                      if (!hasDelta) {
+                        deltaText = ` (Budget: ${amtText} - BASELINE)`;
+                      } else {
+                        const sgn = deltaInfo.delta! > 0 ? '+' : '';
+                        const pctStr = (deltaInfo.pct! * 100).toFixed(1);
+                        deltaText = ` (Budget: ${amtText} - Step Delta: ${sgn}${formatCurrency(deltaInfo.delta!)} [${sgn}${pctStr}%])`;
+                      }
+                    }
+                    return `[${n.version_name}]${deltaText} ${formatShortDate(n.created_at)}\n${n.variance_note}`;
+                  })
                   .join('\n\n');
                 navigator.clipboard.writeText(text);
                 toast.success('Variance notes copied to clipboard');
               }}
-              className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-slate-400 hover:text-sky-500 transition-colors rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+              variant="ghost"
+              size="sm"
+              className="text-[10px] font-medium text-slate-400 hover:text-sky-500 transition-colors rounded hover:bg-slate-100 dark:hover:bg-slate-800 border-0 shadow-none h-auto py-1 px-2"
               title="Copy all notes to clipboard"
             >
               <Copy size={11} />
               Copy All
-            </button>
+            </Button>
           )}
         </div>
         <div className="p-4 max-h-80 overflow-y-auto">
@@ -430,16 +515,18 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
                 No variance notes recorded for this cost code.
               </p>
               {permissions.can_edit_project_settings && activeVersionId && (
-                <button
+                <Button
                   onClick={() => {
                     setNoteDraft('');
                     setIsEditingNote(true);
                     setTimeout(() => noteTextareaRef.current?.focus(), 50);
                   }}
-                  className="mt-2 text-xs font-medium text-sky-500 hover:text-sky-600 transition-colors"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 text-xs font-medium text-sky-500 hover:text-sky-600 transition-colors hover:bg-sky-50 dark:hover:bg-sky-950/20 border-0 shadow-none h-auto py-1.5 px-3"
                 >
                   + Add note for current version
-                </button>
+                </Button>
               )}
             </div>
           ) : (
@@ -447,6 +534,38 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
               {varianceNotes.map((note) => {
                 const isActiveVersion = note.estimate_version_id === activeVersionId;
                 const canEdit = isActiveVersion && permissions.can_edit_project_settings;
+                const deltaInfo = versionDeltas[note.estimate_version_id];
+
+                // Determine step delta badge styling
+                let deltaBadge = null;
+                if (deltaInfo) {
+                  const hasDelta = deltaInfo.delta !== null;
+                  if (!hasDelta) {
+                    deltaBadge = (
+                      <span className="inline-flex items-center text-[9px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700/50 select-none">
+                        BASELINE
+                      </span>
+                    );
+                  } else if (deltaInfo.delta! > 0) {
+                    deltaBadge = (
+                      <span className="inline-flex items-center text-[9px] font-extrabold uppercase tracking-wider text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 px-1.5 py-0.5 rounded-md border border-rose-100 dark:border-rose-900/30 select-none">
+                        +{formatCurrency(deltaInfo.delta!)} (+{(deltaInfo.pct! * 100).toFixed(1)}%)
+                      </span>
+                    );
+                  } else if (deltaInfo.delta! < 0) {
+                    deltaBadge = (
+                      <span className="inline-flex items-center text-[9px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-900/30 select-none">
+                        {formatCurrency(deltaInfo.delta!)} ({(deltaInfo.pct! * 100).toFixed(1)}%)
+                      </span>
+                    );
+                  } else {
+                    deltaBadge = (
+                      <span className="inline-flex items-center text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 px-1.5 py-0.5 rounded-md select-none border border-slate-100 dark:border-slate-800/30">
+                        NO CHANGE
+                      </span>
+                    );
+                  }
+                }
 
                 return (
                   <div
@@ -458,7 +577,7 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           {note.version_name}
                         </span>
@@ -468,6 +587,12 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
                             Current
                           </span>
                         )}
+                        {deltaInfo && (
+                          <span className="inline-flex items-center text-[10px] font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100/60 dark:bg-slate-850 px-1.5 py-0.5 rounded-md border border-slate-200/50 dark:border-slate-700/50">
+                            {formatCurrency(deltaInfo.amount)}
+                          </span>
+                        )}
+                        {deltaBadge}
                       </div>
                       <div className="flex items-center gap-2">
                         <span
@@ -477,17 +602,19 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
                           {relativeTime(note.updated_at || note.created_at)}
                         </span>
                         {canEdit && !isEditingNote && (
-                          <button
+                          <Button
                             onClick={() => {
                               setNoteDraft(note.variance_note);
                               setIsEditingNote(true);
                               setTimeout(() => noteTextareaRef.current?.focus(), 50);
                             }}
-                            className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-sky-500 transition-colors"
+                            variant="ghost"
+                            size="icon"
+                            className="p-0.5 rounded text-slate-400 hover:text-sky-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 shadow-none h-auto"
                             title="Edit note"
                           >
                             <Pencil size={11} />
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -524,16 +651,18 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
                         <div className="flex items-center justify-between mt-1.5">
                           <span className="text-[10px] text-slate-400">{noteDraft.length}/500</span>
                           <div className="flex gap-2">
-                            <button
+                            <Button
                               onClick={() => {
                                 setIsEditingNote(false);
                                 setNoteDraft(activeNote?.variance_note ?? '');
                               }}
-                              className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                              variant="ghost"
+                              size="sm"
+                              className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors h-auto py-1 px-2 border-0 shadow-none font-medium"
                             >
                               Cancel
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               onClick={() => {
                                 upsertVarianceNote.mutate(
                                   { costCode, note: noteDraft.trim() },
@@ -546,11 +675,13 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
                                   }
                                 );
                               }}
-                              disabled={upsertVarianceNote.isPending}
-                              className="text-[10px] font-medium text-sky-600 hover:text-sky-700 disabled:opacity-50 transition-colors"
+                              isLoading={upsertVarianceNote.isPending}
+                              variant="ghost"
+                              size="sm"
+                              className="text-[10px] font-bold text-sky-600 hover:text-sky-700 disabled:opacity-50 transition-colors h-auto py-1 px-2 border-0 shadow-none"
                             >
-                              {upsertVarianceNote.isPending ? 'Saving…' : 'Save'}
-                            </button>
+                              Save
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -563,16 +694,18 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
 
               {/* Add note CTA — only if no active version note exists yet */}
               {!activeNote && permissions.can_edit_project_settings && activeVersionId && (
-                <button
+                <Button
                   onClick={() => {
                     setNoteDraft('');
                     setIsEditingNote(true);
                     setTimeout(() => noteTextareaRef.current?.focus(), 50);
                   }}
-                  className="w-full mt-1 py-2 text-xs font-medium text-sky-500 hover:text-sky-600 border border-dashed border-sky-200 dark:border-sky-800 rounded-lg hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full mt-1 py-2 text-xs font-medium text-sky-500 hover:text-sky-600 border border-dashed border-sky-200 dark:border-sky-800 rounded-xl hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors shadow-none"
                 >
                   + Add note for {activeVersionName || 'current version'}
-                </button>
+                </Button>
               )}
             </div>
           )}

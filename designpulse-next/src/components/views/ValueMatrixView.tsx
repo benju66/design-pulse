@@ -2,7 +2,8 @@
 import { Plus } from 'lucide-react';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import BudgetSummary from '@/components/BudgetSummary';
-import FloorplanCanvas from '@/components/FloorplanCanvas';
+import dynamic from 'next/dynamic';
+const FloorplanCanvas = dynamic(() => import('@/components/FloorplanCanvas'), { ssr: false });
 import DetailPanel from '@/components/DetailPanel';
 import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
 import { useUIStore } from '@/stores/useUIStore';

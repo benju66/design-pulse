@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect } from 'react';
-import FloorplanCanvas from '@/components/FloorplanCanvas';
+import dynamic from 'next/dynamic';
+const FloorplanCanvas = dynamic(() => import('@/components/FloorplanCanvas'), { ssr: false });
 import { useMapStore } from '@/stores/useMapStore';
 import { Zone } from '@/types/map.types';
 

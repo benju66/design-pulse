@@ -3,7 +3,7 @@ import React, { use } from 'react';
 import { List, LayoutPanelTop, PanelRight, Plus, LayoutGrid, UploadCloud, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import dynamic from 'next/dynamic';
-import FloorplanCanvas from '@/components/FloorplanCanvas';
+const FloorplanCanvas = dynamic(() => import('@/components/FloorplanCanvas'), { ssr: false });
 import { SheetTabStrip } from '@/components/canvas/SheetTabStrip';
 import { DrawingGrid } from '@/components/drawings/DrawingGrid';
 import CompareModal from '@/components/CompareModal';

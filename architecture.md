@@ -697,10 +697,10 @@ Data revealed based on workflow stage. Once a decision is locked in Pre-Con, coo
 | Service | Port | Command |
 |---------|------|---------|
 | Next.js Frontend | 8000 | `npm run dev` (custom port via `next dev -p 8000`) |
-| Python Backend | 8001 | `start.ps1` → `uvicorn main:app --reload --host 127.0.0.1 --port 8001` |
+| Python Backend | 8001 | `start.ps1` → `python -m uvicorn main:app --reload --host 127.0.0.1 --port 8001` |
 
-> [!WARNING]
-> **Port mismatch:** `next.config.mjs` proxies `/py-api/*` to port `8000`, but `start.ps1` launches FastAPI on port `8001`. Verify `.env` or runtime config resolves this.
+> [!NOTE]
+> **Unified Dev Ports:** `next.config.mjs` correctly proxies `/py-api/*` to port `8001` (`http://127.0.0.1:8001`), which is the exact port where FastAPI is launched by `start.ps1`. Next.js dev server runs on port `8000`.
 
 ### D.2 Production
 

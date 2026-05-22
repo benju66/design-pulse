@@ -9,8 +9,8 @@ import { useSeedFromCompanyDefaults, useCompanyCsiDefaults } from '@/hooks/useCo
 import { CsiSpecItem, ProjectCsiSpec } from '@/types/models';
 import { useCostCodes, useCsiTrainingSuggestions } from '@/hooks/useGlobalQueries';
 import { useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
+import { runExcelWorker } from '@/lib/excel/excelWorkerClient';
 import { toast } from 'sonner';
-import type { Row } from 'exceljs';
 
 export function CsiMappingTab({ projectId }: { projectId: string }) {
   const [, setFile] = useState<File | null>(null);
@@ -67,77 +67,10 @@ export function CsiMappingTab({ projectId }: { projectId: string }) {
 
   const handleExcelUpload = async (file: File) => {
     try {
-      const ExcelJS = (await import('exceljs/dist/exceljs.min.js')).default;
-      const workbook = new ExcelJS.Workbook();
       const buffer = await file.arrayBuffer();
-      await workbook.xlsx.load(buffer);
-      
-      // Find the first visible sheet that contains recognizable headers.
-      // We cannot use worksheets[0] because our own template puts 'Hidden_CostCodes'
-      // as the first sheet, making the actual 'Template' sheet index 1.
-      let csiCol = -1;
-      let descCol = -1;
-      let costCodeCol = -1;
-      // ExcelJS dynamic import (C19) loses type info — `any` is unavoidable here
-      let sheet: any | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-      for (const ws of workbook.worksheets) {
-        if (ws.state === 'hidden') continue;
-        csiCol = -1;
-        descCol = -1;
-        costCodeCol = -1;
-        ws.getRow(1).eachCell((cell, colNumber) => {
-          const val = String(cell.text || '').toLowerCase().replace(/[^a-z]/g, '');
-          if (val.includes('csi')) csiCol = colNumber;
-          else if (val.includes('desc')) descCol = colNumber;
-          else if (val.includes('costcode')) costCodeCol = colNumber;
-        });
-        if (csiCol !== -1 && descCol !== -1) {
-          sheet = ws;
-          break;
-        }
-      }
-
-      if (!sheet) {
-        toast.error("Could not find a sheet with 'CSI Number' and 'Description' columns. Please use the downloaded template.");
-        return;
-      }
-
-      const parsedData: CsiSpecItem[] = [];
-      sheet.eachRow((row: Row, rowNumber: number) => {
-        if (rowNumber === 1) return; // skip header
-
-        const rawCsi = String(row.getCell(csiCol).text || '');
-        const rawDesc = String(row.getCell(descCol).text || '');
-        if (!rawCsi) return;
-
-        // Strict Formatting & iOS Safety (No negative lookbehinds)
-        // Allow periods for extended CSI codes (e.g. 10 1423.16)
-        const cleanCsi = rawCsi.replace(/[^a-zA-Z0-9.]/g, '');
-        let formattedCsi = cleanCsi;
-        
-        const parts = cleanCsi.split('.');
-        const base = parts[0];
-        const ext = parts.length > 1 ? `.${parts[1]}` : '';
-
-        if (/^\d{6}$/.test(base)) {
-          formattedCsi = `${base.substring(0,2)} ${base.substring(2,4)} ${base.substring(4,6)}${ext}`;
-        }
-
-        let costCodeVal = null;
-        if (costCodeCol !== -1) {
-          const rawCostCode = String(row.getCell(costCodeCol).text || '');
-          if (rawCostCode) {
-            costCodeVal = rawCostCode.split(' - ')[0].trim();
-          }
-        }
-
-        parsedData.push({
-          id: crypto.randomUUID(),
-          csi_number: formattedCsi,
-          description: rawDesc || "No Description",
-          cost_code: costCodeVal || undefined
-        });
+      const parsedData = await runExcelWorker<CsiSpecItem[]>({
+        type: 'PARSE_CSI_SPEC',
+        payload: { arrayBuffer: buffer },
       });
 
       if (parsedData.length === 0) {

@@ -14,7 +14,7 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 - **Design Coordination Tracker:** A drag-and-drop Kanban pipeline for managing architectural and MEP drawing updates directly downstream from locked financial decisions.
 - **Lessons Learned Engine:** A structured institutional knowledge capture system integrated into every project. Teams can log, categorize, and verify lessons using curated templates (Material Substitution, Subcontractor Performance, AHJ Requirement, Owner Specific). Verified lessons are cryptographically locked via database immutability triggers, with a SECURITY DEFINER RPC escape hatch for authorized re-opening. The schema includes AI/ML runway columns (`source_type`, `ai_confidence`, `ai_metadata`) for future summarization pipelines. Lessons are linkable to VE opportunity rows, searchable by CSI cost code, and surfaced proactively via the `get_lesson_indicators` RPC.
 - **Permits Tracker:** A specialized workspace for managing complex permit lifecycles, featuring both a high-fidelity Board view for status tracking and a Table view for granular detail management.
-- **Bulk Import Engine:** A high-performance Excel/CSV processing pipeline that utilizes client-side chunking and set-based PostgreSQL operations to import hundreds of records instantly.
+- **Bulk Import Engine:** A multi-threaded, high-performance Excel processing pipeline that offloads heavy spreadsheet parsing off the main React rendering thread onto a dedicated background Web Worker using zero-copy Transferable Objects, ensuring a completely responsive 60 FPS UI experience during multi-megabyte uploads.
 - **Advanced Multi-Select Filtering:** Powerful data exploration capabilities allowing for multiple concurrent selections across Building Areas, Cost Codes, and Disciplines.
 - **Role-Based Access Control (RBAC):** Dynamic, granular permissions (Owner, GC Admin, Design Team, Viewer) controlled securely at the database level via PostgreSQL Row Level Security (RLS).
 - **Financial Immutability & Audit Trails:** A robust soft-delete architecture paired with strict database triggers to lock approved budgets, ensure financial calculation accuracy, and track comprehensive historical changes.
@@ -96,6 +96,23 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
 
 ## 7. Release Notes
+
+---
+
+### v0.18 — Off-Thread Excel Processing & Web Worker Pipeline
+**Released:** 2026-05-21
+
+This release implements multi-threaded browser Excel parsing across all platform ingestion pipelines, offloading massive computation off the main React rendering thread onto a dedicated Web Worker to maintain a responsive 60 FPS UI experience.
+
+#### Off-Thread Ingestion Engine
+- **Centralized Web Worker Framework:** Spawns an off-thread dynamic Web Worker utilizing Next.js native module worker compilation (`new Worker(new URL(..., import.meta.url), { type: 'module' })`), ensuring dynamic lazy imports and eliminating render blocks during heavy imports.
+- **Transferable Zero-Copy Memory:** Transfers file `ArrayBuffer` instantly between threads via Transferable Objects, completely bypassing standard structured clone serialization overhead.
+- **Isolated Domain Parsers:** Extracted inline parsing logic from UI tabs (`CsiMappingTab.tsx`, `GlobalSettingsModal.tsx`) into independent, strictly typed domain helper libraries (`csiSpecParser.ts`, `companyDefaultsParser.ts`) to comply with modular component separation guardrails.
+- **Emergency Resilient Fallback:** Implemented a robust `FORCE_MAIN_THREAD` developer switch in the client wrapper (`excelWorkerClient.ts`) to instantly bypass Web Workers and run parser modules synchronously on the main thread for testing or older compatibility.
+
+#### Multi-Pipeline Integration
+- **Unified Worker Client Interface:** Standardized all platform Excel uploads under a single promise-based client interface (`runExcelWorker`) that orchestrates worker creation, message payload passing, and immediate worker termination to maximize system memory recovery.
+- **Ingestion Pipelines Upgraded:** Migrated 100% of Excel ingestion routes including CSI Specs, Procore Budgets, Cost Codes, Company Defaults, and Coordination board tasks.
 
 ---
 

@@ -16,8 +16,9 @@ import { useProjects, useUpdateProjectCore, useDeleteProjectCore } from '@/hooks
 import { Project, GlobalCsiTrainingData, RemapCsiEntryParams, CostCode, RolePermission } from '@/types/models';
 import { formatCostCode } from '@/lib/formatCostCode';
 import { generateCostCodeTemplate } from '@/lib/excel/costCodeTemplate';
-import { parseCostCodeExcel } from '@/lib/excel/costCodeParser';
+import { runExcelWorker } from '@/lib/excel/excelWorkerClient';
 import { generateCompanyDefaultsTemplate } from '@/lib/excel/companyDefaultsTemplate';
+import type { Database as SupabaseDatabase } from '@/types/database.types';
 import { toast } from 'sonner';
 
 interface Props {
@@ -74,7 +75,10 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
       setError(null);
       const arrayBuffer = await file.arrayBuffer();
       
-      const payload = await parseCostCodeExcel(arrayBuffer);
+      const payload = await runExcelWorker<SupabaseDatabase['public']['Tables']['cost_codes']['Insert'][]>({
+        type: 'PARSE_COST_CODES',
+        payload: { arrayBuffer },
+      });
 
       // 3. Chunk-UPSERT via mutation (chunking handled inside useUploadCostCodesCSV — Rule C20)
       await uploadMutation.mutateAsync(payload);
@@ -781,70 +785,17 @@ function CompanyDefaultsTab({ costCodes }: { costCodes: CostCode[] }) {
     );
   }, [defaults, searchFilter]);
 
-  // Excel upload handler (reuses AGENTS.md C19 dynamic import pattern)
+  // Excel upload handler via central off-thread Web Worker
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = ''; // Reset so same file can be re-selected
 
     try {
-      // C19: Dynamic import of browser-safe ExcelJS build
-      const ExcelJS = (await import('exceljs/dist/exceljs.min.js')).default;
-      const workbook = new ExcelJS.Workbook();
       const buffer = await file.arrayBuffer();
-      await workbook.xlsx.load(buffer);
-
-      // Find first visible sheet with CSI/Description headers
-      let csiCol = -1;
-      let descCol = -1;
-      let costCodeCol = -1;
-      // ExcelJS dynamic import (C19) loses type info — `any` is unavoidable here
-      let sheet: any | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-      for (const ws of workbook.worksheets) {
-        if (ws.state === 'hidden') continue;
-        csiCol = -1;
-        descCol = -1;
-        costCodeCol = -1;
-        ws.getRow(1).eachCell((cell: { text: string }, colNumber: number) => {
-          const val = String(cell.text || '').toLowerCase().replace(/[^a-z]/g, '');
-          if (val.includes('csi')) csiCol = colNumber;
-          else if (val.includes('desc')) descCol = colNumber;
-          else if (val.includes('costcode') || val.includes('code')) costCodeCol = colNumber;
-        });
-        if (csiCol !== -1 && descCol !== -1) {
-          sheet = ws;
-          break;
-        }
-      }
-
-      if (!sheet) {
-        toast.error("Could not find a sheet with 'CSI Number' and 'Description' columns.");
-        return;
-      }
-
-      const parsedPayload: Partial<CompanyCsiDefault>[] = [];
-      sheet.eachRow((row: { getCell: (col: number) => { text: string } }, rowNumber: number) => {
-        if (rowNumber === 1) return; // skip header
-        const rawCsi = String(row.getCell(csiCol).text || '').trim();
-        const rawDesc = String(row.getCell(descCol).text || '').trim();
-        if (!rawCsi) return;
-
-        let costCodeVal: string | undefined;
-        if (costCodeCol !== -1) {
-          const rawCostCode = String(row.getCell(costCodeCol).text || '').trim();
-          if (rawCostCode) {
-            // Strip description suffix (e.g. "096500 - Flooring" → "096500")
-            costCodeVal = rawCostCode.split(' - ')[0].split(' – ')[0].trim();
-          }
-        }
-
-        parsedPayload.push({
-          id: crypto.randomUUID(), // C8: Client-side UUIDs
-          csi_number: rawCsi,
-          description: rawDesc || null,
-          cost_code: costCodeVal || null,
-        });
+      const parsedPayload = await runExcelWorker<Partial<CompanyCsiDefault>[]>({
+        type: 'PARSE_COMPANY_DEFAULTS',
+        payload: { arrayBuffer: buffer },
       });
 
       if (parsedPayload.length === 0) {

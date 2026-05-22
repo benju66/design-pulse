@@ -10,7 +10,7 @@ import { Upload, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, BarChart3,
 import { useProjectEstimateVersions, useImportEstimateMutation, useActivateEstimateVersion, useDeleteEstimateVersion, useProjectEstimateLines } from '@/hooks/useEstimateQueries';
 import { usePendingEstimateUpdates } from '@/hooks/useOpportunityQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
-import { parseProcoreBudgetExcel } from '@/lib/excel/procoreBudgetParser';
+import { runExcelWorker } from '@/lib/excel/excelWorkerClient';
 import { SmartCostCodeCombobox } from '@/components/ui/SmartCostCodeCombobox';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { EstimateStagingRow, EstimateCostType, ProjectEstimateVersion } from '@/types/models';
@@ -386,7 +386,17 @@ export function ProjectEstimateTab({ projectId }: { projectId: string }) {
     setActiveBudgetCol('budget amount'); // reset column picker on each new upload
     try {
       const buffer = await file.arrayBuffer();
-      const { rows, availableHeaders: hdrs } = await parseProcoreBudgetExcel(buffer, projectId, knownCodes);
+      const { rows, availableHeaders: hdrs } = await runExcelWorker<{
+        rows: EstimateStagingRow[];
+        availableHeaders: string[];
+      }>({
+        type: 'PARSE_PROCORE_BUDGET',
+        payload: {
+          arrayBuffer: buffer,
+          projectId,
+          knownCodes: Array.from(knownCodes),
+        },
+      });
       setStagingRows(rows);
       setAvailableHeaders(hdrs);
       // Pre-fill version name from file name (strip extension)

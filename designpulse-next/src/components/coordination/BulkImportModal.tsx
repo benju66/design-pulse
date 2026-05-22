@@ -12,7 +12,8 @@ import {
 import { X, UploadCloud, AlertCircle, Check, Download, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ModalShell } from '@/components/ui/ModalShell';
-import { DraftCoordinationTask, parseCoordinationExcel } from '@/lib/excel/coordinationParser';
+import { DraftCoordinationTask } from '@/lib/excel/coordinationParser';
+import { runExcelWorker } from '@/lib/excel/excelWorkerClient';
 import { generateCoordinationTemplate } from '@/lib/excel/coordinationTemplate';
 import { useBulkImportCoordinationTasks } from '@/hooks/useOpportunityQueries';
 import { ProjectSettings } from '@/types/models';
@@ -249,7 +250,13 @@ export function BulkImportModal({ isOpen, onClose, projectId, projectSettings, c
     try {
       setIsParsing(true);
       const buffer = await file.arrayBuffer();
-      const parsedTasks = await parseCoordinationExcel(buffer, projectSettings?.disciplines || []);
+      const parsedTasks = await runExcelWorker<DraftCoordinationTask[]>({
+        type: 'PARSE_COORDINATION',
+        payload: {
+          arrayBuffer: buffer,
+          disciplines: projectSettings?.disciplines || [],
+        },
+      });
       setTasks(parsedTasks);
     } catch (err: any) {
       toast.error(`Failed to parse Excel file: ${err.message}`);

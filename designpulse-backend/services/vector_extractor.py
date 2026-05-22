@@ -27,65 +27,64 @@ class VectorExtractor:
         - upsert: "true" handles both first-upload and re-upload atomically.
         """
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        
-        if page_index < 0 or page_index >= len(doc):
-            doc.close()
-            raise ValueError(f"page_index {page_index} out of range")
-            
-        page = doc[page_index]
+        try:
+            if page_index < 0 or page_index >= len(doc):
+                raise ValueError(f"page_index {page_index} out of range")
+                
+            page = doc[page_index]
 
-        page_width: float = page.rect.width
-        page_height: float = page.rect.height
-        derotation = page.derotation_matrix
-        cropbox_tl = page.cropbox.tl
+            page_width: float = page.rect.width
+            page_height: float = page.rect.height
+            derotation = page.derotation_matrix
+            cropbox_tl = page.cropbox.tl
 
-        def normalize_point(pt) -> dict[str, float]:
-            """Convert a raw fitz.Point to percentage-of-page, accounting for rotation."""
-            mapped = (fitz.Point(pt.x, pt.y) * derotation) + cropbox_tl
-            return {
-                "pctX": mapped.x / page_width,
-                "pctY": mapped.y / page_height,
-            }
+            def normalize_point(pt) -> dict[str, float]:
+                """Convert a raw fitz.Point to percentage-of-page, accounting for rotation."""
+                mapped = (fitz.Point(pt.x, pt.y) * derotation) + cropbox_tl
+                return {
+                    "pctX": mapped.x / page_width,
+                    "pctY": mapped.y / page_height,
+                }
 
-        vectors: list[dict] = []
-        paths = page.get_drawings()
-        MAX_VECTORS = 50_000
+            vectors: list[dict] = []
+            paths = page.get_drawings()
+            MAX_VECTORS = 50_000
 
-        for p in paths:
-            if len(vectors) >= MAX_VECTORS:
-                break
-
-            linewidth = p.get("width", 1.0)
-            if linewidth is not None and linewidth < 0.1:
-                continue
-
-            for item in p["items"]:
+            for p in paths:
                 if len(vectors) >= MAX_VECTORS:
                     break
 
-                if item[0] == "l":  # line segment
-                    vectors.append({
-                        "start": normalize_point(item[1]),
-                        "end": normalize_point(item[2]),
-                    })
-                elif item[0] == "re":  # rectangle → 4 line segments
-                    rect = item[1]
-                    corners = [
-                        fitz.Point(rect.x0, rect.y0),
-                        fitz.Point(rect.x1, rect.y0),
-                        fitz.Point(rect.x1, rect.y1),
-                        fitz.Point(rect.x0, rect.y1),
-                    ]
-                    for i in range(4):
-                        if len(vectors) >= MAX_VECTORS:
-                            break
-                        vectors.append({
-                            "start": normalize_point(corners[i]),
-                            "end": normalize_point(corners[(i + 1) % 4]),
-                        })
-                # Curves ("c") intentionally skipped — add noise to RBush with minimal snap utility
+                linewidth = p.get("width", 1.0)
+                if linewidth is not None and linewidth < 0.1:
+                    continue
 
-        doc.close()
+                for item in p["items"]:
+                    if len(vectors) >= MAX_VECTORS:
+                        break
+
+                    if item[0] == "l":  # line segment
+                        vectors.append({
+                            "start": normalize_point(item[1]),
+                            "end": normalize_point(item[2]),
+                        })
+                    elif item[0] == "re":  # rectangle → 4 line segments
+                        rect = item[1]
+                        corners = [
+                            fitz.Point(rect.x0, rect.y0),
+                            fitz.Point(rect.x1, rect.y0),
+                            fitz.Point(rect.x1, rect.y1),
+                            fitz.Point(rect.x0, rect.y1),
+                        ]
+                        for i in range(4):
+                            if len(vectors) >= MAX_VECTORS:
+                                break
+                            vectors.append({
+                                "start": normalize_point(corners[i]),
+                                "end": normalize_point(corners[(i + 1) % 4]),
+                            })
+                    # Curves ("c") intentionally skipped — add noise to RBush with minimal snap utility
+        finally:
+            doc.close()
 
         payload = json.dumps({"vectors": vectors}).encode("utf-8")
         remote_path = f"{project_id}/{sheet_id}/vectors.json"

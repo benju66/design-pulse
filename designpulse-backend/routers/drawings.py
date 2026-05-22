@@ -329,21 +329,22 @@ async def get_preview(
                 raise ValueError("PDF not found in local cache or Supabase storage")
 
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        if page_index < 0 or page_index >= len(doc):
-            doc.close()
-            raise ValueError(f"Invalid page index {page_index} for PDF with {len(doc)} pages")
+        try:
+            if page_index < 0 or page_index >= len(doc):
+                raise ValueError(f"Invalid page index {page_index} for PDF with {len(doc)} pages")
 
-        page = doc[page_index]
-        rect = page.rect
-        
-        # Target 2000px longest axis for high-res reading preview
-        longest = max(rect.width, rect.height)
-        zoom = 2000 / longest if longest > 0 else 2.0
-        
-        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
-        jpeg_bytes = pix.tobytes("jpeg", jpg_quality=85)
-        doc.close()
-        return jpeg_bytes
+            page = doc[page_index]
+            rect = page.rect
+            
+            # Target 2000px longest axis for high-res reading preview
+            longest = max(rect.width, rect.height)
+            zoom = 2000 / longest if longest > 0 else 2.0
+            
+            pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+            jpeg_bytes = pix.tobytes("jpeg", jpg_quality=85)
+            return jpeg_bytes
+        finally:
+            doc.close()
 
     try:
         jpeg_bytes = await asyncio.to_thread(process_preview)

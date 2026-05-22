@@ -66,26 +66,26 @@ class TileProcessor:
             raise PdfProcessingError(f"Cannot open PDF: {e}") from e
 
         # ── 2. Validate page_index before any rendering work ──────────────────
-        if page_index < 0 or page_index >= len(doc):
-            doc.close()
-            raise PdfProcessingError(
-                f"page_index {page_index} is out of range "
-                f"(PDF has {len(doc)} page(s))"
-            )
+        try:
+            if page_index < 0 or page_index >= len(doc):
+                raise PdfProcessingError(
+                    f"page_index {page_index} is out of range "
+                    f"(PDF has {len(doc)} page(s))"
+                )
 
-        # ── 3. Render target page to high-res PNG via PyMuPDF ─────────────────
-        # PDF_RENDER_ZOOM default 3.0: balances quality vs tile count.
-        # 4x produced ~2000 tiles and took 10+ minutes; 3x cuts count ~44%.
-        page = doc[page_index]
-        
-        target_pixels = page.rect.width * page.rect.height * (PDF_RENDER_ZOOM ** 2)
-        if target_pixels > MAX_SAFE_PIXELS:
-            doc.close()
-            raise PdfProcessingError(f"Dimensions too large to process safely (Exceeds 200MP)")
+            # ── 3. Render target page to high-res PNG via PyMuPDF ─────────────────
+            # PDF_RENDER_ZOOM default 3.0: balances quality vs tile count.
+            # 4x produced ~2000 tiles and took 10+ minutes; 3x cuts count ~44%.
+            page = doc[page_index]
             
-        pix = page.get_pixmap(matrix=fitz.Matrix(PDF_RENDER_ZOOM, PDF_RENDER_ZOOM), alpha=False)
-        img_bytes = pix.tobytes("png")
-        doc.close()
+            target_pixels = page.rect.width * page.rect.height * (PDF_RENDER_ZOOM ** 2)
+            if target_pixels > MAX_SAFE_PIXELS:
+                raise PdfProcessingError(f"Dimensions too large to process safely (Exceeds 200MP)")
+                
+            pix = page.get_pixmap(matrix=fitz.Matrix(PDF_RENDER_ZOOM, PDF_RENDER_ZOOM), alpha=False)
+            img_bytes = pix.tobytes("png")
+        finally:
+            doc.close()
 
         # ── 4. Load into pyvips for Deep Zoom slicing ─────────────────────────
         image = pyvips.Image.new_from_buffer(img_bytes, "")

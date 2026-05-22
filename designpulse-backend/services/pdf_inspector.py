@@ -55,54 +55,53 @@ def inspect_and_stage_pdf(
     except fitz.FileDataError as e:
         raise PdfProcessingError(f"Cannot open PDF: {e}") from e
 
-    if doc.needs_pass:
+    try:
+        if doc.needs_pass:
+            raise PdfProcessingError("PDF is password-protected. Remove the password before uploading.")
+
+        page_count = len(doc)
+        truncated = page_count > MAX_INSPECT_PAGES
+        pages_to_process = min(page_count, MAX_INSPECT_PAGES)
+
+        # ── 3. Generate thumbnails (BUG-11: capped, bounded zoom) ─────────────────
+        pages: list[dict] = []
+        for i in range(pages_to_process):
+            page = doc[i]
+            rect = page.rect
+
+            target_pixels = rect.width * rect.height * (PDF_RENDER_ZOOM ** 2)
+            if target_pixels > MAX_SAFE_PIXELS:
+                raise ValueError(f"PDF page {i+1} dimensions too large to process safely (Exceeds 200MP)")
+
+            # Compute zoom so longest axis → THUMB_MAX_PX
+            longest = max(rect.width, rect.height)
+            zoom = THUMB_MAX_PX / longest if longest > 0 else 0.15
+            zoom = max(zoom, 0.05)  # floor to prevent zero-size pixmap
+
+            pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+            jpeg_bytes = pix.tobytes("jpeg", jpg_quality=THUMB_JPEG_QUALITY)
+            thumb_b64 = base64.b64encode(jpeg_bytes).decode("utf-8")
+
+            # Q2: Use PDF page label if available (e.g. "A1.1"), fallback to "Page N"
+            try:
+                pdf_label = doc.get_page_labels()
+            except Exception:
+                pdf_label = []
+            label = next(
+                (entry.get("startpage", "") for entry in pdf_label if entry.get("startpage") == i),
+                None,
+            )
+            suggested_label = f"Page {i + 1}" if not label else str(label)
+
+            pages.append({
+                "page_index": i,
+                "suggested_label": suggested_label,
+                "width": rect.width,
+                "height": rect.height,
+                "thumbnail_b64": thumb_b64,
+            })
+    finally:
         doc.close()
-        raise PdfProcessingError("PDF is password-protected. Remove the password before uploading.")
-
-    page_count = len(doc)
-    truncated = page_count > MAX_INSPECT_PAGES
-    pages_to_process = min(page_count, MAX_INSPECT_PAGES)
-
-    # ── 3. Generate thumbnails (BUG-11: capped, bounded zoom) ─────────────────
-    pages: list[dict] = []
-    for i in range(pages_to_process):
-        page = doc[i]
-        rect = page.rect
-
-        target_pixels = rect.width * rect.height * (PDF_RENDER_ZOOM ** 2)
-        if target_pixels > MAX_SAFE_PIXELS:
-            doc.close()
-            raise ValueError(f"PDF page {i+1} dimensions too large to process safely (Exceeds 200MP)")
-
-        # Compute zoom so longest axis → THUMB_MAX_PX
-        longest = max(rect.width, rect.height)
-        zoom = THUMB_MAX_PX / longest if longest > 0 else 0.15
-        zoom = max(zoom, 0.05)  # floor to prevent zero-size pixmap
-
-        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
-        jpeg_bytes = pix.tobytes("jpeg", jpg_quality=THUMB_JPEG_QUALITY)
-        thumb_b64 = base64.b64encode(jpeg_bytes).decode("utf-8")
-
-        # Q2: Use PDF page label if available (e.g. "A1.1"), fallback to "Page N"
-        try:
-            pdf_label = doc.get_page_labels()
-        except Exception:
-            pdf_label = []
-        label = next(
-            (entry.get("startpage", "") for entry in pdf_label if entry.get("startpage") == i),
-            None,
-        )
-        suggested_label = f"Page {i + 1}" if not label else str(label)
-
-        pages.append({
-            "page_index": i,
-            "suggested_label": suggested_label,
-            "width": rect.width,
-            "height": rect.height,
-            "thumbnail_b64": thumb_b64,
-        })
-
-    doc.close()
 
     # ── 4. Stage full PDF to Storage ─────────────────────────────────────────
     # Path: {project_id}/staged/{staged_key}.pdf

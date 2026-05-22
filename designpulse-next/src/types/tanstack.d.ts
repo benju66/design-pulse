@@ -52,5 +52,6 @@ declare module '@tanstack/react-table' {
     attachmentCounts?: Record<string, number>;
     companyCsiDefaults?: import('./models').CompanyCsiDefault[];
     clientProjects?: import('./models').Project[];
+    permits?: Permit[];
   }
 }

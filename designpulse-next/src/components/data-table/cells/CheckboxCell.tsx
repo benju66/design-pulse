@@ -43,7 +43,7 @@ export function CheckboxCell<TData>({ info, disabled }: CheckboxCellProps<TData>
         role="checkbox"
         aria-checked={isSelected}
         disabled={disabled}
-        onClick={row.getToggleSelectedHandler()}
+        onClick={() => row.toggleSelected(!isSelected)}
         className={`
           w-4 h-4 rounded flex items-center justify-center flex-shrink-0
           border transition-colors duration-100 cursor-pointer
@@ -81,7 +81,7 @@ export function CheckboxHeader<TData>({ table, disabled }: CheckboxHeaderProps<T
         role="checkbox"
         aria-checked={isAllSelected ? true : isSomeSelected ? 'mixed' : false}
         disabled={disabled}
-        onClick={table.getToggleAllPageRowsSelectedHandler()}
+        onClick={() => table.toggleAllPageRowsSelected(!isAllSelected)}
         className={`
           w-4 h-4 rounded flex items-center justify-center flex-shrink-0
           border transition-colors duration-100 cursor-pointer

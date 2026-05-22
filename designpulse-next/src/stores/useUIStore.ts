@@ -12,6 +12,7 @@ export type ProjectView =
   | 'analytics'
   | 'coordination'
   | 'permits'
+  | 'deliverables'
   | 'my-desk'
   | 'settings'
   | 'lessons';
@@ -40,6 +41,11 @@ export interface PermitFilters {
   status?: string[];
   type?: string[];
   ahj?: string[];
+}
+
+export interface DeliverableFilters {
+  status?: string[];
+  isKeyDate?: boolean;
 }
 
 export interface UIState {
@@ -141,6 +147,18 @@ export interface UIState {
 
   versionMatrixColumnVisibility: Record<string, Record<string, boolean>>;
   setVersionMatrixColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
+
+  deliverablesViewMode: 'board' | 'table-split';
+  setDeliverablesViewMode: (mode: 'board' | 'table-split') => void;
+
+  deliverablesColumnVisibility: Record<string, Record<string, boolean>>;
+  setDeliverablesColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
+
+  deliverablesColumnOrder: Record<string, string[]>;
+  setDeliverablesColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
+
+  deliverablesFilters: Record<string, DeliverableFilters>;
+  setDeliverablesFilters: (projectId: string, filters: DeliverableFilters) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -376,6 +394,41 @@ export const useUIStore = create<UIState>()(
           }
         };
       }),
+
+      deliverablesViewMode: 'table-split',
+      setDeliverablesViewMode: (mode) => set({ deliverablesViewMode: mode }),
+
+      deliverablesColumnVisibility: {},
+      setDeliverablesColumnVisibility: (projectId, updater) => set((state) => {
+        const oldState = state.deliverablesColumnVisibility?.[projectId] || {};
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          deliverablesColumnVisibility: {
+            ...state.deliverablesColumnVisibility,
+            [projectId]: newState
+          }
+        };
+      }),
+
+      deliverablesColumnOrder: {},
+      setDeliverablesColumnOrder: (projectId, updater) => set((state) => {
+        const oldState = state.deliverablesColumnOrder?.[projectId] || [];
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          deliverablesColumnOrder: {
+            ...state.deliverablesColumnOrder,
+            [projectId]: newState
+          }
+        };
+      }),
+
+      deliverablesFilters: {},
+      setDeliverablesFilters: (projectId, filters) => set((state) => ({
+        deliverablesFilters: {
+          ...state.deliverablesFilters,
+          [projectId]: filters
+        }
+      })),
     }),
     {
       name: 'design-pulse-ui-prefs',
@@ -406,8 +459,12 @@ export const useUIStore = create<UIState>()(
         brandStandardsColumnVisibility: state.brandStandardsColumnVisibility ?? {},
         brandStandardsColumnOrder: state.brandStandardsColumnOrder ?? {},
         versionMatrixColumnVisibility: state.versionMatrixColumnVisibility ?? {},
+        deliverablesViewMode: state.deliverablesViewMode ?? 'table-split',
+        deliverablesColumnVisibility: state.deliverablesColumnVisibility ?? {},
+        deliverablesColumnOrder: state.deliverablesColumnOrder ?? {},
+        deliverablesFilters: state.deliverablesFilters ?? {},
       }),
-      version: 11,
+      version: 12,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -497,6 +554,16 @@ export const useUIStore = create<UIState>()(
           return {
             ...state,
             versionMatrixColumnVisibility: {},
+          } as UIState;
+        }
+        if (version < 12) {
+          // v11 → v12: added deliverables view preferences
+          return {
+            ...state,
+            deliverablesViewMode: 'table-split',
+            deliverablesColumnVisibility: {},
+            deliverablesColumnOrder: {},
+            deliverablesFilters: {},
           } as UIState;
         }
         return state as UIState;

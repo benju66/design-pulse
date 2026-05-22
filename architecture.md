@@ -177,7 +177,7 @@ C4Component
 | `/` | Redirect | → `/dashboard` (via `next.config.mjs`) |
 | `/login` | Client | Email/password + Procore OAuth login |
 | `/dashboard` | Client | Projects + Clients dual-tab dashboard |
-| `/project/[projectId]` | Client | **Main workspace** (143 lines) — dynamic view orchestrator switching between 10 isolated views via `useUIStore.activeView` |
+| `/project/[projectId]` | Client | **Main workspace** (143 lines) — dynamic view orchestrator switching between 11 isolated views via `useUIStore.activeView` |
 | `/project/[projectId]/item/[itemId]` | Client | Pop-out item detail view |
 | `/clients/[id]` | Client | Client detail with tabs (Profile, Brand Standards, Documents, Projects, Lessons) |
 | `/sandbox/map` | Client | Map development sandbox |
@@ -196,6 +196,7 @@ C4Component
 | `map` | Floor Plans | `FloorplanCanvas` + `DrawingGrid` | 37 KB + 28 KB |
 | `analytics` | Analytics | `AnalyticsDashboard` + role-specific dashboards | — |
 | `permits` | Permit Tracker | `PermitTable` | 36 KB |
+| `deliverables` | Pre-Con Deliverables | `DeliverableTable` + `DeliverableKanban` | 28 KB + 10 KB |
 | `lessons` | Lessons Learned | `LessonsLearnedView` | — |
 | `my-desk` | Personal Dashboard | `MyDeskDashboard` | — |
 | `settings` | Project Settings | `ProjectSettings` | 71 KB |
@@ -205,7 +206,7 @@ C4Component
 
 | Store | File | Persistence | Key Responsibilities |
 |-------|------|-------------|----------------------|
-| `useUIStore` | `src/stores/useUIStore.ts` (482 lines) | `localStorage` (`design-pulse-ui-prefs`, v10 with migration chain v0→v10) | Active view per project, selected row, grid modes, column visibility/order/pinning per project, panel collapse states, card ordering, filter prefs |
+| `useUIStore` | `src/stores/useUIStore.ts` (482 lines) | `localStorage` (`design-pulse-ui-prefs`, v12 with migration chain v0→v12) | Active view per project, selected row, grid modes, column visibility/order/pinning/filters per project (including deliverables preferences), panel collapse states, card ordering, filter prefs |
 | `useMapStore` | `src/stores/useMapStore.ts` (118 lines) | `sessionStorage` (`designpulse-map-session`, v2) | Tool mode (8 modes), selected zones, active sheet, open sheet tabs, pending polygon, editing zone |
 | `useBulkImportStore` | Inline in `BulkImportModal.tsx` | None (ephemeral) | Staged Excel import rows for coordination task bulk import |
 
@@ -222,6 +223,7 @@ C4Component
 | `useClientQueries.ts` | Clients | `useClients`, `useClient`, `useClientProjectsMetrics`, `useClientBrandStandards`, `useClientDocuments` | `useCreateClient`, `useUpdateClient`, `useDeleteClient`, `useCreateBrandStandard`, `useUpdateBrandStandard`, `useDeleteBrandStandard`, `useUploadClientDocument`, `useDeleteClientDocument` |
 | `useGlobalQueries.ts` | Admin/Global | `useSystemUsers`, `useRolePermissions`, `useCsiTrainingSuggestions` | `useBulkUpdateUserProjects`, `useToggleCsiVerified`, `useRemapGlobalCsiEntry`, `useCreateCostCode`, `useDeleteCostCode` |
 | `usePermitQueries.ts` | Permits | `usePermits`, `usePermitComments`, `usePermitTaskLinks` | Permit CRUD mutations |
+| `useDeliverableQueries.ts` | Pre-Con Deliverables | `useDeliverables` | `useCreateDeliverable`, `useUpdateDeliverable`, `useDeleteDeliverable` |
 | `useLessonQueries.ts` | Lessons Learned | `useLessons`, `useLessonIndicators` | Lesson CRUD + attachment mutations |
 | `useDrawingSetQueries.ts` | Drawing Sets | `useDrawingSets` | `useCreateDrawingSet`, `useActivateDrawingSet` |
 | `useCsiQueries.ts` | Project CSI Specs | `useProjectCsiSpecs` | CSI spec mutations |
@@ -315,6 +317,7 @@ C4Component
         Component(spatial, "Spatial Engine", "Tables + RPCs", "project_drawing_sets, project_sheets, sheet_markups. RPCs: create/activate drawing sets, upsert markups.")
         Component(permits_engine, "Permit Engine", "Tables + RPCs", "permits, permit_comments, permit_task_links. RPCs: log_permit_activity.")
         Component(lessons_engine, "Lessons Engine", "Tables + RPCs", "project_lessons, lesson_opportunity_links, lesson_attachments. RPCs: update_lesson_status, get_lesson_indicators.")
+        Component(deliverables_engine, "Deliverables Engine", "Tables + Triggers", "project_deliverables. Triggers: generate_display_id, audit, auto_update_timestamp. Integrated with audit logs & activity comment security.")
         Component(rbac, "RBAC System", "Functions + Table", "role_permissions table (4 roles × 8 permissions). Helper functions: is_platform_admin(), get_user_project_role(), has_project_permission(). All RLS policies delegate to these.")
     }
 
@@ -323,6 +326,8 @@ C4Component
     Rel(spatial, core, "FK: project_id")
     Rel(permits_engine, core, "FK: project_id")
     Rel(lessons_engine, core, "FK: project_id")
+    Rel(deliverables_engine, core, "FK: project_id")
+    Rel(deliverables_engine, permits_engine, "FK: permit_id (parent bridge)")
     Rel(decision, spatial, "FK: opportunity_id on sheet_markups")
     Rel(permits_engine, decision, "FK: coordination_task_id via permit_task_links")
     Rel(lessons_engine, decision, "FK: opportunity_id via lesson_opportunity_links")
@@ -344,6 +349,7 @@ erDiagram
     projects ||--|| project_sequences : "has"
     projects ||--o{ opportunities : "contains"
     projects ||--o{ permits : "tracks"
+    projects ||--o{ project_deliverables : "tracks"
     projects ||--o{ project_estimate_versions : "budgets"
     projects ||--o{ project_drawing_sets : "drawings"
     projects ||--o{ project_sheets : "sheets"
@@ -360,6 +366,9 @@ erDiagram
 
     permits ||--o{ permit_comments : "comments"
     permits ||--o{ permit_task_links : "links to"
+    permits ||--o{ project_deliverables : "parent of"
+
+    project_deliverables ||--o{ item_activity : "activity"
 
     project_estimate_versions ||--o{ project_estimates : "line items"
     project_estimate_versions ||--o{ estimate_variance_notes : "notes"
@@ -380,6 +389,7 @@ erDiagram
 | Trigger | Table | Purpose |
 |---------|-------|---------|
 | `trg_generate_opportunity_display_id` | `opportunities` | Auto-generates `VE-001` / `CD-001` display IDs from `project_sequences` |
+| `trg_set_deliverable_display_id` | `project_deliverables` | Auto-generates `DE-001` display IDs from `project_sequences` scoped per-project |
 | `trg_enforce_financial_immutability` | `opportunities` | Prevents modification of Approved records (bypass via `SET LOCAL`) |
 | `trg_enforce_options_immutability` | `opportunity_options` | Prevents child modification when parent is Approved |
 | `trg_sync_parent_opportunity_totals` | `opportunity_options` | Recalculates parent `cost_impact` from locked/budgeted/max options |
@@ -388,7 +398,7 @@ erDiagram
 | `trg_ui_system_activity_*` | `opportunities`, `options` | Generates `system_log` entries in `item_activity` |
 | `trg_item_activity_immutability` | `item_activity` | Prevents mutation of system-generated logs |
 | `trg_enforce_variance_note_immutability` | `estimate_variance_notes` | Prevents edits after version finalization |
-| `trg_audit_*` | Multiple | Writes to `audit_logs` when audit logging is enabled |
+| `trg_audit_*` | Multiple | Writes to `audit_logs` when audit logging is enabled (including deliverables) |
 | `trg_*_updated_at` | Multiple | Auto-updates `updated_at` timestamp |
 
 ### Key RPC Functions

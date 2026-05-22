@@ -52,6 +52,7 @@ export const DEFAULT_SIDEBAR_ITEMS = [
   { id: 'coordination', label: 'Coordination Board', iconName: 'ListChecks', visible: true },
   { id: 'map', label: 'Drawings', iconName: 'Map', visible: false },
   { id: 'permits', label: 'Permit Board', iconName: 'FileCheck2', visible: true },
+  { id: 'deliverables', label: 'Pre-Con Deliverables', iconName: 'CalendarCheck2', visible: true },
   { id: 'analytics', label: 'Analytics', iconName: 'PieChart', visible: true },
   { id: 'dashboard-v2', label: 'Budget Ledger', iconName: 'LayoutDashboard', visible: true },
   { id: 'budget-compare', label: 'Version Matrix', iconName: 'GitCompareArrows', visible: true },

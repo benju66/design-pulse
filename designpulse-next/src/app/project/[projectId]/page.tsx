@@ -16,6 +16,7 @@ import { CoordinationView } from '@/components/views/CoordinationView';
 import { DrawingsView } from '@/components/views/DrawingsView';
 import { PermitsView } from '@/components/views/PermitsView';
 import { LessonsLearnedView } from '@/components/views/LessonsLearnedView';
+import { DeliverablesView } from '@/components/views/DeliverablesView';
 
 // Lazy-loaded views
 const AnalyticsDashboard = dynamic(() => import('@/components/analytics/AnalyticsDashboard'));
@@ -29,7 +30,7 @@ const VersionComparisonViewer = dynamic(
 // ── Module-level navigation type guards ─────────────────────────────────────────
 const VALID_PROJECT_VIEWS = new Set<ProjectView>([
   'dashboard', 'dashboard-v2', 'budget-compare', 'map', 'analytics',
-  'coordination', 'permits', 'my-desk', 'settings', 'lessons'
+  'coordination', 'permits', 'deliverables', 'my-desk', 'settings', 'lessons'
 ]);
 function isProjectView(v: string | undefined): v is ProjectView {
   return !!v && VALID_PROJECT_VIEWS.has(v as ProjectView);
@@ -127,6 +128,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
           {currentView === 'permits' && (
             <PermitsView projectId={projectId} />
+          )}
+
+          {currentView === 'deliverables' && (
+            <DeliverablesView projectId={projectId} />
           )}
 
           {currentView === 'lessons' && (

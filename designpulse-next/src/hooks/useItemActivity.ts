@@ -10,19 +10,27 @@ export interface ActivityParams {
   opportunityId?: string | null;
   lessonId?: string | null;
   permitId?: string | null;
+  deliverableId?: string | null;
 }
 
 function getQueryKey(params: ActivityParams) {
   if (params.lessonId) return ['activity_feed', 'lesson', params.lessonId];
   if (params.permitId) return ['activity_feed', 'permit', params.permitId];
+  if (params.deliverableId) return ['activity_feed', 'deliverable', params.deliverableId];
   if (params.opportunityId) return ['activity_feed', 'opportunity', params.opportunityId];
   return ['activity_feed', 'unknown'];
 }
 
 export function useActivityFeed(params: ActivityParams) {
   const queryClient = useQueryClient();
-  const id = params.lessonId || params.permitId || params.opportunityId;
-  const filterCol = params.lessonId ? 'lesson_id' : params.permitId ? 'permit_id' : 'opportunity_id';
+  const id = params.lessonId || params.permitId || params.opportunityId || params.deliverableId;
+  const filterCol = params.lessonId 
+    ? 'lesson_id' 
+    : params.permitId 
+      ? 'permit_id' 
+      : params.deliverableId 
+        ? 'deliverable_id' 
+        : 'opportunity_id';
 
   useEffect(() => {
     if (!id) return;
@@ -46,7 +54,7 @@ export function useActivityFeed(params: ActivityParams) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, filterCol, queryClient, params.opportunityId, params.lessonId, params.permitId]);
+  }, [id, filterCol, queryClient, params.opportunityId, params.lessonId, params.permitId, params.deliverableId]);
 
   return useInfiniteQuery<{ data: ItemActivity[]; nextCursor: number | null }, Error>({
     queryKey: getQueryKey(params),
@@ -100,6 +108,7 @@ export function useAddComment(params: ActivityParams, projectId: string) {
           opportunity_id: params.opportunityId || null,
           lesson_id: params.lessonId || null,
           permit_id: params.permitId || null,
+          deliverable_id: params.deliverableId || null,
           activity_type: 'user_comment',
           ...rest
         }])
@@ -124,6 +133,7 @@ export function useAddComment(params: ActivityParams, projectId: string) {
           opportunity_id: params.opportunityId || null,
           lesson_id: params.lessonId || null,
           permit_id: params.permitId || null,
+          deliverable_id: params.deliverableId || null,
           option_id: newComment.option_id || null,
           activity_type: 'user_comment',
           content: newComment.content,

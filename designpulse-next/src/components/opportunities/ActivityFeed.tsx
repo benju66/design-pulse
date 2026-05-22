@@ -11,13 +11,14 @@ interface ActivityFeedProps {
   opportunityId?: string;
   lessonId?: string;
   permitId?: string;
+  deliverableId?: string;
   projectId: string;
 }
 
-export const ActivityFeed = ({ opportunityId, lessonId, permitId, projectId }: ActivityFeedProps) => {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useActivityFeed({ opportunityId, lessonId, permitId });
-  const addComment = useAddComment({ opportunityId, lessonId, permitId }, projectId);
-  const deleteComment = useDeleteComment({ opportunityId, lessonId, permitId });
+export const ActivityFeed = ({ opportunityId, lessonId, permitId, deliverableId, projectId }: ActivityFeedProps) => {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useActivityFeed({ opportunityId, lessonId, permitId, deliverableId });
+  const addComment = useAddComment({ opportunityId, lessonId, permitId, deliverableId }, projectId);
+  const deleteComment = useDeleteComment({ opportunityId, lessonId, permitId, deliverableId });
   const { data: members = [] } = useProjectMembers(projectId);
   const { permissions } = useCurrentUserPermissions(projectId);
   const { session } = useAuth();

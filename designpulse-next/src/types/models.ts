@@ -221,7 +221,25 @@ export type ItemActivity = Omit<
 > & {
   activity_type: 'system_log' | 'user_comment';
   mentions: string[];
+  deliverable_id?: string | null;
 };
+
+// Pre-Construction Deliverable
+export interface ProjectDeliverable {
+  id: string;
+  project_id: string;
+  permit_id: string | null;
+  display_id: string | null;
+  title: string;
+  description: string | null;
+  assignee: string | null;
+  due_date: string; // ISO date format YYYY-MM-DD
+  status: 'Open' | 'In Progress' | 'Under Review' | 'Closed' | 'Not Applicable';
+  is_elevated_key_date: boolean;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 // ── Project Estimate (Budget Import) ──────────────────────────────────────────
 // EstimateCostType is aliased from CostType for semantic clarity in estimate context.

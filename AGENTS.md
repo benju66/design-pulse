@@ -45,3 +45,10 @@ When checking the app in the browser, use the following credentials to log in:
 - Username: `burness@fpcinc.com`
 - Password: `BuildIt2026!!`
 - URL: `http://localhost:8000/`
+
+---
+
+## 5. Date Standardization & Timezone Stability
+* **Native Storage**: All deadline and chronological properties must be stored using native PostgreSQL `DATE` types (such as `opportunities.due_date`).
+* **Timezone Shifting Prevention**: Avoid standard native JS `new Date(string)` or locale conversions directly on standard ISO date strings (`YYYY-MM-DD`). To prevent local browser timezone offset bugs from shifting dates backward by 1 day, always utilize components-based regex extraction parser utilities from `src/lib/formatters.ts` (e.g., `formatDate` and `toDateInputValue`).
+* **Grid Cell Formats**: Display dates uniformly as `MM/DD/YYYY` in navigate mode and utilize HTML5 native date input `<input type="date">` styled for high-contrast light and dark modes in edit mode.

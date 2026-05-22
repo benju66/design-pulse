@@ -30,7 +30,7 @@ import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
 import { DEFAULT_DISCIPLINES, DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
-import { CheckboxCell, CheckboxHeader } from '@/components/data-table/cells';
+import { CheckboxCell, CheckboxHeader, DateCell } from '@/components/data-table/cells';
 import { BulkActionBar, DeleteConfirmModal, GhostRow, TableEmptyState } from '@/components/data-table';
 
 interface Props {
@@ -448,7 +448,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       accessorKey: 'due_date',
       header: 'Due Date',
       size: 120,
-      cell: TextCell,
+      cell: DateCell,
     },
     {
       id: 'discipline_status',

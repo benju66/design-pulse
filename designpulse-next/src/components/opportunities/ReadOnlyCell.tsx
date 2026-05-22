@@ -5,6 +5,7 @@ import { FileText, MessageSquare } from 'lucide-react';
 import { Opportunity, OpportunityOption } from '@/types/models';
 import { formatCostCode } from '@/lib/formatCostCode';
 import { VarianceNotePopover } from '@/components/opportunities/VarianceNotePopover';
+import { formatDate } from '@/lib/formatters';
 
 const isZero = (v: number) => Math.abs(v) < 0.001;
 
@@ -536,7 +537,7 @@ export const ManagementCell = React.memo(({ row, table }: CellContext<Opportunit
         <div className="flex items-center gap-1">
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityDot[priority || ''] || 'bg-slate-300'}`} />
           <span className="text-[10px] text-slate-600 dark:text-slate-400">{priority || '—'}</span>
-          {dueDate && <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums before:content-['•'] before:mx-1 before:text-slate-300">{dueDate}</span>}
+          {dueDate && <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums before:content-['•'] before:mx-1 before:text-slate-300">{formatDate(dueDate)}</span>}
         </div>
       </div>
     </div>

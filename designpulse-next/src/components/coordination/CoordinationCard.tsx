@@ -4,6 +4,7 @@ import { Opportunity, DisciplineConfig, ProjectSettings, ProjectMember } from '@
 import { UseMutationResult } from '@tanstack/react-query';
 import { CheckCircle2, Circle } from 'lucide-react';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
+import { formatDate } from '@/lib/formatters';
 
 interface CoordinationCardProps {
   opportunity: Opportunity;
@@ -162,7 +163,7 @@ export const CoordinationCard = ({ opportunity, updateMutation, settings, member
         </div>
         {opportunity.due_date && (
           <span className={`text-[10px] font-semibold ${dueColor}`}>
-            {opportunity.due_date}
+            {formatDate(opportunity.due_date)}
           </span>
         )}
       </div>

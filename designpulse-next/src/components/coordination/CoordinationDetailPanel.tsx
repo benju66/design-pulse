@@ -8,6 +8,7 @@ import { useUpdateOpportunity, useUpdateCoordinationDetails } from '@/hooks/useO
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { ContendersMatrix } from '../opportunities/ContendersMatrix';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
+import { formatDate } from '@/lib/formatters';
 
 interface CoordinationDetailPanelProps {
   projectId: string;
@@ -264,7 +265,7 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
           <div className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Due Date</label>
              <div className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-2">
-                {opportunity.due_date || <span className="text-slate-400 italic">Not set</span>}
+                {opportunity.due_date ? formatDate(opportunity.due_date) : <span className="text-slate-400 italic">Not set</span>}
              </div>
           </div>
         </div>

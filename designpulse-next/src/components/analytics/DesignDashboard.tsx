@@ -4,6 +4,7 @@ import { Opportunity } from '@/types/models';
 import { RadialBarChart, RadialBar, Legend, ResponsiveContainer, PolarAngleAxis, Tooltip } from 'recharts';
 import { useDesignCompletionMetrics } from '@/hooks/useProjectAnalyticsQueries';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
+import { formatDate } from '@/lib/formatters';
 
 interface Props {
   projectId: string;
@@ -160,7 +161,7 @@ export default function DesignDashboard({ projectId, opportunities }: Props) {
                   <div className="text-right shrink-0">
                     <div className="text-[10px] font-bold text-slate-400 uppercase">Due Date</div>
                     <div className={`text-sm font-medium ${opp.due_date ? 'text-rose-500' : 'text-slate-500'}`}>
-                      {opp.due_date || 'Not Set'}
+                      {opp.due_date ? formatDate(opp.due_date) : 'Not Set'}
                     </div>
                   </div>
                 </div>

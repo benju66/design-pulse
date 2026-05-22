@@ -9,7 +9,7 @@ import { OptionsCell } from './OptionsCell';
 import { InlineOptionCell } from './InlineOptionCell';
 import { ColumnDef, Row } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
-import { CheckboxCell as SharedCheckboxCell, CheckboxHeader } from '@/components/data-table/cells';
+import { CheckboxCell as SharedCheckboxCell, CheckboxHeader, DateCell } from '@/components/data-table/cells';
 
 // CheckboxCell now uses TanStack native rowSelection via shared component.
 // Budget line guard is handled by `enableRowSelection: (row) => !row.original.is_budget_line` on the table.
@@ -132,7 +132,7 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { accessorKey: 'spec_number_id', header: 'CSI Spec', cell: CsiSpecCell, size: 150 },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
       { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
-      { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
+      { accessorKey: 'due_date', header: 'Due Date', cell: DateCell },
     ],
     [viewMode, checkboxColumn, openPanelColumn, dynamicOptionColumns]
   );
@@ -181,7 +181,7 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { accessorKey: 'building_area', header: 'Building Area', cell: BuildingAreaCell },
       { accessorKey: 'priority', header: 'Priority', cell: PriorityCell, sortingFn: prioritySort, size: 100 },
       { accessorKey: 'assignee', header: 'Assigned User', cell: AssigneeCell },
-      { accessorKey: 'due_date', header: 'Due Date', cell: TextCell },
+      { accessorKey: 'due_date', header: 'Due Date', cell: DateCell },
     ],
     [viewMode, checkboxColumn, openPanelColumn]
   );

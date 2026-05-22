@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
   design_lock_phase text,
   final_direction text,
   assignee text,
-  due_date text,
+  due_date date,
   status text DEFAULT 'Draft',
   coordination_status text DEFAULT NULL,
   cost_impact numeric DEFAULT 0,

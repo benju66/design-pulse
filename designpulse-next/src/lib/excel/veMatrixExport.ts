@@ -1,4 +1,5 @@
 import { Opportunity, OpportunityOption, ProjectCsiSpec } from '@/types/models';
+import { formatDate } from '@/lib/formatters';
 
 export async function generateVeMatrixTemplate(
   opportunities: Opportunity[],
@@ -103,7 +104,7 @@ export async function generateVeMatrixTemplate(
       })(),
       priority: opp.priority || '',
       assignee: opp.assignee || '',
-      due_date: opp.due_date || '',
+      due_date: opp.due_date ? formatDate(opp.due_date) : '',
     };
 
     const options = optionsMap[opp.id] || [];

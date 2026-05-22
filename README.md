@@ -99,6 +99,25 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 
 ---
 
+### v0.19 — Monolithic Page Extraction & Workspace View Modularization
+**Released:** 2026-05-22
+
+This release refactors the monolithic, 957-line project-level view manager at `designpulse-next/src/app/project/[projectId]/page.tsx` into clean, decoupled, single-responsibility, client-side workspace components. This architectural upgrade pushes query hooks, filter pipelines, and dynamic UI concerns down into modular views, optimizing render performance and eliminating sidebar navigation latency.
+
+#### View Modularization & Decoupled State
+- **Value Matrix View:** Houses `useOpportunities` and cost code/settings query hooks, local grid filters, and mounts `CompareModal` directly. Sets project preferences and triggers settings tabs directly via Zustand.
+- **Budget Ledger View:** Integrates local ledger filter states, variance thresholds, and handles custom CSI spec division character-stripping and numeric padding normalization.
+- **Drawings View [NEW]:** Governs drawing sets metadata, sheets indices, Konva markup zone coordinate mappings, and encapsulates `PdfImportModal` locally. Preserves zoom/pan drawing viewport states across tab transitions.
+- **Permits View [NEW]:** Encapsulates permits query caching, permit creation mutations, and hosts permit board/table switches. Cleaned up `useMemo` hooks to inline fallback settings, eliminating react-hooks/exhaustive-deps warnings.
+- **Coordination View:** Decouples discipline filters, active building area and cost code matrices, and mounts `BulkImportModal` internally.
+
+#### Lean Parent Orchestration Shell
+- **Dynamic Routing Container:** Refactored the core `page.tsx` wrapper down to a highly readable, ~140-line dynamic shell.
+- **WebSocket Realtime Persistence:** Retains the `useProjectRealtime(projectId)` Supabase subscription active at the parent layout layer to guarantee seamless WebSocket cache invalidation across all view changes.
+- **100% Type-Safe & Lint-Clean:** Fully compliant with Next.js Turbopack compiler. Compiled cleanly in production builds and passed typechecking with zero warnings or errors.
+
+---
+
 ### v0.18 — Off-Thread Excel Processing & Web Worker Pipeline
 **Released:** 2026-05-21
 

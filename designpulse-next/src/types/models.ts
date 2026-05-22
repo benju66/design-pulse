@@ -181,17 +181,12 @@ export interface SidebarItem {
 }
 
 // Rosetta Stone: Project-level CSI Spec mapping
-export interface ProjectCsiSpec {
-  id: string;
-  project_id: string;
-  csi_number: string;
-  normalized_csi_number: string;
-  description: string | null;
-  cost_code: string | null;
-  source?: 'company_default' | 'project' | 'ml_suggested';  // Phase 7: Lineage tracking
-  created_at: string;
-  updated_at: string;
-}
+export type ProjectCsiSpec = Omit<
+  Database['public']['Tables']['project_csi_specs']['Row'],
+  'source'
+> & {
+  source?: 'company_default' | 'project' | 'ml_suggested' | null;
+};
 
 export interface CsiSpecItem {
   csi_number: string;
@@ -203,28 +198,12 @@ export interface CsiSpecItem {
 }
 
 // Phase 7: Company-level default CSI-to-Cost-Code mapping (Rosetta Stone)
-export interface CompanyCsiDefault {
-  id: string;
-  csi_number: string;
-  normalized_csi_number: string;
-  description: string | null;
-  cost_code: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type CompanyCsiDefault = Database['public']['Tables']['company_csi_defaults']['Row'];
 
 
 // Rosetta Stone Phase 4: ML Flywheel — Global cross-project CSI training data
 // Composite PK: (normalized_csi_number, global_cost_code_id)
-export interface GlobalCsiTrainingData {
-  normalized_csi_number: string;   // PK part 1 — e.g. '096516'
-  global_cost_code_id: string;     // PK part 2 — FK to cost_codes.code
-  latest_description: string | null;
-  latest_raw_csi_number: string | null; // e.g. '09 65 16.13'
-  match_count: number;
-  is_admin_verified: boolean;
-  last_seen_at: string;
-}
+export type GlobalCsiTrainingData = Database['public']['Tables']['global_csi_training_data']['Row'];
 
 // Params for the remap_global_csi_entry SECURITY DEFINER RPC
 export interface RemapCsiEntryParams {
@@ -236,23 +215,13 @@ export interface RemapCsiEntryParams {
 }
 
 // Activity & Audit Log
-export interface ItemActivity {
-  id: string;
-  project_id: string;
-  opportunity_id: string | null;
-  option_id: string | null;
-  lesson_id: string | null;
-  permit_id: string | null;
+export type ItemActivity = Omit<
+  Database['public']['Tables']['item_activity']['Row'],
+  'activity_type' | 'mentions'
+> & {
   activity_type: 'system_log' | 'user_comment';
-  content: string;
-  mentions: string[]; // UUIDs
-  author_id: string | null;
-  include_in_oac: boolean;
-  is_edited: boolean;
-  is_deleted: boolean;
-  created_at: string;
-  updated_at: string;
-}
+  mentions: string[];
+};
 
 // ── Project Estimate (Budget Import) ──────────────────────────────────────────
 // EstimateCostType is aliased from CostType for semantic clarity in estimate context.
@@ -351,17 +320,7 @@ export interface MasterLedgerRow {
   projected_final: number;
 }
 
-export interface RolePermission {
-  role: 'project_admin' | 'gc_admin' | 'design_team' | 'viewer';
-  can_lock_options: boolean;
-  can_unlock_options: boolean;
-  can_manage_team: boolean;
-  can_edit_project_settings: boolean;
-  can_manage_budget: boolean;
-  can_edit_records: boolean;
-  can_delete_records: boolean;
-  can_view_audit_logs: boolean;
-}
+export type RolePermission = Database['public']['Tables']['role_permissions']['Row'];
 
 export type UserPermissions = Omit<RolePermission, 'role'>;
 
@@ -407,51 +366,21 @@ export type LessonStatus = 'Draft' | 'Submitted' | 'Verified' | 'Archived';
 
 export type LessonSourceType = 'manual' | 'ai_generated' | 'ai_assisted';
 
-export interface ProjectLesson {
-  id: string;
-  project_id: string;
-  display_id: string | null;
-  title: string;
-  what_happened: string | null;
-  root_cause: string | null;
-  recommendation: string;
+export type ProjectLesson = Omit<
+  Database['public']['Tables']['project_lessons']['Row'],
+  'category' | 'severity' | 'phase' | 'status' | 'source_type' | 'ai_metadata'
+> & {
   category: LessonCategory;
   severity: LessonSeverity;
   phase: LessonPhase;
   status: LessonStatus;
-  template_id: string | null;
-  cost_code: string | null;
-  csi_number: string | null;
-  building_area: string | null;
-  discipline_id: string | null;
-  client_id: string | null;
-  author_id: string | null;
-  verified_by: string | null;
-  verified_at: string | null;
   source_type: LessonSourceType;
-  ai_confidence: number | null;
-  ai_metadata: Record<string, unknown>;
-  is_deleted: boolean;
-  created_at: string;
-  updated_at: string;
-}
+  ai_metadata: Record<string, unknown> | null;
+};
 
-export interface LessonAttachment {
-  id: string;
-  lesson_id: string;
-  project_id: string;
-  file_name: string;
-  file_path: string;
-  file_size: number | null;
-  file_type: string | null;
-  uploaded_by: string | null;
-  created_at: string;
-}
+export type LessonAttachment = Database['public']['Tables']['lesson_attachments']['Row'];
 
-export interface LessonOpportunityLink {
-  lesson_id: string;
-  opportunity_id: string;
-}
+export type LessonOpportunityLink = Database['public']['Tables']['lesson_opportunity_links']['Row'];
 
 export interface LessonIndicator {
   cost_code: string;

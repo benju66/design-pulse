@@ -259,6 +259,7 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
                 <option value="In Drafting">In Drafting</option>
                 <option value="Ready for Review">Ready for Review</option>
                 <option value="Implemented">Implemented</option>
+                <option value="Not Applicable">Not Applicable</option>
              </select>
           </div>
           

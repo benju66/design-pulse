@@ -1,0 +1,214 @@
+"use client";
+
+import { useRef, useMemo, useState, KeyboardEvent } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  ColumnDef,
+  SortingState,
+} from '@tanstack/react-table';
+import { CalendarDays } from 'lucide-react';
+import { ProjectKeyDate } from '@/types/models';
+import { useUpdateKeyDate, useDeleteKeyDate } from '@/hooks/useKeyDateQueries';
+import { useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
+import { useUIStore } from '@/stores/useUIStore';
+import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
+import { useGridNavigation } from '@/hooks/useGridNavigation';
+import { CheckboxCell, CheckboxHeader } from '@/components/data-table/cells';
+import { BulkActionBar, DataTable, GhostRow } from '@/components/data-table';
+import { DeleteConfirmModal } from '@/components/data-table/DeleteConfirmModal';
+import { Button } from '@/components/ui/Button';
+import { TextCell } from '@/components/data-table/cells/TextCell';
+import { DateCell } from '@/components/data-table/cells/DateCell';
+import { toast } from 'sonner';
+
+const EMPTY_VISIBILITY: Record<string, boolean> = {};
+const DEFAULT_COLUMN_ORDER = ['select', 'display_id', 'title', 'description', 'event_date'];
+
+interface KeyDatesTableProps {
+  projectId: string;
+  keyDates: ProjectKeyDate[];
+  createMutation: {
+    mutate: (data: Record<string, unknown>) => void;
+    isPending: boolean;
+  };
+}
+
+export function KeyDatesTable({
+  projectId,
+  keyDates,
+  createMutation,
+}: KeyDatesTableProps) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const updateKeyDate = useUpdateKeyDate(projectId);
+  const deleteKeyDate = useDeleteKeyDate(projectId);
+  const { permissions } = useCurrentUserPermissions(projectId);
+
+  // Column Visibility and Order Preferences from Zustand Store
+  const columnVisibility = useUIStore(state => state.keyDatesColumnVisibility[projectId] || EMPTY_VISIBILITY);
+  const setColumnVisibility = useUIStore(state => state.setKeyDatesColumnVisibility);
+  const columnOrder = useUIStore(state => state.keyDatesColumnOrder[projectId] || DEFAULT_COLUMN_ORDER);
+  const setColumnOrder = useUIStore(state => state.setKeyDatesColumnOrder);
+
+  const moveActiveCellRef = useRef<any>(null);
+
+  const columns = useMemo<ColumnDef<ProjectKeyDate>[]>(() => [
+    {
+      id: 'select',
+      header: ({ table }) => <CheckboxHeader table={table} />,
+      cell: (info) => <CheckboxCell info={info} disabled={!permissions.can_edit_records} />,
+      size: 45,
+      enableSorting: false,
+    },
+    {
+      accessorKey: 'display_id',
+      header: 'ID',
+      cell: ({ row }) => (
+        <div className="flex items-center w-full h-full px-2">
+          <span className="px-1.5 py-0.5 text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/60 rounded">
+            {row.original.display_id || 'KD-???'}
+          </span>
+        </div>
+      ),
+      size: 90,
+    },
+    {
+      accessorKey: 'title',
+      header: 'Title',
+      cell: (info) => <TextCell info={info} />,
+      size: 280,
+    },
+    {
+      accessorKey: 'description',
+      header: 'Description',
+      cell: (info) => <TextCell info={info} />,
+      size: 350,
+    },
+    {
+      accessorKey: 'event_date',
+      header: 'Date',
+      cell: (info) => <DateCell {...info} />,
+      size: 130,
+    }
+  ], [permissions.can_edit_records]);
+
+  const table = useReactTable({
+    data: keyDates,
+    columns,
+    state: {
+      sorting,
+      rowSelection,
+      columnVisibility,
+      columnOrder,
+    },
+    onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    onColumnVisibilityChange: (updater) => setColumnVisibility(projectId, updater as any),
+    onColumnOrderChange: (updater) => setColumnOrder(projectId, updater as any),
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    columnResizeMode: 'onChange',
+    enableRowSelection: true,
+    meta: {
+      updateData: updateKeyDate,
+      permissions,
+      projectId,
+      moveActiveCellRef,
+    },
+  });
+
+  // Enable keyboard navigation
+  const gridNav = useGridNavigation(table as any);
+
+  moveActiveCellRef.current = gridNav.moveActiveCell;
+
+  const handleBulkDelete = async () => {
+    const selectedRows = table.getSelectedRowModel().rows;
+    if (selectedRows.length === 0) return;
+    setIsDeleting(true);
+    try {
+      for (const row of selectedRows) {
+        await deleteKeyDate.mutateAsync(row.original.id);
+      }
+      setRowSelection({});
+      toast.success("Selected key dates successfully deleted");
+    } catch (error: any) {
+      toast.error("Failed to delete some key dates");
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
+    }
+  };
+
+  const handleTableKeyDown = (e: KeyboardEvent<Element>) => {
+    gridNav.handleKeyDown(e as unknown as KeyboardEvent<HTMLElement>);
+  };
+
+  return (
+    <div className="flex flex-col h-full w-full relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between p-3 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-950/20">
+        <div className="flex items-center gap-2">
+          {permissions.can_edit_records && (
+            <Button
+              onClick={() => createMutation.mutate({})}
+              disabled={createMutation.isPending}
+              variant="primary"
+              size="sm"
+            >
+              <CalendarDays size={14} className="shrink-0" />
+              Add Key Date
+            </Button>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <ColumnChooser table={table as any} projectId={projectId} />
+        </div>
+      </div>
+
+      {/* Main Grid Container */}
+      <DataTable
+        table={table}
+        onKeyDown={handleTableKeyDown}
+        emptyMessage="Get started by adding your first project key date using the button above."
+        maxHeight="calc(100vh - 280px)"
+        footerContent={
+          permissions.can_edit_records && (
+            <GhostRow
+              table={table}
+              createMutation={createMutation}
+              defaultValues={{ project_id: projectId }}
+              staticFields={[{ columnId: 'display_id', displayValue: 'KD-???' }]}
+            />
+          )
+        }
+      />
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={table.getSelectedRowModel().rows.length}
+        entityLabel="Key Dates"
+        onDelete={() => setIsDeleteModalOpen(true)}
+        onClear={() => setRowSelection({})}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleBulkDelete}
+        isDeleting={isDeleting}
+        count={table.getSelectedRowModel().rows.length}
+        entityName="Key Dates"
+      />
+    </div>
+  );
+}

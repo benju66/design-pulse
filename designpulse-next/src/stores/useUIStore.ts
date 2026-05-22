@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
+import { DEFAULT_COORD_COLUMN_ORDER, DEFAULT_KEY_DATES_COLUMN_ORDER } from '@/lib/constants';
 import { useMapStore } from '@/stores/useMapStore';
 
 // ── Navigation domain types ───────────────────────────────────────────────────
@@ -15,7 +15,8 @@ export type ProjectView =
   | 'deliverables'
   | 'my-desk'
   | 'settings'
-  | 'lessons';
+  | 'lessons'
+  | 'key-dates';
 
 export type SettingsTab =
   | 'info'
@@ -159,6 +160,12 @@ export interface UIState {
 
   deliverablesFilters: Record<string, DeliverableFilters>;
   setDeliverablesFilters: (projectId: string, filters: DeliverableFilters) => void;
+
+  keyDatesColumnVisibility: Record<string, Record<string, boolean>>;
+  setKeyDatesColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
+
+  keyDatesColumnOrder: Record<string, string[]>;
+  setKeyDatesColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -429,6 +436,30 @@ export const useUIStore = create<UIState>()(
           [projectId]: filters
         }
       })),
+
+      keyDatesColumnVisibility: {},
+      setKeyDatesColumnVisibility: (projectId, updater) => set((state) => {
+        const oldState = state.keyDatesColumnVisibility?.[projectId] || {};
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          keyDatesColumnVisibility: {
+            ...state.keyDatesColumnVisibility,
+            [projectId]: newState
+          }
+        };
+      }),
+
+      keyDatesColumnOrder: {},
+      setKeyDatesColumnOrder: (projectId, updater) => set((state) => {
+        const oldState = state.keyDatesColumnOrder?.[projectId] || (DEFAULT_KEY_DATES_COLUMN_ORDER as unknown as string[]);
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          keyDatesColumnOrder: {
+            ...state.keyDatesColumnOrder,
+            [projectId]: newState
+          }
+        };
+      }),
     }),
     {
       name: 'design-pulse-ui-prefs',
@@ -463,8 +494,10 @@ export const useUIStore = create<UIState>()(
         deliverablesColumnVisibility: state.deliverablesColumnVisibility ?? {},
         deliverablesColumnOrder: state.deliverablesColumnOrder ?? {},
         deliverablesFilters: state.deliverablesFilters ?? {},
+        keyDatesColumnVisibility: state.keyDatesColumnVisibility ?? {},
+        keyDatesColumnOrder: state.keyDatesColumnOrder ?? {},
       }),
-      version: 12,
+      version: 13,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -564,7 +597,15 @@ export const useUIStore = create<UIState>()(
             deliverablesColumnVisibility: {},
             deliverablesColumnOrder: {},
             deliverablesFilters: {},
-          } as UIState;
+          } as unknown as UIState;
+        }
+        if (version < 13) {
+          // v12 → v13: added key dates view preferences
+          return {
+            ...state,
+            keyDatesColumnVisibility: {},
+            keyDatesColumnOrder: {},
+          } as unknown as UIState;
         }
         return state as UIState;
       },

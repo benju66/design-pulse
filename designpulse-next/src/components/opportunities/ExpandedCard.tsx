@@ -123,11 +123,14 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
           }}
           className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded p-1.5 text-sm focus:ring-2 focus:ring-sky-500 outline-none disabled:opacity-70 disabled:cursor-not-allowed"
         >
-          <option value="Not Required">Not Required</option>
-          <option value="Pending Plan Update">Pending Plan Update</option>
-          <option value="Ready for Review">Ready for Review</option>
-          <option value="Implemented">Implemented</option>
-        </select>
+           <option value="Not Required">Not Required</option>
+           <option value="Draft">Draft</option>
+           <option value="In Drafting">In Drafting</option>
+           <option value="Pending Plan Update">Pending Plan Update</option>
+           <option value="Ready for Review">Ready for Review</option>
+           <option value="Implemented">Implemented</option>
+           <option value="Not Applicable">Not Applicable</option>
+         </select>
       );
     } else if (field.id === 'priority') {
       return (
@@ -438,7 +441,7 @@ export const ExpandedCard = ({ row }: ExpandedCardProps) => {
                       <>
                         <h4 className="text-[13px] font-bold text-amber-900 dark:text-amber-400">Awaiting estimate incorporation</h4>
                         <p className="text-[11px] text-amber-700 dark:text-amber-500/80 leading-snug">
-                          This item's variance has not yet been merged into the active budget.
+                          This item&apos;s variance has not yet been merged into the active budget.
                         </p>
                       </>
                     ) : (

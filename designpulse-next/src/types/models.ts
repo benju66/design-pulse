@@ -222,6 +222,7 @@ export type ItemActivity = Omit<
   activity_type: 'system_log' | 'user_comment';
   mentions: string[];
   deliverable_id?: string | null;
+  key_date_id?: string | null;
 };
 
 // Pre-Construction Deliverable
@@ -236,6 +237,19 @@ export interface ProjectDeliverable {
   due_date: string; // ISO date format YYYY-MM-DD
   status: 'Open' | 'In Progress' | 'Under Review' | 'Closed' | 'Not Applicable';
   is_elevated_key_date: boolean;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Pre-Construction Key Date
+export interface ProjectKeyDate {
+  id: string;
+  project_id: string;
+  display_id: string | null;
+  title: string;
+  description: string | null;
+  event_date: string; // ISO date format YYYY-MM-DD (timezone stable)
   is_deleted: boolean;
   created_at: string;
   updated_at: string;

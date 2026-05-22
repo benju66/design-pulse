@@ -117,6 +117,7 @@ const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: Cel
           <option value="In Drafting">In Drafting</option>
           <option value="Ready for Review">Ready for Review</option>
           <option value="Implemented">Implemented</option>
+          <option value="Not Applicable">Not Applicable</option>
         </select>
       </div>
     );
@@ -126,6 +127,7 @@ const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: Cel
   if (initialValue === 'In Drafting') colorClass = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
   else if (initialValue === 'Ready for Review') colorClass = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
   else if (initialValue === 'Implemented') colorClass = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+  else if (initialValue === 'Not Applicable') colorClass = 'bg-slate-200 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400 border border-slate-300 dark:border-slate-600';
 
   return (
     <div 
@@ -480,12 +482,9 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       
       const newOrder = [...pinnedFront, ...activeConfiguredIds, ...unconfiguredIds] as string[];
       
-      // Prevent infinite loop by only updating state if the order actually changed
-      if (JSON.stringify(coordColumnOrder) !== JSON.stringify(newOrder)) {
-        setCoordColumnOrder(newOrder);
-      }
+      setCoordColumnOrder(newOrder);
     }
-  }, [settings?.coord_column_order, activeColumns, setCoordColumnOrder, coordColumnOrder]);
+  }, [settings?.coord_column_order, activeColumns, setCoordColumnOrder]);
 
   const moveActiveCellRef = useRef<((direction: 'down' | 'right' | 'left' | 'up') => void) | null>(null);
 

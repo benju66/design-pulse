@@ -39,7 +39,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
   // ── Local Filter State ──
   const [coordActiveType, setCoordActiveType] = useState('All');
-  const [coordActiveStatus, setCoordActiveStatus] = useState('All');
+  const [coordActiveStatuses, setCoordActiveStatuses] = useState<string[]>([]);
   const [coordActiveBuildingAreas, setCoordActiveBuildingAreas] = useState<string[]>([]);
   const [coordActiveDisciplines, setCoordActiveDisciplines] = useState<string[]>([]);
   const [coordActiveCostCodes, setCoordActiveCostCodes] = useState<string[]>([]);
@@ -92,7 +92,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
   const filteredOpportunities = useMemo(() => {
     return coordinationOpportunities.filter(opp => {
       if (coordActiveType !== 'All' && (opp.record_type || 'VE') !== coordActiveType) return false;
-      if (coordActiveStatus !== 'All' && opp.coordination_status !== coordActiveStatus) return false;
+      if (coordActiveStatuses.length > 0 && !coordActiveStatuses.includes(opp.coordination_status || '')) return false;
       if (coordActiveBuildingAreas.length > 0 && !coordActiveBuildingAreas.includes(opp.building_area || '')) return false;
       if (coordActiveCostCodes.length > 0 && !coordActiveCostCodes.includes(opp.cost_code || '')) return false;
       
@@ -112,7 +112,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
       return true;
     });
-  }, [coordinationOpportunities, coordActiveType, coordActiveStatus, coordActiveBuildingAreas, coordActiveCostCodes, coordActiveDisciplines, projectDisciplines]);
+  }, [coordinationOpportunities, coordActiveType, coordActiveStatuses, coordActiveBuildingAreas, coordActiveCostCodes, coordActiveDisciplines, projectDisciplines]);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative bg-slate-50 dark:bg-slate-950">
@@ -189,8 +189,8 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                   projectId={projectId}
                   opportunities={filteredOpportunities}
                   viewMode={coordinationViewMode.replace('table-', '')}
-                  filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + (coordActiveStatus !== 'All' ? 1 : 0) + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length}
-                  onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatus('All'); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); }}
+                  filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length}
+                  onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); }}
                   filterSlot={
                     <>
                       <div className="flex flex-col gap-1.5">
@@ -202,10 +202,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</label>
-                        <select value={coordActiveStatus} onChange={(e) => setCoordActiveStatus(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 cursor-pointer">
-                          <option value="All">All</option>
-                          {uniqueCoordStatuses.map(status => <option key={status} value={status}>{status}</option>)}
-                        </select>
+                        <MultiSelectFilter fullWidth label="Status" options={uniqueCoordStatuses} selected={coordActiveStatuses} onChange={setCoordActiveStatuses} placeholder="Search statuses..." />
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Building Area</label>

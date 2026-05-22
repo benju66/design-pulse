@@ -207,9 +207,12 @@ export const CoordinationStatusCell = React.memo(({ getValue, row, column, table
       className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm font-medium cursor-pointer text-slate-900 dark:text-slate-100 ${isCellActive ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20' : ''}`}
     >
       <option value="Not Required">Not Required</option>
+      <option value="Draft">Draft</option>
+      <option value="In Drafting">In Drafting</option>
       <option value="Pending Plan Update">Pending Plan Update</option>
       <option value="Ready for Review">Ready for Review</option>
       <option value="Implemented">Implemented</option>
+      <option value="Not Applicable">Not Applicable</option>
     </select>
   );
 }, (prev, next) => commonComparator(prev, next, false));
@@ -687,3 +690,6 @@ export const EstimateSyncStatusCell = React.memo(({ getValue }: CellContext<Oppo
     </div>
   );
 }, (prev, next) => prev.getValue() === next.getValue());
+
+EstimateSyncStatusCell.displayName = 'EstimateSyncStatusCell';
+

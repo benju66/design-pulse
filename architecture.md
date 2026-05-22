@@ -1,6 +1,6 @@
 # DesignPulse — Architecture Document (C4 Model)
 
-> **Last Updated:** 2026-05-21  
+> **Last Updated:** 2026-05-22  
 > **Status:** Living Document  
 > **Application Version:** v0.17.1 (Sizing Locks, Zero-Baselines & Timeline Budget Deltas)  
 > **Architecture Model:** [C4 Model](https://c4model.com/) by Simon Brown
@@ -177,7 +177,7 @@ C4Component
 | `/` | Redirect | → `/dashboard` (via `next.config.mjs`) |
 | `/login` | Client | Email/password + Procore OAuth login |
 | `/dashboard` | Client | Projects + Clients dual-tab dashboard |
-| `/project/[projectId]` | Client | **Main workspace** (955 lines) — switches between 10 views via `useUIStore.activeView` |
+| `/project/[projectId]` | Client | **Main workspace** (143 lines) — dynamic view orchestrator switching between 10 isolated views via `useUIStore.activeView` |
 | `/project/[projectId]/item/[itemId]` | Client | Pop-out item detail view |
 | `/clients/[id]` | Client | Client detail with tabs (Profile, Brand Standards, Documents, Projects, Lessons) |
 | `/sandbox/map` | Client | Map development sandbox |
@@ -441,7 +441,7 @@ design-pulse/                           # Informal monorepo (no workspace manage
 │   │   │   ├── globals.css             #     Tailwind v4 + design tokens
 │   │   │   ├── login/page.tsx          #     Login (email + Procore OAuth)
 │   │   │   ├── dashboard/page.tsx      #     Projects + Clients dashboard
-│   │   │   ├── project/[projectId]/    #     Main workspace (955-line mega-page)
+│   │   │   ├── project/[projectId]/    #     Main workspace (143-line dynamic orchestrator)
 │   │   │   │   └── item/[itemId]/      #       Pop-out item detail
 │   │   │   ├── clients/[id]/page.tsx   #     Client detail (tabbed)
 │   │   │   ├── auth/success/page.tsx   #     Procore OAuth success handler
@@ -742,7 +742,7 @@ Data revealed based on workflow stage. Once a decision is locked in Pre-Con, coo
 |-------|--------|---------|
 | **Hand-maintained DB types** | Medium | `database.types.ts` is not auto-generated via `supabase gen types`. Several tables missing. |
 | **Mega-components** | Medium | 5 files exceed 50 KB (`GlobalSettingsModal` = 100 KB). Should be decomposed. |
-| **955-line mega-page** | Medium | `/project/[projectId]/page.tsx` manages 10+ views inline. Could use route groups. |
+| **Mega-page refactored** | Resolved | `/project/[projectId]/page.tsx` refactored from 957 lines to a clean 143-line orchestrator. Views isolated under `src/components/views/`. |
 | **Legacy map module** | Low | `designpulse-map-module/` is a deprecated prototype that should be removed. |
 | **Inconsistent barrel exports** | Low | Only `data-table/` uses barrels. Other feature directories use direct imports. |
 | **Missing Supabase CLI** | Low | No `supabase/` directory for local dev. Schema managed via raw 153 KB SQL file. |

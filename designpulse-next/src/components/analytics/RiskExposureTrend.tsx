@@ -29,10 +29,29 @@ const fmtD = (d: string) => {
 export default function RiskExposureTrend({ rows, isFiltered, isLoading }: Props) {
   const { state: tip, handlers } = useChartTooltip<TipData>();
 
-  const sorted = useMemo(() =>
-    [...rows].sort((a, b) => a.version_date.localeCompare(b.version_date)),
-    [rows]
-  );
+  const sorted = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      // 1. Try parsing high-fidelity YYYY.MM.DD date from the name prefix
+      const matchA = a.version_name.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+      const matchB = b.version_name.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+
+      let dateA: number;
+      let dateB: number;
+
+      if (matchA && matchB) {
+        dateA = new Date(`${matchA[1]}-${matchA[2].padStart(2, '0')}-${matchA[3].padStart(2, '0')}T00:00:00`).getTime();
+        dateB = new Date(`${matchB[1]}-${matchB[2].padStart(2, '0')}-${matchB[3].padStart(2, '0')}T00:00:00`).getTime();
+      } else {
+        dateA = new Date(a.version_date + 'T00:00:00').getTime();
+        dateB = new Date(b.version_date + 'T00:00:00').getTime();
+      }
+
+      if (dateA !== dateB) return dateA - dateB;
+
+      // Stable fallback
+      return a.version_date.localeCompare(b.version_date);
+    });
+  }, [rows]);
 
   const PAD = { top: 30, right: 30, bottom: 55, left: 80 };
   const W = 680, H = 280;

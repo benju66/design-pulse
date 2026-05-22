@@ -106,7 +106,36 @@ export function BudgetDetailView({ projectId, costCode, veItems = [] }: BudgetDe
 
   // Calculate step deltas and absolute budgets chronologically (oldest-to-newest)
   const chronologicalVersions = React.useMemo(() => {
-    return [...estimateVersions].reverse();
+    return [...estimateVersions].sort((a, b) => {
+      // 1. The active estimate version always sorts to the far right (latest)
+      if (a.is_active && !b.is_active) return 1;
+      if (!a.is_active && b.is_active) return -1;
+
+      // 2. Try parsing high-fidelity YYYY.MM.DD date from the name prefix
+      const matchA = a.version_name.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+      const matchB = b.version_name.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+
+      let dateA: number;
+      let dateB: number;
+
+      if (matchA && matchB) {
+        dateA = new Date(`${matchA[1]}-${matchA[2].padStart(2, '0')}-${matchA[3].padStart(2, '0')}T00:00:00`).getTime();
+        dateB = new Date(`${matchB[1]}-${matchB[2].padStart(2, '0')}-${matchB[3].padStart(2, '0')}T00:00:00`).getTime();
+      } else {
+        dateA = new Date(a.version_date + 'T00:00:00').getTime();
+        dateB = new Date(b.version_date + 'T00:00:00').getTime();
+      }
+
+      if (dateA !== dateB) return dateA - dateB;
+
+      // 3. Fallback: created_at ascending
+      const timeA = new Date(a.created_at || 0).getTime();
+      const timeB = new Date(b.created_at || 0).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+
+      // 4. Stable tie-breaker
+      return a.id.localeCompare(b.id);
+    });
   }, [estimateVersions]);
 
   const versionDeltas = React.useMemo(() => {

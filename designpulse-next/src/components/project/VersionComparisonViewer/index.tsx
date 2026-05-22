@@ -39,6 +39,8 @@ function formatCurrency(n: number): string {
   return currencyFormatter.format(n);
 }
 
+const EMPTY_VISIBILITY: Record<string, boolean> = {};
+
 export function VersionComparisonViewer({
   projectId,
   initialSelectedVersionIds,
@@ -53,7 +55,7 @@ export function VersionComparisonViewer({
   const { data: opportunities = [] } = useOpportunities(projectId);
 
   // Zustand persistent selected versions (toggled via column visibility mapping)
-  const persistedVisibility = useUIStore((s) => s.versionMatrixColumnVisibility[projectId] || {});
+  const persistedVisibility = useUIStore((s) => s.versionMatrixColumnVisibility[projectId]) || EMPTY_VISIBILITY;
   const setPersistedVisibility = useUIStore((s) => s.setVersionMatrixColumnVisibility);
   const hasPersistedEntry = useUIStore((s) => s.versionMatrixColumnVisibility[projectId] !== undefined);
   const selectedOpportunityId = useUIStore((s) => s.selectedOpportunityId);

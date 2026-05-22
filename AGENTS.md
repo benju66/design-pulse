@@ -38,6 +38,7 @@ When working on this project, rely on the following modular skills stored in `.a
 - **API/Python/Microservice:** invoke `api-and-integration`
 - **Code Reviews:** invoke `deep-review`
 - **Feature Verification:** invoke `verify-feature`
+- **Coordination Load Testing:** invoke `load-test-coordination`
 
 ## Test Credentials
 When checking the app in the browser, use the following credentials to log in:

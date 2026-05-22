@@ -147,6 +147,12 @@ CREATE TABLE IF NOT EXISTS opportunity_options (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Prevent double-lock race condition (Sprint 2, C-10)
+-- Exactly one contender per opportunity may be locked at any time.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_one_locked_option_per_opportunity
+  ON opportunity_options(opportunity_id)
+  WHERE is_locked = true AND is_deleted = false;
+
 -- 4.4 Permit Helpers
 CREATE OR REPLACE FUNCTION generate_permit_display_id()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -529,39 +535,9 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION lock_opportunity_option(p_option_id UUID, p_opp_id UUID)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_option_title text;
-  v_option_cost numeric;
-  v_option_days numeric;
-  v_project_id uuid;
-BEGIN
-  SELECT project_id INTO v_project_id FROM opportunities WHERE id = p_opp_id;
-  IF NOT (public.is_platform_admin() OR public.get_user_project_role(v_project_id) IN ('project_admin', 'gc_admin')) THEN
-    RAISE EXCEPTION 'Unauthorized: Insufficient privileges to lock options';
-  END IF;
-
-  UPDATE opportunities SET status = 'Draft' WHERE id = p_opp_id;
-  UPDATE opportunity_options SET is_locked = false WHERE opportunity_id = p_opp_id;
-  UPDATE opportunity_options SET is_locked = true WHERE id = p_option_id RETURNING title, cost_impact, days_impact INTO v_option_title, v_option_cost, v_option_days;
-  UPDATE opportunities SET final_direction = 'Locked: ' || v_option_title, status = 'Pending Plan Update', cost_impact = v_option_cost, days_impact = v_option_days WHERE id = p_opp_id;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION toggle_option_budget(p_option_id UUID, p_opp_id UUID, p_is_included BOOLEAN)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_project_id uuid;
-BEGIN
-  SELECT project_id INTO v_project_id FROM opportunities WHERE id = p_opp_id;
-  IF NOT (public.is_platform_admin() OR public.get_user_project_role(v_project_id) IN ('project_admin', 'gc_admin')) THEN
-    RAISE EXCEPTION 'Unauthorized: Insufficient privileges to toggle budget';
-  END IF;
-
-  UPDATE opportunity_options SET include_in_budget = p_is_included WHERE id = p_option_id;
-END;
-$$;
+-- NOTE: lock_opportunity_option and toggle_option_budget are defined below
+-- in Section 5 (Refactor Existing RPCs) with escape hatches and dynamic RBAC.
+-- Stale duplicates removed during Sprint 2 schema cleanup (2026-05-22).
 
 -- Bulk JSONB Reorder for Opportunity Options
 CREATE OR REPLACE FUNCTION public.reorder_opportunity_options(p_project_id uuid, p_payload jsonb)
@@ -899,7 +875,10 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to unlock options';
   END IF;
 
-  -- 2. Open Escape Hatch for this specific transaction only
+  -- 2. Serialize concurrent lock/unlock attempts on the same opportunity (Sprint 2, C-04/C-05).
+  PERFORM pg_advisory_xact_lock(hashtext(p_opp_id::text)::bigint);
+
+  -- 3. Open Escape Hatch for this specific transaction only
   PERFORM set_config('designpulse.bypass_immutability', 'true', true);
 
   -- 3. Perform Unlock 
@@ -941,6 +920,9 @@ BEGIN
   IF NOT public.has_project_permission((SELECT project_id FROM opportunities WHERE id = p_opp_id), 'can_lock_options') THEN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to lock options';
   END IF;
+
+  -- Serialize concurrent lock attempts on the same opportunity (Sprint 2, C-04/C-05).
+  PERFORM pg_advisory_xact_lock(hashtext(p_opp_id::text)::bigint);
 
   -- Open the immutability escape hatch AFTER RBAC check, BEFORE any UPDATE statement.
   -- Required so that intermediate state resets (SET status = 'Draft') do not trigger
@@ -1048,10 +1030,13 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized: Insufficient privileges to de-escalate this item';
   END IF;
 
-  -- 2. Open escape hatch AFTER RBAC, BEFORE any UPDATE statement.
-  --    Covers BOTH enforce_financial_immutability (opportunities)
-  --    AND enforce_options_immutability (opportunity_options).
-  --    Per AGENTS.md B5: opening the hatch late still triggers on earlier UPDATEs.
+  -- 2a. Serialize concurrent de-escalation on the same opportunity (Sprint 2, C-04/C-05).
+  PERFORM pg_advisory_xact_lock(hashtext(p_opp_id::text)::bigint);
+
+  -- 2b. Open escape hatch AFTER RBAC, BEFORE any UPDATE statement.
+  --     Covers BOTH enforce_financial_immutability (opportunities)
+  --     AND enforce_options_immutability (opportunity_options).
+  --     Per AGENTS.md B5: opening the hatch late still triggers on earlier UPDATEs.
   PERFORM set_config('designpulse.bypass_immutability', 'true', true);
 
   -- 3. Unlock all contender options first (CRITICAL ordering).

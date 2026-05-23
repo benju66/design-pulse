@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
-import { Opportunity } from '@/types/models';
+import { Opportunity, DisciplineConfig } from '@/types/models';
+import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface TooltipPopoverProps {
   title: string;
@@ -29,9 +30,10 @@ const TooltipPopover = ({ title, description, align = 'center' }: TooltipPopover
 interface Props {
   opportunities: Opportunity[];
   forceCollapse?: boolean;
+  disciplines?: DisciplineConfig[];
 }
 
-export const CoordinationSummary = ({ opportunities, forceCollapse = false }: Props) => {
+export const CoordinationSummary = ({ opportunities, forceCollapse = false, disciplines }: Props) => {
   const storeCollapsed = useUIStore(state => state.isCoordSummaryCollapsed);
   const toggleCollapse = useUIStore(state => state.toggleCoordSummary);
   
@@ -43,11 +45,13 @@ export const CoordinationSummary = ({ opportunities, forceCollapse = false }: Pr
     let inProgress = 0;
     let readyForReview = 0;
     let criticalItems = 0;
-    const disciplines = {
-      d_arch: { required: 0, complete: 0 },
-      d_mech: { required: 0, complete: 0 },
-      d_elec: { required: 0, complete: 0 }
-    };
+
+    const resolvedDisciplines: DisciplineConfig[] = disciplines?.length ? disciplines : DEFAULT_DISCIPLINES;
+
+    const disciplineMap: Record<string, { required: number; complete: number }> = {};
+    resolvedDisciplines.forEach(d => {
+      disciplineMap[d.id] = { required: 0, complete: 0 };
+    });
 
     opportunities.forEach(opp => {
       const status = opp.coordination_status || 'Draft';
@@ -60,14 +64,13 @@ export const CoordinationSummary = ({ opportunities, forceCollapse = false }: Pr
         criticalItems++;
       }
 
-      // 3. Discipline Progress
-      const details = (opp.coordination_details || {}) as Record<string, any>;
-      ['d_arch', 'd_mech', 'd_elec'].forEach(d => {
-        const dStatus = details[d]?.status;
+      const details = (opp.coordination_details || {}) as Record<string, { status?: string }>;
+      resolvedDisciplines.forEach(({ id }) => {
+        const dStatus = details[id]?.status;
         if (dStatus && dStatus !== 'Not Required') {
-          disciplines[d as keyof typeof disciplines].required++;
+          disciplineMap[id].required++;
           if (dStatus === 'Complete') {
-            disciplines[d as keyof typeof disciplines].complete++;
+            disciplineMap[id].complete++;
           }
         }
       });
@@ -79,12 +82,13 @@ export const CoordinationSummary = ({ opportunities, forceCollapse = false }: Pr
       inProgress,
       readyForReview,
       criticalItems,
-      disciplines
+      disciplineMap,
+      resolvedDisciplines,
     };
-  }, [opportunities]);
+  }, [opportunities, disciplines]);
 
-  const renderDisciplineProgress = (label: string, id: 'd_arch' | 'd_mech' | 'd_elec') => {
-    const data = metrics.disciplines[id];
+  const renderDisciplineProgress = (label: string, id: string) => {
+    const data = metrics.disciplineMap[id] ?? { required: 0, complete: 0 };
     const percentage = data.required === 0 ? 100 : Math.round((data.complete / data.required) * 100);
     const isDone = data.required > 0 && data.complete === data.required;
     const isZero = data.required === 0;
@@ -157,11 +161,25 @@ export const CoordinationSummary = ({ opportunities, forceCollapse = false }: Pr
               
               <div className="relative group flex items-center gap-3 ml-2 bg-slate-50 dark:bg-slate-800/50 px-3 py-1 rounded-lg">
                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completion:</span>
-                 <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Arch <span className="font-bold">{metrics.disciplines.d_arch.complete}/{metrics.disciplines.d_arch.required}</span></span>
-                 <span className="text-slate-300 dark:text-slate-600">•</span>
-                 <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Mech <span className="font-bold">{metrics.disciplines.d_mech.complete}/{metrics.disciplines.d_mech.required}</span></span>
-                 <span className="text-slate-300 dark:text-slate-600">•</span>
-                 <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Elec <span className="font-bold">{metrics.disciplines.d_elec.complete}/{metrics.disciplines.d_elec.required}</span></span>
+                 {(() => {
+                   const activeDisciplines = metrics.resolvedDisciplines.filter(
+                     d => (metrics.disciplineMap[d.id]?.required ?? 0) > 0
+                   );
+                   if (activeDisciplines.length === 0) {
+                     return <span className="text-xs text-slate-400 italic">No tasks assigned</span>;
+                   }
+                   return activeDisciplines.map((d, i) => (
+                     <span key={d.id} className="flex items-center gap-1">
+                       {i > 0 && <span className="text-slate-300 dark:text-slate-600">•</span>}
+                       <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                         {d.label}{' '}
+                         <span className="font-bold">
+                           {metrics.disciplineMap[d.id].complete}/{metrics.disciplineMap[d.id].required}
+                         </span>
+                       </span>
+                     </span>
+                   ));
+                 })()}
               </div>
             </div>
             
@@ -185,7 +203,11 @@ export const CoordinationSummary = ({ opportunities, forceCollapse = false }: Pr
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.2 }}
-            className="grid grid-cols-1 @5xl:grid-cols-2 gap-6 relative w-full"
+            className={`grid grid-cols-1 gap-6 relative w-full ${
+              metrics.resolvedDisciplines.some(d => (metrics.disciplineMap[d.id]?.required ?? 0) > 0)
+                ? '@5xl:grid-cols-2'
+                : ''
+            }`}
           >
             <div className="absolute -top-3 -right-3 z-10">
               <button 
@@ -197,29 +219,24 @@ export const CoordinationSummary = ({ opportunities, forceCollapse = false }: Pr
               </button>
             </div>
 
-            {/* Cluster 1: Pipeline Status */}
             <div className="flex flex-col border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl p-4">
                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 px-1">Pipeline Status</h3>
                <div className="grid grid-cols-1 @3xl:grid-cols-4 gap-4 h-full">
-                  {/* Draft Items */}
                   <div className="relative group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col justify-center">
                     <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Draft</span>
                     <span className="text-2xl font-bold text-slate-900 dark:text-white">{metrics.itemsInDraft}</span>
                     <TooltipPopover align="left" title="Draft Items" description="Total number of VE items explicitly marked as Draft and not yet actively in progress." />
                   </div>
-                  {/* In Progress */}
                   <div className="relative group bg-amber-50/50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-xl p-4 flex flex-col justify-center">
                     <span className="text-sm text-amber-600 dark:text-amber-500 font-medium">In Progress</span>
                     <span className="text-2xl font-bold text-amber-700 dark:text-amber-400">{metrics.inProgress}</span>
                     <TooltipPopover title="In Progress" description="Items currently in the active drafting and coordination phase." />
                   </div>
-                  {/* Ready for Review */}
                   <div className="relative group bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4 flex flex-col justify-center">
                     <span className="text-sm text-purple-600 dark:text-purple-400 font-medium">Ready for Review</span>
                     <span className="text-2xl font-bold text-purple-700 dark:text-purple-300">{metrics.readyForReview}</span>
                     <TooltipPopover title="Ready for Review" description="Items where all required discipline checklists are marked as complete and are awaiting final approval." />
                   </div>
-                  {/* Critical Blockers */}
                   <div className={`relative group ${metrics.criticalItems > 0 ? 'bg-rose-50/50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-900/30' : 'bg-slate-50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800'} border rounded-xl p-4 flex flex-col justify-center`}>
                     <span className={`text-sm ${metrics.criticalItems > 0 ? 'text-rose-600 dark:text-rose-500' : 'text-slate-500 dark:text-slate-400'} font-medium`}>Critical Blockers</span>
                     <span className={`text-2xl font-bold ${metrics.criticalItems > 0 ? 'text-rose-700 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>{metrics.criticalItems}</span>
@@ -228,15 +245,20 @@ export const CoordinationSummary = ({ opportunities, forceCollapse = false }: Pr
                </div>
             </div>
 
-            {/* Cluster 2: Discipline Coordination */}
-            <div className="flex flex-col border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/20 dark:bg-slate-900/5 rounded-2xl p-4">
-              <h3 className="text-sm font-bold text-slate-600/80 dark:text-slate-500/80 uppercase tracking-wider mb-4 px-1">Discipline Coordination</h3>
-              <div className="grid grid-cols-1 @3xl:grid-cols-3 gap-4 h-full content-center">
-                {renderDisciplineProgress('Architecture', 'd_arch')}
-                {renderDisciplineProgress('Mechanical', 'd_mech')}
-                {renderDisciplineProgress('Electrical', 'd_elec')}
-              </div>
-            </div>
+            {(() => {
+              const activeDisciplines = metrics.resolvedDisciplines.filter(
+                d => (metrics.disciplineMap[d.id]?.required ?? 0) > 0
+              );
+              if (activeDisciplines.length === 0) return null;
+              return (
+                <div className="flex flex-col border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/20 dark:bg-slate-900/5 rounded-2xl p-4">
+                  <h3 className="text-sm font-bold text-slate-600/80 dark:text-slate-500/80 uppercase tracking-wider mb-4 px-1">Discipline Coordination</h3>
+                  <div className="grid grid-cols-1 @3xl:grid-cols-3 gap-4 h-full content-center">
+                    {activeDisciplines.map(d => renderDisciplineProgress(d.label, d.id))}
+                  </div>
+                </div>
+              );
+            })()}
           </motion.div>
         )}
       </AnimatePresence>

@@ -9,7 +9,6 @@ import {
   ColumnDef,
   SortingState,
 } from '@tanstack/react-table';
-import { CalendarDays } from 'lucide-react';
 import { ProjectKeyDate } from '@/types/models';
 import { useUpdateKeyDate, useDeleteKeyDate } from '@/hooks/useKeyDateQueries';
 import { useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
@@ -17,9 +16,8 @@ import { useUIStore } from '@/stores/useUIStore';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { CheckboxCell, CheckboxHeader } from '@/components/data-table/cells';
-import { BulkActionBar, DataTable, GhostRow } from '@/components/data-table';
+import { BulkActionBar, DataTable, GhostRow, TableToolbar } from '@/components/data-table';
 import { DeleteConfirmModal } from '@/components/data-table/DeleteConfirmModal';
-import { Button } from '@/components/ui/Button';
 import { TextCell } from '@/components/data-table/cells/TextCell';
 import { DateCell } from '@/components/data-table/cells/DateCell';
 import { toast } from 'sonner';
@@ -43,6 +41,7 @@ export function KeyDatesTable({
 }: KeyDatesTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [globalFilter, setGlobalFilter] = useState<string>('');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -101,14 +100,17 @@ export function KeyDatesTable({
   const table = useReactTable({
     data: keyDates,
     columns,
+    getRowId: (row) => row.id,
     state: {
       sorting,
       rowSelection,
+      globalFilter,
       columnVisibility,
       columnOrder,
     },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
+    onGlobalFilterChange: setGlobalFilter,
     onColumnVisibilityChange: (updater) => setColumnVisibility(projectId, updater as any),
     onColumnOrderChange: (updater) => setColumnOrder(projectId, updater as any),
     getCoreRowModel: getCoreRowModel(),
@@ -154,25 +156,14 @@ export function KeyDatesTable({
   return (
     <div className="flex flex-col h-full w-full relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
       {/* Toolbar */}
-      <div className="flex items-center justify-between p-3 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-950/20">
-        <div className="flex items-center gap-2">
-          {permissions.can_edit_records && (
-            <Button
-              onClick={() => createMutation.mutate({})}
-              disabled={createMutation.isPending}
-              variant="primary"
-              size="sm"
-            >
-              <CalendarDays size={14} className="shrink-0" />
-              Add Key Date
-            </Button>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <ColumnChooser table={table as any} projectId={projectId} />
-        </div>
-      </div>
+      <TableToolbar
+        searchValue={globalFilter ?? ''}
+        onSearchChange={setGlobalFilter}
+        searchPlaceholder="Search key dates..."
+        filterCount={0}
+        onFilterToggle={() => {}}
+        columnChooser={<ColumnChooser table={table as any} projectId={projectId} />}
+      />
 
       {/* Main Grid Container */}
       <DataTable
@@ -198,6 +189,7 @@ export function KeyDatesTable({
         entityLabel="Key Dates"
         onDelete={() => setIsDeleteModalOpen(true)}
         onClear={() => setRowSelection({})}
+        canDelete={permissions.can_delete_records}
       />
 
       {/* Delete Confirmation Modal */}

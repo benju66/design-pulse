@@ -15,7 +15,8 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useOpportunities } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
-import type { Opportunity } from '@/types/models';
+import type { Opportunity, DisciplineConfig } from '@/types/models';
+import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface CoordinationViewProps {
   projectId: string;
@@ -51,8 +52,16 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
       : ['Corridor / Common', 'Unit Interiors', 'Back of House'];
   }, [settings]);
 
-  const projectDisciplines = useMemo(() => {
-    return (settings?.disciplines as { id: string; label: string }[]) || [];
+  const projectDisciplines = useMemo((): DisciplineConfig[] => {
+    const raw = settings?.disciplines;
+    // Guard 1: not an array or empty — fall back to project defaults
+    if (!Array.isArray(raw) || raw.length === 0) return DEFAULT_DISCIPLINES;
+    // Guard 2: legacy string-array format (same normalization as CoordinationTable)
+    return raw.map((d: unknown) =>
+      typeof d === 'string'
+        ? { id: `d_${d.toLowerCase().replace(/\s+/g, '_')}`, label: d }
+        : (d as DisciplineConfig)
+    );
   }, [settings]);
 
   const disciplineLabels = useMemo(() => {
@@ -163,9 +172,10 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
           <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
             
             <div className="shrink-0">
-              <CoordinationSummary 
-                opportunities={filteredOpportunities} 
-                forceCollapse={coordinationViewMode === 'table-split' && !!selectedOpportunityId} 
+              <CoordinationSummary
+                opportunities={filteredOpportunities}
+                forceCollapse={coordinationViewMode === 'table-split' && !!selectedOpportunityId}
+                disciplines={projectDisciplines}
               />
             </div>
 

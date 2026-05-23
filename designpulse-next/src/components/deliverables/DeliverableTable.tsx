@@ -1,17 +1,15 @@
 "use client";
-import React, { useRef, useMemo, useState, useEffect } from 'react';
+import React, { useRef, useMemo, useState, useEffect, KeyboardEvent } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
   getFilteredRowModel,
-  flexRender,
   ColumnDef,
   CellContext,
   SortingState,
 } from '@tanstack/react-table';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronUp, ChevronDown, PanelRight, CalendarCheck2 } from 'lucide-react';
+import { PanelRight, CalendarCheck2 } from 'lucide-react';
 import { ProjectDeliverable, Permit } from '@/types/models';
 import { useUpdateDeliverable, useDeleteDeliverable } from '@/hooks/useDeliverableQueries';
 import { useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
@@ -21,7 +19,7 @@ import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { AssigneeSelect } from '@/components/opportunities/AssigneeSelect';
 import { CheckboxCell, CheckboxHeader, commonCellComparator } from '@/components/data-table/cells';
-import { BulkActionBar, TableEmptyState } from '@/components/data-table';
+import { DataTable, GhostRow, BulkActionBar, MemoizedRow } from '@/components/data-table';
 import { DeleteConfirmModal } from '@/components/data-table/DeleteConfirmModal';
 import { Button } from '@/components/ui/Button';
 import { formatDate, toDateInputValue } from '@/lib/formatters';
@@ -538,7 +536,7 @@ export function DeliverableTable({
       cell: DeliverablePermitCell,
       size: 200,
     }
-  ], [setSelectedOpportunityId]);
+  ], [setSelectedOpportunityId, permissions.can_edit_records]);
 
   const table = useReactTable({
     data: deliverables,
@@ -558,6 +556,7 @@ export function DeliverableTable({
     getFilteredRowModel: getFilteredRowModel(),
     columnResizeMode: 'onChange',
     enableRowSelection: true,
+    getRowId: (row) => row.id,
     meta: {
       updateData: updateDeliverable,
       permissions,
@@ -568,21 +567,15 @@ export function DeliverableTable({
     },
   });
 
-  const rows = table.getRowModel().rows;
-  const tableContainerRef = useRef<HTMLDivElement>(null);
-
-  // Virtualizer for Excel-style large dataset scrolling performance
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => 36,
-    overscan: 10,
-  });
-
   // Enable keyboard navigation
-  const gridNav = useGridNavigation(table as any, rowVirtualizer as any);
+  const gridNav = useGridNavigation(table as any);
 
   moveActiveCellRef.current = gridNav.moveActiveCell;
+
+  // Type-safe wrapper matching KeyDatesTable reference pattern
+  const handleTableKeyDown = (e: KeyboardEvent<Element>) => {
+    gridNav.handleKeyDown(e as unknown as KeyboardEvent<HTMLElement>);
+  };
 
   const handleBulkDelete = async () => {
     const selectedRows = table.getSelectedRowModel().rows;
@@ -602,16 +595,6 @@ export function DeliverableTable({
     }
   };
 
-  const handleRowClick = (rowIndex: number, columnId: string) => {
-    useUIStore.getState().setActiveCell({ rowIndex, columnId });
-  };
-
-  const virtualItems = rowVirtualizer.getVirtualItems();
-  const paddingTop = virtualItems.length > 0 ? virtualItems[0]?.start || 0 : 0;
-  const paddingBottom = virtualItems.length > 0
-    ? rowVirtualizer.getTotalSize() - (virtualItems[virtualItems.length - 1]?.end || 0)
-    : 0;
-
   return (
     <div className="flex flex-col h-full w-full relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
       {/* Toolbar */}
@@ -630,110 +613,52 @@ export function DeliverableTable({
           )}
           {filterSlot}
         </div>
-        
+
         <div className="flex items-center gap-2">
           <ColumnChooser table={table as any} projectId={projectId} />
         </div>
       </div>
 
-      {/* Main Grid Container */}
-      <div 
-        ref={tableContainerRef}
-        className="flex-1 overflow-auto custom-scrollbar select-none focus:outline-none rounded-b-xl"
-        tabIndex={0}
-        onKeyDown={gridNav.handleKeyDown}
+      {/* Main Grid — shared DataTable wrapper handles virtualization, header, and empty state */}
+      <DataTable
+        table={table}
+        estimateSize={36}
+        maxHeight="100%"
+        onKeyDown={handleTableKeyDown}
+        emptyMessage="Get started by adding your first pre-construction deliverable item using the button above."
+        footerContent={
+          permissions.can_edit_records && (
+            <GhostRow
+              table={table}
+              createMutation={createMutation}
+              placeholder="Type new deliverable title and press Enter..."
+              defaultValues={{
+                project_id: projectId,
+                status: 'Open',
+                is_elevated_key_date: false,
+                is_deleted: false,
+              }}
+              staticFields={[
+                { columnId: 'display_id', displayValue: 'DE-???' },
+              ]}
+            />
+          )
+        }
       >
-        <table 
-          className="w-full text-left text-sm whitespace-nowrap border-separate border-spacing-0" 
-          style={{ tableLayout: 'fixed', minWidth: table.getTotalSize() }}
-        >
-          <thead className="bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700 sticky top-0 z-10">
-            {table.getHeaderGroups().map(headerGroup => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map(header => {
-                  const sorted = header.column.getIsSorted();
-                  return (
-                     <th
-                      key={header.id}
-                      style={{ width: header.getSize() }}
-                      className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900 overflow-hidden"
-                    >
-                      {header.isPlaceholder ? null : (
-                        <div
-                          className={`min-w-0 flex items-center ${header.id === 'select' || header.id === 'open_panel' ? 'justify-center w-full' : 'justify-between'} ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}
-                          onClick={header.column.getToggleSortingHandler()}
-                        >
-                          <span className={`truncate ${header.id === 'select' || header.id === 'open_panel' ? 'w-full flex justify-center' : ''}`}>{flexRender(header.column.columnDef.header, header.getContext())}</span>
-                          {sorted === 'asc' && <ChevronUp size={14} className="ml-1 inline-block shrink-0" />}
-                          {sorted === 'desc' && <ChevronDown size={14} className="ml-1 inline-block shrink-0" />}
-                        </div>
-                      )}
-                      {header.column.getCanResize() && (
-                        <div
-                          onMouseDown={header.getResizeHandler()}
-                          onTouchStart={header.getResizeHandler()}
-                          className={`absolute right-0 top-0 h-full w-1 cursor-col-resize user-select-none touch-none bg-sky-500 opacity-0 group-hover:opacity-100 transition-opacity ${
-                            header.column.getIsResizing() ? 'opacity-100 bg-sky-600 w-2' : ''
-                          }`}
-                        />
-                      )}
-                    </th>
-                  );
-                })}
-              </tr>
-            ))}
-          </thead>
-          
-          {paddingTop > 0 && (
-            <tbody><tr><td style={{ height: `${paddingTop}px` }} colSpan={table.getVisibleLeafColumns().length} /></tr></tbody>
-          )}
-          
-          <tbody>
-            {rows.length === 0 ? (
-              <TableEmptyState 
-                colSpan={table.getVisibleLeafColumns().length}
-                message="Get started by adding your first pre-construction deliverable item using the button above." 
-              />
-            ) : (
-              virtualItems.map(virtualRow => {
-                const row = rows[virtualRow.index];
-                const isSelected = row.getIsSelected();
-                const isActiveRow = selectedOpportunityId === row.original.id;
-                
-                return (
-                  <tr
-                    key={row.id}
-                    ref={rowVirtualizer.measureElement}
-                    data-index={virtualRow.index}
-                    className={`group border-b border-slate-200 dark:border-slate-800 transition-colors ${
-                      isActiveRow 
-                        ? 'bg-sky-50 dark:bg-sky-900/20 shadow-[inset_2px_0_0_0_#0ea5e9]' 
-                        : isSelected
-                          ? 'bg-sky-50/50 dark:bg-sky-900/10'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 bg-white dark:bg-slate-900'
-                    }`}
-                  >
-                    {row.getVisibleCells().map(cell => (
-                      <td
-                        key={cell.id}
-                        style={{ width: cell.column.getSize() }}
-                        onClick={() => handleRowClick(row.index, cell.column.id)}
-                        className="p-0 border-r border-b border-slate-200 dark:border-slate-800 relative align-middle overflow-hidden"
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-          
-          {paddingBottom > 0 && (
-            <tbody><tr><td style={{ height: `${paddingBottom}px` }} colSpan={table.getVisibleLeafColumns().length} /></tr></tbody>
-          )}
-        </table>
-      </div>
+        {(row) => (
+          <MemoizedRow
+            key={row.id}
+            row={row}
+            isSelected={row.getIsSelected()}
+            className={
+              selectedOpportunityId === row.original.id
+                ? 'bg-sky-50 dark:bg-sky-900/20 shadow-[inset_2px_0_0_0_#0ea5e9]'
+                : ''
+            }
+            onClick={(r) => useUIStore.getState().setActiveCell({ rowIndex: r.index, columnId: '' })}
+          />
+        )}
+      </DataTable>
 
       {/* Bulk Action Bar */}
       <BulkActionBar
@@ -741,6 +666,7 @@ export function DeliverableTable({
         entityLabel="Deliverables"
         onDelete={() => setIsDeleteModalOpen(true)}
         onClear={() => setRowSelection({})}
+        canDelete={permissions.can_edit_records}
       />
 
       {/* Delete Confirmation Modal */}

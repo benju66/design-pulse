@@ -24,17 +24,6 @@ export default function DeliverableBoard({
   const viewMode = useUIStore(state => state.deliverablesViewMode);
   const selectedDeliverableId = useUIStore(state => state.selectedOpportunityId);
   
-  if (isLoading) {
-    return (
-      <div className="h-full w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
-          <span className="text-xs text-slate-400 font-medium">Loading Deliverables...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-1 h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       <div className="flex flex-1 h-full w-full overflow-hidden">
@@ -44,8 +33,15 @@ export default function DeliverableBoard({
           selectedDeliverableId ? 'border-r border-slate-200 dark:border-slate-800' : ''
         }`}>
           
-          <div className="flex-1 h-full overflow-hidden">
-            {viewMode.startsWith('table') ? (
+          <div className="flex-1 h-full overflow-hidden flex flex-col relative">
+            {isLoading ? (
+              <div className="h-full w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
+                  <span className="text-xs text-slate-400 font-medium">Loading Deliverables...</span>
+                </div>
+              </div>
+            ) : viewMode.startsWith('table') ? (
               <DeliverableTable 
                 projectId={projectId} 
                 deliverables={deliverables} 

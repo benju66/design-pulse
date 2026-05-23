@@ -91,7 +91,7 @@ export default function DeliverableDetailPanel({ projectId, deliverableId }: { p
       {!isMaximized && (
         <div 
           onMouseDown={startResize}
-          className="absolute left-0 top-0 bottom-0 w-3 -ml-1.5 cursor-col-resize z-25 hover:bg-sky-500/20 active:bg-sky-500/40 transition-colors animate-pulse"
+          className="absolute left-0 top-0 bottom-0 w-3 -ml-1.5 cursor-col-resize z-25 hover:bg-sky-500/30 active:bg-sky-500/40 transition-colors"
         />
       )}
       

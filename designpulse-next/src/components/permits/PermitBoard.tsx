@@ -28,14 +28,6 @@ export default function PermitBoard({
   const viewMode = useUIStore(state => state.permitViewMode);
   const selectedPermitId = useUIStore(state => state.selectedOpportunityId);
   
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-950">
       <div className="flex flex-1 overflow-hidden">
@@ -48,8 +40,12 @@ export default function PermitBoard({
             />
           </div>
 
-          <div className="flex-1 overflow-hidden">
-            {viewMode.startsWith('table') ? (
+          <div className="flex-1 overflow-hidden flex flex-col relative">
+            {isLoading ? (
+              <div className="h-full flex items-center justify-center flex-1 bg-slate-50 dark:bg-slate-950">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
+              </div>
+            ) : viewMode.startsWith('table') ? (
               <PermitTable 
                 projectId={projectId} 
                 permits={permits} 

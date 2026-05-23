@@ -206,11 +206,28 @@ const MemoizedCoordinationRow = React.memo(({
             : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
         }`}
       >
-        {row.getVisibleCells().map((cell) => (
-          <td key={cell.id} className="p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top">
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </td>
-        ))}
+        {row.getVisibleCells().map((cell) => {
+          const isPinned = cell.column.getIsPinned() === 'left';
+          const isLastPinned = isPinned && cell.column.getIsLastColumn('left');
+          const isHighlighted = row.original.id === selectedOpportunityId;
+          return (
+            <td
+              key={cell.id}
+              className={`p-0 h-[1px] border-r border-b border-slate-200 dark:border-slate-800 align-top bg-clip-padding${
+                isPinned
+                  ? ` sticky z-[8] ${
+                      isHighlighted
+                        ? 'bg-sky-50 dark:bg-sky-900/20'
+                        : 'bg-white dark:bg-slate-900'
+                    }`
+                  : ''
+              }${isLastPinned ? ' shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2' : ''}`}
+              style={isPinned ? { left: cell.column.getStart('left') } : {}}
+            >
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </td>
+          );
+        })}
       </tr>
       {viewMode === 'card' && row.getIsExpanded() && (
         <tr>
@@ -328,6 +345,21 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     [projectId, _setCoordColumnOrder]
   );
 
+  // Pin wiring: read user overrides from the shared store slice (same key as VE Matrix / OpportunityGridV2)
+  const userPinningOverrides = useUIStore(
+    state => state.gridColumnPinningOverrides[projectId]
+  ) ?? { pinned: [], unpinned: [] };
+
+  const columnPinning = useMemo(() => {
+    // select + open_panel are always pinned regardless of user overrides
+    const alwaysPinned = ['select', 'open_panel'];
+    const allPinned = new Set([...alwaysPinned, ...userPinningOverrides.pinned]);
+    userPinningOverrides.unpinned.forEach(id => allPinned.delete(id));
+    // Re-add always-pinned after clearing overrides so stale localStorage cannot unpin them
+    alwaysPinned.forEach(id => allPinned.add(id));
+    return { left: Array.from(allPinned) };
+  }, [userPinningOverrides]);
+
   useEffect(() => {
     if (selectedOpportunityId) {
       const element = document.getElementById(`row-${selectedOpportunityId}`);
@@ -346,7 +378,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     },
     {
       id: 'open_panel',
-      header: '',
+      header: () => null,
       size: 40,
       cell: OpenPanelCell,
     },
@@ -491,7 +523,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   const table = useReactTable({
     data: opportunities,
     columns: activeColumns,
-    state: { sorting, globalFilter, columnVisibility: coordColumnVisibility, columnOrder: coordColumnOrder, rowSelection },
+    state: { sorting, globalFilter, columnVisibility: coordColumnVisibility, columnOrder: coordColumnOrder, rowSelection, columnPinning },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     onColumnVisibilityChange: setCoordColumnVisibility,
@@ -623,8 +655,13 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                   {headerGroup.headers.map((header) => (
                     <th 
                       key={header.id} 
-                      className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900"
-                      style={{ width: header.getSize() }}
+                      className={`relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900${
+                        header.column.getIsPinned() === 'left' ? ' sticky z-[12]' : ''
+                      }${header.column.getIsLastColumn('left') ? ' shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] border-r-2' : ''}`}
+                      style={{
+                        width: header.getSize(),
+                        ...(header.column.getIsPinned() === 'left' ? { left: header.column.getStart('left') } : {}),
+                      }}
                     >
                       <div 
                         className={`min-w-0 flex items-center justify-between ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}

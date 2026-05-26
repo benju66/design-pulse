@@ -19,17 +19,28 @@ function formatCurrency(n: number): string {
   return currencyFormatter.format(n);
 }
 
-function getHeatmapClass(pctChange: number): string {
-  const abs = Math.abs(pctChange);
-  if (abs < 0.01) return ''; // effectively zero
+function getHeatmapClass(pctChange: number, delta: number): string {
+  const absDelta = Math.abs(delta);
+  const absPct = Math.abs(pctChange);
 
+  // 1. Noise Gate: Trivial changes under $500 receive no background heatmapping
+  if (absDelta < 500) return '';
+
+  // 2. Executive Escalation: Massive budget deviations (>= $50,000) always receive High Alert
+  if (absDelta >= 50000) {
+    return pctChange > 0
+      ? 'bg-rose-200/70 dark:bg-rose-900/40 text-rose-950 dark:text-rose-50 font-bold'
+      : 'bg-emerald-200/70 dark:bg-emerald-900/40 text-emerald-950 dark:text-emerald-50 font-bold';
+  }
+
+  // 3. Proportional Volatility (for mid-range budget movements between $500 and $50,000)
   if (pctChange > 0) {
-    if (abs >= 0.20) return 'bg-rose-200/70 dark:bg-rose-900/40 text-rose-950 dark:text-rose-50 font-bold';
-    if (abs >= 0.10) return 'bg-rose-100/60 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200 font-semibold';
+    if (absPct >= 0.20) return 'bg-rose-200/70 dark:bg-rose-900/40 text-rose-950 dark:text-rose-50 font-bold';
+    if (absPct >= 0.10) return 'bg-rose-100/60 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200 font-semibold';
     return 'bg-rose-50/70 dark:bg-rose-950/15 text-rose-800 dark:text-rose-300';
   } else {
-    if (abs >= 0.20) return 'bg-emerald-200/70 dark:bg-emerald-900/40 text-emerald-950 dark:text-emerald-50 font-bold';
-    if (abs >= 0.10) return 'bg-emerald-100/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 font-semibold';
+    if (absPct >= 0.20) return 'bg-emerald-200/70 dark:bg-emerald-900/40 text-emerald-950 dark:text-emerald-50 font-bold';
+    if (absPct >= 0.10) return 'bg-emerald-100/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 font-semibold';
     return 'bg-emerald-50/70 dark:bg-emerald-950/15 text-emerald-800 dark:text-emerald-300';
   }
 }
@@ -307,10 +318,22 @@ export const MemoizedMatrixRow = React.memo(
                 const deltaText = delta > 0 ? `+${formatCurrency(delta)}` : delta < 0 ? formatCurrency(delta) : '—';
                 const pctText = delta !== 0 ? `${delta > 0 ? '+' : ''}${(pct * 100).toFixed(1)}%` : '';
 
+                const deltaColorClass = delta > 0 
+                  ? 'text-rose-600 dark:text-rose-400 font-bold' 
+                  : delta < 0 
+                  ? 'text-emerald-600 dark:text-emerald-400 font-bold' 
+                  : 'text-slate-800 dark:text-slate-200';
+
+                const pctColorClass = delta > 0
+                  ? 'text-rose-500/90 dark:text-rose-400/90'
+                  : delta < 0
+                  ? 'text-emerald-500/90 dark:text-emerald-400/90'
+                  : 'text-slate-500 dark:text-slate-400';
+
                 cellContent = (
                   <div className="w-full h-full px-3 py-1 flex flex-col justify-center items-end select-none">
-                    <span className="text-xs font-bold font-mono">{deltaText}</span>
-                    {pctText && <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{pctText}</span>}
+                    <span className={`text-xs font-mono ${deltaColorClass}`}>{deltaText}</span>
+                    {pctText && <span className={`text-[10px] font-semibold ${pctColorClass}`}>{pctText}</span>}
                   </div>
                 );
               }
@@ -329,7 +352,7 @@ export const MemoizedMatrixRow = React.memo(
               } else if (latestAmount !== 0) {
                 pct = latestAmount > 0 ? 1 : -1;
               }
-              cellHeatmapClass = getHeatmapClass(pct);
+              cellHeatmapClass = getHeatmapClass(pct, delta);
             }
 
             return (
@@ -371,7 +394,19 @@ export const MemoizedMatrixRow = React.memo(
 
               const deltaText = delta > 0 ? `+${formatCurrency(delta)}` : delta < 0 ? formatCurrency(delta) : '—';
               const pctText = delta !== 0 ? `${delta > 0 ? '+' : ''}${(pct * 100).toFixed(1)}%` : '';
-              const heatClass = getHeatmapClass(pct);
+              const heatClass = getHeatmapClass(pct, delta);
+
+              const deltaColorClass = delta > 0 
+                ? 'text-rose-600 dark:text-rose-400 font-bold' 
+                : delta < 0 
+                ? 'text-emerald-600 dark:text-emerald-400 font-bold' 
+                : 'text-slate-800 dark:text-slate-200';
+
+              const pctColorClass = delta > 0
+                ? 'text-rose-500/90 dark:text-rose-400/90'
+                : delta < 0
+                ? 'text-emerald-500/90 dark:text-emerald-400/90'
+                : 'text-slate-500 dark:text-slate-400';
 
               return (
                 <td
@@ -380,8 +415,8 @@ export const MemoizedMatrixRow = React.memo(
                   style={{ width: cell.column.getSize() }}
                 >
                   <div className="flex flex-col justify-center items-end h-full select-none">
-                    <span className="text-xs font-bold font-mono">{deltaText}</span>
-                    {pctText && <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{pctText}</span>}
+                    <span className={`text-xs font-mono ${deltaColorClass}`}>{deltaText}</span>
+                    {pctText && <span className={`text-[10px] font-semibold ${pctColorClass}`}>{pctText}</span>}
                   </div>
                 </td>
               );
@@ -403,7 +438,7 @@ export const MemoizedMatrixRow = React.memo(
           }
 
           const isBaseline = versionId === baselineVersionId;
-          const heatClass = isBaseline ? '' : getHeatmapClass(pctChange);
+          const heatClass = isBaseline ? '' : getHeatmapClass(pctChange, amount - baselineAmount);
           const cellNote = row.original[`${versionId}_note` as keyof MatrixRow] as string | undefined;
 
           return (

@@ -372,8 +372,13 @@ export function VersionComparisonViewer({
         aggregationFn: 'sum' as const,
         aggregatedCell: (info: { getValue: () => unknown }) => {
           const sum = info.getValue() as number;
+          const deltaColorClass = sum > 0
+            ? 'text-rose-600 dark:text-rose-400'
+            : sum < 0
+            ? 'text-emerald-600 dark:text-emerald-400'
+            : 'text-slate-800 dark:text-slate-200';
           return (
-            <div className="px-3 py-1.5 text-right tabular-nums text-xs font-bold text-slate-800 dark:text-slate-200">
+            <div className={`px-3 py-1.5 text-right tabular-nums text-xs font-bold ${deltaColorClass}`}>
               {sum !== 0 ? (sum > 0 ? `+${formatCurrency(sum)}` : formatCurrency(sum)) : '—'}
             </div>
           );
@@ -407,8 +412,13 @@ export function VersionComparisonViewer({
           aggregationFn: 'sum' as const,
           aggregatedCell: (info: { getValue: () => unknown }) => {
             const sum = info.getValue() as number;
+            const deltaColorClass = sum > 0
+              ? 'text-rose-600 dark:text-rose-400'
+              : sum < 0
+              ? 'text-emerald-600 dark:text-emerald-400'
+              : 'text-sky-600 dark:text-sky-400';
             return (
-              <div className="px-3 py-1.5 text-right tabular-nums text-xs font-bold text-sky-600 dark:text-sky-400">
+              <div className={`px-3 py-1.5 text-right tabular-nums text-xs font-bold ${deltaColorClass}`}>
                 {sum !== 0 ? (sum > 0 ? `+${formatCurrency(sum)}` : formatCurrency(sum)) : '—'}
               </div>
             );

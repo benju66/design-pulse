@@ -70,13 +70,21 @@ export function KeyDatesTable({
     {
       accessorKey: 'display_id',
       header: 'ID',
-      cell: ({ row }) => (
-        <div className="flex items-center w-full h-full px-2">
-          <span className="px-1.5 py-0.5 text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/60 rounded">
-            {row.original.display_id || 'KD-???'}
-          </span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const idBadgeStyle = {
+          key_date: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/60',
+          deliverable: 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-900/60',
+          permit: 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-900/60',
+        }[row.original.source_type];
+        const fallbackId = { key_date: 'KD-???', deliverable: 'DE-???', permit: 'PER-???' }[row.original.source_type];
+        return (
+          <div className="flex items-center w-full min-h-[28px] px-2">
+            <span className={`px-1.5 py-0.5 text-xs font-bold rounded ${idBadgeStyle}`}>
+              {row.original.display_id || fallbackId}
+            </span>
+          </div>
+        );
+      },
       size: 90,
     },
     {
@@ -109,7 +117,7 @@ export function KeyDatesTable({
         }[row.original.source_type];
         const label = { key_date: 'Key Date', deliverable: 'Deliverable', permit: 'Permit' }[row.original.source_type];
         return (
-          <div className="flex items-center w-full h-full px-2">
+          <div className="flex items-center w-full min-h-[28px] px-2">
             <span className={`px-1.5 py-0.5 text-xs font-bold rounded ${badgeStyle}`}>
               {label}
             </span>

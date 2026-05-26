@@ -255,8 +255,8 @@ export interface ProjectKeyDate {
   updated_at: string;
 }
 
-// Unified Timeline Event — union of standalone key dates + elevated deliverables.
-// Extensible: future sources (permits) add to the source_type union.
+// Unified Timeline Event — union of standalone key dates + elevated deliverables + elevated permits.
+// Extensible: future sources add to the source_type union.
 export interface TimelineEvent {
   id: string;
   project_id: string;
@@ -264,7 +264,7 @@ export interface TimelineEvent {
   title: string;
   description: string | null;
   timeline_date: string; // ISO date format YYYY-MM-DD (timezone stable)
-  source_type: 'key_date' | 'deliverable'; // Future: | 'permit'
+  source_type: 'key_date' | 'deliverable' | 'permit';
   status: string | null; // null for key_dates, deliverable status for elevated items
   assignee: string | null; // null for key_dates
   is_deleted: boolean;

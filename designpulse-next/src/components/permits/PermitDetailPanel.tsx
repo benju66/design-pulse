@@ -302,6 +302,25 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
                 </div>
               </div>
             </section>
+
+            {/* Elevated Key Date Toggle */}
+            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700/60 pt-4 mt-4">
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Elevate to Key Date</span>
+                <span className="text-xs text-slate-400">Surfaces this permit's target approval date on the executive timeline.</span>
+              </div>
+              <button
+                onClick={() => updatePermit.mutate({ id: permit.id, updates: { is_elevated_key_date: !permit.is_elevated_key_date } })}
+                disabled={!permissions?.can_edit_records}
+                className={`w-10 h-5 rounded-full p-0.5 transition-colors focus:outline-none ${
+                  permit.is_elevated_key_date ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'
+                } ${!permissions?.can_edit_records ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                  permit.is_elevated_key_date ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+              </button>
+            </div>
           </div>
         )}
 

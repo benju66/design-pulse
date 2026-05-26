@@ -318,6 +318,7 @@ export interface Database {
           revision_number: number | null
           revision_history: Json | null
           is_deleted: boolean | null
+          is_elevated_key_date: boolean | null
           created_at: string
           updated_at: string
         }
@@ -336,6 +337,7 @@ export interface Database {
           revision_number?: number | null
           revision_history?: Json | null
           is_deleted?: boolean | null
+          is_elevated_key_date?: boolean | null
           created_at?: string
           updated_at?: string
         }
@@ -354,6 +356,7 @@ export interface Database {
           revision_number?: number | null
           revision_history?: Json | null
           is_deleted?: boolean | null
+          is_elevated_key_date?: boolean | null
           created_at?: string
           updated_at?: string
         }

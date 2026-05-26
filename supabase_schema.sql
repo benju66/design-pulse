@@ -186,6 +186,7 @@ CREATE TABLE IF NOT EXISTS permits (
   revision_number integer DEFAULT 0,
   revision_history jsonb DEFAULT '[]'::jsonb,
   is_deleted boolean DEFAULT false,
+  is_elevated_key_date boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );

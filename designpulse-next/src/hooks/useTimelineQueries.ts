@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import { useKeyDates } from './useKeyDateQueries';
 import { useDeliverables } from './useDeliverableQueries';
+import { usePermits } from './usePermitQueries';
 import { TimelineEvent } from '@/types/models';
+import { toDateInputValue } from '@/lib/formatters';
 
 /**
  * Composes useKeyDates + useDeliverables into a single unified timeline.
@@ -21,6 +23,7 @@ import { TimelineEvent } from '@/types/models';
 export function useUnifiedTimeline(projectId: string | null) {
   const { data: keyDates = [], isLoading: keyDatesLoading } = useKeyDates(projectId);
   const { data: deliverables = [], isLoading: deliverablesLoading } = useDeliverables(projectId);
+  const { data: permits = [], isLoading: permitsLoading } = usePermits(projectId);
 
   const timeline = useMemo<TimelineEvent[]>(() => {
     const keyDateEvents: TimelineEvent[] = keyDates.map(kd => ({
@@ -55,12 +58,29 @@ export function useUnifiedTimeline(projectId: string | null) {
         updated_at: d.updated_at,
       }));
 
-    return [...keyDateEvents, ...deliverableEvents]
+    const permitEvents: TimelineEvent[] = permits
+      .filter(p => p.is_elevated_key_date && p.target_approval_date)
+      .map(p => ({
+        id: p.id,
+        project_id: p.project_id,
+        display_id: p.display_id,
+        title: p.title,
+        description: p.description,
+        timeline_date: toDateInputValue(p.target_approval_date) ?? '',
+        source_type: 'permit' as const,
+        status: p.status,
+        assignee: p.assignee,
+        is_deleted: p.is_deleted ?? false,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+      }));
+
+    return [...keyDateEvents, ...deliverableEvents, ...permitEvents]
       .sort((a, b) => (a.timeline_date ?? '').localeCompare(b.timeline_date ?? ''));
-  }, [keyDates, deliverables]);
+  }, [keyDates, deliverables, permits]);
 
   return {
     data: timeline,
-    isLoading: keyDatesLoading || deliverablesLoading,
+    isLoading: keyDatesLoading || deliverablesLoading || permitsLoading,
   };
 }

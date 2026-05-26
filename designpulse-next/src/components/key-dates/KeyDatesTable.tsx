@@ -57,7 +57,7 @@ export function KeyDatesTable({
 
   const moveActiveCellRef = useRef<any>(null);
 
-  const isDeliverableRow = (row: TimelineEvent) => row.source_type === 'deliverable';
+  const isLockedRow = (row: TimelineEvent) => row.source_type !== 'key_date';
 
   const columns = useMemo<ColumnDef<TimelineEvent>[]>(() => [
     {
@@ -82,36 +82,40 @@ export function KeyDatesTable({
     {
       accessorKey: 'title',
       header: 'Title',
-      cell: (info) => <TextCell info={info} isLocked={isDeliverableRow} />,
+      cell: (info) => <TextCell info={info} isLocked={isLockedRow} />,
       size: 280,
     },
     {
       accessorKey: 'description',
       header: 'Description',
-      cell: (info) => <TextCell info={info} isLocked={isDeliverableRow} />,
+      cell: (info) => <TextCell info={info} isLocked={isLockedRow} />,
       size: 350,
     },
     {
       id: 'event_date',
       accessorFn: (row: TimelineEvent) => row.timeline_date,
       header: 'Date',
-      cell: (info) => <DateCell {...info} isLocked={isDeliverableRow} />,
+      cell: (info) => <DateCell {...info} isLocked={isLockedRow} />,
       size: 130,
     },
     {
       accessorKey: 'source_type',
       header: 'Source',
-      cell: ({ row }) => (
-        <div className="flex items-center w-full h-full px-2">
-          <span className={`px-1.5 py-0.5 text-xs font-bold rounded ${
-            row.original.source_type === 'deliverable'
-              ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-900/60'
-              : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/60'
-          }`}>
-            {row.original.source_type === 'deliverable' ? 'Deliverable' : 'Key Date'}
-          </span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const badgeStyle = {
+          key_date: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/60',
+          deliverable: 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-900/60',
+          permit: 'bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-900/60',
+        }[row.original.source_type];
+        const label = { key_date: 'Key Date', deliverable: 'Deliverable', permit: 'Permit' }[row.original.source_type];
+        return (
+          <div className="flex items-center w-full h-full px-2">
+            <span className={`px-1.5 py-0.5 text-xs font-bold rounded ${badgeStyle}`}>
+              {label}
+            </span>
+          </div>
+        );
+      },
       size: 110,
       enableSorting: true,
     },

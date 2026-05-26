@@ -88,6 +88,7 @@ export function useCreatePermit(projectId: string) {
           revision_number: 0,
           revision_history: [],
           is_deleted: false,
+          is_elevated_key_date: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           ...newRow

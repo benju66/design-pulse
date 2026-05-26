@@ -156,3 +156,119 @@ export function resolveStandardCost(
 
   return Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
 }
+
+// ============================================================================
+// Scenario Budget Metrics — What-if analysis with per-opportunity overrides
+// ============================================================================
+
+/**
+ * Scenario-aware budget calculation engine.
+ *
+ * Given a Map of opportunity_id → assumed_option_id overrides (from packages
+ * in a scenario), computes what the budget WOULD look like if those contenders
+ * were locked.
+ *
+ * DR-9: If an assumed option is not found (soft-deleted contender), falls back
+ * to resolveStandardCost() — same EDGE-1 pattern as useSandboxMetrics.
+ *
+ * DR-2: The caller (ScenarioColumn) is responsible for building the overrides
+ * Map with first-package-wins priority (ascending sort_order), matching the
+ * RPC's DISTINCT ON behavior.
+ */
+export function calculateScenarioBudgetMetrics(
+  opportunities: Array<{ id: string; status: string | null; cost_impact: number | null }>,
+  allOptions: Array<{ id: string; opportunity_id: string; cost_impact: number | null; is_locked: boolean | null; include_in_budget: boolean | null }>,
+  originalBudget: number,
+  overrides: Map<string, string>, // oppId → assumed optionId
+): BudgetMetrics {
+  let approved = 0;
+  let pending = 0;
+  let exposure = 0;
+
+  // Pre-group options by opportunity_id (O(m) once)
+  const optionsByOppId = allOptions.reduce<Record<string, typeof allOptions>>((acc, opt) => {
+    acc[opt.opportunity_id] = acc[opt.opportunity_id] || [];
+    acc[opt.opportunity_id].push(opt);
+    return acc;
+  }, {});
+
+  opportunities.forEach(opp => {
+    if (opp.status === 'Rejected') return;
+
+    const oppOptions = optionsByOppId[opp.id] || [];
+    const assumedOptionId = overrides.get(opp.id);
+
+    if (assumedOptionId) {
+      // This opportunity has a scenario override
+      const assumedOption = oppOptions.find(o => o.id === assumedOptionId);
+
+      if (!assumedOption) {
+        // DR-9: Stale ref — option deleted. Fall back to standard cost.
+        const fallbackCost = resolveStandardCost(opp, oppOptions);
+        // Bucket using current status (same as non-overridden path)
+        if (opp.status === 'Approved') approved += fallbackCost;
+        else if (opp.status === 'Pending Review') pending += fallbackCost;
+        else exposure += fallbackCost;
+        return;
+      }
+
+      const assumedCost = Number(assumedOption.cost_impact) || 0;
+      const lockedOption = oppOptions.find(o => o.is_locked);
+
+      if (opp.status === 'Approved' && lockedOption?.id === assumedOptionId) {
+        // Already locked with this exact contender — no change
+        approved += assumedCost;
+      } else if (opp.status === 'Approved') {
+        // Already approved but with a DIFFERENT contender — would re-lock
+        pending += assumedCost;
+      } else {
+        // Draft / Pending Review → scenario "what-if" projection
+        pending += assumedCost;
+      }
+    } else {
+      // No override — use standard bucketing (identical to calculateBudgetMetrics)
+      const hasOptions = oppOptions.length > 0;
+      const lockedOption = oppOptions.find(o => o.is_locked);
+      const oppImpact = Number(opp.cost_impact) || 0;
+
+      if (opp.status === 'Approved' || lockedOption) {
+        const impact = lockedOption ? (Number(lockedOption.cost_impact) || 0) : oppImpact;
+        approved += impact;
+      } else if (opp.status === 'Pending Review') {
+        if (!hasOptions) {
+          pending += oppImpact;
+        } else {
+          const includedOptions = oppOptions.filter(o => o.include_in_budget);
+          if (includedOptions.length > 0) {
+            pending += includedOptions.reduce((sum, o) => sum + (Number(o.cost_impact) || 0), 0);
+          } else {
+            pending += Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
+          }
+        }
+      } else {
+        if (!hasOptions) {
+          exposure += oppImpact;
+        } else {
+          const includedOptions = oppOptions.filter(o => o.include_in_budget);
+          if (includedOptions.length > 0) {
+            exposure += includedOptions.reduce((sum, o) => sum + (Number(o.cost_impact) || 0), 0);
+          } else {
+            exposure += Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
+          }
+        }
+      }
+    }
+  });
+
+  const revisedBudget = originalBudget + approved;
+  const projectedBudget = revisedBudget + pending;
+  return {
+    approvedChanges: approved,
+    pendingChanges: pending,
+    potentialExposure: exposure,
+    revisedBudget,
+    projectedBudget,
+    netImpact: approved + pending + exposure,
+    itemCount: opportunities.filter(o => o.status !== 'Rejected').length,
+  };
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Package, Plus, X, GitCompareArrows, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useUIStore } from '@/stores/useUIStore';
@@ -28,6 +28,12 @@ export function SandboxPanel({ projectId, canEdit }: SandboxPanelProps) {
   const { data: settings } = useProjectSettings(projectId);
   const originalBudget = settings ? Number(settings.original_budget) : 0;
   const { data: packages = [] } = useVePackages(projectId);
+
+  // Scope label resolution (DR-6)
+  const scopeLabelsById = useMemo(
+    () => new Map((settings?.package_scopes ?? []).map(s => [s.id, s.label])),
+    [settings?.package_scopes]
+  );
 
   const createPkg = useCreatePackage(projectId);
 
@@ -131,6 +137,7 @@ export function SandboxPanel({ projectId, canEdit }: SandboxPanelProps) {
                 isActive={activeSandboxPackageId === pkg.id}
                 onActivate={() => setActiveSandboxPackageId(pkg.id)}
                 onDeactivate={() => setActiveSandboxPackageId(null)}
+                scopeLabel={pkg.scope_id ? scopeLabelsById.get(pkg.scope_id) : undefined}
               />
             ))
           )}

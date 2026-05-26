@@ -66,6 +66,7 @@ const DEFAULT_COORD_COLUMNS = [
 const VALID_SETTINGS_TABS = new Set<SettingsTab>([
   'info', 'team', 'building_areas', 'categories', 'drawings',
   'csi_specs', 'estimate', 'sidebar', 've_matrix', 'coord_matrix', 'brand_standards', 'permits',
+  'packages'
 ]);
 
 const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps) => {
@@ -610,6 +611,16 @@ export const ProjectSettings = ({
                 }`}
               >
                 <LucideIcons.FileCheck2 size={16} className={activeTab === 'permits' ? 'text-sky-500' : 'text-slate-400'} /> Permits
+              </button>
+              <button
+                onClick={() => onTabChange('packages')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'packages' 
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' 
+                    : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <LucideIcons.Package size={16} className={activeTab === 'packages' ? 'text-sky-500' : 'text-slate-400'} /> Packages
               </button>
             </nav>
           </div>
@@ -1321,6 +1332,23 @@ export const ProjectSettings = ({
                 </div>
               </SortableContext>
             </DndContext>
+          </div>
+        </div>
+      )}
+
+      {displayTab === 'packages' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in space-y-6">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Package Scopes</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Define scope labels to organize VE packages by category (e.g., &quot;Interior&quot;, &quot;Exterior&quot;, &quot;MEP&quot;).
+              Scopes are used in the Scenario Planner to group and filter packages.
+            </p>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">
+              To manage package scopes, use the <strong>&quot;Manage Scopes&quot;</strong> button in the Scenario Planner view.
+            </p>
           </div>
         </div>
       )}

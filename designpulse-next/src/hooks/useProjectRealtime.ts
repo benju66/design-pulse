@@ -24,6 +24,7 @@ export function useProjectRealtime(projectId: string | null) {
         queryClient.invalidateQueries({ queryKey: ['deliverables', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['key-dates', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['ve-packages', projectId], refetchType: 'active' });
+        queryClient.invalidateQueries({ queryKey: ['ve-scenarios', projectId], refetchType: 'active' });
       }, 300);
     };
 
@@ -71,6 +72,16 @@ export function useProjectRealtime(projectId: string | null) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 've_package_items', filter: `project_id=eq.${projectId}` },
+        debouncedInvalidate
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 've_scenarios', filter: `project_id=eq.${projectId}` },
+        debouncedInvalidate
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 've_scenario_packages', filter: `project_id=eq.${projectId}` },
         debouncedInvalidate
       )
       .subscribe();

@@ -130,6 +130,7 @@ export interface Database {
           created_at: string
           updated_at: string
           enable_audit_logging: boolean | null
+          package_scopes: Json | null
         }
         Insert: {
           project_id: string
@@ -143,6 +144,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           enable_audit_logging?: boolean | null
+          package_scopes?: Json | null
         }
         Update: {
           project_id?: string
@@ -156,6 +158,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           enable_audit_logging?: boolean | null
+          package_scopes?: Json | null
         }
       }
       project_sequences: {

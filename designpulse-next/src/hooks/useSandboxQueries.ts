@@ -77,8 +77,8 @@ export function useVePackages(projectId: string | null) {
 export function useCreatePackage(projectId: string) {
   const queryClient = useQueryClient();
 
-  return useMutation<VePackage, Error, { name?: string; color?: string }>({
-    mutationFn: async ({ name, color } = {}) => {
+  return useMutation<VePackage, Error, { name?: string; color?: string; scope_id?: string | null }>({
+    mutationFn: async ({ name, color, scope_id } = {}) => {
       // Get current max sort_order for positioning
       const existing = queryClient.getQueryData<VePackageWithItems[]>(PACKAGES_KEY(projectId));
       const maxSort = existing?.reduce((max, p) => Math.max(max, p.sort_order), -1) ?? -1;
@@ -90,6 +90,7 @@ export function useCreatePackage(projectId: string) {
           name: name || 'New Package',
           color: color || 'violet',
           sort_order: maxSort + 1,
+          scope_id: scope_id ?? null,
         })
         .select()
         .single();
@@ -116,7 +117,7 @@ export function useUpdatePackage(projectId: string) {
   return useMutation<
     VePackage,
     Error,
-    { id: string; updates: Partial<Pick<VePackage, 'name' | 'color' | 'notes' | 'sort_order'>> },
+    { id: string; updates: Partial<Pick<VePackage, 'name' | 'color' | 'notes' | 'sort_order' | 'scope_id'>> },
     { previous: VePackageWithItems[] | undefined }
   >({
     mutationFn: async ({ id, updates }) => {
@@ -410,6 +411,7 @@ export function useDuplicatePackage(projectId: string) {
           name: `${sourcePackage.name} (Copy)`,
           color: sourcePackage.color,
           notes: sourcePackage.notes,
+          scope_id: sourcePackage.scope_id ?? null,
           sort_order: sourcePackage.sort_order + 1,
         })
         .select()

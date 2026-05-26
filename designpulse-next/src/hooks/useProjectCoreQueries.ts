@@ -168,7 +168,8 @@ export function useProjectSettings(projectId: string | null) {
         location: settings.location || defaultSettings.location,
         original_budget: settings.original_budget ?? defaultSettings.original_budget,
         enable_audit_logging: settings.enable_audit_logging ?? defaultSettings.enable_audit_logging,
-        ve_column_order: settings.ve_column_order ?? defaultSettings.ve_column_order
+        ve_column_order: settings.ve_column_order ?? defaultSettings.ve_column_order,
+        package_scopes: Array.isArray((settings as any).package_scopes) ? (settings as any).package_scopes : [],
       } as ProjectSettings;
     },
     enabled: !!projectId

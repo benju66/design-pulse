@@ -19,6 +19,7 @@ interface PackageCardProps {
   isActive: boolean;
   onActivate: () => void;
   onDeactivate: () => void;
+  scopeLabel?: string;
 }
 
 const COLOR_BORDER: Record<string, string> = {
@@ -40,7 +41,7 @@ const fmt = (n: number) =>
 
 export function PackageCard({
   pkg, projectId, canEdit, allOpportunities, allOptions, originalBudget,
-  isActive, onActivate, onDeactivate,
+  isActive, onActivate, onDeactivate, scopeLabel,
 }: PackageCardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -122,6 +123,11 @@ export function PackageCard({
         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium shrink-0">
           ({pkg.items.length})
         </span>
+        {scopeLabel && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
+            {scopeLabel}
+          </span>
+        )}
 
         {canEdit && (
           <div className="relative shrink-0" ref={menuRef}>

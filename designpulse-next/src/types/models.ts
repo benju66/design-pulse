@@ -66,6 +66,7 @@ export type ProjectSettings = Database['public']['Tables']['project_settings']['
   coord_column_order?: any[]; // New column for Coordination Board
   permit_types?: PermitTypeConfig[];
   permit_ahjs?: PermitAHJConfig[];
+  package_scopes?: PackageScopeConfig[];
 };
 export type Project = Database['public']['Tables']['projects']['Row'] & {
   project_number?: string | null;
@@ -160,6 +161,10 @@ export interface PermitTypeConfig {
   label: string;
 }
 export interface PermitAHJConfig {
+  id: string;
+  label: string;
+}
+export interface PackageScopeConfig {
   id: string;
   label: string;
 }

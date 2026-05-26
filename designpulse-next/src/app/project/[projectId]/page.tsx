@@ -27,11 +27,18 @@ const VersionComparisonViewer = dynamic(
     m => ({ default: m.VersionComparisonViewer })
   )
 );
+const ScenarioPlannerView = dynamic(
+  () => import('@/components/views/ScenarioPlannerView').then(
+    m => ({ default: m.ScenarioPlannerView })
+  ),
+  { ssr: false }
+);
 
 // ── Module-level navigation type guards ─────────────────────────────────────────
 const VALID_PROJECT_VIEWS = new Set<ProjectView>([
   'dashboard', 'dashboard-v2', 'budget-compare', 'map', 'analytics',
-  'coordination', 'permits', 'deliverables', 'my-desk', 'settings', 'lessons', 'key-dates'
+  'coordination', 'permits', 'deliverables', 'my-desk', 'settings', 'lessons', 'key-dates',
+  'scenario-planner'
 ]);
 function isProjectView(v: string | undefined): v is ProjectView {
   return !!v && VALID_PROJECT_VIEWS.has(v as ProjectView);
@@ -40,6 +47,7 @@ function isProjectView(v: string | undefined): v is ProjectView {
 const VALID_SETTINGS_TABS = new Set<SettingsTab>([
   'info', 'team', 'building_areas', 'categories', 'drawings',
   'csi_specs', 'estimate', 'sidebar', 've_matrix', 'coord_matrix', 'brand_standards', 'permits',
+  'packages'
 ]);
 function isSettingsTab(v: string | undefined): v is SettingsTab {
   return !!v && VALID_SETTINGS_TABS.has(v as SettingsTab);
@@ -143,6 +151,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
             <div className="flex-1 overflow-hidden">
               <LessonsLearnedView projectId={projectId} />
             </div>
+          )}
+
+          {currentView === 'scenario-planner' && (
+            <ScenarioPlannerView projectId={projectId} />
           )}
 
         </div>

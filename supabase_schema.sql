@@ -621,7 +621,8 @@ BEGIN
     'project_deliverables', 'project_key_dates',
     'estimate_variance_notes',
     'project_lessons', 'project_brand_standards',
-    've_packages', 've_package_items'
+    've_packages', 've_package_items',
+    've_scenarios', 've_scenario_packages'
   ) THEN
     v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
   ELSIF TG_TABLE_NAME IN ('clients', 'client_brand_standards', 'client_documents') THEN
@@ -652,7 +653,7 @@ BEGIN
       'opportunities', 'opportunity_options', 'permits',
       'project_deliverables', 'project_key_dates',
       'project_lessons', 'project_brand_standards',
-      've_packages'
+      've_packages', 've_scenarios'
     ) AND OLD.is_deleted = false AND NEW.is_deleted = true THEN
       INSERT INTO audit_logs (record_id, table_name, action_type, old_payload, user_id, project_id) VALUES (NEW.id, TG_TABLE_NAME, 'SOFT_DELETE', row_to_json(OLD)::jsonb, auth.uid(), v_project_id);
     ELSE

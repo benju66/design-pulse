@@ -16,7 +16,8 @@ export type ProjectView =
   | 'my-desk'
   | 'settings'
   | 'lessons'
-  | 'key-dates';
+  | 'key-dates'
+  | 'scenario-planner';
 
 export type SettingsTab =
   | 'info'
@@ -30,7 +31,8 @@ export type SettingsTab =
   | 've_matrix'
   | 'coord_matrix'
   | 'brand_standards'
-  | 'permits';
+  | 'permits'
+  | 'packages';
 
 // Flat view mode — matches coordinationViewMode / permitViewMode store pattern
 export type VEGridViewMode = 'split' | 'flat' | 'card';
@@ -512,7 +514,7 @@ export const useUIStore = create<UIState>()(
         keyDatesColumnOrder: state.keyDatesColumnOrder ?? {},
         isSandboxPanelOpen: state.isSandboxPanelOpen ?? false,
       }),
-      version: 14,
+      version: 15,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -629,6 +631,10 @@ export const useUIStore = create<UIState>()(
             isSandboxPanelOpen: false,
             activeSandboxPackageId: null,
           } as unknown as UIState;
+        }
+        if (version < 15) {
+          // v14 → v15: added scenario-planner view + packages settings tab — no new persisted fields
+          return state as UIState;
         }
         return state as UIState;
       },

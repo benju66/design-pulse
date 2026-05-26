@@ -1,14 +1,12 @@
 // ============================================================================
-// VE Sandbox Packages — Domain Types
+// VE Scenarios — Domain Types
 // ============================================================================
 
-export interface VePackage {
+export interface VeScenario {
   id: string;
   project_id: string;
   name: string;
-  color: string;
-  notes: string | null;
-  scope_id: string | null;  // Loose FK → project_settings.package_scopes[].id
+  description: string | null;
   sort_order: number;
   created_by: string | null;
   is_deleted: boolean;
@@ -16,16 +14,15 @@ export interface VePackage {
   updated_at: string;
 }
 
-export interface VePackageItem {
+export interface VeScenarioPackage {
   id: string;
+  scenario_id: string;
   package_id: string;
-  opportunity_id: string;
   project_id: string;
-  assumed_option_id: string | null;
   sort_order: number;
   created_at: string;
 }
 
-export interface VePackageWithItems extends VePackage {
-  items: VePackageItem[];
+export interface VeScenarioWithPackages extends VeScenario {
+  scenarioPackages: VeScenarioPackage[];
 }

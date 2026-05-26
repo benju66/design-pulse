@@ -5,11 +5,10 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, useSortable, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Table, Column } from '@tanstack/react-table';
-import { Opportunity } from '@/types/models';
 import { useUIStore } from '@/stores/useUIStore';
 
 interface SortableColumnItemProps {
-  column: Column<Opportunity, unknown>;
+  column: Column<any, unknown>;
   onTogglePin: (id: string, isPinned: boolean) => void;
 }
 
@@ -34,21 +33,17 @@ const SortableColumnItem = ({ column, onTogglePin }: SortableColumnItemProps) =>
         <GripVertical size={14} />
       </div>
       
-      <div className="relative group flex items-center justify-center">
-        <button
-          onClick={() => onTogglePin(column.id, !isPinned)}
-          className={`p-1 rounded transition-colors ${
-            isPinned 
-              ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30' 
-              : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-          }`}
-        >
-          {isPinned ? <Pin size={14} className="fill-sky-500" /> : <PinOff size={14} />}
-        </button>
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[100]">
-          {isPinned ? 'Unpin column' : 'Pin to left side'}
-        </div>
-      </div>
+      <button
+        onClick={() => onTogglePin(column.id, !isPinned)}
+        title={isPinned ? 'Unpin column' : 'Pin to left side'}
+        className={`p-1 rounded transition-colors ${
+          isPinned 
+            ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30' 
+            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+        }`}
+      >
+        {isPinned ? <Pin size={14} className="fill-sky-500" /> : <PinOff size={14} />}
+      </button>
 
       <label className="flex items-center gap-2 flex-1 cursor-pointer pl-1">
         <div className="relative flex items-center justify-center">
@@ -69,12 +64,14 @@ const SortableColumnItem = ({ column, onTogglePin }: SortableColumnItemProps) =>
 };
 
 interface ColumnChooserProps {
-  table: Table<Opportunity>;
+  table: Table<any>;
   projectId: string;
   onReset?: () => void;
+  onTogglePin?: (columnId: string, isPinned: boolean) => void;
+  onClearPins?: () => void;
 }
 
-export const ColumnChooser = ({ table, projectId, onReset }: ColumnChooserProps) => {
+export const ColumnChooser = ({ table, projectId, onReset, onTogglePin, onClearPins }: ColumnChooserProps) => {
   const toggleUserColumnPin = useUIStore(state => state.toggleUserColumnPin);
   const clearUserColumnPinOverrides = useUIStore(state => state.clearUserColumnPinOverrides);
   const [isOpen, setIsOpen] = useState(false);
@@ -161,7 +158,13 @@ export const ColumnChooser = ({ table, projectId, onReset }: ColumnChooserProps)
                     <SortableColumnItem 
                       key={column.id} 
                       column={column} 
-                      onTogglePin={(id, isPinned) => toggleUserColumnPin(projectId, id, isPinned)}
+                      onTogglePin={(id, isPinned) => {
+                        if (onTogglePin) {
+                          onTogglePin(id, isPinned);
+                        } else {
+                          toggleUserColumnPin(projectId, id, isPinned);
+                        }
+                      }}
                     />
                   ))}
                 </ul>
@@ -178,7 +181,11 @@ export const ColumnChooser = ({ table, projectId, onReset }: ColumnChooserProps)
                   table.setColumnVisibility({});
                   table.setColumnOrder([]);
                 }
-                clearUserColumnPinOverrides(projectId);
+                if (onClearPins) {
+                  onClearPins();
+                } else {
+                  clearUserColumnPinOverrides(projectId);
+                }
               }}
               className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2 py-1 transition-colors"
             >

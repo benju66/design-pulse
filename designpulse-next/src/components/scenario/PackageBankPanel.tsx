@@ -9,6 +9,8 @@ import { useCreatePackage } from '@/hooks/useSandboxQueries';
 import type { VePackageWithItems } from '@/types/sandbox';
 import type { VeScenarioWithPackages } from '@/types/scenario';
 
+const EMPTY_DOTS: never[] = [];
+
 interface PackageBankPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -65,6 +67,7 @@ function DraggablePackageCard({
           {...attributes}
           {...listeners}
           className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400 transition-colors shrink-0"
+          aria-label="Drag to add to scenario"
         >
           <GripVertical size={14} />
         </div>
@@ -197,6 +200,7 @@ export function PackageBankPanel({
         <button
           onClick={onClose}
           className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+          aria-label="Close package bank"
         >
           <X size={18} />
         </button>
@@ -212,6 +216,7 @@ export function PackageBankPanel({
             onChange={e => setSearch(e.target.value)}
             placeholder="Search packages…"
             className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+            aria-label="Search packages"
           />
         </div>
       </div>
@@ -229,7 +234,7 @@ export function PackageBankPanel({
               pkg={pkg}
               scopeLabel={pkg.scope_id ? scopeLabelsById.get(pkg.scope_id) : undefined}
               isInSelected={selectedPkgIds.has(pkg.id)}
-              scenarioDots={scenarioDotsMap.get(pkg.id) || []}
+              scenarioDots={scenarioDotsMap.get(pkg.id) || EMPTY_DOTS}
               canDrag={canEdit}
               canClick={canEdit && !!selectedScenarioId}
               onClickAdd={() => onClickAdd(pkg.id)}

@@ -929,3 +929,51 @@ export function useReturnOpportunity(projectId: string | null) {
     },
   });
 }
+
+export function useBulkUpdateCoordinationStatus(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    { ids: string[]; newStatus: string },
+    { previousOpportunities: Opportunity[] | undefined }
+  >({
+    mutationFn: async ({ ids, newStatus }) => {
+      const { error } = await supabase
+        .from('opportunities')
+        .update({ coordination_status: newStatus })
+        .in('id', ids);
+      if (error) throw new Error(error.message || JSON.stringify(error));
+    },
+    onMutate: async ({ ids, newStatus }) => {
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+      
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp => 
+          ids.includes(opp.id) 
+            ? { ...opp, coordination_status: newStatus } 
+            : opp
+        );
+      });
+
+      return { previousOpportunities };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+      console.error('Bulk Update Status Error:', err);
+      toast.error(`Failed to bulk update status: ${err.message || 'Unknown error'}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['master-ledger-grid', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['budget-waterfall', projectId] });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+    }
+  });
+}
+

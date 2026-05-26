@@ -4,18 +4,21 @@ import { Plus, X } from 'lucide-react';
 import { Table, Column } from '@tanstack/react-table';
 import { Opportunity } from '@/types/models';
 import { UseMutationResult } from '@tanstack/react-query';
+import { useUIStore } from '@/stores/useUIStore';
 
 interface GhostRowProps {
   table: Table<Opportunity>;
   createMutation: UseMutationResult<Opportunity, Error, Partial<Opportunity>, unknown>;
+  defaultValues?: Partial<Opportunity>;
 }
 
-export default function GhostRow({ table, createMutation }: GhostRowProps) {
+export default function GhostRow({ table, createMutation, defaultValues = {} }: GhostRowProps) {
   const [pendingRow, setPendingRow] = useState<Partial<Opportunity>>({});
   const [ghostError, setGhostError] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   const submitGhostRow = () => {
+    if (createMutation.isPending) return;
     if (!pendingRow.title?.trim()) {
       setGhostError(true);
       setTimeout(() => setGhostError(false), 2000);
@@ -23,9 +26,14 @@ export default function GhostRow({ table, createMutation }: GhostRowProps) {
       return;
     }
     const newId = crypto.randomUUID();
-    createMutation.mutate({ ...pendingRow, id: newId }, { 
-      onSuccess: () => {
+    createMutation.mutate({ ...defaultValues, ...pendingRow, id: newId }, { 
+      onSuccess: (newRecord) => {
         setPendingRow({});
+        
+        // Post-Add Viewport Scroll Selection Focus
+        const { setSelectedOpportunityId } = useUIStore.getState();
+        setSelectedOpportunityId(newRecord.id);
+
         if (titleInputRef.current) titleInputRef.current.focus();
       } 
     });
@@ -44,17 +52,20 @@ export default function GhostRow({ table, createMutation }: GhostRowProps) {
             <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-center">
               <div className="flex items-center justify-center gap-1">
                 <button
+                  type="button"
                   onClick={submitGhostRow}
-                  className="p-1 bg-sky-500 hover:bg-sky-600 text-white rounded shadow-sm transition-colors"
+                  disabled={createMutation.isPending}
+                  className="p-1 bg-sky-500 hover:bg-sky-600 disabled:bg-sky-300 text-white rounded shadow-sm transition-colors cursor-pointer disabled:cursor-not-allowed border-none flex items-center justify-center"
                   title="Add Opportunity"
                 >
                   <Plus size={16} />
                 </button>
                 <button
+                  type="button"
                   onClick={clearPendingRow}
-                  disabled={!hasPendingData}
-                  className={`p-1 rounded shadow-sm transition-colors ${
-                    hasPendingData 
+                  disabled={!hasPendingData || createMutation.isPending}
+                  className={`p-1 rounded shadow-sm transition-colors border-none flex items-center justify-center ${
+                    hasPendingData && !createMutation.isPending
                       ? 'bg-slate-200 hover:bg-rose-500 text-slate-500 hover:text-white cursor-pointer' 
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'
                   }`}
@@ -67,7 +78,7 @@ export default function GhostRow({ table, createMutation }: GhostRowProps) {
           );
         }
         if (column.id === 'expander') {
-          return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-slate-400 text-center text-xs font-bold">+</td>;
+          return <td key={column.id} className="p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle text-slate-400 text-center text-xs font-bold">+</td  >;
         }
         if (column.id === 'title' || column.id === 'item_definition') {
           return (
@@ -76,16 +87,22 @@ export default function GhostRow({ table, createMutation }: GhostRowProps) {
                 ref={titleInputRef}
                 autoFocus
                 type="text"
-                placeholder="+ Add Item..."
+                placeholder={createMutation.isPending ? "Saving new item..." : "+ Add Item..."}
+                disabled={createMutation.isPending}
                 value={pendingRow.title || ''}
                 onChange={(e) => setPendingRow(prev => ({ ...prev, title: e.target.value }))}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     submitGhostRow();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setPendingRow({});
+                    setGhostError(false);
+                    if (titleInputRef.current) titleInputRef.current.blur();
                   }
                 }}
-                className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400/70 dark:placeholder-slate-500/70 italic ${ghostError ? 'ring-2 ring-rose-500 animate-pulse' : ''}`}
+                className={`w-full h-full bg-transparent border-none outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 relative px-2 py-1 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400/70 dark:placeholder-slate-500/70 italic disabled:opacity-50 ${ghostError ? 'ring-2 ring-rose-500 animate-pulse' : ''}`}
               />
             </td>
           );

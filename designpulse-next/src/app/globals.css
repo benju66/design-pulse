@@ -166,7 +166,7 @@ select option, select optgroup {
 }
 
 .dt-toolbar {
-  @apply bg-slate-50 dark:bg-slate-900/50 p-3 rounded-t-xl
+  @apply bg-slate-50 dark:bg-slate-900/50 p-3
          border-b border-slate-200 dark:border-slate-800
          flex items-center gap-3 flex-wrap;
 }

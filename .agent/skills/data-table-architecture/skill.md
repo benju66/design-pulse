@@ -141,6 +141,22 @@ The Value Matrix uses the `extraActions` slot for the "Compare Options" button:
 
 ---
 
+## Bulk Operations & Status Transitions
+
+When extending the `BulkActionBar` with batch mutations (such as bulk state updates, assignments, or custom tagging):
+
+1. **Contextual Action Injection**: Render custom dropdown menus or buttons strictly inside the `extraActions` render slot. Never modify the core `<BulkActionBar>` wrapper directly.
+2. **Transaction Integrity & Pre-Flight Checks**:
+   - Filter or separate locked records (e.g. Approved rows with immutable financial fields) on the client before initiating queries.
+   - Display a warning notification (toast) informing the user of any items that were skipped or blocked by validation criteria.
+3. **Double-Submission prevention**:
+   - Ensure all bulk buttons are disabled programmatically while mutations are active (`disabled={isBatchPending}`).
+   - Show a visual loading indicator or spinner to indicate background updates are in progress.
+4. **Post-Mutation viewport Reset**:
+   - On successful transaction completion, clear the active selection (`setRowSelection({})`) to reset the table viewport and slide the bulk action bar away.
+
+---
+
 ## Migration Checklist
 
 When migrating a table to use shared components:
@@ -151,6 +167,98 @@ When migrating a table to use shared components:
 4. **Columns**: Replace inline checkbox column def with shared `CheckboxCell` / `CheckboxHeader`.
 5. **Render**: Replace inline bulk action bar JSX → `<BulkActionBar>`. Replace inline delete modal JSX → `<DeleteConfirmModal>`. Replace domain-specific GhostRow → `<GhostRow>` with configuration props.
 6. **Build**: Run `npx tsc --noEmit` to verify no type errors.
+
+---
+
+## Unified Grid Aesthetics, Pinning, and Spacing Standards
+
+To guarantee a premium, visually-consistent, and ultra-high-performance SaaS layout across all workspaces, the application mandates a unified set of layout, spacing, and structural corner aesthetics.
+
+### 1. Spacing & The Vertical Layout Runway
+* **The Margin Standard**: To prevent visual overlap and keep a clean hierarchy, all workspace pages containing a summary dashboard (analytics) and a table log (grid) MUST separate them with a standard **16px (1rem)** vertical gap.
+* **The Implementation**: Always wrap the summary component inside a `<div className="shrink-0 mb-4">` container. This is standard across:
+  - Value Matrix (`ValueMatrixView.tsx` wraps `BudgetSummary`)
+  - Coordination Board (`CoordinationView.tsx` wraps `CoordinationSummary`)
+  - Budget Ledger (`BudgetLedgerView.tsx` wraps `BudgetSummaryV2`)
+  - Permit Board (`PermitBoard.tsx` wraps `PermitSummary`)
+
+### 2. Table Corner Shape Standardization
+* **The Standard**: All table grid containers MUST feature **structurally square 90-degree top corners** and **rounded bottom corners (`rounded-b-xl`)**.
+* **The Outer Card Wrapper**: Apply `rounded-b-xl` instead of `rounded-xl` on the outer parent card div.
+* **The Toolbar & Overflow**: 
+  - Remove `rounded-t-xl` from the top child toolbar container (or from `.dt-toolbar` class in `globals.css`).
+  - Do NOT apply `overflow-hidden` to the outermost parent table card wrapper. This prevents absolute-positioned selectors and popovers (such as assignee dropdowns or CSI spec pickers) from being clipped at the boundaries of virtualized rows. The grid viewport (`<DataTable>`) has its own `rounded-b-xl` to clip table body scrollbars correctly at the bottom.
+
+### 3. Toolbar Search & Title Standardization
+* **The Standard**: All tables MUST display a bold title label on the left-most side of the toolbar, immediately followed by the search input (`w-64`) and a vertical divider line.
+* **Shared `TableToolbar` Mappings**: For tables using the shared `<TableToolbar>` component (e.g. Deliverables & Key Dates), do not write custom markup. Instead, pass the standard title label and divider through the `leadingSlot` prop:
+  ```tsx
+  leadingSlot={
+    <div className="flex items-center gap-2 shrink-0">
+      <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Deliverables List</span>
+      <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0 mr-2" />
+    </div>
+  }
+  ```
+
+### 4. Column Pinning State Management & Overrides
+* **Table Config Binding**: All grids supporting selection, status, or split drawers must pass the dynamic pinning slice inside their core TanStack configuration:
+  ```typescript
+  const table = useReactTable({
+    state: { columnPinning, ... },
+    onColumnPinningChange: setColumnPinning, // optional override
+    ...
+  });
+  ```
+* **Store Persistence**: Custom user column pinning overrides are persisted globally inside the Zustand store (`useUIStore.ts`) under the project-scoped slice `gridColumnPinningOverrides[projectId]`.
+* **Structural Pinned Columns**: Baseline system-locked columns (`['select', 'open_panel']` for standard grids; `['select', 'open_panel', 'item_definition']` for budget ledger grids) are always pinned to the left by default.
+
+### 2. Core Primitives Pinning Layouts
+Column pinning math and styling is compiled natively within the shared layout layer:
+
+* **Sticky Headers (`TableHeader.tsx`)**:
+  The shared header compiler must check if a column is pinned:
+  ```typescript
+  const isPinned = header.column.getIsPinned() === 'left';
+  const isLastPinned = isPinned && header.column.getIsLastColumn('left');
+  ```
+  If pinned, apply sticky positioning, horizontal scroll offset coordinates, and the global rail shadow separator:
+  - Pinned Tailwind classes: `sticky z-30 bg-slate-100 dark:bg-slate-900 bg-clip-padding`
+  - Offset style: `style={{ left: header.column.getStart('left') }}`
+  - Edge Separator style: `${isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2' : ''}`
+
+* **Sticky Row Cells (`MemoizedRow.tsx` / Custom Rows)**:
+  Body cells must automatically follow the header's sticky coordinates:
+  ```typescript
+  const isPinned = cell.column.getIsPinned() === 'left';
+  const isLastPinned = isPinned && cell.column.getIsLastColumn('left');
+  ```
+  If pinned, render the cell stickily:
+  - Pinned Tailwind classes: `sticky z-10 bg-white dark:bg-slate-900 bg-clip-padding`
+  - Offset style: `style={{ left: cell.column.getStart('left') }}`
+  - Edge Separator style: `${isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2' : ''}`
+
+### 3. Rendering Performance & Row Comparator Contract
+* **The Render Gate**: Virtualized lists stutter or fail to reposition sticky cells when column overrides update if row comparators prevent re-renders. 
+* **The Comparator Standard**: All custom row comparators (and the generic `defaultRowComparator`) MUST include visibility and pinning offsets hashes:
+  ```typescript
+  export interface MemoizedRowProps<TData> {
+    row: Row<TData>;
+    isSelected?: boolean;
+    visibleColumnIds?: string;       // Joined column IDs e.g. "select,display_id,title"
+    pinnedColumnOffsets?: string;    // Joined coordinate offsets e.g. "0,45,85"
+    // ...
+  }
+
+  function defaultRowComparator<TData>(prev: MemoizedRowProps<TData>, next: MemoizedRowProps<TData>): boolean {
+    if (prev.row.original !== next.row.original) return false;
+    if (prev.isSelected !== next.isSelected) return false;
+    if (prev.className !== next.className) return false;
+    if (prev.visibleColumnIds !== next.visibleColumnIds) return false;
+    if (prev.pinnedColumnOffsets !== next.pinnedColumnOffsets) return false;
+    return true;
+  }
+  ```
 
 ---
 

@@ -6,6 +6,7 @@ import { X, ChevronDown, ChevronRight, Package, GripVertical } from 'lucide-reac
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { VePackageWithItems } from '@/types/sandbox';
+import type { OpportunityOption } from '@/types/models';
 
 interface ScenarioPackageCellProps {
   pkg: VePackageWithItems;
@@ -13,8 +14,8 @@ interface ScenarioPackageCellProps {
   scopeLabel?: string;
   onRemove?: () => void;
   canEdit: boolean;
-  allOpportunities: Array<{ id: string; title: string; display_id?: string | null }>;
-  allOptions: Array<{ id: string; opportunity_id: string; option_label: string | null; cost_impact: number | null }>;
+  optionsById: Map<string, OpportunityOption>;
+  opportunitiesById: Map<string, { id: string; title: string; display_id?: string | null }>;
 }
 
 const fmt = (n: number) =>
@@ -26,8 +27,8 @@ export function ScenarioPackageCell({
   scopeLabel,
   onRemove,
   canEdit,
-  allOpportunities,
-  allOptions,
+  optionsById,
+  opportunitiesById,
 }: ScenarioPackageCellProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -55,7 +56,7 @@ export function ScenarioPackageCell({
   // Calculate net impact for this package
   const netImpact = pkg.items.reduce((sum, item) => {
     if (!item.assumed_option_id) return sum;
-    const opt = allOptions.find(o => o.id === item.assumed_option_id);
+    const opt = item.assumed_option_id ? optionsById.get(item.assumed_option_id) : undefined;
     return sum + (Number(opt?.cost_impact) || 0);
   }, 0);
 
@@ -81,6 +82,8 @@ export function ScenarioPackageCell({
             {...attributes}
             {...listeners}
             className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400 transition-colors shrink-0"
+            aria-label="Drag to reorder"
+            aria-roledescription="sortable"
           >
             <GripVertical size={14} />
           </div>
@@ -97,6 +100,8 @@ export function ScenarioPackageCell({
           <button
             onClick={() => setExpanded(!expanded)}
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            aria-expanded={expanded}
+            aria-label="Toggle package details"
           >
             <Chevron size={14} />
           </button>
@@ -139,7 +144,7 @@ export function ScenarioPackageCell({
           <button
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
             className="text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition-colors p-0.5"
-            title="Remove from scenario"
+            aria-label="Remove package from scenario"
           >
             <X size={14} />
           </button>
@@ -150,15 +155,15 @@ export function ScenarioPackageCell({
       {expanded && !isDragging && pkg.items.length > 0 && (
         <div className="border-t border-slate-100 dark:border-slate-800 px-3 py-2 space-y-1">
           {pkg.items.map(item => {
-            const opp = allOpportunities.find(o => o.id === item.opportunity_id);
-            const opt = item.assumed_option_id ? allOptions.find(o => o.id === item.assumed_option_id) : null;
+            const opp = opportunitiesById.get(item.opportunity_id);
+            const opt = item.assumed_option_id ? optionsById.get(item.assumed_option_id) : undefined;
             return (
               <div key={item.id} className="flex items-center gap-2 text-[11px]">
                 <span className="text-slate-400 font-mono shrink-0">{opp?.display_id || '—'}</span>
                 <span className="text-slate-600 dark:text-slate-300 truncate flex-1">{opp?.title || 'Unknown'}</span>
                 {opt && (
                   <span className="text-sky-600 dark:text-sky-400 shrink-0 truncate max-w-[100px]">
-                    → {opt.option_label || 'Option'}
+                    → {opt.title || 'Option'}
                   </span>
                 )}
               </div>

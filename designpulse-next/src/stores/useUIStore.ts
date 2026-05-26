@@ -72,6 +72,18 @@ export interface UIState {
   toggleUserColumnPin: (projectId: string, columnId: string, isPinned: boolean) => void;
   clearUserColumnPinOverrides: (projectId: string) => void;
   
+  permitColumnPinningOverrides: Record<string, { pinned: string[]; unpinned: string[] }>;
+  togglePermitColumnPin: (projectId: string, columnId: string, isPinned: boolean) => void;
+  clearPermitColumnPinOverrides: (projectId: string) => void;
+  
+  deliverablesColumnPinningOverrides: Record<string, { pinned: string[]; unpinned: string[] }>;
+  toggleDeliverablesColumnPin: (projectId: string, columnId: string, isPinned: boolean) => void;
+  clearDeliverablesColumnPinOverrides: (projectId: string) => void;
+  
+  keyDatesColumnPinningOverrides: Record<string, { pinned: string[]; unpinned: string[] }>;
+  toggleKeyDatesColumnPin: (projectId: string, columnId: string, isPinned: boolean) => void;
+  clearKeyDatesColumnPinOverrides: (projectId: string) => void;
+  
   gridMode: 'navigate' | 'edit';
   setGridMode: (mode: 'navigate' | 'edit') => void;
   
@@ -256,6 +268,87 @@ export const useUIStore = create<UIState>()(
         const newOverrides = { ...state.gridColumnPinningOverrides };
         delete newOverrides[projectId];
         return { gridColumnPinningOverrides: newOverrides };
+      }),
+
+      permitColumnPinningOverrides: {},
+      togglePermitColumnPin: (projectId, columnId, isPinned) => set((state) => {
+        const current = state.permitColumnPinningOverrides[projectId] || { pinned: [], unpinned: [] };
+        
+        let newPinned = current.pinned.filter(id => id !== columnId);
+        let newUnpinned = current.unpinned.filter(id => id !== columnId);
+        
+        if (isPinned) {
+          newPinned.push(columnId);
+        } else {
+          newUnpinned.push(columnId);
+        }
+        
+        return {
+          permitColumnPinningOverrides: {
+            ...state.permitColumnPinningOverrides,
+            [projectId]: { pinned: newPinned, unpinned: newUnpinned }
+          }
+        };
+      }),
+      
+      clearPermitColumnPinOverrides: (projectId) => set((state) => {
+        const newOverrides = { ...state.permitColumnPinningOverrides };
+        delete newOverrides[projectId];
+        return { permitColumnPinningOverrides: newOverrides };
+      }),
+
+      deliverablesColumnPinningOverrides: {},
+      toggleDeliverablesColumnPin: (projectId, columnId, isPinned) => set((state) => {
+        const current = state.deliverablesColumnPinningOverrides[projectId] || { pinned: [], unpinned: [] };
+        
+        let newPinned = current.pinned.filter(id => id !== columnId);
+        let newUnpinned = current.unpinned.filter(id => id !== columnId);
+        
+        if (isPinned) {
+          newPinned.push(columnId);
+        } else {
+          newUnpinned.push(columnId);
+        }
+        
+        return {
+          deliverablesColumnPinningOverrides: {
+            ...state.deliverablesColumnPinningOverrides,
+            [projectId]: { pinned: newPinned, unpinned: newUnpinned }
+          }
+        };
+      }),
+      
+      clearDeliverablesColumnPinOverrides: (projectId) => set((state) => {
+        const newOverrides = { ...state.deliverablesColumnPinningOverrides };
+        delete newOverrides[projectId];
+        return { deliverablesColumnPinningOverrides: newOverrides };
+      }),
+
+      keyDatesColumnPinningOverrides: {},
+      toggleKeyDatesColumnPin: (projectId, columnId, isPinned) => set((state) => {
+        const current = state.keyDatesColumnPinningOverrides[projectId] || { pinned: [], unpinned: [] };
+        
+        let newPinned = current.pinned.filter(id => id !== columnId);
+        let newUnpinned = current.unpinned.filter(id => id !== columnId);
+        
+        if (isPinned) {
+          newPinned.push(columnId);
+        } else {
+          newUnpinned.push(columnId);
+        }
+        
+        return {
+          keyDatesColumnPinningOverrides: {
+            ...state.keyDatesColumnPinningOverrides,
+            [projectId]: { pinned: newPinned, unpinned: newUnpinned }
+          }
+        };
+      }),
+      
+      clearKeyDatesColumnPinOverrides: (projectId) => set((state) => {
+        const newOverrides = { ...state.keyDatesColumnPinningOverrides };
+        delete newOverrides[projectId];
+        return { keyDatesColumnPinningOverrides: newOverrides };
       }),
       
       gridMode: 'navigate',
@@ -513,8 +606,11 @@ export const useUIStore = create<UIState>()(
         keyDatesColumnVisibility: state.keyDatesColumnVisibility ?? {},
         keyDatesColumnOrder: state.keyDatesColumnOrder ?? {},
         isSandboxPanelOpen: state.isSandboxPanelOpen ?? false,
+        permitColumnPinningOverrides: state.permitColumnPinningOverrides ?? {},
+        deliverablesColumnPinningOverrides: state.deliverablesColumnPinningOverrides ?? {},
+        keyDatesColumnPinningOverrides: state.keyDatesColumnPinningOverrides ?? {},
       }),
-      version: 15,
+      version: 16,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -635,6 +731,15 @@ export const useUIStore = create<UIState>()(
         if (version < 15) {
           // v14 → v15: added scenario-planner view + packages settings tab — no new persisted fields
           return state as UIState;
+        }
+        if (version < 16) {
+          // v15 → v16: added permit, deliverables, and keyDates column pinning overrides
+          return {
+            ...state,
+            permitColumnPinningOverrides: {},
+            deliverablesColumnPinningOverrides: {},
+            keyDatesColumnPinningOverrides: {},
+          } as unknown as UIState;
         }
         return state as UIState;
       },

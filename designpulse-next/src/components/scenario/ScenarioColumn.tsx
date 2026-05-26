@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/cn';
 import { MoreVertical, Copy, Trash2, Plus, Shield, Pencil, Check, X } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
@@ -19,12 +19,13 @@ import { calculateScenarioBudgetMetrics } from '@/utils/financialMath';
 import type { BudgetMetrics } from '@/utils/financialMath';
 import type { VeScenarioWithPackages } from '@/types/scenario';
 import type { VePackageWithItems } from '@/types/sandbox';
+import type { OpportunityOption } from '@/types/models';
 
 interface ScenarioColumnProps {
   scenario: VeScenarioWithPackages;
   packages: VePackageWithItems[];
   opportunities: Array<{ id: string; status: string | null; cost_impact: number | null; title: string; display_id?: string | null }>;
-  allOptions: Array<{ id: string; opportunity_id: string; cost_impact: number | null; is_locked: boolean | null; include_in_budget: boolean | null; option_label: string | null }>;
+  allOptions: OpportunityOption[];
   originalBudget: number;
   canEdit: boolean;
   baselineMetrics: BudgetMetrics;
@@ -55,6 +56,18 @@ export function ScenarioColumn({
   const [isApplyOpen, setIsApplyOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Click-outside handler for kebab menu (Rule C16 compliant)
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isMenuOpen]);
+
   const updateScenario = useUpdateScenario(projectId);
   const deleteScenario = useDeleteScenario(projectId);
   const duplicateScenario = useDuplicateScenario(projectId);
@@ -69,12 +82,19 @@ export function ScenarioColumn({
   // Build packages lookup
   const packagesById = useMemo(() => new Map(packages.map(p => [p.id, p])), [packages]);
 
+  // Build lookup Maps for child cells — O(n) once, O(1) lookups
+  const optionsById = useMemo(() => new Map(allOptions.map(o => [o.id, o])), [allOptions]);
+  const opportunitiesById = useMemo(
+    () => new Map(opportunities.map(o => [o.id, o])),
+    [opportunities]
+  );
+
   // Assigned packages in sort order
   const assignedPackages = useMemo(() => {
     return [...scenario.scenarioPackages]
       .sort((a, b) => a.sort_order - b.sort_order)
       .map(sp => packagesById.get(sp.package_id))
-      .filter(Boolean) as VePackageWithItems[];
+      .filter((p): p is VePackageWithItems => !!p);
   }, [scenario.scenarioPackages, packagesById]);
 
   // Sortable IDs — composite for cross-column uniqueness
@@ -105,17 +125,17 @@ export function ScenarioColumn({
     [opportunities, allOptions, originalBudget, overrides]
   );
 
-  const handleRename = () => {
+  const handleRename = useCallback(() => {
     if (editName.trim() && editName !== scenario.name) {
       updateScenario.mutate({ id: scenario.id, updates: { name: editName.trim() } });
     }
     setIsEditing(false);
-  };
+  }, [editName, scenario.name, scenario.id, updateScenario]);
 
-  const handleAddPackageClick = () => {
+  const handleAddPackageClick = useCallback(() => {
     onSelect();
     onOpenBank();
-  };
+  }, [onSelect, onOpenBank]);
 
   return (
     <>
@@ -142,10 +162,10 @@ export function ScenarioColumn({
                 className="flex-1 text-sm font-bold bg-transparent border-b border-sky-400 text-slate-800 dark:text-white focus:outline-none"
                 autoFocus
               />
-              <button onClick={handleRename} className="p-1 text-emerald-500 hover:text-emerald-600">
+              <button onClick={handleRename} className="p-1 text-emerald-500 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300" aria-label="Save name">
                 <Check size={14} />
               </button>
-              <button onClick={() => setIsEditing(false)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setIsEditing(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300" aria-label="Cancel rename">
                 <X size={14} />
               </button>
             </div>
@@ -155,7 +175,8 @@ export function ScenarioColumn({
               {canEdit && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setEditName(scenario.name); setIsEditing(true); }}
-                  className="p-0.5 text-slate-300 hover:text-sky-500 transition-colors shrink-0"
+                  className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-sky-500 transition-colors shrink-0"
+                  aria-label="Rename scenario"
                 >
                   <Pencil size={12} />
                 </button>
@@ -174,20 +195,25 @@ export function ScenarioColumn({
               <button
                 onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
                 className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                aria-expanded={isMenuOpen}
+                aria-haspopup="true"
+                aria-label="Scenario actions"
               >
                 <MoreVertical size={16} />
               </button>
               {isMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-40 rounded-lg border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-lg z-10 py-1">
+                <div className="absolute right-0 top-full mt-1 w-40 rounded-lg border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-lg z-10 py-1" role="menu">
                   <button
                     onClick={(e) => { e.stopPropagation(); duplicateScenario.mutate(scenario); setIsMenuOpen(false); }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    role="menuitem"
                   >
                     <Copy size={14} /> Duplicate
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteScenario.mutate(scenario.id); setIsMenuOpen(false); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                    role="menuitem"
                   >
                     <Trash2 size={14} /> Delete
                   </button>
@@ -219,8 +245,8 @@ export function ScenarioColumn({
                   scopeLabel={pkg.scope_id ? scopeLabelsById.get(pkg.scope_id) : undefined}
                   onRemove={() => removePackage.mutate({ scenarioId: scenario.id, packageId: pkg.id })}
                   canEdit={canEdit}
-                  allOpportunities={opportunities}
-                  allOptions={allOptions}
+                  optionsById={optionsById}
+                  opportunitiesById={opportunitiesById}
                 />
               ))
             )}
@@ -274,6 +300,7 @@ export function ScenarioColumn({
           scenario={scenario}
           packages={assignedPackages}
           projectId={projectId}
+          allOpportunities={opportunities}
         />
       )}
     </>

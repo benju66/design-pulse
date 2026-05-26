@@ -20,7 +20,7 @@ import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
 import { Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, PanelRight } from 'lucide-react';
 import { Opportunity, DisciplineConfig } from '@/types/models';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
-import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity } from '@/hooks/useOpportunityQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useBulkUpdateCoordinationStatus } from '@/hooks/useOpportunityQueries';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { TextCell, PriorityCell, BuildingAreaCell, CostCodeCell, CsiSpecCell, DivisionCell } from '@/components/opportunities/EditableCell';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
@@ -32,6 +32,7 @@ import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
 import { DEFAULT_DISCIPLINES, DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
 import { CheckboxCell, CheckboxHeader, DateCell } from '@/components/data-table/cells';
 import { BulkActionBar, DeleteConfirmModal, GhostRow, TableEmptyState } from '@/components/data-table';
+import { BulkStatusChangeMenu } from './BulkStatusChangeMenu';
 
 interface Props {
   projectId: string;
@@ -271,6 +272,7 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
+  const bulkUpdateMutation = useBulkUpdateCoordinationStatus(projectId);
   const { permissions } = useCurrentUserPermissions(projectId);
   const { data: rawCostCodes = [] } = useCostCodes();
   const { data: csiSpecs = [] } = useProjectCsiSpecs(projectId);
@@ -285,6 +287,45 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+
+  const handleBulkStatusChange = async (newStatus: string) => {
+    if (selectedRows.length === 0) return;
+
+    // Filter to isolate only pure coordination tasks and exclude pushed VE items
+    const coordinationIds = selectedRows.filter(id => {
+      const opp = opportunities.find(o => o.id === id);
+      return opp && opp.record_type === 'Coordination';
+    });
+
+    const skippedCount = selectedRows.length - coordinationIds.length;
+
+    if (coordinationIds.length === 0) {
+      toast.warning('No coordination tasks selected. Pushed VE items cannot be bulk-updated.');
+      return;
+    }
+
+    setIsBulkUpdating(true);
+    try {
+      await bulkUpdateMutation.mutateAsync({
+        ids: coordinationIds,
+        newStatus,
+      });
+
+      if (skippedCount > 0) {
+        toast.success(`Successfully updated status for ${coordinationIds.length} task(s) to "${newStatus}"; skipped ${skippedCount} pushed VE item(s).`);
+      } else {
+        toast.success(`Successfully updated status for ${coordinationIds.length} task(s) to "${newStatus}"`);
+      }
+
+      clearSelection();
+    } catch (error: any) {
+      console.error('Failed to bulk update coordination status:', error);
+      toast.error(`Status update failed: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
 
   const handleBulkDelete = async () => {
     // Pre-flight: separate locked (Approved) items from deletable ones.
@@ -580,10 +621,10 @@ const EMPTY_VISIBILITY: VisibilityState = {};
 
   return (
     <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative flex flex-col">
+      <div className="flex-1 min-h-0 rounded-b-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative flex flex-col">
         
         {/* no overflow-hidden: MultiSelectFilter popover is z-[100] and must escape this container */}
-        <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
+        <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 z-20">
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Coordination List</span>
             <input 
@@ -735,7 +776,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                 <GhostRow
                   table={table as any}
                   createMutation={createMutation}
-                  placeholder="Type new coordination task and press Enter..."
+                  placeholder="+ Add Item..."
                   defaultValues={{
                     record_type: 'Coordination',
                     cost_impact: 0,
@@ -745,8 +786,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                     priority: 'Set Priority',
                   }}
                   staticFields={[
-                    { columnId: 'display_id', displayValue: 'New' },
-                    { columnId: 'record_type', displayValue: 'Coordination' },
+                    { columnId: 'display_id', displayValue: '-' },
+                    { columnId: 'record_type', displayValue: '-' },
                   ]}
                 />
               )}
@@ -759,6 +800,13 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             onClear={clearSelection}
             onDelete={() => setIsDeleteModalOpen(true)}
             canDelete={permissions.can_delete_records}
+            extraActions={
+              <BulkStatusChangeMenu
+                selectedCount={selectedRows.length}
+                onStatusSelect={handleBulkStatusChange}
+                isUpdating={isBulkUpdating}
+              />
+            }
           />
         </div>
 

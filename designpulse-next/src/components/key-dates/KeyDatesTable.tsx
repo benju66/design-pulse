@@ -23,6 +23,7 @@ import { DateCell } from '@/components/data-table/cells/DateCell';
 import { toast } from 'sonner';
 
 const EMPTY_VISIBILITY: Record<string, boolean> = {};
+const EMPTY_PINNING = { pinned: [], unpinned: [] };
 const DEFAULT_COLUMN_ORDER = ['select', 'display_id', 'title', 'description', 'event_date', 'source_type'];
 
 interface KeyDatesTableProps {
@@ -54,6 +55,17 @@ export function KeyDatesTable({
   const setColumnVisibility = useUIStore(state => state.setKeyDatesColumnVisibility);
   const columnOrder = useUIStore(state => state.keyDatesColumnOrder[projectId] || DEFAULT_COLUMN_ORDER);
   const setColumnOrder = useUIStore(state => state.setKeyDatesColumnOrder);
+
+  const keyDatesColumnPinningOverrides = useUIStore(state => state.keyDatesColumnPinningOverrides[projectId]) || EMPTY_PINNING;
+  const toggleKeyDatesColumnPin = useUIStore(state => state.toggleKeyDatesColumnPin);
+  const clearKeyDatesColumnPinOverrides = useUIStore(state => state.clearKeyDatesColumnPinOverrides);
+
+  const columnPinning = useMemo(() => {
+    const defaultPinned = ['select'];
+    const allPinned = new Set([...defaultPinned, ...keyDatesColumnPinningOverrides.pinned]);
+    keyDatesColumnPinningOverrides.unpinned.forEach(id => allPinned.delete(id));
+    return { left: Array.from(allPinned) };
+  }, [keyDatesColumnPinningOverrides]);
 
   const moveActiveCellRef = useRef<any>(null);
 
@@ -139,6 +151,7 @@ export function KeyDatesTable({
       globalFilter,
       columnVisibility,
       columnOrder,
+      columnPinning,
     },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
@@ -187,15 +200,28 @@ export function KeyDatesTable({
   };
 
   return (
-    <div className="flex flex-col h-full w-full relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+    <div className="flex flex-col h-full w-full relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-b-xl shadow-sm">
       {/* Toolbar */}
       <TableToolbar
+        leadingSlot={
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Key Dates Log</span>
+            <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0 mr-2" />
+          </div>
+        }
         searchValue={globalFilter ?? ''}
         onSearchChange={setGlobalFilter}
         searchPlaceholder="Search key dates..."
         filterCount={0}
         onFilterToggle={() => {}}
-        columnChooser={<ColumnChooser table={table as any} projectId={projectId} />}
+        columnChooser={
+          <ColumnChooser 
+            table={table as any} 
+            projectId={projectId} 
+            onTogglePin={(id, isPinned) => toggleKeyDatesColumnPin(projectId, id, isPinned)}
+            onClearPins={() => clearKeyDatesColumnPinOverrides(projectId)}
+          />
+        }
       />
 
       {/* Main Grid Container */}
@@ -209,8 +235,9 @@ export function KeyDatesTable({
             <GhostRow
               table={table}
               createMutation={createMutation}
+              placeholder="+ Add Item..."
               defaultValues={{ project_id: projectId }}
-              staticFields={[{ columnId: 'display_id', displayValue: 'KD-???' }]}
+              staticFields={[{ columnId: 'display_id', displayValue: '-' }]}
             />
           )
         }

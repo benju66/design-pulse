@@ -201,6 +201,7 @@ C4Component
 | `my-desk` | Personal Dashboard | `MyDeskDashboard` | — |
 | `settings` | Project Settings | `ProjectSettings` | 71 KB |
 | `budget-compare` | Budget Comparison | `VersionComparisonViewer` | 23 KB |
+| `scenarios` | Scenario Planner | `ScenarioPlannerView` + `ScenarioColumn` + `PackageBankPanel` | 16 KB + 12 KB + 9 KB |
 
 ### Zustand Stores
 
@@ -228,6 +229,7 @@ C4Component
 | `useTimelineQueries.ts` | Unified Timeline | `useUnifiedTimeline` (client-side merge of `useKeyDates` + `useDeliverables` + `usePermits`) | — (read-only projection; mutations route through source hooks) |
 | `useLessonQueries.ts` | Lessons Learned | `useLessons`, `useLessonIndicators` | Lesson CRUD + attachment mutations |
 | `useSandboxQueries.ts` | VE Packages | `useVePackages` | `useCreatePackage`, `useUpdatePackage`, `useDeletePackage`, `useAddPackageItems`, `useRemovePackageItem`, `useReorderPackageItems`, `useSetAssumedOption`, `useCleanupStaleOptionRef`, `useDuplicatePackage` |
+| `useScenarioQueries.ts` | VE Scenarios | `useVeScenarios` | `useCreateScenario`, `useUpdateScenario`, `useDeleteScenario`, `useAddScenarioPackage`, `useRemoveScenarioPackage`, `useReorderScenarioPackages`, `useDuplicateScenario`, `useApplyScenario` |
 | `useSandboxMetrics.ts` | VE Package Metrics | `useSandboxMetrics` (scenario-aware per-package calculator) | — |
 | `useDrawingSetQueries.ts` | Drawing Sets | `useDrawingSets` | `useCreateDrawingSet`, `useActivateDrawingSet` |
 | `useCsiQueries.ts` | Project CSI Specs | `useProjectCsiSpecs` | CSI spec mutations |
@@ -324,6 +326,7 @@ C4Component
         Component(deliverables_engine, "Deliverables Engine", "Tables + Triggers", "project_deliverables. Triggers: generate_display_id, audit, auto_update_timestamp. Integrated with audit logs & activity comment security.")
         Component(rbac, "RBAC System", "Functions + Table", "role_permissions table (4 roles × 8 permissions). Helper functions: is_platform_admin(), get_user_project_role(), has_project_permission(). All RLS policies delegate to these.")
         Component(ve_packages_engine, "VE Packages Engine", "Tables + Triggers", "ve_packages, ve_package_items. Scenario-planning sandbox for grouping VE items into named packages with per-item assumed contenders. Audit triggers, RLS via has_project_permission(). Soft-delete on ve_packages.")
+        Component(ve_scenarios_engine, "VE Scenarios Engine", "Tables + RPCs", "ve_scenarios, ve_scenario_packages. Composes packages into named what-if scenarios with first-package-wins overrides. RPCs: apply_ve_scenario, duplicate_ve_scenario. Audit triggers, RLS via has_project_permission(). Soft-delete.")
     }
 
     Rel(decision, core, "FK: project_id, user references")
@@ -338,6 +341,9 @@ C4Component
     Rel(lessons_engine, decision, "FK: opportunity_id via lesson_opportunity_links")
     Rel(ve_packages_engine, core, "FK: project_id")
     Rel(ve_packages_engine, decision, "FK: opportunity_id, assumed_option_id")
+    Rel(ve_scenarios_engine, core, "FK: project_id")
+    Rel(ve_scenarios_engine, ve_packages_engine, "FK: package_id via junction")
+    Rel(ve_scenarios_engine, decision, "Calls lock_opportunity_option via apply RPC")
     Rel(rbac, core, "Enforces access on all tables")
 
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
@@ -390,6 +396,10 @@ erDiagram
     ve_packages ||--o{ ve_package_items : "contains items"
     ve_package_items }o--|| opportunities : "references"
     ve_package_items }o--o| opportunity_options : "assumed contender"
+
+    projects ||--o{ ve_scenarios : "scenarios"
+    ve_scenarios ||--o{ ve_scenario_packages : "contains packages"
+    ve_scenario_packages }o--|| ve_packages : "references"
 
     client_brand_standards ||--o{ project_brand_standards : "snapshots"
 
@@ -444,6 +454,8 @@ erDiagram
 | **Admin** | `create_new_project()` | Project + admin member + settings in one transaction |
 | | `is_platform_admin()` | Super-admin status check |
 | | `get_system_users()` | List all users with project assignments |
+| **VE Scenarios** | `apply_ve_scenario()` | SECURITY DEFINER. Iterates packages in sort order, builds first-package-wins overrides, calls `lock_opportunity_option()` per override |
+| | `duplicate_ve_scenario()` | SECURITY DEFINER. Deep-copies scenario + junction rows preserving sort order |
 
 ---
 
@@ -480,15 +492,16 @@ design-pulse/                           # Informal monorepo (no workspace manage
 │   │   │   ├── project/ (7)            #     Settings, estimates, CSI, brand std
 │   │   │   ├── permits/ (7)            #     Permit board, table, detail, kanban
 │   │   │   ├── clients/ (5)            #     Brand standards, documents, profile
-│   │   │   ├── views/ (4)              #     View wrappers (VE, Budget, Coord, Lessons)
+│   │   │   ├── views/ (5)              #     View wrappers (VE, Budget, Coord, Lessons, Scenarios)
 │   │   │   ├── sandbox/ (5)            #     VE Packages: SandboxPanel, PackageCard, PackageItemRow, AddToPackageMenu, PackageCompareModal
+│   │   │   ├── scenario/ (5)           #     Scenario Planner: ScenarioColumn, ScenarioPackageCell, PackageBankPanel, ApplyScenarioModal, ScopeManagerModal
 │   │   │   ├── lessons/ (3)            #     Detail panel, columns, templates
 │   │   │   ├── layout/ (2)             #     Sidebar, account dropdown
 │   │   │   ├── mydesk/ (2)             #     Personal dashboard
 │   │   │   └── ui/ (7)                 #     Button, ModalShell, comboboxes, filters, rich text
 │   │   ├── hooks/ (23)                 #   React Query hooks (domain-organized)
 │   │   ├── stores/ (3)                 #   Zustand: UIStore, MapStore, ColumnSlice
-│   │   ├── types/ (6)                  #   database.types, models, map.types, sandbox, tanstack.d, exceljs.d
+│   │   ├── types/ (7)                  #   database.types, models, map.types, sandbox, scenario, tanstack.d, exceljs.d
 │   │   ├── lib/ (8+)                   #   Constants, utilities, cn.ts, excel parsers
 │   │   ├── providers/ (3)              #   Auth, Query, Theme
 │   │   ├── services/ (1)              #   api.ts (FastAPI proxy client)

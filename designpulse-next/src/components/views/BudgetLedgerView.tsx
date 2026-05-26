@@ -362,17 +362,19 @@ export function BudgetLedgerView({ projectId }: BudgetLedgerViewProps) {
         <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${
           (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
         }`}>
-          <BudgetSummaryV2
-            projectId={projectId}
-            forceCollapse={viewMode === 'split' && !!selectedOpportunityId}
-            filteredCostCodes={filteredCostCodes}
-            totalFilteredCodes={filteredCostCodes.length}
-            totalCodes={totalCodes}
-            onClearFilters={onClearFilters}
-            navigateToSettings={navigateToSettings}
-            allLedgerItems={mergedOpportunities}
-            varianceNoteMap={varianceNoteMap}
-          />
+          <div className="shrink-0 mb-4">
+            <BudgetSummaryV2
+              projectId={projectId}
+              forceCollapse={viewMode === 'split' && !!selectedOpportunityId}
+              filteredCostCodes={filteredCostCodes}
+              totalFilteredCodes={filteredCostCodes.length}
+              totalCodes={totalCodes}
+              onClearFilters={onClearFilters}
+              navigateToSettings={navigateToSettings}
+              allLedgerItems={mergedOpportunities}
+              varianceNoteMap={varianceNoteMap}
+            />
+          </div>
 
           {/* Grid — hidden when analytics is fullscreen */}
           <div className={`flex-1 overflow-hidden flex flex-col relative ${isFullscreen ? 'hidden' : ''}`}>

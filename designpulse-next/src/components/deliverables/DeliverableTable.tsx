@@ -45,6 +45,7 @@ const DeliverableTextCell = React.memo(({ getValue, row, column, table }: CellCo
   const divRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setValue(initialValue);
   }, [initialValue]);
 
@@ -424,6 +425,7 @@ const DeliverablePermitCell = React.memo(({ getValue, row, column, table }: Cell
 }, commonCellComparator);
 
 const EMPTY_VISIBILITY: Record<string, boolean> = {};
+const EMPTY_PINNING = { pinned: [], unpinned: [] };
 const DEFAULT_COLUMN_ORDER = [
   'select', 'open_panel', 'display_id', 'title', 'due_date', 'status', 'assignee', 'is_elevated_key_date', 'permit_id'
 ];
@@ -467,6 +469,17 @@ export function DeliverableTable({
   const columnOrder = useUIStore(state => state.deliverablesColumnOrder[projectId] || DEFAULT_COLUMN_ORDER);
   const setColumnOrder = useUIStore(state => state.setDeliverablesColumnOrder);
   const viewMode = useUIStore(state => state.deliverablesViewMode);
+
+  const deliverablesColumnPinningOverrides = useUIStore(state => state.deliverablesColumnPinningOverrides[projectId]) || EMPTY_PINNING;
+  const toggleDeliverablesColumnPin = useUIStore(state => state.toggleDeliverablesColumnPin);
+  const clearDeliverablesColumnPinOverrides = useUIStore(state => state.clearDeliverablesColumnPinOverrides);
+
+  const columnPinning = useMemo(() => {
+    const defaultPinned = ['select', 'open_panel'];
+    const allPinned = new Set([...defaultPinned, ...deliverablesColumnPinningOverrides.pinned]);
+    deliverablesColumnPinningOverrides.unpinned.forEach(id => allPinned.delete(id));
+    return { left: Array.from(allPinned) };
+  }, [deliverablesColumnPinningOverrides]);
 
   const moveActiveCellRef = useRef<any>(null);
 
@@ -576,6 +589,7 @@ export function DeliverableTable({
       globalFilter,
       columnVisibility,
       columnOrder,
+      columnPinning,
     },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
@@ -627,15 +641,28 @@ export function DeliverableTable({
   };
 
   return (
-    <div className="flex flex-col h-full w-full relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+    <div className="flex flex-col h-full w-full relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-b-xl shadow-sm">
       {/* Toolbar */}
       <TableToolbar
+        leadingSlot={
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Deliverables List</span>
+            <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0 mr-2" />
+          </div>
+        }
         searchValue={globalFilter ?? ''}
         onSearchChange={setGlobalFilter}
         searchPlaceholder="Search deliverables..."
         filterCount={filterActiveCount}
         onFilterToggle={() => setIsFilterOpen(o => !o)}
-        columnChooser={<ColumnChooser table={table as any} projectId={projectId} />}
+        columnChooser={
+          <ColumnChooser 
+            table={table as any} 
+            projectId={projectId} 
+            onTogglePin={(id, isPinned) => toggleDeliverablesColumnPin(projectId, id, isPinned)}
+            onClearPins={() => clearDeliverablesColumnPinOverrides(projectId)}
+          />
+        }
       />
 
       {filterSlot && (
@@ -662,7 +689,7 @@ export function DeliverableTable({
             <GhostRow
               table={table}
               createMutation={createMutation}
-              placeholder="Type new deliverable title and press Enter..."
+              placeholder="+ Add Item..."
               defaultValues={{
                 project_id: projectId,
                 status: 'Open',
@@ -670,25 +697,35 @@ export function DeliverableTable({
                 is_deleted: false,
               }}
               staticFields={[
-                { columnId: 'display_id', displayValue: 'DE-???' },
+                { columnId: 'display_id', displayValue: '-' },
               ]}
             />
           )
         }
       >
-        {(row) => (
-          <MemoizedRow
-            key={row.id}
-            row={row}
-            isSelected={row.getIsSelected()}
-            className={
-              selectedOpportunityId === row.original.id
-                ? 'bg-sky-50 dark:bg-sky-900/20 shadow-[inset_2px_0_0_0_#0ea5e9]'
-                : ''
-            }
-            onClick={(r) => useUIStore.getState().setActiveCell({ rowIndex: r.index, columnId: '' })}
-          />
-        )}
+        {(row) => {
+          const visibleCells = row.getVisibleCells();
+          const visibleColumnIds = visibleCells.map(c => c.column.id).join(',');
+          const pinnedColumnOffsets = visibleCells
+            .filter(c => c.column.getIsPinned() === 'left')
+            .map(c => c.column.getStart('left'))
+            .join(',');
+          return (
+            <MemoizedRow
+              key={row.id}
+              row={row}
+              isSelected={row.getIsSelected()}
+              visibleColumnIds={visibleColumnIds}
+              pinnedColumnOffsets={pinnedColumnOffsets}
+              className={
+                selectedOpportunityId === row.original.id
+                  ? 'bg-sky-50 dark:bg-sky-900/20 shadow-[inset_2px_0_0_0_#0ea5e9]'
+                  : ''
+              }
+              onClick={(r) => useUIStore.getState().setActiveCell({ rowIndex: r.index, columnId: '' })}
+            />
+          );
+        }}
       </DataTable>
 
       {/* Bulk Action Bar */}

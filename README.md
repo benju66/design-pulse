@@ -19,6 +19,7 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 - **Role-Based Access Control (RBAC):** Dynamic, granular permissions (Owner, GC Admin, Design Team, Viewer) controlled securely at the database level via PostgreSQL Row Level Security (RLS).
 - **Financial Immutability & Audit Trails:** A robust soft-delete architecture paired with strict database triggers to lock approved budgets, ensure financial calculation accuracy, and track comprehensive historical changes.
 - **CSI Specification Management:** A multi-tiered CSI-to-cost-code mapping system spanning company-wide defaults, project-level overrides, and ML-assisted suggestions. Platform admins maintain a centralized "Rosetta Stone" library with Excel bulk upload/download, which is atomically seeded into new projects. Project teams can view, search, edit, and extend mappings with full source lineage tracking (Company Default → Project Override → ML Suggested).
+- **Scenario Planner & VE Packages:** A full-featured "what-if" analysis engine that allows pre-construction teams to group VE contenders into named packages, then assemble those packages into side-by-side scenarios. Each scenario column calculates real-time budget impact using a first-package-wins override algorithm. Packages and scenarios support cross-column drag-and-drop reordering via `@dnd-kit`, Package Bank search & click-to-add, configurable Package Scopes, and one-click "Apply Scenario" batch locking.
 
 ## 3. Interactive Drawings & Extraction Engine
 
@@ -35,7 +36,62 @@ Instead of viewing disconnected line items, teams can upload multi-page architec
 - **DeepZoom Tile Processing:** Heavy vector PDFs are processed asynchronously via a FastAPI worker into hierarchical DeepZoom web tiles, guaranteeing smooth 60fps pan and zoom performance on the frontend regardless of the original file complexity.
 - **Bi-Directional State Synchronization:** Clicking a row in the Value Matrix data grid instantly highlights the corresponding markup pin on the canvas. Conversely, clicking a pin on the canvas auto-scrolls the virtualized data grid to the exact row, utilizing atomic cross-store Zustand updates to prevent render loops.
 
-## 4. Tech Stack Glossary
+## 4. Scenario Planner & VE Packages
+
+The Scenario Planner module enables "what-if" budget analysis by combining VE Packages into side-by-side Scenarios. It builds on top of the VE Packages engine (grouping opportunities with assumed contenders into named bundles) and adds a second layer — Scenarios — that compose multiple packages into a single financial projection.
+
+### Architecture
+
+The module follows a layered data architecture:
+
+```
+Opportunities (base decisions)
+  └── Options / Contenders (per-opportunity alternatives)
+        └── VE Packages (named bundles grouping contenders)
+              └── VE Scenarios (compositions of packages for "what-if" comparison)
+```
+
+### Key Concepts
+
+- **VE Packages:** Named, color-coded groups of opportunity–contender pairs. Each item in a package selects an `assumed_option_id` for a given opportunity. Packages support configurable **Package Scopes** (e.g., "Lobby", "Corridors") for organizational grouping.
+- **VE Scenarios:** Named compositions of packages. Each scenario column shows which packages are included and calculates real-time budget impact using a **first-package-wins** override algorithm — when multiple packages target the same opportunity, the package with the lowest `sort_order` wins.
+- **Budget Metrics:** Each scenario column displays a live `BudgetMetricsBar` comparing the scenario's projected budget against the project baseline, showing deltas for locked savings and potential exposure.
+- **Apply Scenario:** A batch-locking action that applies all contender overrides from a scenario's packages in a single RPC call (`apply_ve_scenario`), locking each contender via the existing `lock_opportunity_option()` pipeline.
+
+### Functions and Features
+- **Horizontal Column Layout:** Scenarios render as scrollable vertical columns with sticky headers, sortable package cards, and a budget footer. Users can create, rename, duplicate, and delete scenarios inline.
+- **Package Bank Panel:** A slide-out right panel listing all project packages. Supports full-text search, scope filtering, and scenario-assignment dot indicators. Packages can be added via click (when a scenario is selected) or drag-and-drop.
+- **Drag-and-Drop:** Full `@dnd-kit` integration supporting three interactions: (1) Bank→Column drag to add packages, (2) within-column reorder via `SortableContext`, and (3) cross-column copy. Duplicate guards and toast feedback prevent redundant additions.
+- **Package Scopes:** Admin-configurable organizational labels stored in `project_settings.package_scopes` (JSONB). Managed via the Scope Manager modal.
+- **Apply Scenario Modal:** A confirmation dialog showing affected items (opportunity title + contender name) with a batch "Apply & Lock" action.
+
+### Component Inventory
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `ScenarioPlannerView` | `src/components/views/ScenarioPlannerView.tsx` | Top-level view wrapper; data fetching, DnD context, bank panel |
+| `ScenarioColumn` | `src/components/scenario/ScenarioColumn.tsx` | Single scenario column; header, sortable body, budget footer |
+| `ScenarioPackageCell` | `src/components/scenario/ScenarioPackageCell.tsx` | Compact sortable card for a package within a scenario |
+| `PackageBankPanel` | `src/components/scenario/PackageBankPanel.tsx` | Slide-out panel listing all packages with search & drag |
+| `ApplyScenarioModal` | `src/components/scenario/ApplyScenarioModal.tsx` | Confirmation modal for batch-locking contenders |
+| `ScopeManagerModal` | `src/components/scenario/ScopeManagerModal.tsx` | CRUD modal for managing package scope labels |
+
+### Database Schema
+
+| Table | Purpose |
+|-------|---------|
+| `ve_scenarios` | Named scenario records per project. Soft-delete, audit-logged. |
+| `ve_scenario_packages` | Junction table linking scenarios to packages with `sort_order`. `UNIQUE(scenario_id, package_id)`. |
+| `ve_packages.scope_id` | Optional UUID referencing a scope in `project_settings.package_scopes` JSONB. |
+
+### RPC Functions
+
+| Function | Purpose |
+|----------|---------|
+| `apply_ve_scenario(p_scenario_id UUID)` | SECURITY DEFINER. Iterates scenario packages in sort order, builds first-package-wins overrides, then calls `lock_opportunity_option()` for each. |
+| `duplicate_ve_scenario(p_scenario_id UUID)` | SECURITY DEFINER. Deep-copies scenario + junction rows with `sort_order` preserved. |
+
+## 5. Tech Stack Glossary
 
 ### Frontend
 - **Framework:** Next.js (App Router, React 19)
@@ -54,7 +110,7 @@ Instead of viewing disconnected line items, teams can upload multi-page architec
 - **Storage:** Supabase Storage
 - **Microservices:** Python/FastAPI (Heavy PDF processing)
 
-## 5. Local Setup & Installation
+## 6. Local Setup & Installation
 
 Follow these steps to run the Next.js development server locally.
 
@@ -82,7 +138,7 @@ Follow these steps to run the Next.js development server locally.
    ```
    The application will be accessible at `http://localhost:3000`.
 
-## 6. Environment Variables
+## 7. Environment Variables
 
 Create a `.env.local` file inside the `designpulse-next` directory. Below is the required template (do not commit actual secret values):
 
@@ -95,7 +151,73 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
 
-## 7. Release Notes
+## 8. Release Notes
+
+---
+
+### v0.20 — Scenario Planner & VE Package Compositions
+**Released:** 2026-05-26
+
+This release introduces the Scenario Planner — a full "what-if" budget analysis engine that allows pre-construction teams to compose VE Packages into side-by-side Scenarios, calculate real-time budget deltas, and batch-apply locked contenders.
+
+#### Scenario Planner Engine
+- **Horizontal Column Layout:** Scenarios render as scrollable vertical columns with sticky headers, inline-editable names, and duplicate/delete kebab menus with click-outside dismiss.
+- **First-Package-Wins Algorithm:** Each scenario column calculates budget impact by iterating packages in sort order. When multiple packages override the same opportunity, the lowest-sort-order package wins — matching the exact behavior of `apply_ve_scenario()`.
+- **Live Budget Metrics:** Every column footer shows a `BudgetMetricsBar` with delta comparison against the project baseline.
+- **Apply & Lock:** One-click batch locking via `apply_ve_scenario()` SECURITY DEFINER RPC. The Apply modal resolves human-readable opportunity titles (e.g., "VE-001: Countertop Material") instead of raw UUIDs.
+
+#### Package Bank & Drag-and-Drop
+- **Package Bank Panel:** Slide-out right panel with full-text search, scope label badges, net impact values, and scenario-assignment dot indicators showing which scenarios contain each package.
+- **@dnd-kit Integration:** Three DnD interactions: Bank→Column (add), within-column reorder (`SortableContext`), and cross-column copy. Discriminated union types (`BankPackageData | ScenarioCellData | ScenarioColumnDropData`) provide type-safe drag data.
+- **Duplicate Guards:** Both click-to-add and drag-to-add paths check for existing assignments and show toast feedback.
+
+#### Package Scopes
+- **Scope Manager Modal:** Admin CRUD for organizational labels stored in `project_settings.package_scopes` (JSONB). Uses `crypto.randomUUID()` for new scope IDs.
+- **`scope_id` Column:** New optional UUID column on `ve_packages` referencing a scope in the JSONB array.
+
+#### Quality & Enterprise Hardening
+- **Type Safety:** Eliminated all `as any` casts (except codebase-wide Supabase `Json | null` debt). Replaced 8 raw DnD casts with a discriminated union. Used `OpportunityOption` shared type throughout.
+- **Runtime Bug Fix:** Corrected `opt.option_label` → `opt.title` in expanded package cells — the `option_label` field never existed on the `opportunity_options` schema.
+- **Dark Mode:** Added `dark:` variants to 4 buttons that were invisible in dark themes.
+- **Accessibility:** 13 ARIA attributes across 3 components (drag handles, kebab menus, expand toggles, search inputs).
+- **Performance:** Pre-built `Map` lookups for O(1) child cell rendering. `useCallback`-wrapped handlers. Stable `EMPTY_DOTS` constant for referential equality.
+- **Dead Code:** Deleted unused `PackageBuilderDrawer.tsx`.
+
+#### Database Schema
+
+| Table | Purpose |
+|-------|---------|
+| `ve_scenarios` | Named scenario records per project. Soft-delete, audit-logged, RLS via `has_project_permission()`. |
+| `ve_scenario_packages` | Junction table: `UNIQUE(scenario_id, package_id)`, cascading deletes, `sort_order` for priority. |
+| `ve_packages.scope_id` | New `uuid` column for package scope assignment. |
+
+#### Internal / Architecture
+
+| Item | Detail |
+|------|--------|
+| `useScenarioQueries.ts` | `src/hooks/` — 9 TanStack hooks: `useVeScenarios`, `useCreateScenario`, `useUpdateScenario`, `useDeleteScenario`, `useAddScenarioPackage`, `useRemoveScenarioPackage`, `useReorderScenarioPackages`, `useDuplicateScenario`, `useApplyScenario` |
+| `src/types/scenario.ts` | Domain types: `VeScenario`, `VeScenarioPackage`, `VeScenarioWithPackages` |
+| `src/components/scenario/` | 5 components: `ScenarioColumn`, `ScenarioPackageCell`, `PackageBankPanel`, `ApplyScenarioModal`, `ScopeManagerModal` |
+| `src/components/views/ScenarioPlannerView.tsx` | Top-level view with DnD context, bank panel, and discriminated union type system |
+| `src/utils/financialMath.ts` | Added `calculateScenarioBudgetMetrics()` for per-scenario budget projection |
+| Migration | `supabase_migrations/20260526_ve_scenarios.sql` — Full schema, RPCs, RLS, triggers, and indexes |
+
+---
+
+### v0.19.1 — Gold Standard Ghost Rows & Inline Creation Upgrade
+**Released:** 2026-05-26 (Patch)
+
+This patch release audits and upgrades all Ghost Row (inline-creation) components inside the Design Pulse application to a unified enterprise-grade "Gold Standard" specification, ensuring 100% data safety, reactive pending feedbacks, resilient key-bindings, and smooth scroll selection focus.
+
+#### Gold Standard Ghost Row Architecture
+- **Floating Input Controls Pattern:** Integrated a relative flex container for table-level inputs lacking an options column (Key Dates, Deliverables, Permits). Placed the Save (`Plus`) and Discard (`X`) buttons inside the input's bounding box absolutely positioned to preserve perfect layout alignment.
+- **Transaction-Safe Draft Preservation:** Rewrote Permit Review Comments to only clear and collapse input fields inside the mutation's `onSuccess` callback. Surfaced errors via toast notifications while keeping user typed drafts intact inside the active text input to block data-loss on connection or permission errors.
+- **Batched Escape-Blur Race Condition Sentinel:** Implemented a `ref`-based boolean cancellation sentinel (`isCancelledRef`) in Permit Comments to successfully bypass React state-flushing delays and prevent Escape keys from triggering accidental blur-saves.
+- **Filter Viewport Safety:** Passed computed active building areas and cost code filters to the Value Matrix Opportunity Ghost Row as `defaultValues` to guarantee newly logged items match the active grid viewport and do not disappear upon Supabase refetches.
+- **Double-Submission State Locks:** Programmatically disabled inputs and buttons during active database writes (`createMutation.isPending`) to block rapid double-saving.
+- **Dynamic Visual Feedbacks:** Shifted placeholders dynamically to `"Saving new item..."` and cursors to `cursor-wait` during pending mutations. Swapped static action icons with an active, sky-blue spinning `Loader2` icon.
+- **Silent Viewport Scroll Alignment:** Implemented post-add auto-scrolling select triggers in the Value Matrix grid to instantly center and flash-highlight newly created rows silently, without forcing the split-view panel open.
+- **Placeholder & Cell Standardization:** Standardized all Ghost Row metadata cells and placeholders across all five tables (Opportunities, Coordination, Deliverables, Key Dates, Permits) to render a single, uniform hyphen `"-"` in non-editable display cells (e.g. `display_id` and task type `record_type`) and unified text inputs to use a standard `"+ Add Item..."` idle placeholder.
 
 ---
 

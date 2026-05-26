@@ -21,6 +21,9 @@ export interface MemoizedRowProps<TData> {
   onClick?: (row: Row<TData>) => void;
   /** Virtual row index for positioning (when using @tanstack/react-virtual) */
   virtualRowIndex?: number;
+  /** Hashing parameters to force re-render when pinning/visibility overrides change */
+  visibleColumnIds?: string;
+  pinnedColumnOffsets?: string;
 }
 
 function MemoizedRowInner<TData>({
@@ -37,15 +40,26 @@ function MemoizedRowInner<TData>({
                   ${className}`}
       onClick={() => onClick?.(row)}
     >
-      {row.getVisibleCells().map((cell) => (
-        <td
-          key={cell.id}
-          className="dt-cell-base"
-          style={{ width: cell.column.getSize() }}
-        >
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </td>
-      ))}
+      {row.getVisibleCells().map((cell) => {
+        const isPinned = cell.column.getIsPinned() === 'left';
+        const isLastPinned = isPinned && cell.column.getIsLastColumn('left');
+        return (
+          <td
+            key={cell.id}
+            className={`dt-cell-base ${
+              isPinned ? 'sticky z-10 bg-white dark:bg-slate-900 bg-clip-padding' : ''
+            } ${
+              isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.2)] border-r-2 border-slate-200 dark:border-slate-700' : ''
+            }`}
+            style={{ 
+              width: cell.column.getSize(),
+              ...(isPinned ? { left: cell.column.getStart('left') } : {})
+            }}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        );
+      })}
     </tr>
   );
 }
@@ -61,6 +75,8 @@ function defaultRowComparator<TData>(
   if (prev.row.original !== next.row.original) return false;
   if (prev.isSelected !== next.isSelected) return false;
   if (prev.className !== next.className) return false;
+  if (prev.visibleColumnIds !== next.visibleColumnIds) return false;
+  if (prev.pinnedColumnOffsets !== next.pinnedColumnOffsets) return false;
   return true;
 }
 

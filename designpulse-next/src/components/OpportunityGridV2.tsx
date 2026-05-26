@@ -81,6 +81,7 @@ interface OpportunityGridProps {
   extraBulkActions?: (selectedIds: string[]) => ReactNode;
   /** Sandbox: set of opportunity IDs to highlight with package accent */
   packageHighlightIds?: Set<string>;
+  defaultValues?: Partial<Opportunity>;
 }
 
 interface GroupedRowProps {
@@ -437,7 +438,7 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
   );
 });
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {}, activeVersionId, onFilterDrawerToggle, activeStatus, extraBulkActions, packageHighlightIds }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {}, activeVersionId, onFilterDrawerToggle, activeStatus, extraBulkActions, packageHighlightIds, defaultValues = {} }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -698,8 +699,8 @@ const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
       ...prev,
       ...getVisibilityDefaults(isLedgerView),
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps — intentionally skips initial mount;
-    // initial state is seeded via useState initializer with getVisibilityDefaults.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // intentionally skips initial mount; initial state is seeded via useState initializer with getVisibilityDefaults.
   }, [isLedgerView]);
 
   // Auto-show estimate_sync_status when looking at Approved items (matches V1 behavior)
@@ -925,9 +926,9 @@ const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 
   return (
-    <div className="w-full h-full flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
+    <div className="w-full h-full flex flex-col rounded-b-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
       {/* no overflow-hidden: MultiSelectFilter popover is z-[100] and must escape this container */}
-      <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20 flex-wrap">
+      <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 z-20 flex-wrap">
         {/* Left: label + search + metric pills */}
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-2">{isLedgerView ? 'Budget Ledger' : 'Matrix View'}</span>
@@ -1153,7 +1154,7 @@ const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
           {/* Ghost Row for Quick Add */}
           {!hideGhostRow && permissions.can_edit_records && (
             <tbody>
-              <GhostRow table={table} createMutation={createMutation} />
+              <GhostRow table={table} createMutation={createMutation} defaultValues={defaultValues} />
             </tbody>
           )}
         </table>

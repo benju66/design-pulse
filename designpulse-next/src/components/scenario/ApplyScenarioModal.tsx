@@ -14,6 +14,7 @@ interface ApplyScenarioModalProps {
   scenario: VeScenarioWithPackages;
   packages: VePackageWithItems[];
   projectId: string;
+  allOpportunities: Array<{ id: string; title: string; display_id?: string | null }>;
 }
 
 export function ApplyScenarioModal({
@@ -22,6 +23,7 @@ export function ApplyScenarioModal({
   scenario,
   packages,
   projectId,
+  allOpportunities,
 }: ApplyScenarioModalProps) {
   const applyMutation = useApplyScenario(projectId);
 
@@ -90,16 +92,19 @@ export function ApplyScenarioModal({
             </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {Array.from(affectedItems.entries()).map(([oppId]) => (
-                <div key={oppId} className="flex items-center gap-2 px-3 py-2 text-xs">
-                  <Shield size={12} className="text-sky-500 shrink-0" />
-                  <span className="text-slate-600 dark:text-slate-300 truncate flex-1 font-mono text-[10px]">
-                    {oppId.slice(0, 8)}…
-                  </span>
-                  <ArrowRight size={12} className="text-slate-400" />
-                  <span className="text-sky-600 dark:text-sky-400 truncate text-[10px]">Lock contender</span>
-                </div>
-              ))}
+                {Array.from(affectedItems.entries()).map(([oppId]) => {
+                  const opp = allOpportunities.find(o => o.id === oppId);
+                  return (
+                    <div key={oppId} className="flex items-center gap-2 px-3 py-2 text-xs">
+                      <Shield size={12} className="text-sky-500 shrink-0" />
+                      <span className="text-slate-600 dark:text-slate-300 truncate flex-1 text-[10px]">
+                        {opp ? `${opp.display_id ?? '—'}: ${opp.title}` : `${oppId.slice(0, 8)}…`}
+                      </span>
+                      <ArrowRight size={12} className="text-slate-400" />
+                      <span className="text-sky-600 dark:text-sky-400 truncate text-[10px]">Lock contender</span>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </div>

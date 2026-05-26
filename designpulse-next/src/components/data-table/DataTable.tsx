@@ -122,11 +122,20 @@ export function DataTable<TData>({
                 return children(row, virtualRow.index);
               }
 
+              const visibleCells = row.getVisibleCells();
+              const visibleColumnIds = visibleCells.map(c => c.column.id).join(',');
+              const pinnedColumnOffsets = visibleCells
+                .filter(c => c.column.getIsPinned() === 'left')
+                .map(c => c.column.getStart('left'))
+                .join(',');
+
               return (
                 <MemoizedRow
                   key={row.id}
                   row={row}
                   isSelected={row.getIsSelected()}
+                  visibleColumnIds={visibleColumnIds}
+                  pinnedColumnOffsets={pinnedColumnOffsets}
                 />
               );
             })

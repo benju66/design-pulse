@@ -72,6 +72,11 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
       : ['Corridor / Common', 'Unit Interiors', 'Back of House'];
   }, [settings]);
 
+  const ghostDefaults = React.useMemo(() => ({
+    building_area: activeBuildingAreas.length > 0 ? activeBuildingAreas[0] : (dynamicBuildingAreas[0] || 'Corridor / Common'),
+    cost_code: activeCostCodes.length > 0 ? activeCostCodes[0] : null,
+  }), [activeBuildingAreas, activeCostCodes, dynamicBuildingAreas]);
+
   const uniqueStatuses = React.useMemo(() => {
     const statuses = opportunities.map(o => o.status).filter(Boolean) as string[];
     return Array.from(new Set(statuses)).sort();
@@ -272,7 +277,7 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
         <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${
           (viewMode === 'split' && selectedOpportunityId) ? 'border-r border-slate-200 dark:border-slate-800' : ''
         }`}>
-          <div className="shrink-0">
+          <div className="shrink-0 mb-4">
             <BudgetSummary 
               projectId={projectId} 
               opportunities={opportunities} 
@@ -300,6 +305,7 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
                 projectId={projectId} 
                 data={filteredOpportunities} 
                 viewMode={viewMode} 
+                defaultValues={ghostDefaults} 
                 onOpenCompare={(ids) => { setCompareSelectedIds(ids || []); setIsCompareModalOpen(true); }}
                 activeStatus={activeStatus}
                 filterActiveCount={(activeStatus !== 'All' ? 1 : 0) + (activeEstimateSyncStatus !== 'All' ? 1 : 0) + activeBuildingAreas.length + activeCostCodes.length}

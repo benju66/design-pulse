@@ -171,7 +171,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
         <div className="flex flex-1 overflow-hidden">
           <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
             
-            <div className="shrink-0">
+            <div className="shrink-0 mb-4">
               <CoordinationSummary
                 opportunities={filteredOpportunities}
                 forceCollapse={coordinationViewMode === 'table-split' && !!selectedOpportunityId}

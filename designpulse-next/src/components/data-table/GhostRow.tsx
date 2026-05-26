@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { Table } from '@tanstack/react-table';
 
 /**
@@ -68,34 +68,46 @@ export function GhostRow<TData>({
     }
   }, [createMutation.isPending]);
 
+  const submitData = () => {
+    if (!title.trim() || createMutation.isPending) return;
+
+    // Optional validation
+    if (validate) {
+      const error = validate(title.trim());
+      if (error) {
+        setValidationError(error);
+        setTimeout(() => setValidationError(undefined), 2000);
+        return;
+      }
+    }
+
+    // Let consumer build the full payload, or use defaults
+    if (onSubmit) {
+      const result = onSubmit(title.trim());
+      if (result === false) return;
+      createMutation.mutate(result);
+    } else {
+      createMutation.mutate({
+        id: crypto.randomUUID(),
+        [titleColumnId]: title.trim(),
+        ...defaultValues,
+      });
+    }
+    setTitle('');
+    setValidationError(undefined);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && title.trim()) {
+    if (e.key === 'Enter') {
+      if (title.trim()) {
+        e.preventDefault();
+        submitData();
+      }
+    } else if (e.key === 'Escape') {
       e.preventDefault();
-
-      // Optional validation
-      if (validate) {
-        const error = validate(title.trim());
-        if (error) {
-          setValidationError(error);
-          setTimeout(() => setValidationError(undefined), 2000);
-          return;
-        }
-      }
-
-      // Let consumer build the full payload, or use defaults
-      if (onSubmit) {
-        const result = onSubmit(title.trim());
-        if (result === false) return;
-        createMutation.mutate(result);
-      } else {
-        createMutation.mutate({
-          id: crypto.randomUUID(),
-          [titleColumnId]: title.trim(),
-          ...defaultValues,
-        });
-      }
       setTitle('');
       setValidationError(undefined);
+      if (titleInputRef.current) titleInputRef.current.blur();
     }
   };
 
@@ -103,7 +115,7 @@ export function GhostRow<TData>({
   const staticFieldMap = new Map(staticFields.map((f) => [f.columnId, f.displayValue]));
 
   const defaultPlaceholder = createMutation.isPending
-    ? 'Saving...'
+    ? 'Saving new item...'
     : placeholder ?? 'Type new item and press Enter...';
 
   return (
@@ -138,16 +150,42 @@ export function GhostRow<TData>({
         if (col.id === titleColumnId) {
           return (
             <td key={col.id} className={`p-0 border-r border-slate-200 dark:border-slate-800 relative ${validationError ? 'dt-ghost-row-validation-error' : ''}`}>
-              <input
-                ref={titleInputRef}
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={createMutation.isPending}
-                placeholder={defaultPlaceholder}
-                className="dt-ghost-row-input focus:ring-2 focus:ring-sky-500 focus:z-10 relative text-slate-900 dark:text-slate-100 placeholder:italic disabled:opacity-50"
-              />
+              <div className="relative flex items-center w-full h-full">
+                <input
+                  ref={titleInputRef}
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={createMutation.isPending}
+                  placeholder={defaultPlaceholder}
+                  className="dt-ghost-row-input focus:ring-2 focus:ring-sky-500 focus:z-10 relative text-slate-900 dark:text-slate-100 placeholder:italic disabled:opacity-50 pr-16 w-full h-full border-none outline-none bg-transparent"
+                />
+                {title.trim() && !createMutation.isPending && (
+                  <div className="absolute right-2 flex items-center gap-1.5 z-20">
+                    <button
+                      type="button"
+                      onClick={submitData}
+                      className="p-1 bg-sky-500 hover:bg-sky-600 text-white rounded shadow-sm transition-colors cursor-pointer flex items-center justify-center border-none"
+                      title="Save Item"
+                    >
+                      <Plus size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTitle('');
+                        setValidationError(undefined);
+                        if (titleInputRef.current) titleInputRef.current.focus();
+                      }}
+                      className="p-1 bg-slate-200 hover:bg-rose-500 text-slate-500 hover:text-white rounded shadow-sm transition-colors cursor-pointer flex items-center justify-center border-none"
+                      title="Clear Input"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </td>
           );
         }

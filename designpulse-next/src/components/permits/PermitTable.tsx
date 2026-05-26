@@ -31,7 +31,9 @@ import { BulkActionBar, DeleteConfirmModal, GhostRow, TableEmptyState } from '@/
 const permitComparator = (prevProps: any, nextProps: any) => {
   return prevProps.row.original === nextProps.row.original && 
          prevProps.isRowSelected === nextProps.isRowSelected &&
-         prevProps.selectedOpportunityId === nextProps.selectedOpportunityId;
+         prevProps.selectedOpportunityId === nextProps.selectedOpportunityId &&
+         prevProps.visibleColumnIds === nextProps.visibleColumnIds &&
+         prevProps.pinnedColumnOffsets === nextProps.pinnedColumnOffsets;
 };
 
 // commonCellComparator is now imported from @/components/data-table/cells
@@ -474,6 +476,7 @@ interface PermitTableProps {
 
 const EMPTY_VISIBILITY = {};
 const EMPTY_ORDER: string[] = [];
+const EMPTY_PINNING = { pinned: [], unpinned: [] };
 
 export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount = 0, onClearFilters, createMutation }: PermitTableProps) => {
   const updateData = useUpdatePermit(projectId);
@@ -489,6 +492,17 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
   const setPermitColumnVisibility = useUIStore(state => state.setPermitColumnVisibility);
   const permitColumnOrder = useUIStore(state => state.permitColumnOrder[projectId] || EMPTY_ORDER);
   const setPermitColumnOrder = useUIStore(state => state.setPermitColumnOrder);
+
+  const permitColumnPinningOverrides = useUIStore(state => state.permitColumnPinningOverrides[projectId]) || EMPTY_PINNING;
+  const togglePermitColumnPin = useUIStore(state => state.togglePermitColumnPin);
+  const clearPermitColumnPinOverrides = useUIStore(state => state.clearPermitColumnPinOverrides);
+
+  const columnPinning = useMemo(() => {
+    const defaultPinned = ['select', 'open_panel'];
+    const allPinned = new Set([...defaultPinned, ...permitColumnPinningOverrides.pinned]);
+    permitColumnPinningOverrides.unpinned.forEach(id => allPinned.delete(id));
+    return { left: Array.from(allPinned) };
+  }, [permitColumnPinningOverrides]);
   
   const isMapVisible = useUIStore(state => state.isMapVisible);
   const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
@@ -620,6 +634,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
       columnVisibility: permitColumnVisibility,
       columnOrder: permitColumnOrder.length > 0 ? permitColumnOrder : columns.map(c => c.id as string),
       rowSelection,
+      columnPinning,
     },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
@@ -685,8 +700,8 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
     : 0;
 
   return (
-    <div className="w-full h-full flex flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
-        <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-xl z-20">
+    <div className="w-full h-full flex flex-col rounded-b-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative">
+        <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 z-20">
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-2 mr-4">Permit Log</span>
             <input 
@@ -727,7 +742,12 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
             >
               <MapIcon size={16} /> Drawings
             </button>
-            <ColumnChooser table={table as any} projectId={projectId} />
+            <ColumnChooser 
+              table={table as any} 
+              projectId={projectId} 
+              onTogglePin={(id, isPinned) => togglePermitColumnPin(projectId, id, isPinned)}
+              onClearPins={() => clearPermitColumnPinOverrides(projectId)}
+            />
           </div>
         </div>
 
@@ -758,12 +778,22 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
             <thead className="bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700 sticky top-0 z-10">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th 
-                      key={header.id} 
-                      className="relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900 overflow-hidden"
-                      style={{ width: header.getSize() }}
-                    >
+                  {headerGroup.headers.map((header) => {
+                    const isPinned = header.column.getIsPinned() === 'left';
+                    const isLastPinned = isPinned && header.column.getIsLastColumn('left');
+                    return (
+                      <th 
+                        key={header.id} 
+                        className={`relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group overflow-hidden ${
+                          isPinned ? 'sticky z-30 bg-slate-100 dark:bg-slate-900 bg-clip-padding' : 'bg-slate-100 dark:bg-slate-900'
+                        } ${
+                          isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.2)] border-r-2 border-slate-300 dark:border-slate-700' : ''
+                        }`}
+                        style={{ 
+                          width: header.getSize(),
+                          ...(isPinned ? { left: header.column.getStart('left') } : {})
+                        }}
+                      >
                       <div 
                         className={`min-w-0 flex items-center ${header.id === 'select' || header.id === 'open_panel' ? 'justify-center w-full' : 'justify-between'} ${header.column.getCanSort() ? 'cursor-pointer hover:text-slate-900 dark:hover:text-white' : ''}`}
                         onClick={header.column.getToggleSortingHandler()}
@@ -785,7 +815,8 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
                         />
                       )}
                     </th>
-                  ))}
+                    );
+                  })}
                 </tr>
               ))}
             </thead>
@@ -797,6 +828,13 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
             <tbody>
               {virtualItems.map((virtualRow) => {
                 const row = rows[virtualRow.index];
+                if (!row) return null;
+                const visibleCells = row.getVisibleCells();
+                const visibleColumnIds = visibleCells.map(c => c.column.id).join(',');
+                const pinnedColumnOffsets = visibleCells
+                  .filter(c => c.column.getIsPinned() === 'left')
+                  .map(c => c.column.getStart('left'))
+                  .join(',');
                 return (
                   <MemoizedPermitRow
                     key={row.id}
@@ -805,6 +843,8 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
                     selectedOpportunityId={selectedOpportunityId}
                     measureElement={virtualizer.measureElement}
                     isRowSelected={row.getIsSelected()}
+                    visibleColumnIds={visibleColumnIds}
+                    pinnedColumnOffsets={pinnedColumnOffsets}
                   />
                 );
               })}
@@ -812,14 +852,14 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
                 <GhostRow
                   table={table}
                   createMutation={createMutation}
-                  placeholder="Type new permit title and press Enter..."
+                  placeholder="+ Add Item..."
                   defaultValues={{
                     status: 'Preparing',
                     revision_number: 0,
                     revision_history: [],
                   }}
                   staticFields={[
-                    { columnId: 'display_id', displayValue: 'New' },
+                    { columnId: 'display_id', displayValue: '-' },
                   ]}
                 />
               )}
@@ -862,15 +902,27 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
 };
 
 {/* eslint-disable-next-line react/display-name */}
-const MemoizedPermitRow = React.memo(({ row, virtualRow, selectedOpportunityId, measureElement, isRowSelected }: {
+const MemoizedPermitRow = React.memo(({ 
+  row, 
+  virtualRow, 
+  selectedOpportunityId, 
+  measureElement, 
+  isRowSelected,
+  visibleColumnIds,
+  pinnedColumnOffsets
+}: {
   row: Row<Permit>;
   virtualRow: any;
   selectedOpportunityId: string | null;
   measureElement: (element: HTMLElement | null) => void;
   isRowSelected: boolean;
+  visibleColumnIds?: string;
+  pinnedColumnOffsets?: string;
 }) => {
   const isSelected = selectedOpportunityId === row.original.id;
   const isChecked = isRowSelected;
+  void visibleColumnIds;
+  void pinnedColumnOffsets;
 
   return (
     <tr
@@ -885,15 +937,30 @@ const MemoizedPermitRow = React.memo(({ row, virtualRow, selectedOpportunityId, 
             : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 bg-white dark:bg-slate-900'
       }`}
     >
-      {row.getVisibleCells().map(cell => (
-        <td
-          key={cell.id}
-          className="p-0 border-r border-b border-slate-200 dark:border-slate-800 relative align-middle overflow-hidden"
-          style={{ width: cell.column.getSize() }}
-        >
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </td>
-      ))}
+      {row.getVisibleCells().map(cell => {
+        const isPinned = cell.column.getIsPinned() === 'left';
+        const isLastPinned = isPinned && cell.column.getIsLastColumn('left');
+        return (
+          <td
+            key={cell.id}
+            className={`p-0 border-r border-b border-slate-200 dark:border-slate-800 relative align-middle overflow-hidden ${
+              isPinned 
+                ? 'sticky z-10 bg-white dark:bg-slate-900 bg-clip-padding' 
+                : ''
+            } ${
+              isLastPinned 
+                ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.2)] border-r-2 border-slate-300 dark:border-slate-700' 
+                : ''
+            }`}
+            style={{ 
+              width: cell.column.getSize(),
+              ...(isPinned ? { left: cell.column.getStart('left') } : {})
+            }}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        );
+      })}
     </tr>
   );
 }, permitComparator);

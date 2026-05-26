@@ -38,6 +38,17 @@ interface ScenarioPlannerViewProps {
   projectId: string;
 }
 
+// DnD discriminated union for type-safe drag data
+interface BankPackageData { type: 'bank-package'; pkg: VePackageWithItems }
+interface ScenarioCellData { type: 'scenario-cell'; pkg: VePackageWithItems; scenarioId: string }
+interface ScenarioColumnDropData { type: 'scenario-column'; scenarioId: string }
+type DndItemData = BankPackageData | ScenarioCellData | ScenarioColumnDropData;
+
+function asDndData(data: Record<string, unknown> | undefined): DndItemData | null {
+  if (!data || typeof data.type !== 'string') return null;
+  return data as unknown as DndItemData;
+}
+
 // DR-DND-2: Lightweight ghost card for DragOverlay (no hooks, no state)
 function DragGhostCard({ pkg }: { pkg: VePackageWithItems }) {
   return (
@@ -109,15 +120,15 @@ export function ScenarioPlannerView({ projectId }: ScenarioPlannerViewProps) {
 
   // DR-DND-8: Resolve target scenario from either column or cell drop target
   const resolveTargetScenario = useCallback((over: Over): string | null => {
-    const data = over.data.current;
+    const data = asDndData(over.data.current as Record<string, unknown> | undefined);
     if (!data) return null;
-    if (data.type === 'scenario-column') return data.scenarioId as string;
-    if (data.type === 'scenario-cell') return data.scenarioId as string;
+    if (data.type === 'scenario-column') return data.scenarioId;
+    if (data.type === 'scenario-cell') return data.scenarioId;
     return null;
   }, []);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
+    setActiveId(String(event.active.id));
   }, []);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
@@ -126,8 +137,8 @@ export function ScenarioPlannerView({ projectId }: ScenarioPlannerViewProps) {
     const { active, over } = event;
     if (!over) return;
 
-    const activeData = active.data.current;
-    const overData = over.data.current;
+    const activeData = asDndData(active.data.current as Record<string, unknown> | undefined);
+    const overData = asDndData(over.data.current as Record<string, unknown> | undefined);
     if (!activeData || !overData) return; // DR-DND-3: null guard
 
     // Case 1: Bank package → Scenario column or cell
@@ -136,11 +147,11 @@ export function ScenarioPlannerView({ projectId }: ScenarioPlannerViewProps) {
       if (targetScenarioId) {
         // DR-DND-6: duplicate guard
         const scenario = scenarios.find(s => s.id === targetScenarioId);
-        if (scenario?.scenarioPackages.some(sp => sp.package_id === (activeData.pkg as VePackageWithItems).id)) {
+        if (scenario?.scenarioPackages.some(sp => sp.package_id === activeData.pkg.id)) {
           toast.info('Package already in this scenario');
           return;
         }
-        addPackage.mutate({ scenarioId: targetScenarioId, packageId: (activeData.pkg as VePackageWithItems).id });
+        addPackage.mutate({ scenarioId: targetScenarioId, packageId: activeData.pkg.id });
       }
       return;
     }
@@ -149,22 +160,22 @@ export function ScenarioPlannerView({ projectId }: ScenarioPlannerViewProps) {
     if (activeData.type === 'scenario-cell') {
       const targetScenarioId = resolveTargetScenario(over);
       if (!targetScenarioId) return;
-      const sourcePkg = activeData.pkg as VePackageWithItems;
+      const sourcePkg = activeData.pkg;
 
       if (activeData.scenarioId === targetScenarioId) {
         // Within-column reorder
         if (overData.type !== 'scenario-cell') return; // dropped on column bg, no reorder target
-        const scenario = scenarios.find(s => s.id === activeData.scenarioId as string);
+        const scenario = scenarios.find(s => s.id === activeData.scenarioId);
         if (!scenario) return;
         const ids = [...scenario.scenarioPackages]
           .sort((a, b) => a.sort_order - b.sort_order)
           .map(sp => sp.package_id);
         const oldIndex = ids.indexOf(sourcePkg.id);
-        const overPkg = overData.pkg as VePackageWithItems;
+        const overPkg = overData.pkg;
         const newIndex = ids.indexOf(overPkg.id);
         if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
         const reordered = arrayMove(ids, oldIndex, newIndex);
-        reorderPackages.mutate({ scenarioId: activeData.scenarioId as string, orderedPackageIds: reordered });
+        reorderPackages.mutate({ scenarioId: activeData.scenarioId, orderedPackageIds: reordered });
       } else {
         // Cross-column copy
         const targetScenario = scenarios.find(s => s.id === targetScenarioId);
@@ -321,7 +332,7 @@ export function ScenarioPlannerView({ projectId }: ScenarioPlannerViewProps) {
                     scenario={scenario}
                     packages={packages}
                     opportunities={opportunities}
-                    allOptions={allOptions as any}
+                    allOptions={allOptions ?? []}
                     originalBudget={originalBudget}
                     canEdit={canEdit}
                     baselineMetrics={baselineMetrics}

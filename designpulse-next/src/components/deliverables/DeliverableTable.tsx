@@ -21,7 +21,6 @@ import { AssigneeSelect } from '@/components/opportunities/AssigneeSelect';
 import { CheckboxCell, CheckboxHeader, commonCellComparator } from '@/components/data-table/cells';
 import { DataTable, GhostRow, BulkActionBar, MemoizedRow, TableToolbar } from '@/components/data-table';
 import { DeleteConfirmModal } from '@/components/data-table/DeleteConfirmModal';
-import { Button } from '@/components/ui/Button';
 import { formatDate, toDateInputValue } from '@/lib/formatters';
 import { toast } from 'sonner';
 import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';

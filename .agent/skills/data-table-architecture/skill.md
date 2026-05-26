@@ -166,6 +166,39 @@ These have domain-specific rendering logic (custom styling, conditional formatti
 
 ---
 
+## Details Panel Split View & Toggle Standards
+
+All data grids supporting split view detailing (e.g., Value Matrix) must implement the following standards for details toggling and responsive sidebars:
+
+### 1. Toggle Column and Trigger Cell (`open_panel`)
+* **Conditional Injection**: The `open_panel` column MUST only be injected and rendered in the grid column definitions when `viewMode === 'split'`. In full-screen views (e.g. `flat` or standard table-boards), this column must be fully excluded.
+* **Cell Component**: Use `OpenPanelCell` with the Lucide `PanelRight` icon trigger.
+* **State Hook**: The cell must sync with the active UI store:
+  ```typescript
+  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
+  ```
+* **Event Isolation**: Inside the click handler, execute `e.stopPropagation()` immediately to prevent grid-level row selection overrides or active-cell bubble indicators.
+* **Dynamic Active Styling**:
+  * **Active (Open)**: Render with clear primary sky color: `text-sky-500 bg-sky-50 dark:bg-sky-900/30`.
+  * **Inactive (Closed)**: Render with neutral gray shifting to sky color on hover: `text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30`.
+
+### 2. Side Panel Container and Controls (`DetailPanel.tsx`)
+* **Conditional Collapse**: The sidebar component must check:
+  ```typescript
+  if (viewMode !== 'split' || !selectedOpportunityId) return null;
+  ```
+* **Col-Resize Handle**: Render an absolute left-aligned handle bar (`cursor-col-resize`) that computes dragging percentages relative to window size. The panel size must be constrained between **20% and 80%** of the screen width to preserve interface responsiveness.
+* **Maximize/Restore Controls**: Include a maximize icon button toggling `isMaximized`. When maximized, apply absolute full-screen overlays:
+  ```css
+  absolute top-0 bottom-0 right-0 w-full z-50 transition-all duration-300
+  ```
+* **Keyboard Accessibility**: The side drawer container must listen to keydown events. Pressing `Escape` must close the panel (`setSelectedOpportunityId(null)`), cancel maximization, and automatically return active focus back to the grid container element (`opportunity-grid-v2-container`) for keyboard grid navigation.
+* **Dismiss Actions**: Use Lucide `X` for close triggers styled with warn-transitions: `hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30`.
+* **Polished Shadows**: Sidebars must drop clear inner shadow dividers: `shadow-[rgba(0,0,0,0.1)_-4px_0px_10px_0px] border-l border-slate-200 dark:border-slate-800`.
+
+---
+
 ## Guardrails
 
 1. **`compareQueue` is deprecated and removed** — all grids use TanStack `rowSelection`. Do not re-introduce `compareQueue`.
@@ -174,3 +207,4 @@ These have domain-specific rendering logic (custom styling, conditional formatti
 4. **`enableRowSelection` function guards** are the canonical way to prevent budget lines, sub-rows, or other non-selectable rows from being checked. Never add manual guards inside `CheckboxCell`.
 5. **Keep `extraActions` in `BulkActionBar`** for domain-specific buttons (Compare Options, Export, etc.) — do not fork the component.
 6. **`OpportunityGridV2.tsx` is the unified grid** serving both Value Matrix (`isLedgerView=false`) and Budget Ledger (`isLedgerView=true`). There is no V1 grid.
+7. **Details panel split views** must use the `open_panel` column with Lucide `PanelRight` only when in `split` view mode and ensure keyboard focus is returned to the grid container on `Escape`.

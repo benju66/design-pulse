@@ -424,16 +424,25 @@ const OpenPanelCell = ({ row }: { row: Row<Permit> }) => {
       <button
         onClick={(e) => {
           e.stopPropagation();
-          setSelectedOpportunityId(row.original.id);
-          setPermitViewMode('table-split');
+          if (selectedOpportunityId === row.original.id) {
+            setSelectedOpportunityId(null);
+          } else {
+            setSelectedOpportunityId(row.original.id);
+            setPermitViewMode('table-split');
+            setTimeout(() => {
+              const panel = document.getElementById('permit-detail-panel-container');
+              if (panel) panel.focus({ preventScroll: true });
+            }, 50);
+          }
         }}
-        className={`p-1 rounded-md transition-colors ${
+        className={`p-1 rounded transition-colors ${
           selectedOpportunityId === row.original.id
-            ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
-            : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300'
+            ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30'
+            : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30'
         }`}
+        title="Open Detail Panel"
       >
-        <PanelRight size={16} />
+        <PanelRight size={20} />
       </button>
     </div>
   );
@@ -483,6 +492,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
   
   const isMapVisible = useUIStore(state => state.isMapVisible);
   const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
+  const permitViewMode = useUIStore(state => state.permitViewMode);
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
@@ -496,19 +506,11 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
     const permitTypes = (settings?.permit_types as PermitTypeConfig[]) || [];
     const permitAHJs = (settings?.permit_ahjs as PermitAHJConfig[]) || [];
 
-    return [
+    const baseColumns: ColumnDef<Permit, any>[] = [
       {
         id: 'select',
         header: ({ table }) => <CheckboxHeader table={table} disabled={!permissions.can_edit_records} />,
         cell: (info) => <CheckboxCell info={info} disabled={!permissions.can_edit_records} />,
-        size: 40,
-        enableSorting: false,
-        enableHiding: false,
-      },
-      {
-        id: 'open_panel',
-        header: () => null,
-        cell: (info) => <OpenPanelCell row={info.row} />,
         size: 40,
         enableSorting: false,
         enableHiding: false,
@@ -590,7 +592,20 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
         enableSorting: false,
       },
     ];
-  }, [settings?.permit_types, settings?.permit_ahjs, permissions]);
+
+    if (permitViewMode === 'table-split') {
+      baseColumns.splice(1, 0, {
+        id: 'open_panel',
+        header: () => null,
+        cell: (info) => <OpenPanelCell row={info.row} />,
+        size: 40,
+        enableSorting: false,
+        enableHiding: false,
+      });
+    }
+
+    return baseColumns;
+  }, [settings?.permit_types, settings?.permit_ahjs, permissions, permitViewMode]);
 
   const [rowSelection, setRowSelection] = useState({});
 
@@ -729,6 +744,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
 
         <div 
           ref={parentRef} 
+          id="permit-table-container"
           className="flex-1 min-h-0 overflow-auto rounded-b-xl outline-none"
           tabIndex={0}
           onKeyDown={(e) => {

@@ -22,6 +22,14 @@ export default function DeliverableDetailPanel({ projectId, deliverableId }: { p
   
   const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
   
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setSelectedOpportunityId(null);
+      document.getElementById('deliverable-table-container')?.focus({ preventScroll: true });
+    }
+  };
+  
   // Tabs state: Details or Comments (Activity)
   const [activeTab, setActiveTab] = useState('Details');
   
@@ -83,8 +91,11 @@ export default function DeliverableDetailPanel({ projectId, deliverableId }: { p
   return (
     <div 
       ref={panelRef}
+      id="deliverable-detail-panel-container"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
       style={!isMaximized ? { width: `${panelWidth}%` } : {}}
-      className={`relative bg-white dark:bg-slate-900 shadow-[rgba(0,0,0,0.1)_-4px_0px_10px_0px] border-l border-slate-200 dark:border-slate-800 z-10 flex flex-col shrink-0 max-w-full ${
+      className={`relative bg-white dark:bg-slate-900 shadow-[rgba(0,0,0,0.1)_-4px_0px_10px_0px] border-l border-slate-200 dark:border-slate-800 z-10 flex flex-col shrink-0 max-w-full focus:outline-none ${
         isMaximized ? 'absolute top-0 bottom-0 right-0 w-full z-50 transition-all duration-300' : (isDragging ? 'h-full transition-none' : 'h-full transition-all duration-300')
       }`}
     >

@@ -466,90 +466,106 @@ export function DeliverableTable({
   const setColumnVisibility = useUIStore(state => state.setDeliverablesColumnVisibility);
   const columnOrder = useUIStore(state => state.deliverablesColumnOrder[projectId] || DEFAULT_COLUMN_ORDER);
   const setColumnOrder = useUIStore(state => state.setDeliverablesColumnOrder);
+  const viewMode = useUIStore(state => state.deliverablesViewMode);
 
   const moveActiveCellRef = useRef<any>(null);
 
-  const columns = useMemo<ColumnDef<ProjectDeliverable>[]>(() => [
-    {
-      id: 'select',
-      header: ({ table }) => <CheckboxHeader table={table} />,
-      cell: (info) => <CheckboxCell info={info} disabled={!permissions.can_edit_records} />,
-      size: 45,
-      enableSorting: false,
-    },
-    {
-      id: 'open_panel',
-      header: '',
-      cell: ({ row }) => (
-        <div className="w-full h-full flex items-center justify-center px-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedOpportunityId(row.original.id);
-            }}
-            className={`p-1 rounded-md transition-colors ${
-              selectedOpportunityId === row.original.id
-                ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
-                : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300'
-            }`}
-            title="Open detail panel"
-          >
-            <PanelRight size={16} />
-          </button>
-        </div>
-      ),
-      size: 40,
-      enableSorting: false,
-    },
-    {
-      accessorKey: 'display_id',
-      header: 'ID',
-      cell: ({ row }) => (
-        <div className="flex items-center w-full min-h-[28px] px-2">
-          <span className="px-1.5 py-0.5 text-xs font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-900/60 rounded">
-            {row.original.display_id || 'DE-???'}
-          </span>
-        </div>
-      ),
-      size: 90,
-    },
-    {
-      accessorKey: 'title',
-      header: 'Title',
-      cell: DeliverableTextCell,
-      size: 280,
-    },
-    {
-      accessorKey: 'due_date',
-      header: 'Due Date',
-      cell: DeliverableDateCell,
-      size: 130,
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: DeliverableStatusCell,
-      size: 160,
-    },
-    {
-      accessorKey: 'assignee',
-      header: 'Assignee',
-      cell: DeliverableAssigneeCell,
-      size: 150,
-    },
-    {
-      accessorKey: 'is_elevated_key_date',
-      header: 'Key Date',
-      cell: DeliverableKeyDateCell,
-      size: 100,
-    },
-    {
-      accessorKey: 'permit_id',
-      header: 'Parent Permit',
-      cell: DeliverablePermitCell,
-      size: 200,
+  const columns = useMemo<ColumnDef<ProjectDeliverable>[]>(() => {
+    const base: ColumnDef<ProjectDeliverable>[] = [
+      {
+        id: 'select',
+        header: ({ table }) => <CheckboxHeader table={table} />,
+        cell: (info) => <CheckboxCell info={info} disabled={!permissions.can_edit_records} />,
+        size: 45,
+        enableSorting: false,
+      },
+      {
+        accessorKey: 'display_id',
+        header: 'ID',
+        cell: ({ row }) => (
+          <div className="flex items-center w-full min-h-[28px] px-2">
+            <span className="px-1.5 py-0.5 text-xs font-bold bg-sky-50 dark:bg-sky-955/40 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-900/60 rounded">
+              {row.original.display_id || 'DE-???'}
+            </span>
+          </div>
+        ),
+        size: 90,
+      },
+      {
+        accessorKey: 'title',
+        header: 'Title',
+        cell: DeliverableTextCell,
+        size: 280,
+      },
+      {
+        accessorKey: 'due_date',
+        header: 'Due Date',
+        cell: DeliverableDateCell,
+        size: 130,
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        cell: DeliverableStatusCell,
+        size: 160,
+      },
+      {
+        accessorKey: 'assignee',
+        header: 'Assignee',
+        cell: DeliverableAssigneeCell,
+        size: 150,
+      },
+      {
+        accessorKey: 'is_elevated_key_date',
+        header: 'Key Date',
+        cell: DeliverableKeyDateCell,
+        size: 100,
+      },
+      {
+        accessorKey: 'permit_id',
+        header: 'Parent Permit',
+        cell: DeliverablePermitCell,
+        size: 200,
+      }
+    ];
+
+    if (viewMode === 'table-split') {
+      base.splice(1, 0, {
+        id: 'open_panel',
+        header: () => null,
+        cell: ({ row }) => (
+          <div className="w-full h-full flex items-center justify-center px-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (selectedOpportunityId === row.original.id) {
+                  setSelectedOpportunityId(null);
+                } else {
+                  setSelectedOpportunityId(row.original.id);
+                  setTimeout(() => {
+                    const panel = document.getElementById('deliverable-detail-panel-container');
+                    if (panel) panel.focus({ preventScroll: true });
+                  }, 50);
+                }
+              }}
+              className={`p-1 rounded transition-colors ${
+                selectedOpportunityId === row.original.id
+                  ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30'
+                  : 'text-slate-400 hover:text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/30'
+              }`}
+              title="Open Detail Panel"
+            >
+              <PanelRight size={20} />
+            </button>
+          </div>
+        ),
+        size: 40,
+        enableSorting: false,
+      });
     }
-  ], [setSelectedOpportunityId, permissions.can_edit_records]);
+
+    return base;
+  }, [setSelectedOpportunityId, selectedOpportunityId, permissions.can_edit_records, viewMode]);
 
   const table = useReactTable({
     data: deliverables,
@@ -636,6 +652,7 @@ export function DeliverableTable({
       {/* Main Grid — shared DataTable wrapper handles virtualization, header, and empty state */}
       <DataTable
         table={table}
+        id="deliverable-table-container"
         estimateSize={36}
         maxHeight="100%"
         onKeyDown={handleTableKeyDown}

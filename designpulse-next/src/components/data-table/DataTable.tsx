@@ -25,6 +25,8 @@ import { TableEmptyState } from './TableEmptyState';
 
 export interface DataTableProps<TData> {
   table: Table<TData>;
+  /** Optional container element ID for focus targeting */
+  id?: string;
   /** Estimated row height for virtualizer (default: 40) */
   estimateSize?: number;
   /** Maximum height of the scrollable area */
@@ -45,6 +47,7 @@ export interface DataTableProps<TData> {
 
 export function DataTable<TData>({
   table,
+  id,
   estimateSize = 40,
   maxHeight = 'calc(100vh - 280px)',
   enableResize = true,
@@ -79,6 +82,7 @@ export function DataTable<TData>({
   return (
     <div
       ref={parentRef}
+      id={id}
       className={`overflow-auto rounded-xl border border-slate-200 dark:border-slate-800
                   bg-white dark:bg-slate-900 ${className}`}
       style={{ maxHeight }}

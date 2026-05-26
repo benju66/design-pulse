@@ -187,6 +187,14 @@ export interface UIState {
   setSandboxPanelOpen: (v: boolean) => void;
   activeSandboxPackageId: string | null;
   setActiveSandboxPackageId: (id: string | null) => void;
+
+  // Gold-Standard Filter Workspace linkage (v17)
+  isFilterLinkingEnabled: boolean;
+  setFilterLinkingEnabled: (enabled: boolean) => void;
+  globalBuildingAreas: string[];
+  setGlobalBuildingAreas: (areas: string[]) => void;
+  globalCostCodes: string[];
+  setGlobalCostCodes: (codes: string[]) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -569,6 +577,14 @@ export const useUIStore = create<UIState>()(
       setSandboxPanelOpen: (v) => set({ isSandboxPanelOpen: v }),
       activeSandboxPackageId: null,
       setActiveSandboxPackageId: (id) => set({ activeSandboxPackageId: id }),
+
+      // Gold-Standard Filter Workspace linkage (v17)
+      isFilterLinkingEnabled: true,
+      setFilterLinkingEnabled: (enabled) => set({ isFilterLinkingEnabled: enabled }),
+      globalBuildingAreas: [],
+      setGlobalBuildingAreas: (areas) => set({ globalBuildingAreas: areas }),
+      globalCostCodes: [],
+      setGlobalCostCodes: (codes) => set({ globalCostCodes: codes }),
     }),
     {
       name: 'design-pulse-ui-prefs',
@@ -609,8 +625,12 @@ export const useUIStore = create<UIState>()(
         permitColumnPinningOverrides: state.permitColumnPinningOverrides ?? {},
         deliverablesColumnPinningOverrides: state.deliverablesColumnPinningOverrides ?? {},
         keyDatesColumnPinningOverrides: state.keyDatesColumnPinningOverrides ?? {},
+        // Persist v17 workspace filters
+        isFilterLinkingEnabled: state.isFilterLinkingEnabled ?? true,
+        globalBuildingAreas: state.globalBuildingAreas ?? [],
+        globalCostCodes: state.globalCostCodes ?? [],
       }),
-      version: 16,
+      version: 17,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -739,6 +759,15 @@ export const useUIStore = create<UIState>()(
             permitColumnPinningOverrides: {},
             deliverablesColumnPinningOverrides: {},
             keyDatesColumnPinningOverrides: {},
+          } as unknown as UIState;
+        }
+        if (version < 17) {
+          // v16 → v17: added filter workspace linking preferences
+          return {
+            ...state,
+            isFilterLinkingEnabled: true,
+            globalBuildingAreas: [],
+            globalCostCodes: [],
           } as unknown as UIState;
         }
         return state as UIState;

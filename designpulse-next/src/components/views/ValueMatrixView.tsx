@@ -11,6 +11,7 @@ import CompareModal from '@/components/CompareModal';
 import { SandboxPanel } from '@/components/sandbox/SandboxPanel';
 import { AddToPackageMenu } from '@/components/sandbox/AddToPackageMenu';
 import { useUIStore } from '@/stores/useUIStore';
+import { useURLFilters } from '@/hooks/useURLFilters';
 import { useOpportunities, useCreateOpportunity } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { useProjectEstimateVersions } from '@/hooks/useEstimateQueries';
@@ -55,11 +56,68 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
     return new Set(pkg.items.map(item => item.opportunity_id));
   }, [activeSandboxPackageId, packages]);
 
-  // ── Local Filter State ──
-  const [activeStatus, setActiveStatus] = React.useState('All');
-  const [activeEstimateSyncStatus, setActiveEstimateSyncStatus] = React.useState('All');
-  const [activeBuildingAreas, setActiveBuildingAreas] = React.useState<string[]>([]);
-  const [activeCostCodes, setActiveCostCodes] = React.useState<string[]>([]);
+  // ── Local Filter State (v17 URL Integrated) ──
+  const [urlFilters, setUrlFilters] = useURLFilters({
+    status: 'All',
+    estStatus: 'All',
+    areas: [] as string[],
+    codes: [] as string[]
+  });
+
+  // ── Global Filter linkage settings ──
+  const isFilterLinkingEnabled = useUIStore(state => state.isFilterLinkingEnabled);
+  const setFilterLinkingEnabled = useUIStore(state => state.setFilterLinkingEnabled);
+  const globalBuildingAreas = useUIStore(state => state.globalBuildingAreas);
+  const setGlobalBuildingAreas = useUIStore(state => state.setGlobalBuildingAreas);
+  const globalCostCodes = useUIStore(state => state.globalCostCodes);
+  const setGlobalCostCodes = useUIStore(state => state.setGlobalCostCodes);
+
+  // Derive filter values either from urlFilters or from global Zustand linkage
+  const activeStatus = urlFilters.status;
+  const activeEstimateSyncStatus = urlFilters.estStatus;
+  const activeBuildingAreas = isFilterLinkingEnabled ? globalBuildingAreas : urlFilters.areas;
+  const activeCostCodes = isFilterLinkingEnabled ? globalCostCodes : urlFilters.codes;
+
+  const setActiveBuildingAreas = React.useCallback((areas: string[]) => {
+    if (isFilterLinkingEnabled) {
+      setGlobalBuildingAreas(areas);
+    }
+    setUrlFilters(prev => ({ ...prev, areas }));
+  }, [isFilterLinkingEnabled, setGlobalBuildingAreas, setUrlFilters]);
+
+  const setActiveCostCodes = React.useCallback((codes: string[]) => {
+    if (isFilterLinkingEnabled) {
+      setGlobalCostCodes(codes);
+    }
+    setUrlFilters(prev => ({ ...prev, codes }));
+  }, [isFilterLinkingEnabled, setGlobalCostCodes, setUrlFilters]);
+
+  const setActiveStatus = React.useCallback((status: string) => {
+    setUrlFilters(prev => ({ ...prev, status }));
+  }, [setUrlFilters]);
+
+  const setActiveEstimateSyncStatus = React.useCallback((estStatus: string) => {
+    setUrlFilters(prev => ({ ...prev, estStatus }));
+  }, [setUrlFilters]);
+
+  // Sync global linking state back into URL search params
+  React.useEffect(() => {
+    if (isFilterLinkingEnabled) {
+      setUrlFilters(prev => {
+        if (
+          JSON.stringify(prev.areas) === JSON.stringify(globalBuildingAreas) &&
+          JSON.stringify(prev.codes) === JSON.stringify(globalCostCodes)
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          areas: globalBuildingAreas,
+          codes: globalCostCodes
+        };
+      });
+    }
+  }, [isFilterLinkingEnabled, globalBuildingAreas, globalCostCodes, setUrlFilters]);
 
   // ── Modal State ──
   const [isCompareModalOpen, setIsCompareModalOpen] = React.useState(false);
@@ -320,6 +378,15 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
                 packageHighlightIds={packageHighlightIds}
                 filterSlot={
                   <>
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-2">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Link Filters across views</span>
+                      <input
+                        type="checkbox"
+                        checked={isFilterLinkingEnabled}
+                        onChange={(e) => setFilterLinkingEnabled(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                      />
+                    </div>
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">VE Status</label>
                       <select

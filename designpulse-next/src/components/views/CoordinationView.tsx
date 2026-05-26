@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { PanelRight, LayoutGrid, UploadCloud } from 'lucide-react';
 import CoordinationTable from '@/components/coordination/CoordinationTable';
 import CoordinationBoard from '@/components/coordination/CoordinationBoard';
@@ -15,6 +15,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useOpportunities } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
+import { useURLFilters } from '@/hooks/useURLFilters';
 import type { Opportunity, DisciplineConfig } from '@/types/models';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
@@ -38,12 +39,74 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
   const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
 
-  // ── Local Filter State ──
-  const [coordActiveType, setCoordActiveType] = useState('All');
-  const [coordActiveStatuses, setCoordActiveStatuses] = useState<string[]>([]);
-  const [coordActiveBuildingAreas, setCoordActiveBuildingAreas] = useState<string[]>([]);
-  const [coordActiveDisciplines, setCoordActiveDisciplines] = useState<string[]>([]);
-  const [coordActiveCostCodes, setCoordActiveCostCodes] = useState<string[]>([]);
+  // ── Local Filter State (v17 URL Integrated) ──
+  const [urlFilters, setUrlFilters] = useURLFilters({
+    type: 'All',
+    statuses: [] as string[],
+    areas: [] as string[],
+    disciplines: [] as string[],
+    codes: [] as string[]
+  });
+
+  // ── Global Filter linkage settings ──
+  const isFilterLinkingEnabled = useUIStore(state => state.isFilterLinkingEnabled);
+  const setFilterLinkingEnabled = useUIStore(state => state.setFilterLinkingEnabled);
+  const globalBuildingAreas = useUIStore(state => state.globalBuildingAreas);
+  const setGlobalBuildingAreas = useUIStore(state => state.setGlobalBuildingAreas);
+  const linkedCostCodes = useUIStore(state => state.globalCostCodes);
+  const setGlobalCostCodes = useUIStore(state => state.setGlobalCostCodes);
+
+  // Derive filter values either from urlFilters or from global Zustand linkage
+  const coordActiveType = urlFilters.type;
+  const coordActiveStatuses = urlFilters.statuses;
+  const coordActiveBuildingAreas = isFilterLinkingEnabled ? globalBuildingAreas : urlFilters.areas;
+  const coordActiveCostCodes = isFilterLinkingEnabled ? linkedCostCodes : urlFilters.codes;
+  const coordActiveDisciplines = urlFilters.disciplines;
+
+  const setCoordActiveBuildingAreas = useCallback((areas: string[]) => {
+    if (isFilterLinkingEnabled) {
+      setGlobalBuildingAreas(areas);
+    }
+    setUrlFilters(prev => ({ ...prev, areas }));
+  }, [isFilterLinkingEnabled, setGlobalBuildingAreas, setUrlFilters]);
+
+  const setCoordActiveCostCodes = useCallback((codes: string[]) => {
+    if (isFilterLinkingEnabled) {
+      setGlobalCostCodes(codes);
+    }
+    setUrlFilters(prev => ({ ...prev, codes }));
+  }, [isFilterLinkingEnabled, setGlobalCostCodes, setUrlFilters]);
+
+  const setCoordActiveType = useCallback((type: string) => {
+    setUrlFilters(prev => ({ ...prev, type }));
+  }, [setUrlFilters]);
+
+  const setCoordActiveStatuses = useCallback((statuses: string[]) => {
+    setUrlFilters(prev => ({ ...prev, statuses }));
+  }, [setUrlFilters]);
+
+  const setCoordActiveDisciplines = useCallback((disciplines: string[]) => {
+    setUrlFilters(prev => ({ ...prev, disciplines }));
+  }, [setUrlFilters]);
+
+  // Sync global linking state back into URL search params
+  useEffect(() => {
+    if (isFilterLinkingEnabled) {
+      setUrlFilters(prev => {
+        if (
+          JSON.stringify(prev.areas) === JSON.stringify(globalBuildingAreas) &&
+          JSON.stringify(prev.codes) === JSON.stringify(linkedCostCodes)
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          areas: globalBuildingAreas,
+          codes: linkedCostCodes
+        };
+      });
+    }
+  }, [isFilterLinkingEnabled, globalBuildingAreas, linkedCostCodes, setUrlFilters]);
 
   // ── Derived Settings and Filters ──
   const dynamicBuildingAreas = useMemo(() => {
@@ -203,6 +266,15 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                   onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); }}
                   filterSlot={
                     <>
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-2">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Link Filters across views</span>
+                        <input
+                          type="checkbox"
+                          checked={isFilterLinkingEnabled}
+                          onChange={(e) => setFilterLinkingEnabled(e.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                        />
+                      </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Type</label>
                         <select value={coordActiveType} onChange={(e) => setCoordActiveType(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 cursor-pointer">

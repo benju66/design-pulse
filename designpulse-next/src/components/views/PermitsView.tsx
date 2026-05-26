@@ -8,8 +8,8 @@ import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
 import { usePermits, useCreatePermit } from '@/hooks/usePermitQueries';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { useUIStore, PermitFilters } from '@/stores/useUIStore';
+import { useURLFilters } from '@/hooks/useURLFilters';
 
-const EMPTY_PERMIT_FILTERS: PermitFilters = {};
 
 interface PermitsViewProps {
   projectId: string;
@@ -25,11 +25,24 @@ export function PermitsView({ projectId }: PermitsViewProps) {
   const permitViewMode = useUIStore(state => state.permitViewMode);
   const setPermitViewMode = useUIStore(state => state.setPermitViewMode);
 
-  const permitFilters = useUIStore(state => state.permitFilters[projectId] || EMPTY_PERMIT_FILTERS);
-  const _setPermitFilters = useUIStore(state => state.setPermitFilters);
+  // ── URL Filter State Integration (v17 Gold Standard) ──
+  const [urlFilters, setUrlFilters] = useURLFilters({
+    status: [] as string[],
+    type: [] as string[],
+    ahj: [] as string[]
+  });
+
+  const permitFilters = urlFilters;
+  
   const setPermitFilters = useCallback(
-    (filters: PermitFilters) => _setPermitFilters(projectId, filters),
-    [projectId, _setPermitFilters]
+    (filters: PermitFilters) => {
+      setUrlFilters({
+        status: filters.status || [],
+        type: filters.type || [],
+        ahj: filters.ahj || []
+      });
+    },
+    [setUrlFilters]
   );
 
   // ── Derived Settings ──

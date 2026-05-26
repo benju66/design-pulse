@@ -166,6 +166,13 @@ export interface UIState {
 
   keyDatesColumnOrder: Record<string, string[]>;
   setKeyDatesColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
+
+  // VE Sandbox Packages panel
+  isSandboxPanelOpen: boolean;
+  toggleSandboxPanel: () => void;
+  setSandboxPanelOpen: (v: boolean) => void;
+  activeSandboxPackageId: string | null;
+  setActiveSandboxPackageId: (id: string | null) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -460,6 +467,13 @@ export const useUIStore = create<UIState>()(
           }
         };
       }),
+
+      // VE Sandbox Packages panel
+      isSandboxPanelOpen: false,
+      toggleSandboxPanel: () => set((state) => ({ isSandboxPanelOpen: !state.isSandboxPanelOpen })),
+      setSandboxPanelOpen: (v) => set({ isSandboxPanelOpen: v }),
+      activeSandboxPackageId: null,
+      setActiveSandboxPackageId: (id) => set({ activeSandboxPackageId: id }),
     }),
     {
       name: 'design-pulse-ui-prefs',
@@ -496,8 +510,9 @@ export const useUIStore = create<UIState>()(
         deliverablesFilters: state.deliverablesFilters ?? {},
         keyDatesColumnVisibility: state.keyDatesColumnVisibility ?? {},
         keyDatesColumnOrder: state.keyDatesColumnOrder ?? {},
+        isSandboxPanelOpen: state.isSandboxPanelOpen ?? false,
       }),
-      version: 13,
+      version: 14,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -605,6 +620,14 @@ export const useUIStore = create<UIState>()(
             ...state,
             keyDatesColumnVisibility: {},
             keyDatesColumnOrder: {},
+          } as unknown as UIState;
+        }
+        if (version < 14) {
+          // v13 → v14: added VE Sandbox Packages panel state
+          return {
+            ...state,
+            isSandboxPanelOpen: false,
+            activeSandboxPackageId: null,
           } as unknown as UIState;
         }
         return state as UIState;

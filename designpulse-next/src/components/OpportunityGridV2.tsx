@@ -77,6 +77,10 @@ interface OpportunityGridProps {
   onFilterDrawerToggle?: (isOpen: boolean) => void;
   /** Value Matrix status filter — used to auto-show estimate_sync_status column */
   activeStatus?: string;
+  /** Sandbox: render-prop for injecting additional bulk actions (e.g. AddToPackageMenu) */
+  extraBulkActions?: (selectedIds: string[]) => ReactNode;
+  /** Sandbox: set of opportunity IDs to highlight with package accent */
+  packageHighlightIds?: Set<string>;
 }
 
 interface GroupedRowProps {
@@ -433,7 +437,7 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
   );
 });
 
-export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {}, activeVersionId, onFilterDrawerToggle, activeStatus }: OpportunityGridProps) {
+export default function OpportunityGridV2({ projectId, data, viewMode = 'flat', onOpenCompare, isolateState = false, hideGhostRow = false, isLedgerView = false, filterSlot, filterActiveCount = 0, onClearFilters, varianceNoteMap = {}, activeVersionId, onFilterDrawerToggle, activeStatus, extraBulkActions, packageHighlightIds }: OpportunityGridProps) {
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
   const deleteMutation = useDeleteOpportunity(projectId);
@@ -1159,14 +1163,17 @@ const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
             onClear={clearSelection}
             onDelete={() => setIsDeleteModalOpen(true)}
             canDelete={permissions.can_delete_records}
-            extraActions={onOpenCompare ? (
-              <button 
-                onClick={() => onOpenCompare(selectedIds)}
-                className="px-6 py-2 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded-lg shadow-sm transition-colors text-sm"
-              >
-                Compare Options
-              </button>
-            ) : undefined}
+            extraActions={<>
+              {extraBulkActions?.(selectedIds)}
+              {onOpenCompare ? (
+                <button 
+                  onClick={() => onOpenCompare(selectedIds)}
+                  className="px-6 py-2 bg-sky-500 hover:bg-sky-400 text-white font-bold rounded-lg shadow-sm transition-colors text-sm"
+                >
+                  Compare Options
+                </button>
+              ) : undefined}
+            </>}
           />
 
         <DeleteConfirmModal
@@ -1178,6 +1185,19 @@ const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
           entityName="Items"
           description="Are you sure you want to delete these items? This action will move them to the trash."
         />
+
+      {/* Sandbox: dynamic row highlighting via injected style tag */}
+      {packageHighlightIds && packageHighlightIds.size > 0 && (
+        <style>{`
+          ${Array.from(packageHighlightIds).map(id => `#row-${CSS.escape(id)}`).join(',\n          ')} {
+            background: var(--sandbox-highlight-bg, rgba(139, 92, 246, 0.06));
+            border-left: 3px solid var(--sandbox-highlight-border, rgb(139, 92, 246));
+          }
+          :is(.dark) ${Array.from(packageHighlightIds).map(id => `#row-${CSS.escape(id)}`).join(',\n          :is(.dark) ')} {
+            background: var(--sandbox-highlight-bg-dark, rgba(139, 92, 246, 0.1));
+          }
+        `}</style>
+      )}
 
       </div>
     </div>

@@ -36,3 +36,123 @@ export function calculateParentTotals(
 
   return { cost_impact: 0, days_impact: 0 };
 }
+
+// ============================================================================
+// Budget Metrics — Extracted from BudgetSummary.tsx L52-104
+// ============================================================================
+
+export interface BudgetMetrics {
+  approvedChanges: number;
+  pendingChanges: number;
+  potentialExposure: number;
+  revisedBudget: number;
+  projectedBudget: number;
+  netImpact: number;
+  itemCount: number;
+}
+
+/**
+ * Core budget calculation engine — extracted from BudgetSummary.tsx L52-104.
+ * Used by BudgetSummary (full project) and Sandbox (per-package).
+ *
+ * INVARIANT: This function produces identical results to the original inline
+ * useMemo. Any behavioral change is a regression.
+ *
+ * NOTE: Budget-line rows (is_budget_line=true) are NOT filtered here — they
+ * contribute $0 which is harmless. Filtering them would change BudgetSummary output.
+ */
+export function calculateBudgetMetrics(
+  opportunities: Array<{ id: string; status: string | null; cost_impact: number | null }>,
+  allOptions: Array<{ opportunity_id: string; cost_impact: number | null; is_locked: boolean | null; include_in_budget: boolean | null }>,
+  originalBudget: number,
+): BudgetMetrics {
+  let approved = 0;
+  let pending = 0;
+  let exposure = 0;
+
+  // BUG-6: Preserve O(n+m) pre-grouping from BudgetSummary L57-61
+  const optionsByOppId = allOptions.reduce<Record<string, typeof allOptions>>((acc, opt) => {
+    acc[opt.opportunity_id] = acc[opt.opportunity_id] || [];
+    acc[opt.opportunity_id].push(opt);
+    return acc;
+  }, {});
+
+  opportunities.forEach(opp => {
+    if (opp.status === 'Rejected') return;
+
+    const oppOptions = optionsByOppId[opp.id] || [];
+    const hasOptions = oppOptions.length > 0;
+    const lockedOption = oppOptions.find(o => o.is_locked);
+
+    const oppImpact = Number(opp.cost_impact) || 0;
+
+    if (opp.status === 'Approved' || lockedOption) {
+      const impact = lockedOption ? (Number(lockedOption.cost_impact) || 0) : oppImpact;
+      approved += impact;
+    } else if (opp.status === 'Pending Review') {
+      if (!hasOptions) {
+        pending += oppImpact;
+      } else {
+        const includedOptions = oppOptions.filter(o => o.include_in_budget);
+        if (includedOptions.length > 0) {
+          const includedImpact = includedOptions.reduce((sum, o) => sum + (Number(o.cost_impact) || 0), 0);
+          pending += includedImpact;
+        } else {
+          const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
+          pending += maxImpact;
+        }
+      }
+    } else {
+      if (!hasOptions) {
+        exposure += oppImpact;
+      } else {
+        const includedOptions = oppOptions.filter(o => o.include_in_budget);
+        if (includedOptions.length > 0) {
+          const includedImpact = includedOptions.reduce((sum, o) => sum + (Number(o.cost_impact) || 0), 0);
+          exposure += includedImpact;
+        } else {
+          const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
+          exposure += maxImpact;
+        }
+      }
+    }
+  });
+
+  const revisedBudget = originalBudget + approved;
+  const projectedBudget = revisedBudget + pending;
+  return {
+    approvedChanges: approved,
+    pendingChanges: pending,
+    potentialExposure: exposure,
+    revisedBudget,
+    projectedBudget,
+    netImpact: approved + pending + exposure,
+    itemCount: opportunities.filter(o => o.status !== 'Rejected').length,
+  };
+}
+
+/**
+ * Standard cost resolution for a single opportunity — used by useSandboxMetrics
+ * as the fallback when no assumed_option_id is set.
+ *
+ * Priority: locked > include_in_budget > worst-case (Math.max)
+ */
+export function resolveStandardCost(
+  opp: { status: string | null; cost_impact: number | null },
+  oppOptions: Array<{ cost_impact: number | null; is_locked: boolean | null; include_in_budget: boolean | null }>,
+): number {
+  const lockedOption = oppOptions.find(o => o.is_locked);
+  if (lockedOption) return Number(lockedOption.cost_impact) || 0;
+
+  const hasOptions = oppOptions.length > 0;
+  const oppImpact = Number(opp.cost_impact) || 0;
+
+  if (!hasOptions) return oppImpact;
+
+  const includedOptions = oppOptions.filter(o => o.include_in_budget);
+  if (includedOptions.length > 0) {
+    return includedOptions.reduce((sum, o) => sum + (Number(o.cost_impact) || 0), 0);
+  }
+
+  return Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
+}

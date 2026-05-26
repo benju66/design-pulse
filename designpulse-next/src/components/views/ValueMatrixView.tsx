@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { Plus, PanelRight, List, LayoutPanelTop } from 'lucide-react';
+import { Plus, PanelRight, List, LayoutPanelTop, Package } from 'lucide-react';
 import OpportunityGridV2 from '@/components/OpportunityGridV2';
 import BudgetSummary from '@/components/BudgetSummary';
 import FloorplanCanvas from '@/components/FloorplanCanvas';
@@ -8,10 +8,13 @@ import DetailPanel from '@/components/DetailPanel';
 import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
 import { Button } from '@/components/ui/Button';
 import CompareModal from '@/components/CompareModal';
+import { SandboxPanel } from '@/components/sandbox/SandboxPanel';
+import { AddToPackageMenu } from '@/components/sandbox/AddToPackageMenu';
 import { useUIStore } from '@/stores/useUIStore';
 import { useOpportunities, useCreateOpportunity } from '@/hooks/useOpportunityQueries';
-import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
+import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { useProjectEstimateVersions } from '@/hooks/useEstimateQueries';
+import { useVePackages } from '@/hooks/useSandboxQueries';
 import { exportToPDFService } from '@/services/api';
 import { supabase } from '@/supabaseClient';
 import { toast } from 'sonner';
@@ -33,8 +36,24 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
   const isMapVisible = useUIStore(state => state.isMapVisible);
   const viewMode = useUIStore(state => state.veGridViewMode);
   const setViewMode = useUIStore(state => state.setVeGridViewMode);
+  const isSandboxPanelOpen = useUIStore(state => state.isSandboxPanelOpen);
+  const toggleSandboxPanel = useUIStore(state => state.toggleSandboxPanel);
+  const activeSandboxPackageId = useUIStore(state => state.activeSandboxPackageId);
   const navigateToSettings = (tab: import('@/stores/useUIStore').SettingsTab) => 
     useUIStore.getState().navigateToSettings(projectId, tab);
+
+  // ── Permissions ──
+  const { permissions } = useCurrentUserPermissions(projectId);
+  const canEdit = permissions.can_edit_records;
+
+  // ── Sandbox package highlight IDs ──
+  const { data: packages = [] } = useVePackages(projectId);
+  const packageHighlightIds = React.useMemo(() => {
+    if (!activeSandboxPackageId) return undefined;
+    const pkg = packages.find(p => p.id === activeSandboxPackageId);
+    if (!pkg) return undefined;
+    return new Set(pkg.items.map(item => item.opportunity_id));
+  }, [activeSandboxPackageId, packages]);
 
   // ── Local Filter State ──
   const [activeStatus, setActiveStatus] = React.useState('All');
@@ -230,6 +249,14 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
           >
             Export PDF
           </Button>
+          <Button
+            variant={isSandboxPanelOpen ? 'primary' : 'secondary'}
+            onClick={toggleSandboxPanel}
+            title="VE Packages Sandbox"
+          >
+            <Package size={16} />
+            Packages
+          </Button>
           <Button 
             onClick={() => createMutation.mutate({ building_area: activeBuildingAreas.length > 0 ? activeBuildingAreas[0] : (dynamicBuildingAreas[0] || 'Corridor / Common') })}
             isLoading={createMutation.isPending}
@@ -249,7 +276,7 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
             <BudgetSummary 
               projectId={projectId} 
               opportunities={opportunities} 
-              forceCollapse={viewMode === 'split' && !!selectedOpportunityId} 
+              forceCollapse={(viewMode === 'split' && !!selectedOpportunityId) || isSandboxPanelOpen} 
             />
           </div>
 
@@ -277,6 +304,14 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
                 activeStatus={activeStatus}
                 filterActiveCount={(activeStatus !== 'All' ? 1 : 0) + (activeEstimateSyncStatus !== 'All' ? 1 : 0) + activeBuildingAreas.length + activeCostCodes.length}
                 onClearFilters={() => { setActiveStatus('All'); setActiveEstimateSyncStatus('All'); setActiveBuildingAreas([]); setActiveCostCodes([]); }}
+                extraBulkActions={canEdit ? (selectedIds) => {
+                  // Grid selectedIds may include option/contender subrow IDs — filter to parent opportunity IDs only
+                  const opportunityIdSet = new Set(filteredOpportunities.map(o => o.id));
+                  const oppIds = selectedIds.filter(id => opportunityIdSet.has(id));
+                  if (oppIds.length === 0) return null;
+                  return <AddToPackageMenu projectId={projectId} selectedIds={oppIds} />;
+                } : undefined}
+                packageHighlightIds={packageHighlightIds}
                 filterSlot={
                   <>
                     <div className="flex flex-col gap-1.5">
@@ -322,6 +357,11 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
             )}
           </div>
         </div>
+
+        {/* Sandbox Panel — coexists as a flex sibling */}
+        {isSandboxPanelOpen && (
+          <SandboxPanel projectId={projectId} canEdit={canEdit} />
+        )}
 
         {/* Detail Panel */}
         <DetailPanel 

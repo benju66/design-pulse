@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
 import { useAllProjectOptions, usePendingEstimateUpdates } from '@/hooks/useOpportunityQueries';
 import { Opportunity } from '@/types/models';
+import { calculateBudgetMetrics } from '@/utils/financialMath';
 import { useUIStore } from '@/stores/useUIStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, ChevronDown } from 'lucide-react';
@@ -49,63 +50,11 @@ export default function BudgetSummary({ projectId, opportunities = [], forceColl
   const pendingIncorporationCount = pendingUpdates.length;
   const pendingIncorporationValue = pendingUpdates.reduce((sum, opp) => sum + (Number(opp.cost_impact) || 0), 0);
 
-  const { approvedChanges, pendingChanges, potentialExposure } = useMemo(() => {
-    let approved = 0;
-    let pending = 0;
-    let exposure = 0;
+  const { approvedChanges, pendingChanges, potentialExposure, revisedBudget, projectedBudget } = useMemo(
+    () => calculateBudgetMetrics(opportunities, allOptions, originalBudget),
+    [opportunities, allOptions, originalBudget]
+  );
 
-    const optionsByOppId = allOptions.reduce((acc: Record<string, any[]>, opt) => {
-      acc[opt.opportunity_id] = acc[opt.opportunity_id] || [];
-      acc[opt.opportunity_id].push(opt);
-      return acc;
-    }, {});
-    
-    opportunities.forEach(opp => {
-      if (opp.status === 'Rejected') return;
-
-      const oppOptions = optionsByOppId[opp.id] || [];
-      const hasOptions = oppOptions.length > 0;
-      const lockedOption = oppOptions.find(o => o.is_locked);
-      
-      const oppImpact = Number(opp.cost_impact) || 0;
-
-      if (opp.status === 'Approved' || lockedOption) {
-        const impact = lockedOption ? (Number(lockedOption.cost_impact) || 0) : oppImpact;
-        approved += impact;
-      } else if (opp.status === 'Pending Review') {
-        if (!hasOptions) {
-          pending += oppImpact;
-        } else {
-          const includedOptions = oppOptions.filter(o => o.include_in_budget);
-          if (includedOptions.length > 0) {
-            const includedImpact = includedOptions.reduce((sum, o) => sum + (Number(o.cost_impact) || 0), 0);
-            pending += includedImpact;
-          } else {
-            const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
-            pending += maxImpact;
-          }
-        }
-      } else {
-        if (!hasOptions) {
-          exposure += oppImpact;
-        } else {
-          const includedOptions = oppOptions.filter(o => o.include_in_budget);
-          if (includedOptions.length > 0) {
-            const includedImpact = includedOptions.reduce((sum, o) => sum + (Number(o.cost_impact) || 0), 0);
-            exposure += includedImpact;
-          } else {
-            const maxImpact = Math.max(...oppOptions.map(o => Number(o.cost_impact) || 0));
-            exposure += maxImpact;
-          }
-        }
-      }
-    });
-
-    return { approvedChanges: approved, pendingChanges: pending, potentialExposure: exposure };
-  }, [opportunities, allOptions]);
-
-  const revisedBudget = originalBudget + approvedChanges;
-  const projectedBudget = revisedBudget + pendingChanges;
 
   const formatCurrency = (val: number, forcePlus = false) => {
     if (isNaN(val)) return '$0';

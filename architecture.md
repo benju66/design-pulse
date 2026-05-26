@@ -206,7 +206,7 @@ C4Component
 
 | Store | File | Persistence | Key Responsibilities |
 |-------|------|-------------|----------------------|
-| `useUIStore` | `src/stores/useUIStore.ts` (482 lines) | `localStorage` (`design-pulse-ui-prefs`, v12 with migration chain v0→v12) | Active view per project, selected row, grid modes, column visibility/order/pinning/filters per project (including deliverables preferences), panel collapse states, card ordering, filter prefs |
+| `useUIStore` | `src/stores/useUIStore.ts` (500+ lines) | `localStorage` (`design-pulse-ui-prefs`, v14 with migration chain v0→v14) | Active view per project, selected row, grid modes, column visibility/order/pinning/filters per project (including deliverables preferences), panel collapse states, card ordering, filter prefs, sandbox panel toggle |
 | `useMapStore` | `src/stores/useMapStore.ts` (118 lines) | `sessionStorage` (`designpulse-map-session`, v2) | Tool mode (8 modes), selected zones, active sheet, open sheet tabs, pending polygon, editing zone |
 | `useBulkImportStore` | Inline in `BulkImportModal.tsx` | None (ephemeral) | Staged Excel import rows for coordination task bulk import |
 
@@ -227,6 +227,8 @@ C4Component
 | `useKeyDateQueries.ts` | Key Dates | `useKeyDates` | `useCreateKeyDate`, `useUpdateKeyDate`, `useDeleteKeyDate` |
 | `useTimelineQueries.ts` | Unified Timeline | `useUnifiedTimeline` (client-side merge of `useKeyDates` + `useDeliverables` + `usePermits`) | — (read-only projection; mutations route through source hooks) |
 | `useLessonQueries.ts` | Lessons Learned | `useLessons`, `useLessonIndicators` | Lesson CRUD + attachment mutations |
+| `useSandboxQueries.ts` | VE Packages | `useVePackages` | `useCreatePackage`, `useUpdatePackage`, `useDeletePackage`, `useAddPackageItems`, `useRemovePackageItem`, `useReorderPackageItems`, `useSetAssumedOption`, `useCleanupStaleOptionRef`, `useDuplicatePackage` |
+| `useSandboxMetrics.ts` | VE Package Metrics | `useSandboxMetrics` (scenario-aware per-package calculator) | — |
 | `useDrawingSetQueries.ts` | Drawing Sets | `useDrawingSets` | `useCreateDrawingSet`, `useActivateDrawingSet` |
 | `useCsiQueries.ts` | Project CSI Specs | `useProjectCsiSpecs` | CSI spec mutations |
 | `useCompanyCsiQueries.ts` | Company CSI | `useCompanyCsiDefaults`, `useCompanyCsiRosettaView` | `useBulkUpsertCompanyCsiDefaults`, `useSeedProjectFromCompanyDefaults` |
@@ -321,6 +323,7 @@ C4Component
         Component(lessons_engine, "Lessons Engine", "Tables + RPCs", "project_lessons, lesson_opportunity_links, lesson_attachments. RPCs: update_lesson_status, get_lesson_indicators.")
         Component(deliverables_engine, "Deliverables Engine", "Tables + Triggers", "project_deliverables. Triggers: generate_display_id, audit, auto_update_timestamp. Integrated with audit logs & activity comment security.")
         Component(rbac, "RBAC System", "Functions + Table", "role_permissions table (4 roles × 8 permissions). Helper functions: is_platform_admin(), get_user_project_role(), has_project_permission(). All RLS policies delegate to these.")
+        Component(ve_packages_engine, "VE Packages Engine", "Tables + Triggers", "ve_packages, ve_package_items. Scenario-planning sandbox for grouping VE items into named packages with per-item assumed contenders. Audit triggers, RLS via has_project_permission(). Soft-delete on ve_packages.")
     }
 
     Rel(decision, core, "FK: project_id, user references")
@@ -333,6 +336,8 @@ C4Component
     Rel(decision, spatial, "FK: opportunity_id on sheet_markups")
     Rel(permits_engine, decision, "FK: coordination_task_id via permit_task_links")
     Rel(lessons_engine, decision, "FK: opportunity_id via lesson_opportunity_links")
+    Rel(ve_packages_engine, core, "FK: project_id")
+    Rel(ve_packages_engine, decision, "FK: opportunity_id, assumed_option_id")
     Rel(rbac, core, "Enforces access on all tables")
 
     UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
@@ -380,6 +385,11 @@ erDiagram
 
     project_lessons ||--o{ lesson_opportunity_links : "links"
     project_lessons ||--o{ lesson_attachments : "files"
+
+    projects ||--o{ ve_packages : "packages"
+    ve_packages ||--o{ ve_package_items : "contains items"
+    ve_package_items }o--|| opportunities : "references"
+    ve_package_items }o--o| opportunity_options : "assumed contender"
 
     client_brand_standards ||--o{ project_brand_standards : "snapshots"
 
@@ -471,13 +481,14 @@ design-pulse/                           # Informal monorepo (no workspace manage
 │   │   │   ├── permits/ (7)            #     Permit board, table, detail, kanban
 │   │   │   ├── clients/ (5)            #     Brand standards, documents, profile
 │   │   │   ├── views/ (4)              #     View wrappers (VE, Budget, Coord, Lessons)
+│   │   │   ├── sandbox/ (5)            #     VE Packages: SandboxPanel, PackageCard, PackageItemRow, AddToPackageMenu, PackageCompareModal
 │   │   │   ├── lessons/ (3)            #     Detail panel, columns, templates
 │   │   │   ├── layout/ (2)             #     Sidebar, account dropdown
 │   │   │   ├── mydesk/ (2)             #     Personal dashboard
 │   │   │   └── ui/ (7)                 #     Button, ModalShell, comboboxes, filters, rich text
 │   │   ├── hooks/ (23)                 #   React Query hooks (domain-organized)
 │   │   ├── stores/ (3)                 #   Zustand: UIStore, MapStore, ColumnSlice
-│   │   ├── types/ (5)                  #   database.types, models, map.types, tanstack.d, exceljs.d
+│   │   ├── types/ (6)                  #   database.types, models, map.types, sandbox, tanstack.d, exceljs.d
 │   │   ├── lib/ (8+)                   #   Constants, utilities, cn.ts, excel parsers
 │   │   ├── providers/ (3)              #   Auth, Query, Theme
 │   │   ├── services/ (1)              #   api.ts (FastAPI proxy client)
@@ -564,6 +575,7 @@ defaultOptions: {
 ['project_sheets', projectId]          ['client', clientId]
 ['sheet_markups', sheetId]             ['system_users']
 ['deliverables', projectId]            ['key-dates', projectId]
+['ve-packages', projectId]
 ['activity_feed', entityType, entityId]
 ```
 
@@ -571,7 +583,7 @@ defaultOptions: {
 
 | Hook | Channel | Tables | Debounce | Invalidated Keys |
 |------|---------|--------|----------|------------------|
-| `useProjectRealtime` | `project-realtime-{id}` | `opportunities`, `opportunity_options`, `permits`, `permit_comments`, `project_deliverables`, `project_key_dates` | 300ms | 9 query keys |
+| `useProjectRealtime` | `project-realtime-{id}` | `opportunities`, `opportunity_options`, `permits`, `permit_comments`, `project_deliverables`, `project_key_dates`, `ve_packages`, `ve_package_items` | 300ms | 10 query keys |
 | `useSheetRealtime` | `sheet-status-{id}` | `project_sheets` (UPDATE only) | 300ms | `project_sheets` |
 | `useActivityFeed` (inline) | `activity-{id}` | `item_activity` | None | `activity_feed` |
 
@@ -651,7 +663,7 @@ Data revealed based on workflow stage. Once a decision is locked in Pre-Con, coo
 `useUIStore` and `useMapStore` maintain two-way sync between the selected opportunity row and highlighted map zones. Selecting in the grid highlights on the canvas, and vice versa.
 
 ### B.7 Soft Deletes with Cascade
-`is_deleted` boolean on opportunities, options, permits, lessons, deliverables, key dates, and brand standards. Trigger `trg_cascade_soft_delete_opportunities` soft-deletes children and cleans junction tables.
+`is_deleted` boolean on opportunities, options, permits, lessons, deliverables, key dates, brand standards, and ve_packages. Trigger `trg_cascade_soft_delete_opportunities` soft-deletes children and cleans junction tables.
 
 ### B.8.1 Audit Function Consolidation Guardrail
 `process_audit_log()` is defined **once** in `supabase_schema.sql` as the canonical source. Feature migrations must **never** redefine it — only add trigger bindings. The function routes `project_id` extraction via `TG_TABLE_NAME` branches. Client-scoped tables (`clients`, `client_brand_standards`, `client_documents`) store `NULL` project_id, and their audit rows are visible only to platform admins.

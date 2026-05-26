@@ -129,7 +129,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
       {/* View-Specific Header */}
       <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-          Design Coordination Board
+          Design Coordination Items
         </h2>
         <div className="flex gap-3 items-center">
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2">

@@ -53,10 +53,10 @@ export const DEFAULT_BUILDING_AREAS = [
 
 export const DEFAULT_SIDEBAR_ITEMS = [
   { id: 'dashboard', label: 'Value Matrix', iconName: 'LayoutDashboard', visible: true },
-  { id: 'coordination', label: 'Coordination Board', iconName: 'ListChecks', visible: true },
+  { id: 'coordination', label: 'Coordination Items', iconName: 'ListChecks', visible: true },
   { id: 'map', label: 'Drawings', iconName: 'Map', visible: false },
-  { id: 'permits', label: 'Permit Board', iconName: 'FileCheck2', visible: true },
-  { id: 'deliverables', label: 'Pre-Con Deliverables', iconName: 'CalendarCheck2', visible: true },
+  { id: 'permits', label: 'Permits', iconName: 'FileCheck2', visible: true },
+  { id: 'deliverables', label: 'Deliverables', iconName: 'CalendarCheck2', visible: true },
   { id: 'key-dates', label: 'Key Dates', iconName: 'CalendarDays', visible: true },
   { id: 'analytics', label: 'Analytics', iconName: 'PieChart', visible: true },
   { id: 'dashboard-v2', label: 'Budget Ledger', iconName: 'LayoutDashboard', visible: true },

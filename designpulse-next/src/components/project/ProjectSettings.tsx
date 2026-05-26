@@ -600,7 +600,7 @@ export const ProjectSettings = ({
                     : 'text-slate-600 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50'
                 }`}
               >
-                <TableProperties size={16} className={activeTab === 'coord_matrix' ? 'text-sky-500' : 'text-slate-400'} /> Coordination Board
+                <TableProperties size={16} className={activeTab === 'coord_matrix' ? 'text-sky-500' : 'text-slate-400'} /> Coordination Items
               </button>
               <button
                 onClick={() => onTabChange('permits')}
@@ -974,7 +974,7 @@ export const ProjectSettings = ({
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Drawing Disciplines</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Define the engineering and design disciplines to organize project drawings and track in the Coordination Board. Drag to reorder.
+            Define the engineering and design disciplines to organize project drawings and track in Coordination Items. Drag to reorder.
           </p>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndDisciplines}>
@@ -1082,9 +1082,9 @@ export const ProjectSettings = ({
 
       {displayTab === 'coord_matrix' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Board Configuration</h3>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Items Configuration</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Set the default column order for the Coordination Board. Drag items to rearrange them or toggle their visibility.
+            Set the default column order for Coordination Items. Drag items to rearrange them or toggle their visibility.
           </p>
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndCoordColumns}>

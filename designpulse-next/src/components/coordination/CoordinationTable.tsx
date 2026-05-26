@@ -766,7 +766,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
               <tbody>
                 <TableEmptyState
                   colSpan={columns.length}
-                  message="No items in Coordination Board. Add one below!"
+                  message="No items in Coordination Items. Add one below!"
                 />
               </tbody>
             )}

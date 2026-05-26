@@ -112,7 +112,7 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
       { id: 'cost_classification', header: 'Cost Classification', cell: CostClassificationCell, size: 200, enableSorting: false },
       { id: 'management', header: 'Owner / Schedule', cell: ManagementCell, size: 180, enableSorting: false },
       { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
-      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
+      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell, size: 380 },
       ...dynamicOptionColumns,
       { accessorKey: 'cost_impact', header: 'Cost Impact ($)', cell: ImpactCell, aggregatedCell: CostImpactAggregatedCell, aggregationFn: 'sum' },
       { accessorKey: 'days_impact', header: 'Days Impact', cell: ImpactCell, aggregatedCell: DaysImpactAggregatedCell, aggregationFn: 'sum' },
@@ -154,7 +154,7 @@ export const useOpportunityColumnsV2 = (viewMode: string, maxOptionCount: number
         ),
       },
       { accessorKey: 'display_id', header: 'ID', cell: DisplayIdCell, size: 80 },
-      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell },
+      { accessorKey: 'title', header: 'Title (Element)', cell: TextCell, size: 380 },
       { id: 'options', header: 'Options', cell: OptionsCell, size: 100 },
       // Phase 2: Compound cells (ledger-only, hidden in matrix via columnVisibility)
       { id: 'item_definition', header: 'Item / Description', cell: ItemDefinitionCell, size: 280, enableSorting: false },

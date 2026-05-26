@@ -86,7 +86,7 @@ export function DeliverablesView({ projectId }: DeliverablesViewProps) {
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <CalendarDays size={20} className="text-sky-500" />
-            Pre-Con Deliverables
+            Deliverables
           </h2>
           <p className="text-xs text-slate-400 font-medium mt-0.5">
             Track and coordinate critical pre-construction deliverables and timelines.

@@ -3,8 +3,10 @@
 import { useCreateKeyDate } from '@/hooks/useKeyDateQueries';
 import { useUnifiedTimeline } from '@/hooks/useTimelineQueries';
 import { KeyDatesTable } from '@/components/key-dates/KeyDatesTable';
-import { CalendarDays, Plus } from 'lucide-react';
+import { KeyDatesCalendar } from '@/components/key-dates/KeyDatesCalendar';
+import { CalendarDays, Plus, List, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useUIStore } from '@/stores/useUIStore';
 
 interface KeyDatesViewProps {
   projectId: string;
@@ -13,6 +15,9 @@ interface KeyDatesViewProps {
 export function KeyDatesView({ projectId }: KeyDatesViewProps) {
   const { data: timelineEvents = [], isLoading } = useUnifiedTimeline(projectId);
   const createKeyDateMutation = useCreateKeyDate(projectId);
+  
+  const viewMode = useUIStore(state => state.keyDatesViewMode);
+  const setViewMode = useUIStore(state => state.setKeyDatesViewMode);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative">
@@ -28,6 +33,32 @@ export function KeyDatesView({ projectId }: KeyDatesViewProps) {
           </p>
         </div>
         <div className="flex gap-3 items-center">
+          {/* Layout Toggle Buttons */}
+          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2 shrink-0 select-none">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+              title="Log Table View"
+            >
+              <List size={18} />
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                viewMode === 'calendar'
+                  ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+              title="Monthly Calendar View"
+            >
+              <Calendar size={18} />
+            </button>
+          </div>
+
           <Button 
             onClick={() => createKeyDateMutation.mutate({})}
             isLoading={createKeyDateMutation.isPending}
@@ -46,6 +77,11 @@ export function KeyDatesView({ projectId }: KeyDatesViewProps) {
           <div className="flex-1 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500" />
           </div>
+        ) : viewMode === 'calendar' ? (
+          <KeyDatesCalendar 
+            projectId={projectId}
+            keyDates={timelineEvents}
+          />
         ) : (
           <KeyDatesTable 
             projectId={projectId}

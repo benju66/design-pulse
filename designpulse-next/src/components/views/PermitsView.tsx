@@ -140,7 +140,11 @@ export function PermitsView({ projectId }: PermitsViewProps) {
             </button>
           </div>
           <Button 
-            onClick={() => createPermitMutation.mutate({})}
+            onClick={() => {
+              // Clear filters first so the new permit is always visible after creation.
+              clearPermitFilters();
+              createPermitMutation.mutate({});
+            }}
             isLoading={createPermitMutation.isPending}
             loadingText="Adding..."
           >

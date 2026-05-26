@@ -41,18 +41,22 @@ export function OpportunityDetailDrawer({ projectId, opportunities }: Opportunit
   const [activeCostCode, setActiveCostCode] = useState<string | null>(null);
   const [activeIsBudgetRow, setActiveIsBudgetRow] = useState<boolean>(false);
 
-  useEffect(() => {
+  const [prevProps, setPrevProps] = useState({ isOpen, opportunityId: opportunity?.id, costCode, isBudgetRow });
+  if (isOpen !== prevProps.isOpen || opportunity?.id !== prevProps.opportunityId || costCode !== prevProps.costCode || isBudgetRow !== prevProps.isBudgetRow) {
+    setPrevProps({ isOpen, opportunityId: opportunity?.id, costCode, isBudgetRow });
     if (isOpen) {
       setActiveOpportunity(opportunity || null);
       setActiveCostCode(costCode || null);
       setActiveIsBudgetRow(isBudgetRow);
     }
-  }, [isOpen, opportunity, costCode, isBudgetRow]);
+  }
 
   // Reset tab selection to opportunity details tab upon row selection changes
-  useEffect(() => {
+  const [prevSelectedOpportunityId, setPrevSelectedOpportunityId] = useState(selectedOpportunityId);
+  if (selectedOpportunityId !== prevSelectedOpportunityId) {
+    setPrevSelectedOpportunityId(selectedOpportunityId);
     setActiveTab('ve');
-  }, [selectedOpportunityId]);
+  }
 
   // Keyboard and click-outside listeners using native events and portal guards
   useEffect(() => {

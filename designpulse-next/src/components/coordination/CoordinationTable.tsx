@@ -557,9 +557,15 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       
       const newOrder = [...pinnedFront, ...activeConfiguredIds, ...unconfiguredIds] as string[];
       
-      setCoordColumnOrder(newOrder);
+      const isDifferent = 
+        newOrder.length !== coordColumnOrder.length ||
+        newOrder.some((val, idx) => val !== coordColumnOrder[idx]);
+
+      if (isDifferent) {
+        setCoordColumnOrder(newOrder);
+      }
     }
-  }, [settings?.coord_column_order, activeColumns, setCoordColumnOrder, columnPinning]);
+  }, [settings?.coord_column_order, activeColumns, setCoordColumnOrder, columnPinning, coordColumnOrder]);
 
   const moveActiveCellRef = useRef<((direction: 'down' | 'right' | 'left' | 'up') => void) | null>(null);
 
@@ -789,6 +795,19 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                     { columnId: 'display_id', displayValue: '-' },
                     { columnId: 'record_type', displayValue: '-' },
                   ]}
+                  onSubmit={(title) => {
+                    // Clear active filters so the new coordination item is always visible after creation.
+                    onClearFilters?.();
+                    return {
+                      title,
+                      record_type: 'Coordination',
+                      cost_impact: 0,
+                      days_impact: 0,
+                      status: 'Draft',
+                      coordination_status: 'Draft',
+                      priority: 'Set Priority',
+                    };
+                  }}
                 />
               )}
             </tbody>

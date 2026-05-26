@@ -160,7 +160,7 @@ export function SmartCsiCombobox({
                 onClick={handleCustomSubmit}
                 className="w-full mt-2 text-left px-2 py-1.5 text-xs text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded transition-colors"
               >
-                Use custom: <span className="font-mono font-semibold">"{searchQuery.trim()}"</span>
+                Use custom: <span className="font-mono font-semibold">&quot;{searchQuery.trim()}&quot;</span>
               </button>
             )}
           </div>

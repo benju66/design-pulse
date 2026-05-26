@@ -24,7 +24,7 @@ export const DEFAULT_COORD_COLUMN_ORDER = [
 ] as const;
 
 export const DEFAULT_KEY_DATES_COLUMN_ORDER = [
-  'select', 'display_id', 'title', 'description', 'event_date'
+  'select', 'display_id', 'title', 'description', 'event_date', 'source_type'
 ] as const;
 
 export const ADVANCED_FIELD_IDS = [

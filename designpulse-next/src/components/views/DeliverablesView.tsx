@@ -121,7 +121,11 @@ export function DeliverablesView({ projectId }: DeliverablesViewProps) {
           </div>
 
           <Button 
-            onClick={() => createDeliverableMutation.mutate({})}
+            onClick={() => {
+              // Clear active filters so the new deliverable is always visible after creation.
+              onClearFilters();
+              createDeliverableMutation.mutate({});
+            }}
             isLoading={createDeliverableMutation.isPending}
             loadingText="Adding..."
           >

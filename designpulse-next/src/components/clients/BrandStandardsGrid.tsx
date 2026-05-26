@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Plus, Trash2, Search, Paperclip, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import {
@@ -52,12 +52,12 @@ function EditableTextCell({
   const [editing, setEditing] = useState(autoEdit || false);
   const [draft, setDraft] = useState(value);
 
-  useEffect(() => {
-    if (autoEdit && !disabled) {
-      setEditing(true);
-      setDraft(value);
-    }
-  }, [autoEdit, disabled, value]);
+  const [prevAutoEdit, setPrevAutoEdit] = useState(autoEdit);
+  if (autoEdit && !disabled && autoEdit !== prevAutoEdit) {
+    setPrevAutoEdit(autoEdit);
+    setEditing(true);
+    setDraft(value);
+  }
 
   if (!editing) {
     return (

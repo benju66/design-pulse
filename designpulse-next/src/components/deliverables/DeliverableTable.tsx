@@ -699,6 +699,11 @@ export function DeliverableTable({
               staticFields={[
                 { columnId: 'display_id', displayValue: '-' },
               ]}
+              onSubmit={(title) => {
+                // Clear active filters so the new deliverable is always visible after creation.
+                onClearFilters?.();
+                return { title, status: 'Open', is_elevated_key_date: false, is_deleted: false };
+              }}
             />
           )
         }

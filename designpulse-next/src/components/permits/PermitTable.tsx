@@ -450,6 +450,47 @@ const OpenPanelCell = ({ row }: { row: Row<Permit> }) => {
   );
 };
 
+/* eslint-disable-next-line react/display-name */
+const PermitKeyDateCell = React.memo(({ getValue, row, column, table }: CellContext<Permit, unknown>) => {
+  const initialValue = getValue() as boolean;
+  const updateData = table.options.meta?.updateData;
+  const permissions = table.options.meta?.permissions || { can_edit_records: false };
+  const disabled = !permissions.can_edit_records;
+
+  const isCellActive = useUIStore(state => state.activeCell?.rowIndex === row.index && state.activeCell?.columnId === column.id);
+  const setActiveCell = useUIStore(state => state.setActiveCell);
+
+  const handleToggle = () => {
+    if (disabled) return;
+    if (updateData) {
+      updateData.mutate({ id: row.original.id, updates: { [column.id]: !initialValue } });
+    }
+  };
+
+  return (
+    <div
+      tabIndex={0}
+      onClick={() => {
+        setActiveCell({ rowIndex: row.index, columnId: column.id });
+      }}
+      className={`w-full h-full flex items-center justify-center min-h-[28px] outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 ${isCellActive ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20' : ''}`}
+    >
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleToggle();
+        }}
+        disabled={disabled}
+        className={`w-10 h-5 rounded-full p-0.5 transition-colors focus:outline-none ${initialValue ? 'bg-sky-500' : 'bg-slate-300 dark:bg-slate-700'} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      >
+        <div
+          className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${initialValue ? 'translate-x-5' : 'translate-x-0'}`}
+        />
+      </button>
+    </div>
+  );
+}, commonCellComparator);
+
 // --- Custom Filter Functions ---
 const multiSelectFilter: FilterFn<any> = (row, columnId, filterValue: string[]) => {
   if (!filterValue || filterValue.length === 0) return true;
@@ -475,7 +516,22 @@ interface PermitTableProps {
 }
 
 const EMPTY_VISIBILITY = {};
-const EMPTY_ORDER: string[] = [];
+const DEFAULT_COLUMN_ORDER = [
+  'select',
+  'open_panel',
+  'display_id',
+  'title',
+  'status',
+  'permit_type',
+  'ahj',
+  'assignee',
+  'date_submitted',
+  'target_approval_date',
+  'issued_date',
+  'is_elevated_key_date',
+  'open_comments',
+  'revision_number'
+];
 const EMPTY_PINNING = { pinned: [], unpinned: [] };
 
 export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount = 0, onClearFilters, createMutation }: PermitTableProps) => {
@@ -490,7 +546,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const permitColumnVisibility = useUIStore(state => state.permitColumnVisibility[projectId] || EMPTY_VISIBILITY);
   const setPermitColumnVisibility = useUIStore(state => state.setPermitColumnVisibility);
-  const permitColumnOrder = useUIStore(state => state.permitColumnOrder[projectId] || EMPTY_ORDER);
+  const permitColumnOrder = useUIStore(state => state.permitColumnOrder[projectId] || DEFAULT_COLUMN_ORDER);
   const setPermitColumnOrder = useUIStore(state => state.setPermitColumnOrder);
 
   const permitColumnPinningOverrides = useUIStore(state => state.permitColumnPinningOverrides[projectId]) || EMPTY_PINNING;
@@ -534,7 +590,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
         header: 'ID',
         cell: (info) => (
           <div className="w-full h-full px-2 py-1 flex items-center">
-            <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800">
+            <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
               {info.getValue() || '--'}
             </span>
           </div>
@@ -588,6 +644,18 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
         size: 120,
       },
       {
+        accessorKey: 'issued_date',
+        header: 'Issued Date',
+        cell: PermitDateCell,
+        size: 120,
+      },
+      {
+        accessorKey: 'is_elevated_key_date',
+        header: 'Key Date',
+        cell: PermitKeyDateCell,
+        size: 100,
+      },
+      {
         id: 'open_comments',
         header: 'Open Comments',
         cell: OpenCommentsCell,
@@ -632,7 +700,7 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
       sorting,
       globalFilter,
       columnVisibility: permitColumnVisibility,
-      columnOrder: permitColumnOrder.length > 0 ? permitColumnOrder : columns.map(c => c.id as string),
+      columnOrder: permitColumnOrder.length > 0 ? permitColumnOrder : DEFAULT_COLUMN_ORDER,
       rowSelection,
       columnPinning,
     },
@@ -861,6 +929,17 @@ export const PermitTable = ({ projectId, permits, filterSlot, filterActiveCount 
                   staticFields={[
                     { columnId: 'display_id', displayValue: '-' },
                   ]}
+                  onSubmit={(title) => {
+                    // Clear active filters so the new permit is always visible after creation.
+                    onClearFilters?.();
+                    return {
+                      id: crypto.randomUUID(),
+                      title,
+                      status: 'Preparing',
+                      revision_number: 0,
+                      revision_history: [],
+                    };
+                  }}
                 />
               )}
             </tbody>

@@ -54,6 +54,11 @@ const COMPOUND_COLUMN_IDS = ['item_definition', 'cost_classification', 'manageme
 // Combined set for all non-persistable column IDs
 const EXCLUDED_COLUMN_IDS = [...LEDGER_COLUMN_IDS, ...COMPOUND_COLUMN_IDS] as const;
 
+// Stable fallback for projects with no custom column pinning overrides.
+// Hoisted to module scope to avoid creating a new object reference every render,
+// which would destabilise useMemo/useEffect dependency chains.
+const EMPTY_PINNING_OVERRIDES = { pinned: [] as string[], unpinned: [] as string[] };
+
 // Narrow type for ve_column_order items (replaces `any` casts — AGENTS.md C1)
 interface VeColumnConfig { id: string; visible?: boolean; pinned?: boolean }
 
@@ -569,7 +574,7 @@ const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
     });
   }, [columns, settings?.ve_column_order]);
 
-  const userPinningOverrides = useUIStore(state => state.gridColumnPinningOverrides[projectId]) || { pinned: [], unpinned: [] };
+  const userPinningOverrides = useUIStore(state => state.gridColumnPinningOverrides[projectId]) || EMPTY_PINNING_OVERRIDES;
   // Bug #4: column pinning must swap based on isLedgerView
   const columnPinning = useMemo(() => {
     const defaultPinned = ['select', 'open_panel'];
@@ -1154,7 +1159,7 @@ const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
           {/* Ghost Row for Quick Add */}
           {!hideGhostRow && permissions.can_edit_records && (
             <tbody>
-              <GhostRow table={table} createMutation={createMutation} defaultValues={defaultValues} />
+              <GhostRow table={table} createMutation={createMutation} defaultValues={defaultValues} onBeforeSubmit={onClearFilters} />
             </tbody>
           )}
         </table>

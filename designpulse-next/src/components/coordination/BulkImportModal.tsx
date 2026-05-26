@@ -207,7 +207,7 @@ export function BulkImportModal({ isOpen, onClose, projectId, projectSettings, c
         </button>
       )
     })
-  ], [removeTask]);
+  ], [removeTask, columnHelper]);
 
   const table = useReactTable({
     data: tasks,

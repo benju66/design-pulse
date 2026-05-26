@@ -321,7 +321,12 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
             Packages
           </Button>
           <Button 
-            onClick={() => createMutation.mutate({ building_area: activeBuildingAreas.length > 0 ? activeBuildingAreas[0] : (dynamicBuildingAreas[0] || 'Corridor / Common') })}
+            onClick={() => {
+              // Reset single-select filters so the new item is always visible after creation.
+              if (activeStatus !== 'All') setActiveStatus('All');
+              if (activeEstimateSyncStatus !== 'All') setActiveEstimateSyncStatus('All');
+              createMutation.mutate({ building_area: activeBuildingAreas.length > 0 ? activeBuildingAreas[0] : (dynamicBuildingAreas[0] || 'Corridor / Common') });
+            }}
             isLoading={createMutation.isPending}
             loadingText="Adding..."
           >

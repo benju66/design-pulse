@@ -6,19 +6,17 @@ import { TimelineEvent } from '@/types/models';
 import { toDateInputValue } from '@/lib/formatters';
 
 /**
- * Composes useKeyDates + useDeliverables into a single unified timeline.
+ * Composes useKeyDates + useDeliverables + usePermits into a single unified timeline.
  *
  * - Standalone key dates are always included
  * - Deliverables are included only when is_elevated_key_date = true
- * - Results are sorted by timeline_date ascending
+ * - Permits are included only when is_elevated_key_date = true
+ *   (a permit with no target_approval_date is included but rendered with an empty date)
+ * - Results are sorted by timeline_date ascending (empty dates sort to the end)
  *
- * Both source queries are already cached by react-query. This hook
- * reuses that cache — no additional network requests. When either
- * source query is invalidated (e.g., via realtime), the useMemo
- * recomputes automatically.
- *
- * Extensible: To add permits in a future sprint, import usePermits(),
- * filter by is_elevated_key_date, map to TimelineEvent, and concat.
+ * All three source queries are already cached by react-query. This hook
+ * reuses that cache — no additional network requests. When any source query
+ * is invalidated (e.g., via realtime), the useMemo recomputes automatically.
  */
 export function useUnifiedTimeline(projectId: string | null) {
   const { data: keyDates = [], isLoading: keyDatesLoading } = useKeyDates(projectId);
@@ -59,14 +57,14 @@ export function useUnifiedTimeline(projectId: string | null) {
       }));
 
     const permitEvents: TimelineEvent[] = permits
-      .filter(p => p.is_elevated_key_date && p.target_approval_date)
+      .filter(p => p.is_elevated_key_date)
       .map(p => ({
         id: p.id,
         project_id: p.project_id,
         display_id: p.display_id,
         title: p.title,
         description: p.description,
-        timeline_date: toDateInputValue(p.target_approval_date) ?? '',
+        timeline_date: p.target_approval_date ? (toDateInputValue(p.target_approval_date) ?? '') : '',
         source_type: 'permit' as const,
         status: p.status,
         assignee: p.assignee,

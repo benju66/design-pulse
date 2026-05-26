@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useDeliverables, useUpdateDeliverable } from '@/hooks/useDeliverableQueries';
 import { X, Maximize, Minimize, ExternalLink, List, MessageSquare, ChevronDown, Calendar, User, Tag } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
@@ -43,9 +43,11 @@ export default function DeliverableDetailPanel({ projectId, deliverableId }: { p
     () => hasDescriptionContent(deliverable?.description)
   );
 
-  useEffect(() => { 
-    setDescOpen(hasDescriptionContent(deliverable?.description)); 
-  }, [deliverable?.id]);
+  const [prevDeliverableId, setPrevDeliverableId] = useState(deliverable?.id);
+  if (deliverable?.id !== prevDeliverableId) {
+    setPrevDeliverableId(deliverable?.id);
+    setDescOpen(hasDescriptionContent(deliverable?.description));
+  }
 
   if (!deliverable) return null;
 

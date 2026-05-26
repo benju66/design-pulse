@@ -23,7 +23,7 @@ export default function PermitBoard({
   filterSlot,
   filterActiveCount,
   onClearFilters,
-  createMutation
+  createMutation,
 }: PermitBoardProps) {
   const viewMode = useUIStore(state => state.permitViewMode);
   const selectedPermitId = useUIStore(state => state.selectedOpportunityId);

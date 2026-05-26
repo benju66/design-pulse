@@ -10,9 +10,11 @@ interface GhostRowProps {
   table: Table<Opportunity>;
   createMutation: UseMutationResult<Opportunity, Error, Partial<Opportunity>, unknown>;
   defaultValues?: Partial<Opportunity>;
+  /** Called synchronously before mutate() — use to clear active filters so the new row stays visible. */
+  onBeforeSubmit?: () => void;
 }
 
-export default function GhostRow({ table, createMutation, defaultValues = {} }: GhostRowProps) {
+export default function GhostRow({ table, createMutation, defaultValues = {}, onBeforeSubmit }: GhostRowProps) {
   const [pendingRow, setPendingRow] = useState<Partial<Opportunity>>({});
   const [ghostError, setGhostError] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -25,6 +27,7 @@ export default function GhostRow({ table, createMutation, defaultValues = {} }: 
       if (titleInputRef.current) titleInputRef.current.focus();
       return;
     }
+    onBeforeSubmit?.();
     const newId = crypto.randomUUID();
     createMutation.mutate({ ...defaultValues, ...pendingRow, id: newId }, { 
       onSuccess: (newRecord) => {

@@ -12,6 +12,27 @@ interface RichTextEditorProps {
   placeholder?: string;
 }
 
+interface ToolbarButtonProps {
+  onClick: () => void;
+  active: boolean;
+  title: string;
+  children: React.ReactNode;
+}
+
+const ToolbarButton = ({ onClick, active, title, children }: ToolbarButtonProps) => (
+  <button
+    type="button"
+    onMouseDown={(e) => e.preventDefault()} // prevent focus steal from editor
+    onClick={onClick}
+    className={`p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
+      active ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30' : 'text-slate-500'
+    }`}
+    title={title}
+  >
+    {children}
+  </button>
+);
+
 export function RichTextEditor({ content, onSave, disabled, placeholder }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -47,24 +68,6 @@ export function RichTextEditor({ content, onSave, disabled, placeholder }: RichT
   });
 
   if (!editor) return null;
-
-  const ToolbarButton = ({
-    onClick, active, title, children
-  }: {
-    onClick: () => void; active: boolean; title: string; children: React.ReactNode
-  }) => (
-    <button
-      type="button"
-      onMouseDown={(e) => e.preventDefault()} // prevent focus steal from editor
-      onClick={onClick}
-      className={`p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
-        active ? 'text-sky-500 bg-sky-50 dark:bg-sky-900/30' : 'text-slate-500'
-      }`}
-      title={title}
-    >
-      {children}
-    </button>
-  );
 
   return (
     <div className={`relative flex flex-col w-full rounded-lg transition-all ${

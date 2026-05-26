@@ -318,7 +318,7 @@ export default function PermitDetailPanel({ projectId, permitId }: { projectId: 
             <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700/60 pt-4 mt-4">
               <div className="flex flex-col">
                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Elevate to Key Date</span>
-                <span className="text-xs text-slate-400">Surfaces this permit's target approval date on the executive timeline.</span>
+                <span className="text-xs text-slate-400">Surfaces this permit&apos;s target approval date on the executive timeline.</span>
               </div>
               <button
                 onClick={() => updatePermit.mutate({ id: permit.id, updates: { is_elevated_key_date: !permit.is_elevated_key_date } })}

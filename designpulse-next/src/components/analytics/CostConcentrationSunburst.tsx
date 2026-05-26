@@ -142,6 +142,23 @@ export default function CostConcentrationSunburst({ rows, filteredCostCodes, div
 
   const visibleTotal = useMemo(() => visibleDivisions.reduce((s, d) => s + d.total, 0), [visibleDivisions]);
 
+  const TWO_PI = Math.PI * 2;
+
+  // Pre-calculate division angles for render purity (react-hooks/immutability guard)
+  const divisionAngles = useMemo(() => {
+    let currentAngle = 0;
+    const result = [];
+    for (let i = 0; i < visibleDivisions.length; i++) {
+      const div = visibleDivisions[i];
+      const divAngle = (div.total / visibleTotal) * TWO_PI;
+      const start = currentAngle;
+      const end = currentAngle + divAngle;
+      currentAngle = end;
+      result.push({ div, divAngle, start, end });
+    }
+    return result;
+  }, [visibleDivisions, visibleTotal, TWO_PI]);
+
   const size = 360;
   const cx = size / 2;
   const cy = size / 2;
@@ -158,9 +175,6 @@ export default function CostConcentrationSunburst({ rows, filteredCostCodes, div
     );
   }
 
-  // Build arcs
-  let angle = 0;
-  const TWO_PI = Math.PI * 2;
 
   const isFiltered = filteredCostCodes && filteredCostCodes.length > 0;
   const filteredSet = isFiltered ? new Set(filteredCostCodes) : null;
@@ -169,11 +183,7 @@ export default function CostConcentrationSunburst({ rows, filteredCostCodes, div
     <div className="flex flex-col items-center gap-3 py-2">
       <div className="relative">
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          {visibleDivisions.map((div, idx) => {
-            const divAngle = (div.total / visibleTotal) * TWO_PI;
-            const divStart = angle;
-            const divEnd = angle + divAngle;
-
+          {divisionAngles.map(({ div, divAngle, start: divStart, end: divEnd }, idx) => {
             // Check if any code in this division matches the filter
             const divHasFilterMatch = filteredSet
               ? div.codes.some(c => filteredSet.has(c.cost_code))
@@ -219,8 +229,6 @@ export default function CostConcentrationSunburst({ rows, filteredCostCodes, div
                   />
                 );
               });
-
-            angle = divEnd;
 
             return (
               <g key={div.divCode}>

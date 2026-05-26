@@ -40,19 +40,24 @@ export function VarianceNotePopover({
   const { data: history = [], isLoading } = useVarianceHistoryByCostCode(projectId, costCode);
   const upsertMutation = useUpsertVarianceNote(projectId);
 
+  // Lazy mount timestamp to make rendering deterministic and pure for relativeTime calculation
+  const [now] = useState(() => Date.now());
+
   // Find the active version's note (if any)
   const activeNote = history.find(n => n.estimate_version_id === activeVersionId);
   const historicalNotes = history.filter(n => n.estimate_version_id !== activeVersionId);
 
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(activeNote?.variance_note ?? '');
+  const [prevActiveNoteId, setPrevActiveNoteId] = useState(activeNote?.id);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  // Sync draft when data loads
-  useEffect(() => {
-    if (activeNote) setDraft(activeNote.variance_note);
-  }, [activeNote]);
+  // Adjust state during render-pass when external value changes
+  if (activeNote?.id !== prevActiveNoteId) {
+    setPrevActiveNoteId(activeNote?.id);
+    setDraft(activeNote?.variance_note ?? '');
+  }
 
   // Click-outside handler
   useEffect(() => {
@@ -96,7 +101,7 @@ export function VarianceNotePopover({
   }, [activeNote, handleSave]);
 
   const relativeTime = (dateStr: string) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const diff = now - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'Just now';
     if (mins < 60) return `${mins}m ago`;

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { OpportunityOption } from '@/types/models';
 import { useReturnOpportunity } from '@/hooks/useOpportunityQueries';
 import { AlertCircle, X } from 'lucide-react';
@@ -21,12 +21,14 @@ export function ReturnVEModal({ isOpen, onClose, opportunityId, projectId, locke
   
   const returnMutation = useReturnOpportunity(projectId);
 
-  useEffect(() => {
+  const [prevProps, setPrevProps] = useState({ isOpen, optionId: lockedOption?.id });
+  if (isOpen !== prevProps.isOpen || lockedOption?.id !== prevProps.optionId) {
+    setPrevProps({ isOpen, optionId: lockedOption?.id });
     if (isOpen) {
       setRevisedCost(lockedOption?.cost_impact?.toString() || '0');
       setNote('');
     }
-  }, [isOpen, lockedOption]);
+  }
 
   if (!isOpen) return null;
 

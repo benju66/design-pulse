@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ProjectLesson, LessonStatus, LessonSeverity, LessonCategory, LessonPhase } from '@/types/models';
 import { useUpdateLesson, useUpdateLessonStatus } from '@/hooks/useLessonQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
@@ -27,10 +27,12 @@ export const LessonDetailPanel: React.FC<LessonDetailPanelProps> = ({
   const updateStatus = useUpdateLessonStatus(projectId);
   const { data: costCodes = [] } = useCostCodes();
 
-  useEffect(() => {
+  const [prevLesson, setPrevLesson] = useState(lesson);
+  if (lesson.id !== prevLesson.id || lesson.updated_at !== prevLesson.updated_at) {
+    setPrevLesson(lesson);
     setLocalData(lesson);
     setIsDirty(false);
-  }, [lesson]);
+  }
 
   const handleChange = <K extends keyof ProjectLesson>(field: K, value: ProjectLesson[K]) => {
     setLocalData(prev => ({ ...prev, [field]: value }));

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { CellContext } from '@tanstack/react-table';
 import { useUIStore } from '@/stores/useUIStore';
 import { CellWrapper } from './CellWrapper';
@@ -35,6 +35,7 @@ function TextCellInner<TData>({ info, isLocked, formatDisplay, emptyPlaceholder 
   const { row, column, table, getValue } = info;
   const initialValue = (getValue() as string) ?? '';
   const [editValue, setEditValue] = useState(initialValue);
+  const [prevInitialValue, setPrevInitialValue] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement>(null);
   const isSubmitting = useRef(false);
 
@@ -45,10 +46,11 @@ function TextCellInner<TData>({ info, isLocked, formatDisplay, emptyPlaceholder 
   const canEdit = permissions?.can_edit_records ?? false;
   const disabled = locked || !canEdit;
 
-  // Sync local state when external value changes
-  useEffect(() => {
-    setEditValue((getValue() as string) ?? '');
-  }, [getValue]);
+  // Adjust state during render-pass when external value changes
+  if (initialValue !== prevInitialValue) {
+    setPrevInitialValue(initialValue);
+    setEditValue(initialValue);
+  }
 
   const commitValue = () => {
     if (isSubmitting.current) return;

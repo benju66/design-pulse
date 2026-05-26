@@ -181,12 +181,13 @@ CREATE TABLE IF NOT EXISTS permits (
   ahj text,
   status text DEFAULT 'Preparing' CHECK (status IN ('None', 'Preparing', 'Submitted', 'Comments Received', 'Approved')),
   assignee text,
-  date_submitted timestamp with time zone,
-  target_approval_date timestamp with time zone,
+  date_submitted date,
+  target_approval_date date,
   revision_number integer DEFAULT 0,
   revision_history jsonb DEFAULT '[]'::jsonb,
   is_deleted boolean DEFAULT false,
   is_elevated_key_date boolean DEFAULT false,
+  issued_date date,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );

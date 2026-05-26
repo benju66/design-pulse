@@ -181,6 +181,9 @@ export interface UIState {
   keyDatesColumnOrder: Record<string, string[]>;
   setKeyDatesColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
 
+  keyDatesViewMode: 'table' | 'calendar';
+  setKeyDatesViewMode: (mode: 'table' | 'calendar') => void;
+
   // VE Sandbox Packages panel
   isSandboxPanelOpen: boolean;
   toggleSandboxPanel: () => void;
@@ -381,6 +384,12 @@ export const useUIStore = create<UIState>()(
       setCoordColumnOrder: (projectId, updater) => set((state) => {
         const oldState = state.coordColumnOrder[projectId] || DEFAULT_COORD_COLUMN_ORDER as unknown as string[];
         const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        if (
+          oldState.length === newState.length &&
+          oldState.every((val, idx) => val === newState[idx])
+        ) {
+          return {};
+        }
         return {
           coordColumnOrder: {
             ...state.coordColumnOrder,
@@ -464,12 +473,22 @@ export const useUIStore = create<UIState>()(
       })),
 
       permitColumnOrder: {},
-      setPermitColumnOrder: (projectId, updater) => set(state => ({
-        permitColumnOrder: {
-          ...state.permitColumnOrder,
-          [projectId]: typeof updater === 'function' ? updater(state.permitColumnOrder[projectId] || []) : updater
+      setPermitColumnOrder: (projectId, updater) => set(state => {
+        const oldState = state.permitColumnOrder[projectId] || [];
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        if (
+          oldState.length === newState.length &&
+          oldState.every((val, idx) => val === newState[idx])
+        ) {
+          return {};
         }
-      })),
+        return {
+          permitColumnOrder: {
+            ...state.permitColumnOrder,
+            [projectId]: newState
+          }
+        };
+      }),
       
       setCardOrder: (newOrder) => set({ cardOrder: newOrder }),
       
@@ -493,12 +512,22 @@ export const useUIStore = create<UIState>()(
       })),
 
       brandStandardsColumnOrder: {},
-      setBrandStandardsColumnOrder: (clientId, updater) => set(state => ({
-        brandStandardsColumnOrder: {
-          ...state.brandStandardsColumnOrder,
-          [clientId]: typeof updater === 'function' ? updater(state.brandStandardsColumnOrder[clientId] || []) : updater
+      setBrandStandardsColumnOrder: (clientId, updater) => set(state => {
+        const oldState = state.brandStandardsColumnOrder[clientId] || [];
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        if (
+          oldState.length === newState.length &&
+          oldState.every((val, idx) => val === newState[idx])
+        ) {
+          return {};
         }
-      })),
+        return {
+          brandStandardsColumnOrder: {
+            ...state.brandStandardsColumnOrder,
+            [clientId]: newState
+          }
+        };
+      }),
       
       versionMatrixColumnVisibility: {},
       setVersionMatrixColumnVisibility: (projectId, updater) => set((state) => {
@@ -531,6 +560,12 @@ export const useUIStore = create<UIState>()(
       setDeliverablesColumnOrder: (projectId, updater) => set((state) => {
         const oldState = state.deliverablesColumnOrder?.[projectId] || [];
         const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        if (
+          oldState.length === newState.length &&
+          oldState.every((val, idx) => val === newState[idx])
+        ) {
+          return {};
+        }
         return {
           deliverablesColumnOrder: {
             ...state.deliverablesColumnOrder,
@@ -563,6 +598,12 @@ export const useUIStore = create<UIState>()(
       setKeyDatesColumnOrder: (projectId, updater) => set((state) => {
         const oldState = state.keyDatesColumnOrder?.[projectId] || (DEFAULT_KEY_DATES_COLUMN_ORDER as unknown as string[]);
         const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        if (
+          oldState.length === newState.length &&
+          oldState.every((val, idx) => val === newState[idx])
+        ) {
+          return {};
+        }
         return {
           keyDatesColumnOrder: {
             ...state.keyDatesColumnOrder,
@@ -570,6 +611,9 @@ export const useUIStore = create<UIState>()(
           }
         };
       }),
+
+      keyDatesViewMode: 'table',
+      setKeyDatesViewMode: (mode) => set({ keyDatesViewMode: mode }),
 
       // VE Sandbox Packages panel
       isSandboxPanelOpen: false,
@@ -621,6 +665,7 @@ export const useUIStore = create<UIState>()(
         deliverablesFilters: state.deliverablesFilters ?? {},
         keyDatesColumnVisibility: state.keyDatesColumnVisibility ?? {},
         keyDatesColumnOrder: state.keyDatesColumnOrder ?? {},
+        keyDatesViewMode: state.keyDatesViewMode ?? 'table',
         isSandboxPanelOpen: state.isSandboxPanelOpen ?? false,
         permitColumnPinningOverrides: state.permitColumnPinningOverrides ?? {},
         deliverablesColumnPinningOverrides: state.deliverablesColumnPinningOverrides ?? {},

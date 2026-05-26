@@ -543,3 +543,7 @@ export const ManagementCell = React.memo(({ row, table }: CellContext<Opportunit
     </div>
   );
 }, commonComparator);
+ManagementCell.displayName = 'ManagementCell';
+
+ItemDefinitionCell.displayName = 'ItemDefinitionCell';
+CostClassificationCell.displayName = 'CostClassificationCell';

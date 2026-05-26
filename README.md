@@ -20,6 +20,7 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 - **Financial Immutability & Audit Trails:** A robust soft-delete architecture paired with strict database triggers to lock approved budgets, ensure financial calculation accuracy, and track comprehensive historical changes.
 - **CSI Specification Management:** A multi-tiered CSI-to-cost-code mapping system spanning company-wide defaults, project-level overrides, and ML-assisted suggestions. Platform admins maintain a centralized "Rosetta Stone" library with Excel bulk upload/download, which is atomically seeded into new projects. Project teams can view, search, edit, and extend mappings with full source lineage tracking (Company Default → Project Override → ML Suggested).
 - **Scenario Planner & VE Packages:** A full-featured "what-if" analysis engine that allows pre-construction teams to group VE contenders into named packages, then assemble those packages into side-by-side scenarios. Each scenario column calculates real-time budget impact using a first-package-wins override algorithm. Packages and scenarios support cross-column drag-and-drop reordering via `@dnd-kit`, Package Bank search & click-to-add, configurable Package Scopes, and one-click "Apply Scenario" batch locking.
+- **Interactive Monthly Calendar:** Swaps the Pre-Construction Key Dates log into a premium visual monthly grid. Maps standalone milestones (amber), elevated deliverables (sky), and elevated permits (violet) chronologically. Users can click day cells to schedule new key dates, while write-protection keeps elevated types read-only and provides navigation jump links back to native modules.
 
 ## 3. Interactive Drawings & Extraction Engine
 
@@ -152,6 +153,27 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
 
 ## 8. Release Notes
+
+---
+
+### v0.20.1 — Pre-Con Monthly Calendar & Scheduling Interface
+**Released:** 2026-05-26 (Patch)
+
+This patch release introduces the interactive Monthly Calendar View toggle inside the Key Dates module, featuring robust timezone-stable scheduling, color-coded milestone badges, read-only visual card layouts for elevated types, and native module jump links.
+
+#### Monthly Calendar Grid Engine
+- **Layout Switcher:** Persistent, segmented table-to-calendar switches inside the Key Dates header, persisted globally per user session in Zustand local storage.
+- **42-Day Responsive Grid:** Renders a zero-dependency monthly calendar grid with fluid month transitions, adjacent month buffering, and today's day highlighted cleanly.
+- **Chronological Mapping:** Aggregates standalone key dates, elevated deliverables, and elevated permits into a single timeline sorted chronologically. Event cards are color-coded based on their source types (`key_date` = amber, `deliverable` = sky, `permit` = violet).
+- **Stack Aggregator:** Groups days with more than 3 events into an interactive `+X more` badge to preserve grid layout boundaries.
+
+#### Premium Presentation Forms
+- **Pruned Input Elements:** Conditional layout rendering in the details modal (`KeyDateFormModal.tsx`). Standard inputs display for native key dates, while elevated (read-only) milestones render inside static, copy-friendly, high-contrast text card outlines to completely eliminate visual editability confusion.
+- **Timezone Stability:** All day grid offsets and modal form default dates strictly utilize local timezone regex formatters (`toDateInputValue`, `getTodayLocalDate`), locking the application against local browser date shifting.
+- **Direct Board Jumps:** Read-only modals display active assignee/status badges and include a prominent `Go to [Source] Board` action button, switching the user's active view tab to the native permits or deliverables dashboard.
+
+#### Quality & Strict Compiler
+- **TS-Strict Flawless:** Compiled successfully using strict type checking with zero unused declarations, import warnings, or eslint-disable blocks in the target component folders.
 
 ---
 

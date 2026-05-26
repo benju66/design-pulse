@@ -1,6 +1,6 @@
 # DesignPulse — Architecture Document (C4 Model)
 
-> **Last Updated:** 2026-05-22  
+> **Last Updated:** 2026-05-25  
 > **Status:** Living Document  
 > **Application Version:** v0.17.1 (Sizing Locks, Zero-Baselines & Timeline Budget Deltas)  
 > **Architecture Model:** [C4 Model](https://c4model.com/) by Simon Brown
@@ -225,7 +225,7 @@ C4Component
 | `usePermitQueries.ts` | Permits | `usePermits`, `usePermitComments`, `usePermitTaskLinks` | Permit CRUD mutations |
 | `useDeliverableQueries.ts` | Pre-Con Deliverables | `useDeliverables` | `useCreateDeliverable`, `useUpdateDeliverable`, `useDeleteDeliverable` |
 | `useKeyDateQueries.ts` | Key Dates | `useKeyDates` | `useCreateKeyDate`, `useUpdateKeyDate`, `useDeleteKeyDate` |
-| `useTimelineQueries.ts` | Unified Timeline | `useUnifiedTimeline` (client-side merge of `useKeyDates` + `useDeliverables`) | — (read-only projection; mutations route through source hooks) |
+| `useTimelineQueries.ts` | Unified Timeline | `useUnifiedTimeline` (client-side merge of `useKeyDates` + `useDeliverables` + `usePermits`) | — (read-only projection; mutations route through source hooks) |
 | `useLessonQueries.ts` | Lessons Learned | `useLessons`, `useLessonIndicators` | Lesson CRUD + attachment mutations |
 | `useDrawingSetQueries.ts` | Drawing Sets | `useDrawingSets` | `useCreateDrawingSet`, `useActivateDrawingSet` |
 | `useCsiQueries.ts` | Project CSI Specs | `useProjectCsiSpecs` | CSI spec mutations |
@@ -317,7 +317,7 @@ C4Component
         Component(decision, "Decision Engine", "Tables + RPCs + Triggers", "opportunities, opportunity_options, cost_codes, project_csi_specs, audit_logs, item_activity. RPCs: lock/unlock/de-escalate/reconcile/return. Triggers: immutability, auto-totals, coordination status.")
         Component(budget, "Budget Engine", "Tables + RPCs", "project_estimate_versions, project_estimates, estimate_variance_notes. RPCs: create/activate/finalize versions, waterfall, master ledger, multi-version matrix.")
         Component(spatial, "Spatial Engine", "Tables + RPCs", "project_drawing_sets, project_sheets, sheet_markups. RPCs: create/activate drawing sets, upsert markups.")
-        Component(permits_engine, "Permit Engine", "Tables + RPCs", "permits, permit_comments, permit_task_links. RPCs: log_permit_activity.")
+        Component(permits_engine, "Permit Engine", "Tables + RPCs", "permits, permit_comments, permit_task_links. RPCs: log_permit_activity. Supports elevation to executive Key Dates timeline via is_elevated_key_date flag.")
         Component(lessons_engine, "Lessons Engine", "Tables + RPCs", "project_lessons, lesson_opportunity_links, lesson_attachments. RPCs: update_lesson_status, get_lesson_indicators.")
         Component(deliverables_engine, "Deliverables Engine", "Tables + Triggers", "project_deliverables. Triggers: generate_display_id, audit, auto_update_timestamp. Integrated with audit logs & activity comment security.")
         Component(rbac, "RBAC System", "Functions + Table", "role_permissions table (4 roles × 8 permissions). Helper functions: is_platform_admin(), get_user_project_role(), has_project_permission(). All RLS policies delegate to these.")
@@ -531,8 +531,8 @@ design-pulse/                           # Informal monorepo (no workspace manage
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `src/types/database.types.ts` | 544 | **Hand-maintained** Supabase schema types. `Row`, `Insert`, `Update` variants per table. Covers core tables but missing some (e.g., `item_activity`, `project_lessons`, `drawing_sets`). |
-| `src/types/models.ts` | 471 | Domain models extending DB row types with JSONB typing and computed fields. Key types: `Opportunity`, `OpportunityOption`, `ProjectSettings`, `Project`, `Client`, `ClientBrandStandard`, `ProjectCsiSpec`, `ProjectEstimateVersion`, `ProjectEstimateLine`, `MasterLedgerRow`, `BudgetWaterfallRow`, `RolePermission`, `UserPermissions`, `ProjectMember`, `ItemActivity`, `ProjectLesson`. |
+| `src/types/database.types.ts` | 875 | **Hand-maintained** Supabase schema types. `Row`, `Insert`, `Update` variants per table. Covers core tables but missing some (e.g., `item_activity`, `project_lessons`, `drawing_sets`). |
+| `src/types/models.ts` | 399 | Domain models extending DB row types with JSONB typing and computed fields. Key types: `Opportunity`, `OpportunityOption`, `ProjectSettings`, `Project`, `Client`, `ClientBrandStandard`, `ProjectCsiSpec`, `ProjectEstimateVersion`, `ProjectEstimateLine`, `MasterLedgerRow`, `BudgetWaterfallRow`, `RolePermission`, `UserPermissions`, `ProjectMember`, `ItemActivity`, `ProjectLesson`, `TimelineEvent`. |
 | `src/types/map.types.ts` | 166 | Spatial types: `DrawingSet`, `ProjectSheet`, `Zone`, `Point`, `ToolMode`, `MapState`, `VectorLine`, `LayoutConfig`, `CanvasRenderSettings`, `MapSnappingSettings`, `SnapCallback`, `BBox`, `RBush<T>`, `InspectPdfResponse`, `StagedPageMeta`. |
 | `src/types/tanstack.d.ts` | 57 | Module augmentation for `@tanstack/react-table` `TableMeta`. Extends with mutation results, option maps, cost codes, CSI specs, project members, permissions, grid navigation refs. |
 | `src/types/exceljs.d.ts` | — | Type declaration for ExcelJS module. |

@@ -248,6 +248,67 @@ export function useRemoveScenarioPackage(projectId: string) {
 }
 
 /**
+ * Reorder packages within a scenario — batch updates sort_order.
+ * Directly affects DR-2 first-package-wins financial calculations.
+ */
+export function useReorderScenarioPackages(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    void,
+    Error,
+    { scenarioId: string; orderedPackageIds: string[] },
+    { previous: VeScenarioWithPackages[] | undefined }
+  >({
+    mutationFn: async ({ scenarioId, orderedPackageIds }) => {
+      // Batch update sort_order for each junction row
+      await Promise.all(
+        orderedPackageIds.map((packageId, index) =>
+          supabase
+            .from('ve_scenario_packages')
+            .update({ sort_order: index })
+            .eq('scenario_id', scenarioId)
+            .eq('package_id', packageId)
+        )
+      );
+    },
+    onMutate: async ({ scenarioId, orderedPackageIds }) => {
+      await queryClient.cancelQueries({ queryKey: SCENARIOS_KEY(projectId) });
+      const previous = queryClient.getQueryData<VeScenarioWithPackages[]>(SCENARIOS_KEY(projectId));
+
+      queryClient.setQueryData<VeScenarioWithPackages[]>(SCENARIOS_KEY(projectId), old => {
+        if (!old) return old;
+        return old.map(s => {
+          if (s.id !== scenarioId) return s;
+          // Rebuild scenarioPackages in the new order
+          const byPkgId = new Map(s.scenarioPackages.map(sp => [sp.package_id, sp]));
+          const reordered = orderedPackageIds
+            .map((pkgId, idx) => {
+              const sp = byPkgId.get(pkgId);
+              return sp ? { ...sp, sort_order: idx } : null;
+            })
+            .filter(Boolean) as VeScenarioPackage[];
+          return { ...s, scenarioPackages: reordered };
+        });
+      });
+
+      return { previous };
+    },
+    onError: (err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(SCENARIOS_KEY(projectId), context.previous);
+      }
+      console.error('Reorder Scenario Packages Error:', err);
+      toast.error(`Failed to reorder packages: ${err.message}`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: SCENARIOS_KEY(projectId) });
+    },
+  });
+}
+
+
+/**
  * Duplicate a scenario with all its package assignments.
  */
 export function useDuplicateScenario(projectId: string) {

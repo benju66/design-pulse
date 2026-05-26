@@ -2,11 +2,14 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/cn';
-import { X, ChevronDown, ChevronRight, Package } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Package, GripVertical } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { VePackageWithItems } from '@/types/sandbox';
 
 interface ScenarioPackageCellProps {
   pkg: VePackageWithItems;
+  scenarioId: string;
   scopeLabel?: string;
   onRemove?: () => void;
   canEdit: boolean;
@@ -19,6 +22,7 @@ const fmt = (n: number) =>
 
 export function ScenarioPackageCell({
   pkg,
+  scenarioId,
   scopeLabel,
   onRemove,
   canEdit,
@@ -27,6 +31,27 @@ export function ScenarioPackageCell({
 }: ScenarioPackageCellProps) {
   const [expanded, setExpanded] = useState(false);
 
+  // Composite ID ensures uniqueness across columns (DR-DND-3)
+  const compositeId = `${scenarioId}::${pkg.id}`;
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: compositeId,
+    data: { type: 'scenario-cell', pkg, scenarioId },
+    disabled: !canEdit, // DR-DND-4
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   // Calculate net impact for this package
   const netImpact = pkg.items.reduce((sum, item) => {
     if (!item.assumed_option_id) return sum;
@@ -34,19 +59,33 @@ export function ScenarioPackageCell({
     return sum + (Number(opt?.cost_impact) || 0);
   }, 0);
 
-  const Chevron = expanded ? ChevronDown : ChevronRight;
+  const Chevron = expanded && !isDragging ? ChevronDown : ChevronRight;
 
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       className={cn(
         'rounded-xl border transition-all',
         'bg-white dark:bg-slate-900/60',
-        'border-slate-200 dark:border-slate-800',
-        'hover:shadow-sm',
+        isDragging
+          ? 'opacity-60 border-sky-400 dark:border-sky-500 ring-2 ring-sky-400/20 z-50 shadow-lg'
+          : 'border-slate-200 dark:border-slate-800 hover:shadow-sm',
       )}
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2">
+        {/* Drag handle */}
+        {canEdit && (
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400 transition-colors shrink-0"
+          >
+            <GripVertical size={14} />
+          </div>
+        )}
+
         {/* Color bar */}
         <div
           className="w-1 h-8 rounded-full shrink-0"
@@ -54,12 +93,14 @@ export function ScenarioPackageCell({
         />
 
         {/* Expand toggle */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-        >
-          <Chevron size={14} />
-        </button>
+        {!isDragging && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+          >
+            <Chevron size={14} />
+          </button>
+        )}
 
         {/* Package name + meta */}
         <div className="flex-1 min-w-0">
@@ -94,7 +135,7 @@ export function ScenarioPackageCell({
         </span>
 
         {/* Remove button */}
-        {canEdit && onRemove && (
+        {canEdit && onRemove && !isDragging && (
           <button
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
             className="text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400 transition-colors p-0.5"
@@ -106,7 +147,7 @@ export function ScenarioPackageCell({
       </div>
 
       {/* Expanded: item list */}
-      {expanded && pkg.items.length > 0 && (
+      {expanded && !isDragging && pkg.items.length > 0 && (
         <div className="border-t border-slate-100 dark:border-slate-800 px-3 py-2 space-y-1">
           {pkg.items.map(item => {
             const opp = allOpportunities.find(o => o.id === item.opportunity_id);

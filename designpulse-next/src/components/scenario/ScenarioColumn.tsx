@@ -3,10 +3,11 @@
 import { useState, useMemo, useRef } from 'react';
 import { cn } from '@/lib/cn';
 import { MoreVertical, Copy, Trash2, Plus, Shield, Pencil, Check, X } from 'lucide-react';
+import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Button } from '@/components/ui/Button';
 import { BudgetMetricsBar } from '@/components/ui/BudgetMetricsBar';
 import { ScenarioPackageCell } from './ScenarioPackageCell';
-import { PackageBuilderDrawer } from './PackageBuilderDrawer';
 import { ApplyScenarioModal } from './ApplyScenarioModal';
 import {
   useUpdateScenario,
@@ -31,6 +32,7 @@ interface ScenarioColumnProps {
   projectId: string;
   isSelected: boolean;
   onSelect: () => void;
+  onOpenBank: () => void;
 }
 
 export function ScenarioColumn({
@@ -45,11 +47,11 @@ export function ScenarioColumn({
   projectId,
   isSelected,
   onSelect,
+  onOpenBank,
 }: ScenarioColumnProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(scenario.name);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isApplyOpen, setIsApplyOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +59,12 @@ export function ScenarioColumn({
   const deleteScenario = useDeleteScenario(projectId);
   const duplicateScenario = useDuplicateScenario(projectId);
   const removePackage = useRemoveScenarioPackage(projectId);
+
+  // Droppable target for the column body
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: scenario.id,
+    data: { type: 'scenario-column', scenarioId: scenario.id },
+  });
 
   // Build packages lookup
   const packagesById = useMemo(() => new Map(packages.map(p => [p.id, p])), [packages]);
@@ -68,6 +76,12 @@ export function ScenarioColumn({
       .map(sp => packagesById.get(sp.package_id))
       .filter(Boolean) as VePackageWithItems[];
   }, [scenario.scenarioPackages, packagesById]);
+
+  // Sortable IDs — composite for cross-column uniqueness
+  const sortableIds = useMemo(
+    () => assignedPackages.map(p => `${scenario.id}::${p.id}`),
+    [assignedPackages, scenario.id],
+  );
 
   // DR-2: Build overrides Map with first-package-wins
   const overrides = useMemo(() => {
@@ -91,13 +105,16 @@ export function ScenarioColumn({
     [opportunities, allOptions, originalBudget, overrides]
   );
 
-  const existingPackageIds = scenario.scenarioPackages.map(sp => sp.package_id);
-
   const handleRename = () => {
     if (editName.trim() && editName !== scenario.name) {
       updateScenario.mutate({ id: scenario.id, updates: { name: editName.trim() } });
     }
     setIsEditing(false);
+  };
+
+  const handleAddPackageClick = () => {
+    onSelect();
+    onOpenBank();
   };
 
   return (
@@ -108,7 +125,7 @@ export function ScenarioColumn({
           'min-w-[320px] max-w-[380px] flex flex-col rounded-2xl transition-all cursor-pointer',
           'bg-white dark:bg-slate-900',
           'shadow-sm',
-          (isSelected || isDrawerOpen || isApplyOpen)
+          (isSelected || isApplyOpen)
             ? 'border-2 border-sky-400 dark:border-sky-500 ring-2 ring-sky-400/20 dark:ring-sky-500/20'
             : 'border border-slate-200 dark:border-slate-800',
         )}
@@ -137,7 +154,7 @@ export function ScenarioColumn({
               <h3 className="text-sm font-bold text-slate-800 dark:text-white truncate">{scenario.name}</h3>
               {canEdit && (
                 <button
-                  onClick={() => { setEditName(scenario.name); setIsEditing(true); }}
+                  onClick={(e) => { e.stopPropagation(); setEditName(scenario.name); setIsEditing(true); }}
                   className="p-0.5 text-slate-300 hover:text-sky-500 transition-colors shrink-0"
                 >
                   <Pencil size={12} />
@@ -155,7 +172,7 @@ export function ScenarioColumn({
           {canEdit && (
             <div className="relative" ref={menuRef}>
               <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
                 className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
               >
                 <MoreVertical size={16} />
@@ -163,13 +180,13 @@ export function ScenarioColumn({
               {isMenuOpen && (
                 <div className="absolute right-0 top-full mt-1 w-40 rounded-lg border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-lg z-10 py-1">
                   <button
-                    onClick={() => { duplicateScenario.mutate(scenario); setIsMenuOpen(false); }}
+                    onClick={(e) => { e.stopPropagation(); duplicateScenario.mutate(scenario); setIsMenuOpen(false); }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                   >
                     <Copy size={14} /> Duplicate
                   </button>
                   <button
-                    onClick={() => { deleteScenario.mutate(scenario.id); setIsMenuOpen(false); }}
+                    onClick={(e) => { e.stopPropagation(); deleteScenario.mutate(scenario.id); setIsMenuOpen(false); }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
                   >
                     <Trash2 size={14} /> Delete
@@ -180,30 +197,39 @@ export function ScenarioColumn({
           )}
         </div>
 
-        {/* Body — package list */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {assignedPackages.length === 0 ? (
-            <div className="text-center py-8 text-sm text-slate-400">
-              No packages added yet
-            </div>
-          ) : (
-            assignedPackages.map(pkg => (
-              <ScenarioPackageCell
-                key={pkg.id}
-                pkg={pkg}
-                scopeLabel={pkg.scope_id ? scopeLabelsById.get(pkg.scope_id) : undefined}
-                onRemove={() => removePackage.mutate({ scenarioId: scenario.id, packageId: pkg.id })}
-                canEdit={canEdit}
-                allOpportunities={opportunities}
-                allOptions={allOptions}
-              />
-            ))
+        {/* Body — droppable + sortable package list */}
+        <div
+          ref={setDropRef}
+          className={cn(
+            'flex-1 overflow-y-auto p-3 space-y-2 transition-colors',
+            isOver && 'bg-sky-50/50 dark:bg-sky-900/10 border-2 border-dashed border-sky-300 dark:border-sky-700 rounded-lg',
           )}
+        >
+          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+            {assignedPackages.length === 0 ? (
+              <div className="text-center py-8 text-sm text-slate-400">
+                {isOver ? 'Drop here to add' : 'No packages added yet'}
+              </div>
+            ) : (
+              assignedPackages.map(pkg => (
+                <ScenarioPackageCell
+                  key={pkg.id}
+                  pkg={pkg}
+                  scenarioId={scenario.id}
+                  scopeLabel={pkg.scope_id ? scopeLabelsById.get(pkg.scope_id) : undefined}
+                  onRemove={() => removePackage.mutate({ scenarioId: scenario.id, packageId: pkg.id })}
+                  canEdit={canEdit}
+                  allOpportunities={opportunities}
+                  allOptions={allOptions}
+                />
+              ))
+            )}
+          </SortableContext>
 
           {/* Add package button */}
           {canEdit && (
             <button
-              onClick={() => setIsDrawerOpen(true)}
+              onClick={(e) => { e.stopPropagation(); handleAddPackageClick(); }}
               className={cn(
                 'w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed transition-all',
                 'border-slate-200 dark:border-slate-700',
@@ -229,7 +255,7 @@ export function ScenarioColumn({
             <Button
               variant="primary"
               size="sm"
-              onClick={() => setIsApplyOpen(true)}
+              onClick={(e) => { e.stopPropagation(); setIsApplyOpen(true); }}
               disabled={overrides.size === 0}
               className="w-full"
             >
@@ -239,17 +265,6 @@ export function ScenarioColumn({
           )}
         </div>
       </div>
-
-      {/* Drawer */}
-      <PackageBuilderDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        scenarioId={scenario.id}
-        projectId={projectId}
-        existingPackageIds={existingPackageIds}
-        packages={packages}
-        scopeLabelsById={scopeLabelsById}
-      />
 
       {/* Apply modal */}
       {isApplyOpen && (

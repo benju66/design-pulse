@@ -141,6 +141,23 @@ export function toDateInputValue(value: string | Date | null | undefined): strin
   }
 }
 
+/**
+ * Returns today's date as a timezone-invariant 'YYYY-MM-DD' string
+ * using local calendar components (year, month, day).
+ *
+ * This avoids the UTC offset bug in `new Date().toISOString().split('T')[0]`
+ * which shifts the date forward by 1 day for users west of UTC (e.g. EST at 8pm+).
+ *
+ * Per AGENTS.md § Date Standardization & Timezone Stability.
+ */
+export function getTodayLocalDate(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 /** Number formatting (no currency symbol) */
 export function formatNumber(
   value: number,

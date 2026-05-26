@@ -9,7 +9,7 @@ import {
   ColumnDef,
   SortingState,
 } from '@tanstack/react-table';
-import { ProjectKeyDate } from '@/types/models';
+import { TimelineEvent } from '@/types/models';
 import { useUpdateKeyDate, useDeleteKeyDate } from '@/hooks/useKeyDateQueries';
 import { useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { useUIStore } from '@/stores/useUIStore';
@@ -23,11 +23,11 @@ import { DateCell } from '@/components/data-table/cells/DateCell';
 import { toast } from 'sonner';
 
 const EMPTY_VISIBILITY: Record<string, boolean> = {};
-const DEFAULT_COLUMN_ORDER = ['select', 'display_id', 'title', 'description', 'event_date'];
+const DEFAULT_COLUMN_ORDER = ['select', 'display_id', 'title', 'description', 'event_date', 'source_type'];
 
 interface KeyDatesTableProps {
   projectId: string;
-  keyDates: ProjectKeyDate[];
+  keyDates: TimelineEvent[];
   createMutation: {
     mutate: (data: Record<string, unknown>) => void;
     isPending: boolean;
@@ -57,7 +57,9 @@ export function KeyDatesTable({
 
   const moveActiveCellRef = useRef<any>(null);
 
-  const columns = useMemo<ColumnDef<ProjectKeyDate>[]>(() => [
+  const isDeliverableRow = (row: TimelineEvent) => row.source_type === 'deliverable';
+
+  const columns = useMemo<ColumnDef<TimelineEvent>[]>(() => [
     {
       id: 'select',
       header: ({ table }) => <CheckboxHeader table={table} />,
@@ -80,21 +82,39 @@ export function KeyDatesTable({
     {
       accessorKey: 'title',
       header: 'Title',
-      cell: (info) => <TextCell info={info} />,
+      cell: (info) => <TextCell info={info} isLocked={isDeliverableRow} />,
       size: 280,
     },
     {
       accessorKey: 'description',
       header: 'Description',
-      cell: (info) => <TextCell info={info} />,
+      cell: (info) => <TextCell info={info} isLocked={isDeliverableRow} />,
       size: 350,
     },
     {
-      accessorKey: 'event_date',
+      id: 'event_date',
+      accessorFn: (row: TimelineEvent) => row.timeline_date,
       header: 'Date',
-      cell: (info) => <DateCell {...info} />,
+      cell: (info) => <DateCell {...info} isLocked={isDeliverableRow} />,
       size: 130,
-    }
+    },
+    {
+      accessorKey: 'source_type',
+      header: 'Source',
+      cell: ({ row }) => (
+        <div className="flex items-center w-full h-full px-2">
+          <span className={`px-1.5 py-0.5 text-xs font-bold rounded ${
+            row.original.source_type === 'deliverable'
+              ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-900/60'
+              : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/60'
+          }`}>
+            {row.original.source_type === 'deliverable' ? 'Deliverable' : 'Key Date'}
+          </span>
+        </div>
+      ),
+      size: 110,
+      enableSorting: true,
+    },
   ], [permissions.can_edit_records]);
 
   const table = useReactTable({
@@ -132,7 +152,8 @@ export function KeyDatesTable({
   moveActiveCellRef.current = gridNav.moveActiveCell;
 
   const handleBulkDelete = async () => {
-    const selectedRows = table.getSelectedRowModel().rows;
+    const selectedRows = table.getSelectedRowModel().rows
+      .filter(row => row.original.source_type === 'key_date');
     if (selectedRows.length === 0) return;
     setIsDeleting(true);
     try {

@@ -24,6 +24,7 @@ import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { AssigneeSelect } from '@/components/opportunities/AssigneeSelect';
 import { CheckboxCell, CheckboxHeader, commonCellComparator } from '@/components/data-table/cells';
+import { formatDate, toDateInputValue } from '@/lib/formatters';
 import { BulkActionBar, DeleteConfirmModal, GhostRow, TableEmptyState } from '@/components/data-table';
 
 // Common comparator for deep row memoization
@@ -193,7 +194,7 @@ const PermitDateCell = React.memo(({ getValue, row, column, table }: CellContext
       <input
         ref={inputRef}
         autoFocus
-        defaultValue={initialValue || ''}
+        defaultValue={toDateInputValue(initialValue) || ''}
         onBlur={onBlur}
         onKeyDown={handleKeyDown}
         className={`${cellClass} bg-transparent border-none focus:z-10 relative`}
@@ -215,7 +216,7 @@ const PermitDateCell = React.memo(({ getValue, row, column, table }: CellContext
       }}
       className={`w-full h-full px-2 py-1 text-sm min-h-[28px] outline-none focus:ring-2 focus:ring-sky-500 focus:z-10 truncate cursor-text text-slate-900 dark:text-slate-100 ${isCellActive && !isEditing ? 'ring-2 ring-sky-400 bg-sky-50/50 dark:bg-sky-900/20' : ''}`}
     >
-      {initialValue ? new Date(initialValue).toLocaleDateString() : <span className="text-slate-300 dark:text-slate-600 italic">--</span>}
+      {initialValue ? formatDate(initialValue) : <span className="text-slate-300 dark:text-slate-600 italic">--</span>}
     </div>
   );
 }, commonCellComparator);

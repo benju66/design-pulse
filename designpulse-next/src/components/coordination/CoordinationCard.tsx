@@ -26,7 +26,7 @@ export const CoordinationCard = ({ opportunity, updateMutation, settings, member
 
   const isDueSoon = () => {
     if (!opportunity.due_date) return false;
-    const due = new Date(opportunity.due_date);
+    const due = new Date(opportunity.due_date + 'T00:00:00');
     const now = new Date();
     const diff = due.getTime() - now.getTime();
     return diff < 3 * 24 * 60 * 60 * 1000; // 3 days

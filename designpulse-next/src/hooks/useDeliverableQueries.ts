@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { toast } from 'sonner';
 import { ProjectDeliverable } from '@/types/models';
+import { getTodayLocalDate } from '@/lib/formatters';
 
 export function useDeliverables(projectId: string | null) {
   return useQuery<ProjectDeliverable[], Error>({
@@ -31,7 +32,7 @@ export function useCreateDeliverable(projectId: string) {
   return useMutation<ProjectDeliverable, Error, Partial<ProjectDeliverable>, { previousDeliverables: ProjectDeliverable[] | undefined }>({
     mutationFn: async (newRow) => {
       const realUUID = (newRow as Record<string, unknown>).id as string | undefined; // Minted on client
-      const defaultDate = new Date().toISOString().split('T')[0]; // Safe stable date YYYY-MM-DD
+      const defaultDate = getTodayLocalDate();
       const { data, error } = await supabase
         .from('project_deliverables')
         .insert([{ 
@@ -66,7 +67,7 @@ export function useCreateDeliverable(projectId: string) {
           description: null,
           assignee: null,
           permit_id: null,
-          due_date: new Date().toISOString().split('T')[0],
+          due_date: getTodayLocalDate(),
           is_elevated_key_date: false,
           is_deleted: false,
           created_at: new Date().toISOString(),

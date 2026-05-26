@@ -21,6 +21,8 @@ export function useProjectRealtime(projectId: string | null) {
         queryClient.invalidateQueries({ queryKey: ['pending_estimate_updates', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['permits', projectId], refetchType: 'active' });
         queryClient.invalidateQueries({ queryKey: ['permit_comments', projectId], refetchType: 'active' });
+        queryClient.invalidateQueries({ queryKey: ['deliverables', projectId], refetchType: 'active' });
+        queryClient.invalidateQueries({ queryKey: ['key-dates', projectId], refetchType: 'active' });
       }, 300);
     };
 
@@ -48,6 +50,16 @@ export function useProjectRealtime(projectId: string | null) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'permit_comments', filter: `project_id=eq.${projectId}` },
+        debouncedInvalidate
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'project_deliverables', filter: `project_id=eq.${projectId}` },
+        debouncedInvalidate
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'project_key_dates', filter: `project_id=eq.${projectId}` },
         debouncedInvalidate
       )
       .subscribe();

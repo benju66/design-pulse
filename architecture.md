@@ -224,6 +224,8 @@ C4Component
 | `useGlobalQueries.ts` | Admin/Global | `useSystemUsers`, `useRolePermissions`, `useCsiTrainingSuggestions` | `useBulkUpdateUserProjects`, `useToggleCsiVerified`, `useRemapGlobalCsiEntry`, `useCreateCostCode`, `useDeleteCostCode` |
 | `usePermitQueries.ts` | Permits | `usePermits`, `usePermitComments`, `usePermitTaskLinks` | Permit CRUD mutations |
 | `useDeliverableQueries.ts` | Pre-Con Deliverables | `useDeliverables` | `useCreateDeliverable`, `useUpdateDeliverable`, `useDeleteDeliverable` |
+| `useKeyDateQueries.ts` | Key Dates | `useKeyDates` | `useCreateKeyDate`, `useUpdateKeyDate`, `useDeleteKeyDate` |
+| `useTimelineQueries.ts` | Unified Timeline | `useUnifiedTimeline` (client-side merge of `useKeyDates` + `useDeliverables`) | — (read-only projection; mutations route through source hooks) |
 | `useLessonQueries.ts` | Lessons Learned | `useLessons`, `useLessonIndicators` | Lesson CRUD + attachment mutations |
 | `useDrawingSetQueries.ts` | Drawing Sets | `useDrawingSets` | `useCreateDrawingSet`, `useActivateDrawingSet` |
 | `useCsiQueries.ts` | Project CSI Specs | `useProjectCsiSpecs` | CSI spec mutations |
@@ -561,6 +563,7 @@ defaultOptions: {
 ['project_members', projectId]         ['clients']
 ['project_sheets', projectId]          ['client', clientId]
 ['sheet_markups', sheetId]             ['system_users']
+['deliverables', projectId]            ['key-dates', projectId]
 ['activity_feed', entityType, entityId]
 ```
 
@@ -568,7 +571,7 @@ defaultOptions: {
 
 | Hook | Channel | Tables | Debounce | Invalidated Keys |
 |------|---------|--------|----------|------------------|
-| `useProjectRealtime` | `project-realtime-{id}` | `opportunities`, `opportunity_options`, `permits`, `permit_comments` | 300ms | 7 query keys |
+| `useProjectRealtime` | `project-realtime-{id}` | `opportunities`, `opportunity_options`, `permits`, `permit_comments`, `project_deliverables`, `project_key_dates` | 300ms | 9 query keys |
 | `useSheetRealtime` | `sheet-status-{id}` | `project_sheets` (UPDATE only) | 300ms | `project_sheets` |
 | `useActivityFeed` (inline) | `activity-{id}` | `item_activity` | None | `activity_feed` |
 
@@ -648,7 +651,10 @@ Data revealed based on workflow stage. Once a decision is locked in Pre-Con, coo
 `useUIStore` and `useMapStore` maintain two-way sync between the selected opportunity row and highlighted map zones. Selecting in the grid highlights on the canvas, and vice versa.
 
 ### B.7 Soft Deletes with Cascade
-`is_deleted` boolean on opportunities, options, permits, and lessons. Trigger `trg_cascade_soft_delete_opportunities` soft-deletes children and cleans junction tables.
+`is_deleted` boolean on opportunities, options, permits, lessons, deliverables, key dates, and brand standards. Trigger `trg_cascade_soft_delete_opportunities` soft-deletes children and cleans junction tables.
+
+### B.8.1 Audit Function Consolidation Guardrail
+`process_audit_log()` is defined **once** in `supabase_schema.sql` as the canonical source. Feature migrations must **never** redefine it — only add trigger bindings. The function routes `project_id` extraction via `TG_TABLE_NAME` branches. Client-scoped tables (`clients`, `client_brand_standards`, `client_documents`) store `NULL` project_id, and their audit rows are visible only to platform admins.
 
 ### B.8 Dynamic RBAC
 `role_permissions` table maps 4 roles to 8 boolean permissions. `has_project_permission()` function is used in RLS policies for fine-grained access control. Roles can be reconfigured without code changes.

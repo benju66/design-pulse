@@ -18,6 +18,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { Calendar, User, Building2, Tag } from 'lucide-react';
 import { useUIStore } from '@/stores/useUIStore';
+import { formatDate } from '@/lib/formatters';
 
 const COLUMNS = [
   { id: 'Preparing', label: 'Preparing', color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700' },
@@ -102,7 +103,7 @@ const SortablePermitCard = React.memo(({ permit }: { permit: Permit }) => {
         {permit.target_approval_date && (
           <div className="flex items-center gap-1.5 border-t border-slate-100 dark:border-slate-800 pt-2" title="Target Approval">
             <Calendar size={12} className="shrink-0" />
-            <span className="truncate">{new Date(permit.target_approval_date).toLocaleDateString()}</span>
+            <span className="truncate">{formatDate(permit.target_approval_date)}</span>
           </div>
         )}
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useKeyDates, useCreateKeyDate } from '@/hooks/useKeyDateQueries';
+import { useCreateKeyDate } from '@/hooks/useKeyDateQueries';
+import { useUnifiedTimeline } from '@/hooks/useTimelineQueries';
 import { KeyDatesTable } from '@/components/key-dates/KeyDatesTable';
 import { CalendarDays, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -10,7 +11,7 @@ interface KeyDatesViewProps {
 }
 
 export function KeyDatesView({ projectId }: KeyDatesViewProps) {
-  const { data: keyDates = [], isLoading } = useKeyDates(projectId);
+  const { data: timelineEvents = [], isLoading } = useUnifiedTimeline(projectId);
   const createKeyDateMutation = useCreateKeyDate(projectId);
 
   return (
@@ -48,7 +49,7 @@ export function KeyDatesView({ projectId }: KeyDatesViewProps) {
         ) : (
           <KeyDatesTable 
             projectId={projectId}
-            keyDates={keyDates}
+            keyDates={timelineEvents}
             createMutation={createKeyDateMutation}
           />
         )}

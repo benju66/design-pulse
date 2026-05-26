@@ -599,6 +599,12 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION process_audit_log()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+-- ⚠️ CANONICAL DEFINITION — DO NOT REDEFINE IN FEATURE MIGRATIONS ⚠️
+-- When adding a new audited table:
+--   1. Add an ELSIF branch below for project_id extraction
+--   2. If the table has is_deleted, add it to the soft-delete IN clause
+--   3. Create only the TRIGGER binding in the feature migration
+--   4. Update architecture.md realtime/audit tables
 DECLARE
   v_project_id uuid;
   v_audit_enabled boolean;
@@ -609,8 +615,17 @@ BEGIN
     SELECT project_id INTO v_project_id FROM opportunities WHERE id = CASE WHEN TG_OP = 'DELETE' THEN OLD.opportunity_id ELSE NEW.opportunity_id END;
   ELSIF TG_TABLE_NAME = 'project_estimate_versions' THEN
     v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
-  ELSIF TG_TABLE_NAME IN ('permits', 'permit_comments') THEN
+  ELSIF TG_TABLE_NAME IN (
+    'permits', 'permit_comments',
+    'project_deliverables', 'project_key_dates',
+    'estimate_variance_notes',
+    'project_lessons', 'project_brand_standards'
+  ) THEN
     v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
+  ELSIF TG_TABLE_NAME IN ('clients', 'client_brand_standards', 'client_documents') THEN
+    -- Client-scoped tables have no project_id — store NULL (honest, prevents garbage project_id)
+    -- Note: These rows are only visible to platform_admins per audit_logs RLS policy
+    v_project_id := NULL;
   ELSE
     -- For project_settings, projects, etc., fall back to looking for an id column
     BEGIN
@@ -622,14 +637,20 @@ BEGIN
 
   SELECT enable_audit_logging INTO v_audit_enabled FROM project_settings WHERE project_id = v_project_id;
 
-  IF v_audit_enabled IS NOT TRUE THEN
+  -- For client-scoped tables (NULL project_id), always log since there is no
+  -- project_settings row to check. These rows are platform-admin visible only.
+  IF v_project_id IS NOT NULL AND v_audit_enabled IS NOT TRUE THEN
     IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
   END IF;
 
   IF TG_OP = 'UPDATE' THEN
     IF (row_to_json(OLD)::jsonb - 'updated_at') IS NOT DISTINCT FROM (row_to_json(NEW)::jsonb - 'updated_at') THEN RETURN NEW; END IF;
     -- Soft-delete detection: only for tables that carry is_deleted (opportunities, opportunity_options, permits)
-    IF TG_TABLE_NAME IN ('opportunities', 'opportunity_options', 'permits') AND OLD.is_deleted = false AND NEW.is_deleted = true THEN
+    IF TG_TABLE_NAME IN (
+      'opportunities', 'opportunity_options', 'permits',
+      'project_deliverables', 'project_key_dates',
+      'project_lessons', 'project_brand_standards'
+    ) AND OLD.is_deleted = false AND NEW.is_deleted = true THEN
       INSERT INTO audit_logs (record_id, table_name, action_type, old_payload, user_id, project_id) VALUES (NEW.id, TG_TABLE_NAME, 'SOFT_DELETE', row_to_json(OLD)::jsonb, auth.uid(), v_project_id);
     ELSE
       INSERT INTO audit_logs (record_id, table_name, action_type, old_payload, new_payload, user_id, project_id) VALUES (NEW.id, TG_TABLE_NAME, 'UPDATE', row_to_json(OLD)::jsonb, row_to_json(NEW)::jsonb, auth.uid(), v_project_id);
@@ -685,6 +706,15 @@ CREATE TRIGGER trg_audit_permits AFTER INSERT OR UPDATE OR DELETE ON permits FOR
 
 DROP TRIGGER IF EXISTS trg_audit_permit_comments ON permit_comments;
 CREATE TRIGGER trg_audit_permit_comments AFTER INSERT OR UPDATE OR DELETE ON permit_comments FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+DROP TRIGGER IF EXISTS trg_audit_project_lessons ON project_lessons;
+CREATE TRIGGER trg_audit_project_lessons AFTER INSERT OR UPDATE OR DELETE ON project_lessons FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+DROP TRIGGER IF EXISTS trg_audit_project_brand_standards ON project_brand_standards;
+CREATE TRIGGER trg_audit_project_brand_standards AFTER INSERT OR UPDATE OR DELETE ON project_brand_standards FOR EACH ROW EXECUTE FUNCTION process_audit_log();
+
+DROP TRIGGER IF EXISTS trg_audit_project_estimate_versions ON project_estimate_versions;
+CREATE TRIGGER trg_audit_project_estimate_versions AFTER INSERT OR UPDATE OR DELETE ON project_estimate_versions FOR EACH ROW EXECUTE FUNCTION process_audit_log();
 
 DROP TRIGGER IF EXISTS trg_permits_updated_at ON permits;
 CREATE TRIGGER trg_permits_updated_at BEFORE UPDATE ON permits FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { toast } from 'sonner';
 import { ProjectKeyDate } from '@/types/models';
+import { getTodayLocalDate } from '@/lib/formatters';
 
 export function useKeyDates(projectId: string | null) {
   return useQuery<ProjectKeyDate[], Error>({
@@ -31,7 +32,7 @@ export function useCreateKeyDate(projectId: string) {
   return useMutation<ProjectKeyDate, Error, Partial<ProjectKeyDate>, { previousKeyDates: ProjectKeyDate[] | undefined }>({
     mutationFn: async (newRow) => {
       const realUUID = (newRow as Record<string, unknown>).id as string | undefined; // Minted on client
-      const defaultDate = new Date().toISOString().split('T')[0]; // Safe stable date YYYY-MM-DD
+      const defaultDate = getTodayLocalDate();
       const { data, error } = await supabase
         .from('project_key_dates')
         .insert([{ 
@@ -61,7 +62,7 @@ export function useCreateKeyDate(projectId: string) {
           title: 'New Key Date',
           display_id: 'Pending...',
           description: null,
-          event_date: new Date().toISOString().split('T')[0],
+          event_date: getTodayLocalDate(),
           is_deleted: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

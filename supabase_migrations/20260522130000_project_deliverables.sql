@@ -75,56 +75,8 @@ CREATE TRIGGER trg_project_deliverables_updated_at
   FOR EACH ROW 
   EXECUTE FUNCTION public.auto_update_timestamp();
 
--- Redefine process_audit_log to explicitly include project_deliverables in the audit log system
-CREATE OR REPLACE FUNCTION public.process_audit_log()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_project_id uuid;
-  v_audit_enabled boolean;
-BEGIN
-  IF TG_TABLE_NAME = 'opportunities' THEN
-    v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
-  ELSIF TG_TABLE_NAME = 'opportunity_options' THEN
-    SELECT project_id INTO v_project_id FROM opportunities WHERE id = CASE WHEN TG_OP = 'DELETE' THEN OLD.opportunity_id ELSE NEW.opportunity_id END;
-  ELSIF TG_TABLE_NAME = 'project_estimate_versions' THEN
-    v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
-  ELSIF TG_TABLE_NAME IN ('permits', 'permit_comments', 'project_deliverables') THEN
-    v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.project_id ELSE NEW.project_id END;
-  ELSE
-    -- For project_settings, projects, etc., fall back to looking for an id column
-    BEGIN
-      v_project_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END;
-    EXCEPTION WHEN OTHERS THEN 
-      v_project_id := NULL;
-    END;
-  END IF;
-
-  SELECT enable_audit_logging INTO v_audit_enabled FROM project_settings WHERE project_id = v_project_id;
-
-  IF v_audit_enabled IS NOT TRUE THEN
-    IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
-  END IF;
-
-  IF TG_OP = 'UPDATE' THEN
-    IF (row_to_json(OLD)::jsonb - 'updated_at') IS NOT DISTINCT FROM (row_to_json(NEW)::jsonb - 'updated_at') THEN RETURN NEW; END IF;
-    -- Soft-delete detection: only for tables that carry is_deleted (opportunities, opportunity_options, permits, project_deliverables)
-    IF TG_TABLE_NAME IN ('opportunities', 'opportunity_options', 'permits', 'project_deliverables') AND OLD.is_deleted = false AND NEW.is_deleted = true THEN
-      INSERT INTO audit_logs (record_id, table_name, action_type, old_payload, user_id, project_id) VALUES (NEW.id, TG_TABLE_NAME, 'SOFT_DELETE', row_to_json(OLD)::jsonb, auth.uid(), v_project_id);
-    ELSE
-      INSERT INTO audit_logs (record_id, table_name, action_type, old_payload, new_payload, user_id, project_id) VALUES (NEW.id, TG_TABLE_NAME, 'UPDATE', row_to_json(OLD)::jsonb, row_to_json(NEW)::jsonb, auth.uid(), v_project_id);
-    END IF;
-    RETURN NEW;
-  ELSIF TG_OP = 'DELETE' THEN
-    INSERT INTO audit_logs (record_id, table_name, action_type, old_payload, user_id, project_id) VALUES (OLD.id, TG_TABLE_NAME, 'DELETE', row_to_json(OLD)::jsonb, auth.uid(), v_project_id);
-    RETURN OLD;
-  ELSIF TG_OP = 'INSERT' THEN
-    INSERT INTO audit_logs (record_id, table_name, action_type, new_payload, user_id, project_id) VALUES (NEW.id, TG_TABLE_NAME, 'INSERT', row_to_json(NEW)::jsonb, auth.uid(), v_project_id);
-    RETURN NEW;
-  END IF;
-
-  RETURN NULL;
-END;
-$$;
+-- NOTE: process_audit_log() is consolidated in supabase_schema.sql.
+-- Only the TRIGGER binding is defined here. Never redefine the function in migrations.
 
 -- Bind central enterprise audit log reporting
 DROP TRIGGER IF EXISTS trg_audit_project_deliverables ON public.project_deliverables;

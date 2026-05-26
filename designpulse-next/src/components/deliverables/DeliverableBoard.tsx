@@ -11,6 +11,8 @@ interface DeliverableBoardProps {
   deliverables: ProjectDeliverable[];
   isLoading: boolean;
   filterSlot?: React.ReactNode;
+  filterActiveCount?: number;
+  onClearFilters?: () => void;
   createMutation: any;
 }
 
@@ -19,6 +21,8 @@ export default function DeliverableBoard({
   deliverables,
   isLoading,
   filterSlot,
+  filterActiveCount = 0,
+  onClearFilters,
   createMutation
 }: DeliverableBoardProps) {
   const viewMode = useUIStore(state => state.deliverablesViewMode);
@@ -46,6 +50,8 @@ export default function DeliverableBoard({
                 projectId={projectId} 
                 deliverables={deliverables} 
                 filterSlot={filterSlot}
+                filterActiveCount={filterActiveCount}
+                onClearFilters={onClearFilters}
                 createMutation={createMutation}
               />
             ) : (

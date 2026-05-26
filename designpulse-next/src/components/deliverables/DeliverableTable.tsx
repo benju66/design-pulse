@@ -9,7 +9,7 @@ import {
   CellContext,
   SortingState,
 } from '@tanstack/react-table';
-import { PanelRight, CalendarCheck2 } from 'lucide-react';
+import { PanelRight } from 'lucide-react';
 import { ProjectDeliverable, Permit } from '@/types/models';
 import { useUpdateDeliverable, useDeleteDeliverable } from '@/hooks/useDeliverableQueries';
 import { useProjectMembers, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
@@ -19,11 +19,12 @@ import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { AssigneeSelect } from '@/components/opportunities/AssigneeSelect';
 import { CheckboxCell, CheckboxHeader, commonCellComparator } from '@/components/data-table/cells';
-import { DataTable, GhostRow, BulkActionBar, MemoizedRow } from '@/components/data-table';
+import { DataTable, GhostRow, BulkActionBar, MemoizedRow, TableToolbar } from '@/components/data-table';
 import { DeleteConfirmModal } from '@/components/data-table/DeleteConfirmModal';
 import { Button } from '@/components/ui/Button';
 import { formatDate, toDateInputValue } from '@/lib/formatters';
 import { toast } from 'sonner';
+import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 
 const cellClass = "w-full h-full px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-sky-500 rounded text-slate-900 dark:text-slate-100 transition-all";
 
@@ -432,6 +433,8 @@ interface DeliverableTableProps {
   projectId: string;
   deliverables: ProjectDeliverable[];
   filterSlot?: React.ReactNode;
+  filterActiveCount?: number;
+  onClearFilters?: () => void;
   createMutation: any;
 }
 
@@ -439,10 +442,14 @@ export function DeliverableTable({
   projectId,
   deliverables,
   filterSlot,
+  filterActiveCount = 0,
+  onClearFilters,
   createMutation
 }: DeliverableTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [globalFilter, setGlobalFilter] = useState<string>('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -475,15 +482,22 @@ export function DeliverableTable({
       id: 'open_panel',
       header: '',
       cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSelectedOpportunityId(row.original.id)}
-          className="w-full h-full text-slate-400 hover:text-sky-500 flex items-center justify-center"
-          title="Open detail panel"
-        >
-          <PanelRight size={16} />
-        </Button>
+        <div className="w-full h-full flex items-center justify-center px-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedOpportunityId(row.original.id);
+            }}
+            className={`p-1 rounded-md transition-colors ${
+              selectedOpportunityId === row.original.id
+                ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
+                : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300'
+            }`}
+            title="Open detail panel"
+          >
+            <PanelRight size={16} />
+          </button>
+        </div>
       ),
       size: 40,
       enableSorting: false,
@@ -492,8 +506,8 @@ export function DeliverableTable({
       accessorKey: 'display_id',
       header: 'ID',
       cell: ({ row }) => (
-        <div className="flex items-center w-full h-full px-2">
-          <span className="px-1.5 py-0.5 text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/60 rounded">
+        <div className="flex items-center w-full min-h-[28px] px-2">
+          <span className="px-1.5 py-0.5 text-xs font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-900/60 rounded">
             {row.original.display_id || 'DE-???'}
           </span>
         </div>
@@ -544,11 +558,13 @@ export function DeliverableTable({
     state: {
       sorting,
       rowSelection,
+      globalFilter,
       columnVisibility,
       columnOrder,
     },
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
+    onGlobalFilterChange: setGlobalFilter,
     onColumnVisibilityChange: (updater) => setColumnVisibility(projectId, updater as any),
     onColumnOrderChange: (updater) => setColumnOrder(projectId, updater as any),
     getCoreRowModel: getCoreRowModel(),
@@ -598,26 +614,25 @@ export function DeliverableTable({
   return (
     <div className="flex flex-col h-full w-full relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
       {/* Toolbar */}
-      <div className="flex items-center justify-between p-3 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-950/20">
-        <div className="flex items-center gap-2">
-          {permissions.can_edit_records && (
-            <Button
-              onClick={() => createMutation.mutate({})}
-              disabled={createMutation.isPending}
-              variant="primary"
-              size="sm"
-            >
-              <CalendarCheck2 size={14} className="shrink-0" />
-              Add Deliverable
-            </Button>
-          )}
-          {filterSlot}
-        </div>
+      <TableToolbar
+        searchValue={globalFilter ?? ''}
+        onSearchChange={setGlobalFilter}
+        searchPlaceholder="Search deliverables..."
+        filterCount={filterActiveCount}
+        onFilterToggle={() => setIsFilterOpen(o => !o)}
+        columnChooser={<ColumnChooser table={table as any} projectId={projectId} />}
+      />
 
-        <div className="flex items-center gap-2">
-          <ColumnChooser table={table as any} projectId={projectId} />
-        </div>
-      </div>
+      {filterSlot && (
+        <GridFilterDrawer
+          isOpen={isFilterOpen}
+          onClose={() => setIsFilterOpen(false)}
+          activeCount={filterActiveCount}
+          onClearAll={() => onClearFilters?.()}
+        >
+          {filterSlot}
+        </GridFilterDrawer>
+      )}
 
       {/* Main Grid — shared DataTable wrapper handles virtualization, header, and empty state */}
       <DataTable

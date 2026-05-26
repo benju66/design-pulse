@@ -81,6 +81,9 @@ export function TableToolbar({
         )}
       </div>
 
+      {/* Spacer to push buttons to the right */}
+      <div className="flex-1" />
+
       {/* Filter button */}
       <button
         onClick={onFilterToggle}
@@ -116,9 +119,6 @@ export function TableToolbar({
 
       {/* Column chooser */}
       {columnChooser}
-
-      {/* Spacer */}
-      <div className="flex-1" />
 
       {/* Trailing slot */}
       {trailingSlot}

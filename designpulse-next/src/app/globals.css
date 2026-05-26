@@ -129,7 +129,7 @@ select option, select optgroup {
 }
 
 .dt-cell-base {
-  @apply p-0 border-r border-b border-slate-200 dark:border-slate-800 align-top overflow-hidden;
+  @apply p-0 border-r border-b border-slate-200 dark:border-slate-800 align-middle overflow-hidden;
 }
 
 .dt-header-row {

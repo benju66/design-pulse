@@ -508,15 +508,17 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       
       const allColIds = activeColumns.map((c: any) => c.accessorKey || c.id).filter(Boolean);
       
-      const pinnedFront = ['select', 'open_panel'].filter(id => allColIds.includes(id));
-      const unconfiguredIds = allColIds.filter(id => !configuredIds.includes(id as string) && !pinnedFront.includes(id as string));
-      const activeConfiguredIds = configuredIds.filter((id: string) => allColIds.includes(id));
+      const leftPinnedSet = new Set(columnPinning.left);
+      const pinnedFront = allColIds.filter(id => leftPinnedSet.has(id));
+      
+      const unconfiguredIds = allColIds.filter(id => !configuredIds.includes(id as string) && !leftPinnedSet.has(id as string));
+      const activeConfiguredIds = configuredIds.filter((id: string) => allColIds.includes(id) && !leftPinnedSet.has(id));
       
       const newOrder = [...pinnedFront, ...activeConfiguredIds, ...unconfiguredIds] as string[];
       
       setCoordColumnOrder(newOrder);
     }
-  }, [settings?.coord_column_order, activeColumns, setCoordColumnOrder]);
+  }, [settings?.coord_column_order, activeColumns, setCoordColumnOrder, columnPinning]);
 
   const moveActiveCellRef = useRef<((direction: 'down' | 'right' | 'left' | 'up') => void) | null>(null);
 

@@ -565,8 +565,8 @@ export const DisplayIdCell = React.memo(({ getValue, row, column }: CellContext<
   const displayValue = value || '';
 
   const badgeClass = recordType === 'Coordination'
-    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-    : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400';
+    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800'
+    : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800';
 
   const titleText = recordType === 'Coordination'
     ? 'Design Coordination item'

@@ -568,6 +568,19 @@ const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
     });
   }, [columns, settings?.ve_column_order]);
 
+  const userPinningOverrides = useUIStore(state => state.gridColumnPinningOverrides[projectId]) || { pinned: [], unpinned: [] };
+  // Bug #4: column pinning must swap based on isLedgerView
+  const columnPinning = useMemo(() => {
+    const defaultPinned = ['select', 'open_panel'];
+    if (isLedgerView) {
+      return { left: [...defaultPinned, 'item_definition'] };
+    }
+    const globalPinned = (settings?.ve_column_order as VeColumnConfig[] | undefined)?.filter(c => c.pinned).map(c => c.id) || ['display_id', 'title'];
+    const allPinned = new Set([...defaultPinned, ...globalPinned, ...userPinningOverrides.pinned]);
+    userPinningOverrides.unpinned.forEach(id => allPinned.delete(id));
+    return { left: Array.from(allPinned) };
+  }, [settings?.ve_column_order, userPinningOverrides, isLedgerView]);
+
   useEffect(() => {
     if (!isolateState && settings?.ve_column_order && settings.ve_column_order.length > 0) {
       const savedOrder = settings.ve_column_order;
@@ -581,23 +594,22 @@ const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
         .map(c => ('accessorKey' in c ? c.accessorKey : c.id) as string | undefined)
         .filter((id): id is string => !!id && !(EXCLUDED_COLUMN_IDS as readonly string[]).includes(id));
       
-      // Explicitly pin UI columns to the front — mode-aware (Bug #7 + #10)
-      const pinnedFront = isLedgerView
-        ? ['select', 'open_panel', 'item_definition', 'cost_classification', 'management'].filter(id => allColIds.includes(id))
-        : ['select', 'open_panel', 'display_id', 'title'].filter(id => allColIds.includes(id));
+      // Explicitly pin UI and dynamically pinned columns to the front — mode-aware (Bug #7 + #10)
+      const leftPinnedSet = new Set(columnPinning.left);
+      const pinnedFront = allColIds.filter(id => leftPinnedSet.has(id));
       
       // Dynamic Matrix columns should be placed immediately after the pinned columns
-      const dynamicOptionIds = allColIds.filter(id => typeof id === 'string' && id.startsWith('opt_'));
+      const dynamicOptionIds = allColIds.filter(id => typeof id === 'string' && id.startsWith('opt_') && !leftPinnedSet.has(id));
       
       // Filter out configuredIds that are no longer active, and ignore pinned/dynamic to avoid duplicates
       const activeConfiguredIds = configuredIds.filter((id: string) => 
-        allColIds.includes(id) && !pinnedFront.includes(id) && !dynamicOptionIds.includes(id)
+        allColIds.includes(id) && !leftPinnedSet.has(id) && !dynamicOptionIds.includes(id)
       );
       
       // Any new columns that aren't in the config, pinned, or dynamic go to the back
       const unconfiguredIds = allColIds.filter(id => 
         !configuredIds.includes(id as string) && 
-        !pinnedFront.includes(id as string) && 
+        !leftPinnedSet.has(id as string) && 
         !dynamicOptionIds.includes(id as string)
       );
       
@@ -615,20 +627,9 @@ const getVisibilityDefaults = (ledger: boolean): VisibilityState => ({
       }
       setColumnOrder(baseOrder);
     }
-  }, [settings?.ve_column_order, activeColumns, isolateState, isLedgerView]);
+  }, [settings?.ve_column_order, activeColumns, isolateState, isLedgerView, columnPinning]);
 
-  const userPinningOverrides = useUIStore(state => state.gridColumnPinningOverrides[projectId]) || { pinned: [], unpinned: [] };
-  // Bug #4: column pinning must swap based on isLedgerView
-  const columnPinning = useMemo(() => {
-    const defaultPinned = ['select', 'open_panel'];
-    if (isLedgerView) {
-      return { left: [...defaultPinned, 'item_definition'] };
-    }
-    const globalPinned = (settings?.ve_column_order as VeColumnConfig[] | undefined)?.filter(c => c.pinned).map(c => c.id) || ['display_id', 'title'];
-    const allPinned = new Set([...defaultPinned, ...globalPinned, ...userPinningOverrides.pinned]);
-    userPinningOverrides.unpinned.forEach(id => allPinned.delete(id));
-    return { left: Array.from(allPinned) };
-  }, [settings?.ve_column_order, userPinningOverrides, isLedgerView]);
+
 
   const table = useReactTable<Opportunity>({
     data,

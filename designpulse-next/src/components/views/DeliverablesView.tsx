@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useCallback } from 'react';
-import { List, LayoutGrid, Plus, CalendarDays, CalendarClock } from 'lucide-react';
+import { List, LayoutGrid, Plus, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import DeliverableBoard from '@/components/deliverables/DeliverableBoard';
 import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
@@ -47,6 +47,14 @@ export function DeliverablesView({ projectId }: DeliverablesViewProps) {
 
 
 
+  const filterActiveCount = useMemo(() => {
+    return (deliverablesFilters.status?.length || 0) + (deliverablesFilters.isKeyDate ? 1 : 0);
+  }, [deliverablesFilters]);
+
+  const onClearFilters = useCallback(() => {
+    setDeliverablesFilters({ status: [], isKeyDate: false });
+  }, [setDeliverablesFilters]);
+
   // Filters Slot for DeliverableTable toolbar
   const deliverableFilterSlot = (
     <div className="flex flex-col gap-2 pt-2">
@@ -85,19 +93,6 @@ export function DeliverablesView({ projectId }: DeliverablesViewProps) {
           </p>
         </div>
         <div className="flex gap-3 items-center">
-          {/* Quick Filter: Key Dates Only Toggle on Header for high visibility */}
-          <button
-            onClick={() => setDeliverablesFilters({ ...deliverablesFilters, isKeyDate: !deliverablesFilters.isKeyDate })}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5 select-none ${
-              deliverablesFilters.isKeyDate
-                ? 'bg-sky-500 border-sky-500 text-white shadow-sm'
-                : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            <CalendarClock size={14} />
-            Key Dates {deliverablesFilters.isKeyDate ? 'Enabled' : 'Only'}
-          </button>
-
           {/* View Toggles */}
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2 ml-2">
             <button
@@ -143,6 +138,8 @@ export function DeliverablesView({ projectId }: DeliverablesViewProps) {
           deliverables={filteredDeliverables}
           isLoading={isLoading}
           filterSlot={deliverableFilterSlot}
+          filterActiveCount={filterActiveCount}
+          onClearFilters={onClearFilters}
           createMutation={createDeliverableMutation}
         />
       </div>

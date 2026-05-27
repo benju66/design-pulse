@@ -73,10 +73,17 @@ export const DeliverablePermitSummary = React.memo(function DeliverablePermitSum
   );
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm relative group/widget">
       <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">
         Deliverables & Permits
       </h3>
+      {/* Widget Tooltip */}
+      <div className="absolute top-0 right-0 mt-12 mr-2 w-52 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl z-[100] opacity-0 invisible group-hover/widget:opacity-100 group-hover/widget:visible transition-all duration-200 pointer-events-none p-3">
+        <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Deliverables & Permits</h4>
+        <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug">
+          Pre-construction deliverable submissions and permit application status. Click either section to navigate to the detail view.
+        </p>
+      </div>
       <div className="flex flex-col gap-5">
         {/* Deliverables Section */}
         <button

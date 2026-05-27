@@ -358,7 +358,7 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
                      })() 
                    : (row.original as any).is_incorporated
                      ? 'opacity-60 bg-emerald-50/10 dark:bg-emerald-900/10 border-l-[3px] border-emerald-500 hover:opacity-100 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/20 transition-all'
-                     : 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
+                     : 'hover:bg-slate-100 dark:hover:bg-slate-800')
         }`}
       >
         {row.getVisibleCells().map((cell: Cell<Opportunity, unknown>) => {
@@ -410,7 +410,7 @@ const MemoizedGridRowV2 = React.memo(function MemoizedGridRowV2({ row, virtualRo
                   ? `sticky z-10 ${
                       isSelected 
                         ? 'bg-sky-50 dark:bg-slate-800' 
-                        : 'bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800'
+                        : 'bg-white dark:bg-slate-900 group-hover:bg-slate-100 dark:group-hover:bg-slate-800'
                     }` 
                   : ''
               } ${isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2' : ''}`}

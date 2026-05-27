@@ -3,16 +3,21 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 /**
  * Pure URL parser — extracted as a module-level function to avoid
  * ref-in-closure issues with React 19's refs-during-render lint.
+ *
+ * @param defaults - Default filter keys and fallback values.
+ * @param namespace - Dot-prefix namespace for URL key isolation (e.g. 've', 'permit').
  */
 function parseURLParams<T extends Record<string, string | string[] | boolean | number | undefined>>(
-  defaults: T
+  defaults: T,
+  namespace: string
 ): T {
   if (typeof window === 'undefined') return { ...defaults } as T;
   const searchParams = new URLSearchParams(window.location.search);
   const parsed = { ...defaults } as Record<string, string | string[] | boolean | number | undefined>;
 
   for (const key of Object.keys(defaults)) {
-    const val = searchParams.get(key);
+    const urlKey = `${namespace}.${key}`;
+    const val = searchParams.get(urlKey);
     if (val === null) {
       continue;
     }
@@ -43,20 +48,28 @@ function parseURLParams<T extends Record<string, string | string[] | boolean | n
  * Reads from window.location.search directly — never from useSearchParams()
  * which desynchronizes when paired with window.history.replaceState.
  *
+ * Each caller provides a unique `namespace` string (e.g. 've', 'coord', 'permit')
+ * that dot-prefixes all URL keys to prevent cross-view parameter collisions.
+ * Example: namespace='permit', key='status' → URL param 'permit.status'.
+ *
  * @param defaultValues - Type-safe default filter keys and fallback values.
+ * @param namespace - Unique view namespace for URL key isolation.
  * @returns [state, setFilters] - Safe state object and setter callback.
  */
 export function useURLFilters<T extends Record<string, string | string[] | boolean | number | undefined>>(
-  defaultValues: T
+  defaultValues: T,
+  namespace: string
 ): [T, (updater: T | ((prev: T) => T)) => void] {
-  // Capture defaultValues once via ref — callers pass inline object literals
-  // which create new references every render. The shape never changes for a
-  // given call site so a ref is safe and avoids useCallback instability.
+  // Capture defaultValues and namespace once via ref — callers pass inline
+  // object literals which create new references every render. The shape and
+  // namespace never change for a given call site so refs are safe and avoid
+  // useCallback instability.
   const defaultsRef = useRef(defaultValues);
+  const namespaceRef = useRef(namespace);
 
-  // Hydrate from URL on first mount only — reads defaultValues directly
-  // (safe during initial render, not a ref read).
-  const [state, setState] = useState<T>(() => parseURLParams(defaultValues));
+  // Hydrate from URL on first mount only — reads defaultValues and namespace
+  // directly (safe during initial render, not a ref read).
+  const [state, setState] = useState<T>(() => parseURLParams(defaultValues, namespace));
 
   // Keep stateRef in sync for the popstate handler closure
   const stateRef = useRef(state);
@@ -65,7 +78,7 @@ export function useURLFilters<T extends Record<string, string | string[] | boole
   // Handle browser back/forward navigation (popstate)
   useEffect(() => {
     const handlePopState = () => {
-      const urlState = parseURLParams(defaultsRef.current);
+      const urlState = parseURLParams(defaultsRef.current, namespaceRef.current);
       if (JSON.stringify(stateRef.current) !== JSON.stringify(urlState)) {
         setState(urlState);
       }
@@ -77,17 +90,19 @@ export function useURLFilters<T extends Record<string, string | string[] | boole
   // Serializer to write state safely into window.history.replaceState
   const setURLState = useCallback((newState: T) => {
     if (typeof window === 'undefined') return;
+    const ns = namespaceRef.current;
 
     const params = new URLSearchParams(window.location.search);
 
     for (const [key, val] of Object.entries(newState)) {
+      const urlKey = `${ns}.${key}`;
       if (val === undefined || val === null || (Array.isArray(val) && val.length === 0)) {
-        params.delete(key);
+        params.delete(urlKey);
       } else if (Array.isArray(val)) {
         // Safe URI escaping for each parameter in the CSV
-        params.set(key, val.map(encodeURIComponent).join(','));
+        params.set(urlKey, val.map(encodeURIComponent).join(','));
       } else {
-        params.set(key, String(val));
+        params.set(urlKey, String(val));
       }
     }
 

@@ -113,7 +113,7 @@ export function LessonsLearnedView({ projectId }: LessonsLearnedViewProps) {
                         className={`cursor-pointer transition-colors ${
                           isSelected 
                             ? 'bg-sky-50 dark:bg-sky-900/20 hover:bg-sky-100 dark:hover:bg-sky-900/30' 
-                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/80'
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
                       >
                         {row.getVisibleCells().map(cell => (

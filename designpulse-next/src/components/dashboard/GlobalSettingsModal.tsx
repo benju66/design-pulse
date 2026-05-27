@@ -323,7 +323,7 @@ export default function GlobalSettingsModal({ isOpen, onClose }: Props) {
                           { label: 'Edit Settings', key: 'can_edit_project_settings' },
                           { label: 'View Audit Logs', key: 'can_view_audit_logs' },
                         ].map((perm) => (
-                          <tr key={perm.key} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          <tr key={perm.key} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                             <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-medium">
                               {perm.label}
                             </td>
@@ -430,7 +430,7 @@ function ProjectAdminRow({ project }: { project: Project }) {
   const isHidden = project.is_archived;
 
   return (
-    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+    <tr className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
       <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-medium">
         <div className="flex flex-col">
           <span>{project.name}</span>
@@ -665,7 +665,7 @@ function CsiMappingTab({ costCodes }: { costCodes: CostCode[] }) {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
               {table.getRowModel().rows.map(row => (
-                <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                <tr key={row.id} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                   {row.getVisibleCells().map(cell => (
                     <td key={cell.id} className="px-3 py-2 align-middle" style={{ width: cell.column.getSize() }}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -885,7 +885,7 @@ function CompanyDefaultsTab({ costCodes }: { costCodes: CostCode[] }) {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
               {filteredDefaults.map(row => (
-                <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
+                <tr key={row.id} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group">
                   <td className="px-3 py-2 align-middle">
                     <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400 font-semibold">{row.csi_number}</span>
                   </td>
@@ -1013,7 +1013,7 @@ function RosettaStoneTab({ costCodes: _costCodes }: { costCodes: CostCode[] }) {
                 </tr>
               ) : (
                 filteredRows.map((row, i) => (
-                  <tr key={`${row.default_csi_number}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                  <tr key={`${row.default_csi_number}-${i}`} className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                     {/* Cost Code */}
                     <td className="px-3 py-2.5">
                       <div className="flex flex-col gap-0.5">
@@ -1222,7 +1222,7 @@ function GlobalUserManagementTab({
                         className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
                           isSelected 
                             ? 'bg-sky-50 dark:bg-sky-900/20 border-l-2 border-sky-500' 
-                            : 'border-l-2 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                            : 'border-l-2 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
                       >
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
@@ -1698,7 +1698,7 @@ function CostCodeViewer({ costCodes, isPlatformAdmin }: CostCodeViewerProps) {
     return (
       <tr
         key={cc.code}
-        className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group"
+        className="hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group"
       >
         <td className={`py-2 pr-3 align-middle ${indent ? 'pl-8' : 'pl-4'}`}>
           <span className="font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400">

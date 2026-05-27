@@ -31,6 +31,25 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
   // isn't overridden when their own edits trigger a TanStack refetch.
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { setDescOpen(hasDescriptionContent(opportunity.description)); }, [opportunity.id]);
+
+  // Transient signal: when NotesIndicatorCell is clicked, force-open and scroll to Description/Notes.
+  // Placed AFTER the opportunity.id effect — React effect ordering guarantee:
+  // 1. opportunity.id effect resets descOpen from new description
+  // 2. This effect force-opens it
+  const descriptionRef = useRef<HTMLDetailsElement>(null);
+  const focusDetailSection = useUIStore(state => state.focusDetailSection);
+  const setFocusDetailSection = useUIStore(state => state.setFocusDetailSection);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => {
+    if (focusDetailSection === 'description') {
+      setDescOpen(true);
+      setFocusDetailSection(null);
+      requestAnimationFrame(() => {
+        descriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  }, [focusDetailSection, setFocusDetailSection]);
+
   const panelRef = useRef<HTMLDivElement>(null);
 
   const updateMutation = useUpdateOpportunity(projectId);
@@ -273,6 +292,7 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
 
         {/* Pinned Description / Notes Accordion */}
         <details 
+          ref={descriptionRef}
           className="group border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm mb-2"
           open={descOpen}
           onToggle={(e) => setDescOpen(e.newState === 'open')}

@@ -130,7 +130,7 @@ export default function ClientListTable({ clients }: ClientListTableProps) {
           </thead>
           <tbody>
             {table.getRowModel().rows.map(row => (
-              <tr key={row.id} className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group/row">
+              <tr key={row.id} className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group/row">
                 {row.getVisibleCells().map(cell => (
                   <td key={cell.id} className="py-3 px-4 align-middle">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

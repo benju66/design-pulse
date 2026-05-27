@@ -57,7 +57,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
     disciplines: [] as string[],
     codes: [] as string[],
     groups: [] as string[]
-  });
+  }, 'coord');
 
   // ── Global Filter linkage settings ──
   const isFilterLinkingEnabled = useUIStore(state => state.isFilterLinkingEnabled);

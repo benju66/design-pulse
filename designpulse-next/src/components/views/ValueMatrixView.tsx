@@ -62,7 +62,7 @@ export function ValueMatrixView({ projectId }: ValueMatrixViewProps) {
     estStatus: 'All',
     areas: [] as string[],
     codes: [] as string[]
-  });
+  }, 've');
 
   // ── Global Filter linkage settings ──
   const isFilterLinkingEnabled = useUIStore(state => state.isFilterLinkingEnabled);

@@ -30,7 +30,7 @@ export function PermitsView({ projectId }: PermitsViewProps) {
     status: [] as string[],
     type: [] as string[],
     ahj: [] as string[]
-  });
+  }, 'permit');
 
   const permitFilters = urlFilters;
   

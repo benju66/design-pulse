@@ -120,7 +120,7 @@ const MemoizedGridRow = React.memo(({ row, virtualRow, measureElement, isSelecte
         className={`group transition-colors cursor-pointer ${
           isSelected 
             ? 'bg-sky-50/80 dark:bg-sky-900/40 border-l-2 border-sky-500' 
-            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 border-l-2 border-transparent'
+            : 'hover:bg-slate-100 dark:hover:bg-slate-800 border-l-2 border-transparent'
         }`}
       >
         {row.getVisibleCells().map((cell: Cell<ProjectSheet, unknown>) => {
@@ -131,7 +131,7 @@ const MemoizedGridRow = React.memo(({ row, virtualRow, measureElement, isSelecte
           return (
             <td 
               key={cell.id} 
-              className={`px-3 py-2 align-middle bg-clip-padding border-r border-b border-slate-200 dark:border-slate-800 ${isPinnedLeft ? 'sticky z-10 bg-white dark:bg-slate-900 group-hover/row:bg-slate-50 dark:group-hover/row:bg-slate-800/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''} ${isPanelOpen && isPinnedLeft ? '!bg-sky-50 dark:!bg-sky-900/40' : ''} ${isSelected && isPinnedLeft ? '!bg-sky-50 dark:!bg-sky-900/20' : ''}`}
+              className={`px-3 py-2 align-middle bg-clip-padding border-r border-b border-slate-200 dark:border-slate-800 ${isPinnedLeft ? 'sticky z-10 bg-white dark:bg-slate-900 group-hover/row:bg-slate-100 dark:group-hover/row:bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''} ${isPanelOpen && isPinnedLeft ? '!bg-sky-50 dark:!bg-sky-900/40' : ''} ${isSelected && isPinnedLeft ? '!bg-sky-50 dark:!bg-sky-900/20' : ''}`}
               style={isPinnedLeft ? { left: `${cell.column.getStart('left')}px` } : undefined}
             >
               {flexRender(cell.column.columnDef.cell, cell.getContext())}

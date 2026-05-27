@@ -34,8 +34,8 @@ function MemoizedRowInner<TData>({
 }: MemoizedRowProps<TData>) {
   return (
     <tr
-      className={`border-b border-slate-200 dark:border-slate-800 transition-colors
-                  hover:bg-slate-50 dark:hover:bg-slate-800/50
+      className={`group border-b border-slate-200 dark:border-slate-800 transition-colors
+                  hover:bg-slate-100 dark:hover:bg-slate-800
                   ${isSelected ? 'dt-row-selected' : ''}
                   ${className}`}
       onClick={() => onClick?.(row)}
@@ -47,7 +47,7 @@ function MemoizedRowInner<TData>({
           <td
             key={cell.id}
             className={`dt-cell-base ${
-              isPinned ? 'sticky z-10 bg-white dark:bg-slate-900 bg-clip-padding' : ''
+              isPinned ? 'sticky z-10 bg-white dark:bg-slate-900 bg-clip-padding group-hover:bg-slate-100 dark:group-hover:bg-slate-800' : ''
             } ${
               isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.2)] border-r-2 border-slate-200 dark:border-slate-700' : ''
             }`}

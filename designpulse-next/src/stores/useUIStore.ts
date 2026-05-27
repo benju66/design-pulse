@@ -214,6 +214,10 @@ export interface UIState {
   setGlobalBuildingAreas: (areas: string[]) => void;
   globalCostCodes: string[];
   setGlobalCostCodes: (codes: string[]) => void;
+
+  // Transient signal: tells CoordinationDetailPanel to scroll to a specific section
+  focusDetailSection: 'description' | null;
+  setFocusDetailSection: (section: 'description' | null) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -678,6 +682,10 @@ export const useUIStore = create<UIState>()(
       setGlobalBuildingAreas: (areas) => set({ globalBuildingAreas: areas }),
       globalCostCodes: [],
       setGlobalCostCodes: (codes) => set({ globalCostCodes: codes }),
+
+      // Transient signal — not persisted, consumed immediately by detail panel
+      focusDetailSection: null,
+      setFocusDetailSection: (section) => set({ focusDetailSection: section }),
     }),
     {
       name: 'design-pulse-ui-prefs',

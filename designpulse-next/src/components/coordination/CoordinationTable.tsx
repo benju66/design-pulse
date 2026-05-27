@@ -17,7 +17,7 @@ import {
   getExpandedRowModel
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
-import { Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, PanelRight } from 'lucide-react';
+import { Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, PanelRight, MessageCirclePlus } from 'lucide-react';
 import { Opportunity, DisciplineConfig, CoordGroupConfig } from '@/types/models';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useBulkUpdateCoordinationStatus, useBulkUpdateCoordGroup } from '@/hooks/useOpportunityQueries';
@@ -26,6 +26,7 @@ import { TextCell, PriorityCell, BuildingAreaCell, CostCodeCell, CsiSpecCell, Di
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useProjectCsiSpecs } from '@/hooks/useCsiQueries';
 import { useUIStore } from '@/stores/useUIStore';
+import { hasDescriptionContent } from '@/lib/htmlUtils';
 import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
@@ -193,6 +194,44 @@ const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
   );
 };
 
+const NotesIndicatorCell = ({ row }: { row: Row<Opportunity> }) => {
+  const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
+  const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
+  const setFocusDetailSection = useUIStore(state => state.setFocusDetailSection);
+  const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
+  const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
+
+  const hasContent = hasDescriptionContent(row.original.description);
+
+  return (
+    <div className="flex items-center justify-center p-1">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (selectedOpportunityId === row.original.id) {
+            // Already viewing this item — just signal to scroll to description
+            setFocusDetailSection('description');
+          } else {
+            setSelectedOpportunityId(row.original.id);
+            setFocusDetailSection('description');
+            if (coordinationViewMode === 'board') {
+              setCoordinationViewMode('table-split');
+            }
+          }
+        }}
+        className={`p-1 rounded transition-colors ${
+          hasContent
+            ? 'text-sky-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/30'
+            : 'text-slate-300 dark:text-slate-600 hover:text-slate-400 dark:hover:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+        }`}
+        title={hasContent ? 'View notes' : 'Add notes'}
+      >
+        <MessageCirclePlus size={18} />
+      </button>
+    </div>
+  );
+};
+
 // eslint-disable-next-line react/display-name
 const MemoizedCoordinationRow = React.memo(({ 
   row, 
@@ -222,10 +261,10 @@ const MemoizedCoordinationRow = React.memo(({
       <tr 
         id={`row-${row.original.id}`}
         data-selected={isRowSelected}
-        className={`transition-colors ${
+        className={`group transition-colors ${
           row.original.id === selectedOpportunityId 
             ? 'bg-sky-50 dark:bg-sky-900/20 border-l-2 border-sky-500' 
-            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+            : 'hover:bg-slate-100 dark:hover:bg-slate-800'
         }`}
         style={groupColor ? { borderLeft: `4px solid ${groupColor}` } : undefined}
       >
@@ -241,7 +280,7 @@ const MemoizedCoordinationRow = React.memo(({
                   ? ` sticky z-[8] ${
                       isHighlighted
                         ? 'bg-sky-50 dark:bg-sky-900/20'
-                        : 'bg-white dark:bg-slate-900'
+                        : 'bg-white dark:bg-slate-900 group-hover:bg-slate-100 dark:group-hover:bg-slate-800'
                     }`
                   : ''
               }${isLastPinned ? ' shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2' : ''}`}
@@ -518,6 +557,14 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       header: 'Task / Item',
       size: 400,
       cell: TextCell,
+    },
+    {
+      id: 'notes_indicator',
+      header: 'Notes',
+      size: 40,
+      cell: ({ row }: CellContext<Opportunity, unknown>) => <NotesIndicatorCell row={row} />,
+      enableSorting: false,
+      enableResizing: false,
     },
     {
       accessorKey: 'final_direction',

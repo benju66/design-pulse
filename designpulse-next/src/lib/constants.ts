@@ -20,7 +20,7 @@ export const ALL_PRIMARY_FIELDS = [
 
 export const DEFAULT_COORD_COLUMN_ORDER = [
   'select', 'open_panel', 'display_id', 'record_type', 'title',
-  'coord_group',
+  'notes_indicator', 'coord_group',
   'final_direction', 'priority', 'status', 'due_date', 'discipline_status'
 ] as const;
 

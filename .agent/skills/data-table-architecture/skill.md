@@ -234,9 +234,17 @@ Column pinning math and styling is compiled natively within the shared layout la
   const isLastPinned = isPinned && cell.column.getIsLastColumn('left');
   ```
   If pinned, render the cell stickily:
-  - Pinned Tailwind classes: `sticky z-10 bg-white dark:bg-slate-900 bg-clip-padding`
+  - Pinned Tailwind classes: `sticky z-10 bg-white dark:bg-slate-900 bg-clip-padding group-hover:bg-slate-100 dark:group-hover:bg-slate-800`
   - Offset style: `style={{ left: cell.column.getStart('left') }}`
   - Edge Separator style: `${isLastPinned ? 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2' : ''}`
+
+* **Row Hover Standard**:
+  All data rows (`<tr>`) MUST include a visible hover highlight and the `group` class for pinned cell propagation:
+  - `<tr>` classes: `group transition-colors hover:bg-slate-100 dark:hover:bg-slate-800`
+  - Pinned `<td>` classes MUST include `group-hover:bg-slate-100 dark:group-hover:bg-slate-800` (as listed above) so the hover highlight covers the full row width including sticky columns. Without this, pinned cells stay `bg-white` on hover because their explicit background overrides the `<tr>` hover.
+  - **Do NOT use `hover:bg-slate-50`** — the contrast against `bg-white` containers is imperceptible (`#f8fafc` vs `#ffffff`). `slate-100` (`#f1f5f9`) is the minimum visible threshold.
+  - Conditional row states (selected, budget variance bands, incorporated) should use their own hover colors in their ternary branch and do not need `slate-100`.
+  - Tables using scoped `group/row` naming (e.g., DrawingGrid) should use `group-hover/row:bg-slate-100 dark:group-hover/row:bg-slate-800` on pinned cells instead.
 
 ### 3. Rendering Performance & Row Comparator Contract
 * **The Render Gate**: Virtualized lists stutter or fail to reposition sticky cells when column overrides update if row comparators prevent re-renders. 

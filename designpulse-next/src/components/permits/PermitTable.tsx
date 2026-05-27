@@ -1013,7 +1013,7 @@ const MemoizedPermitRow = React.memo(({
           ? 'bg-sky-50 dark:bg-sky-900/20 shadow-[inset_2px_0_0_0_#0ea5e9]' 
           : isChecked
             ? 'bg-sky-50/50 dark:bg-sky-900/10'
-            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 bg-white dark:bg-slate-900'
+            : 'hover:bg-slate-100 dark:hover:bg-slate-800 bg-white dark:bg-slate-900'
       }`}
     >
       {row.getVisibleCells().map(cell => {
@@ -1024,7 +1024,7 @@ const MemoizedPermitRow = React.memo(({
             key={cell.id}
             className={`p-0 border-r border-b border-slate-200 dark:border-slate-800 relative align-middle overflow-hidden ${
               isPinned 
-                ? 'sticky z-10 bg-white dark:bg-slate-900 bg-clip-padding' 
+                ? 'sticky z-10 bg-white dark:bg-slate-900 bg-clip-padding group-hover:bg-slate-100 dark:group-hover:bg-slate-800' 
                 : ''
             } ${
               isLastPinned 

@@ -977,3 +977,49 @@ export function useBulkUpdateCoordinationStatus(projectId: string) {
   });
 }
 
+/**
+ * Bulk-assign or remove coordination group for selected rows.
+ * Mirrors useBulkUpdateCoordinationStatus with full optimistic patching and rollback.
+ */
+export function useBulkUpdateCoordGroup(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    { ids: string[]; groupId: string | null },
+    { previousOpportunities: Opportunity[] | undefined }
+  >({
+    mutationFn: async ({ ids, groupId }) => {
+      const { error } = await supabase
+        .from('opportunities')
+        .update({ coord_group_id: groupId })
+        .in('id', ids);
+      if (error) throw new Error(error.message || JSON.stringify(error));
+    },
+    onMutate: async ({ ids, groupId }) => {
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp =>
+          ids.includes(opp.id)
+            ? { ...opp, coord_group_id: groupId }
+            : opp
+        );
+      });
+
+      return { previousOpportunities };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+      toast.error(`Failed to assign group: ${err.message || 'Unknown error'}`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+    }
+  });
+}
+

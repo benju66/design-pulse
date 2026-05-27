@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { PanelRight, LayoutGrid, UploadCloud } from 'lucide-react';
+import { PanelRight, LayoutGrid, UploadCloud, Layers } from 'lucide-react';
 import CoordinationTable from '@/components/coordination/CoordinationTable';
 import CoordinationBoard from '@/components/coordination/CoordinationBoard';
 import { CoordinationDetailPanel } from '@/components/coordination/CoordinationDetailPanel';
@@ -11,12 +11,12 @@ import { Button } from '@/components/ui/Button';
 import dynamic from 'next/dynamic';
 const FloorplanCanvas = dynamic(() => import('@/components/FloorplanCanvas'), { ssr: false });
 import { MultiSelectFilter } from '@/components/ui/MultiSelectFilter';
-import { useUIStore } from '@/stores/useUIStore';
+import { useUIStore, isCoordViewMode } from '@/stores/useUIStore';
 import { useOpportunities } from '@/hooks/useOpportunityQueries';
-import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
+import { useProjectSettings, useUpdateCoordGroups } from '@/hooks/useProjectCoreQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useURLFilters } from '@/hooks/useURLFilters';
-import type { Opportunity, DisciplineConfig } from '@/types/models';
+import type { Opportunity, DisciplineConfig, CoordGroupConfig } from '@/types/models';
 import { DEFAULT_DISCIPLINES } from '@/lib/constants';
 
 interface CoordinationViewProps {
@@ -36,8 +36,18 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
   // ── UI Store states & actions ──
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const isMapVisible = useUIStore(state => state.isMapVisible);
-  const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
+  const rawCoordinationViewMode = useUIStore(state => state.coordinationViewMode);
+  // Deep-review Issue 10: apply validity guard on persisted value
+  const coordinationViewMode = isCoordViewMode(rawCoordinationViewMode) ? rawCoordinationViewMode : 'table-split';
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
+
+  // ── Coordination Groups ──
+  const coordGroups: CoordGroupConfig[] = useMemo(() => settings?.coord_groups ?? [], [settings]);
+  const updateCoordGroupsMutation = useUpdateCoordGroups(projectId);
+  const handleGroupsChange = useCallback((groups: CoordGroupConfig[]) => {
+    updateCoordGroupsMutation.mutate(groups);
+  }, [updateCoordGroupsMutation]);
+  const isGroupsMode = coordinationViewMode === 'groups';
 
   // ── Local Filter State (v17 URL Integrated) ──
   const [urlFilters, setUrlFilters] = useURLFilters({
@@ -209,6 +219,18 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
             </button>
             <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
             <button
+              onClick={() => setCoordinationViewMode('groups')}
+              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
+                coordinationViewMode === 'groups' 
+                  ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+              title="Groups View"
+            >
+              <Layers size={18} />
+            </button>
+            <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
+            <button
               onClick={() => setCoordinationViewMode('board')}
               className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
                 coordinationViewMode === 'board' 
@@ -232,15 +254,18 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
       <div className="flex flex-1 overflow-hidden relative">
         <div className="flex flex-1 overflow-hidden">
-          <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
+          <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${selectedOpportunityId && (coordinationViewMode === 'table-split' || coordinationViewMode === 'groups') ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
             
-            <div className="shrink-0 mb-4">
-              <CoordinationSummary
-                opportunities={filteredOpportunities}
-                forceCollapse={coordinationViewMode === 'table-split' && !!selectedOpportunityId}
-                disciplines={projectDisciplines}
-              />
-            </div>
+            {/* Hide summary in groups mode to maximize table space */}
+            {!isGroupsMode && (
+              <div className="shrink-0 mb-4">
+                <CoordinationSummary
+                  opportunities={filteredOpportunities}
+                  forceCollapse={coordinationViewMode === 'table-split' && !!selectedOpportunityId}
+                  disciplines={projectDisciplines}
+                />
+              </div>
+            )}
 
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col relative">
               {isMapVisible && (
@@ -257,11 +282,16 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
               )}
               {isLoading ? (
                 <div className="h-full flex items-center justify-center text-slate-500">Loading coordination...</div>
-              ) : coordinationViewMode.startsWith('table') ? (
+              ) : coordinationViewMode === 'board' ? (
+                <CoordinationBoard projectId={projectId} opportunities={filteredOpportunities} />
+              ) : (
                 <CoordinationTable
                   projectId={projectId}
                   opportunities={filteredOpportunities}
-                  viewMode={coordinationViewMode.replace('table-', '')}
+                  viewMode={coordinationViewMode === 'table-split' ? 'split' : 'flat'}
+                  isGroupsMode={isGroupsMode}
+                  coordGroups={coordGroups}
+                  onGroupsChange={handleGroupsChange}
                   filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length}
                   onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); }}
                   filterSlot={
@@ -301,13 +331,11 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                     </>
                   }
                 />
-              ) : (
-                <CoordinationBoard projectId={projectId} opportunities={filteredOpportunities} />
               )}
             </div>
           </div>
 
-          {coordinationViewMode === 'table-split' && selectedOpportunityId && filteredOpportunities.find(o => o.id === selectedOpportunityId) && (
+          {(coordinationViewMode === 'table-split' || coordinationViewMode === 'groups') && selectedOpportunityId && filteredOpportunities.find(o => o.id === selectedOpportunityId) && (
             <CoordinationDetailPanel 
               projectId={projectId} 
               opportunity={filteredOpportunities.find(o => o.id === selectedOpportunityId)!} 

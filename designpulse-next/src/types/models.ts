@@ -24,6 +24,8 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   estimator_assignee?: string | null;
   is_budget_line?: boolean;
   item_assumptions?: string | null;
+  // Coordination Groups: user-defined group assignment
+  coord_group_id?: string | null;
   // Populated when Supabase query joins opportunity_options (e.g. usePendingEstimateUpdates)
   opportunity_options?: OpportunityOption[];
   // Ledger financial columns (populated only for is_budget_line=true rows from get_master_ledger_grid)
@@ -37,6 +39,14 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
 export interface DisciplineDetails {
   status: 'Required' | 'Pending' | 'Complete' | 'Not Required';
   notes: string;
+}
+
+// Coordination Groups — user-defined named containers for grouping coordination items
+export interface CoordGroupConfig {
+  id: string;      // crypto.randomUUID() at creation — immutable
+  label: string;   // "Structural Package"
+  color: string;   // hex, e.g. "#7c3aed"
+  order: number;   // sort order for display
 }
 export type OpportunityOption = Database['public']['Tables']['opportunity_options']['Row'] & {
   is_returned?: boolean | null;
@@ -67,6 +77,7 @@ export type ProjectSettings = Database['public']['Tables']['project_settings']['
   permit_types?: PermitTypeConfig[];
   permit_ahjs?: PermitAHJConfig[];
   package_scopes?: PackageScopeConfig[];
+  coord_groups?: CoordGroupConfig[];
 };
 export type Project = Database['public']['Tables']['projects']['Row'] & {
   project_number?: string | null;

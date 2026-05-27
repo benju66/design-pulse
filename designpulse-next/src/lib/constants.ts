@@ -19,9 +19,29 @@ export const ALL_PRIMARY_FIELDS = [
 ] as const;
 
 export const DEFAULT_COORD_COLUMN_ORDER = [
-  'select', 'open_panel', 'display_id', 'record_type', 'title', 
+  'select', 'open_panel', 'display_id', 'record_type', 'title',
+  'coord_group',
   'final_direction', 'priority', 'status', 'due_date', 'discipline_status'
 ] as const;
+
+// Coordination Groups — 12 distinct curated colors for dark/light mode compatibility
+export const COORD_GROUP_COLORS = [
+  '#6366f1', // indigo
+  '#8b5cf6', // violet
+  '#ec4899', // pink
+  '#f59e0b', // amber
+  '#10b981', // emerald
+  '#06b6d4', // cyan
+  '#3b82f6', // blue
+  '#f97316', // orange
+  '#84cc16', // lime
+  '#e11d48', // rose
+  '#0ea5e9', // sky
+  '#a855f7', // purple
+] as const;
+
+export const UNASSIGNED_GROUP_ID = '__unassigned__';
+
 
 export const DEFAULT_KEY_DATES_COLUMN_ORDER = [
   'select', 'display_id', 'title', 'description', 'event_date', 'source_type'

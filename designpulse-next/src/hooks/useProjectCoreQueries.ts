@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
+import type { Json } from '@/types/database.types';
 
 import { toast } from 'sonner';
 import { ProjectSettings, Project, UserPermissions, ProjectMember } from '@/types/models';
@@ -194,6 +195,32 @@ export function useUpdateProjectSettings(projectId: string) {
     onError: (err) => {
       console.error('Update Project Settings Error:', err);
       toast.error(`Failed to update settings: ${err.message || 'Unknown error'}`);
+    }
+  });
+}
+
+/**
+ * Mutation to update the `coord_groups` JSONB key in project_settings.
+ * Uses the existing upsert pattern — writes only the `coord_groups` field,
+ * leaving all other project_settings keys untouched.
+ */
+export function useUpdateCoordGroups(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, import('@/types/models').CoordGroupConfig[]>({
+    mutationFn: async (groups) => {
+      const { error } = await supabase
+        .from('project_settings')
+        .upsert(
+          { project_id: projectId, coord_groups: groups as unknown as Json },
+          { onConflict: 'project_id' }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_settings', projectId] });
+    },
+    onError: (err) => {
+      toast.error(`Failed to save groups: ${err.message}`);
     }
   });
 }

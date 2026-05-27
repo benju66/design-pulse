@@ -3,6 +3,15 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_COORD_COLUMN_ORDER, DEFAULT_KEY_DATES_COLUMN_ORDER } from '@/lib/constants';
 import { useMapStore } from '@/stores/useMapStore';
 
+// ── Coordination View Mode validity guard (deep-review Issue 10) ──────────────
+export type CoordinationViewMode = 'board' | 'table-split' | 'groups';
+const VALID_COORD_VIEW_MODES = new Set<CoordinationViewMode>([
+  'board', 'table-split', 'groups'
+]);
+export function isCoordViewMode(v: string | undefined): v is CoordinationViewMode {
+  return !!v && VALID_COORD_VIEW_MODES.has(v as CoordinationViewMode);
+}
+
 // ── Navigation domain types ───────────────────────────────────────────────────
 export type ProjectView =
   | 'dashboard'
@@ -96,8 +105,15 @@ export interface UIState {
   coordColumnOrder: Record<string, string[]>;
   setCoordColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
   
-  coordinationViewMode: 'board' | 'table-split';
-  setCoordinationViewMode: (mode: 'board' | 'table-split') => void;
+  coordinationViewMode: CoordinationViewMode;
+  setCoordinationViewMode: (mode: CoordinationViewMode) => void;
+
+  // Coordination Groups — collapsed group IDs per project (persisted)
+  coordGroupCollapsed: Record<string, string[]>;
+  toggleCoordGroupCollapsed: (projectId: string, groupId: string) => void;
+  setCoordGroupCollapsed: (projectId: string, ids: string[]) => void;
+  collapseAllCoordGroups: (projectId: string, groupIds: string[]) => void;
+  expandAllCoordGroups: (projectId: string) => void;
 
   // VE grid view mode — flat, matching coordinationViewMode / permitViewMode pattern
   veGridViewMode: VEGridViewMode;
@@ -398,8 +414,41 @@ export const useUIStore = create<UIState>()(
         };
       }),
       
-      coordinationViewMode: 'table-split',
+      coordinationViewMode: 'table-split' as CoordinationViewMode,
       setCoordinationViewMode: (mode) => set({ coordinationViewMode: mode }),
+
+      // Coordination Groups — collapsed state
+      coordGroupCollapsed: {},
+      toggleCoordGroupCollapsed: (projectId, groupId) => set((state) => {
+        const current = state.coordGroupCollapsed[projectId] ?? [];
+        const isCollapsed = current.includes(groupId);
+        return {
+          coordGroupCollapsed: {
+            ...state.coordGroupCollapsed,
+            [projectId]: isCollapsed
+              ? current.filter(id => id !== groupId)
+              : [...current, groupId],
+          },
+        };
+      }),
+      setCoordGroupCollapsed: (projectId, ids) => set((state) => ({
+        coordGroupCollapsed: {
+          ...state.coordGroupCollapsed,
+          [projectId]: ids,
+        },
+      })),
+      collapseAllCoordGroups: (projectId, groupIds) => set((state) => ({
+        coordGroupCollapsed: {
+          ...state.coordGroupCollapsed,
+          [projectId]: groupIds,
+        },
+      })),
+      expandAllCoordGroups: (projectId) => set((state) => ({
+        coordGroupCollapsed: {
+          ...state.coordGroupCollapsed,
+          [projectId]: [],
+        },
+      })),
 
       veGridViewMode: 'split',
       setVeGridViewMode: (mode) => set({ veGridViewMode: mode }),
@@ -674,8 +723,10 @@ export const useUIStore = create<UIState>()(
         isFilterLinkingEnabled: state.isFilterLinkingEnabled ?? true,
         globalBuildingAreas: state.globalBuildingAreas ?? [],
         globalCostCodes: state.globalCostCodes ?? [],
+        // Persist v18 coordination groups collapsed state
+        coordGroupCollapsed: state.coordGroupCollapsed ?? {},
       }),
-      version: 17,
+      version: 18,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -813,6 +864,13 @@ export const useUIStore = create<UIState>()(
             isFilterLinkingEnabled: true,
             globalBuildingAreas: [],
             globalCostCodes: [],
+          } as unknown as UIState;
+        }
+        if (version < 18) {
+          // v17 → v18: added coordination groups collapsed state
+          return {
+            ...state,
+            coordGroupCollapsed: {},
           } as unknown as UIState;
         }
         return state as UIState;

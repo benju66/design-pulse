@@ -1,6 +1,6 @@
 import '@tanstack/react-table';
 import { UseMutationResult } from '@tanstack/react-query';
-import { Opportunity, OpportunityOption, CostCode, ProjectCsiSpec, RemapCsiEntryParams, EstimateCostType, UserPermissions, ProjectMember, DisciplineConfig } from './models';
+import { Opportunity, OpportunityOption, CostCode, ProjectCsiSpec, RemapCsiEntryParams, EstimateCostType, UserPermissions, ProjectMember, DisciplineConfig, Permit, CoordGroupConfig } from './models';
 import { MutableRefObject } from 'react';
 
 declare module '@tanstack/react-table' {
@@ -35,6 +35,10 @@ declare module '@tanstack/react-table' {
     projectId?: string;
     disciplines?: DisciplineConfig[];
     buildingAreas?: string[];
+    // Coordination Groups — user-defined named containers (C24 — derived once in parent)
+    coordGroups?: CoordGroupConfig[];
+    onGroupsChange?: (groups: CoordGroupConfig[]) => void;
+    isGroupsMode?: boolean;
     // Phase 2: pre-computed variance note lookup (cost_code → note text) for active estimate version
     varianceNoteMap?: Record<string, string>;
     // Phase 2: active estimate version ID — used by VarianceNotePopover to determine

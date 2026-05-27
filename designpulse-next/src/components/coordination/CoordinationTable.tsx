@@ -18,9 +18,9 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
 import { Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, PanelRight } from 'lucide-react';
-import { Opportunity, DisciplineConfig } from '@/types/models';
+import { Opportunity, DisciplineConfig, CoordGroupConfig } from '@/types/models';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
-import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useBulkUpdateCoordinationStatus } from '@/hooks/useOpportunityQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useBulkUpdateCoordinationStatus, useBulkUpdateCoordGroup } from '@/hooks/useOpportunityQueries';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { TextCell, PriorityCell, BuildingAreaCell, CostCodeCell, CsiSpecCell, DivisionCell } from '@/components/opportunities/EditableCell';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
@@ -29,10 +29,13 @@ import { useUIStore } from '@/stores/useUIStore';
 import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
 import { ExpandedCard } from '@/components/opportunities/ExpandedCard';
-import { DEFAULT_DISCIPLINES, DEFAULT_COORD_COLUMN_ORDER } from '@/lib/constants';
+import { DEFAULT_DISCIPLINES, DEFAULT_COORD_COLUMN_ORDER, UNASSIGNED_GROUP_ID } from '@/lib/constants';
 import { CheckboxCell, CheckboxHeader, DateCell } from '@/components/data-table/cells';
 import { BulkActionBar, DeleteConfirmModal, GhostRow, TableEmptyState } from '@/components/data-table';
 import { BulkStatusChangeMenu } from './BulkStatusChangeMenu';
+import { BulkGroupAssignMenu } from './BulkGroupAssignMenu';
+import { CoordinationGroupCell } from './CoordinationGroupCell';
+import { CoordinationGroupHeaderRow } from './CoordinationGroupHeaderRow';
 
 interface Props {
   projectId: string;
@@ -41,7 +44,14 @@ interface Props {
   filterSlot?: ReactNode;
   filterActiveCount?: number;
   onClearFilters?: () => void;
+  // Coordination Groups props
+  coordGroups?: CoordGroupConfig[];
+  isGroupsMode?: boolean;
+  onGroupsChange?: (groups: CoordGroupConfig[]) => void;
 }
+
+// Module-level stable empty array for Zustand selector stability (deep-review Issue 9)
+const EMPTY_COLLAPSED_ARRAY: string[] = [];
 
 // Custom Discipline Status Cell
 {/* eslint-disable-next-line react/display-name */}
@@ -148,6 +158,7 @@ const CoordinationStatusCell = React.memo(({ getValue, row, column, table }: Cel
 const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const setSelectedOpportunityId = useUIStore(state => state.setSelectedOpportunityId);
+  const coordinationViewMode = useUIStore(state => state.coordinationViewMode);
   const setCoordinationViewMode = useUIStore(state => state.setCoordinationViewMode);
   return (
     <div className="flex items-center justify-center p-1">
@@ -158,7 +169,11 @@ const OpenPanelCell = ({ row }: { row: Row<Opportunity> }) => {
             setSelectedOpportunityId(null);
           } else {
             setSelectedOpportunityId(row.original.id);
-            setCoordinationViewMode('table-split');
+            // Deep-review Issue 1: only switch to split when in board mode;
+            // in groups mode, keep the groups layout and just open the panel.
+            if (coordinationViewMode === 'board') {
+              setCoordinationViewMode('table-split');
+            }
           }
         }}
         className={`p-1 rounded transition-colors ${
@@ -181,7 +196,8 @@ const MemoizedCoordinationRow = React.memo(({
   selectedOpportunityId, 
   viewMode,
   measureElement,
-  isRowSelected
+  isRowSelected,
+  groupColor,
 }: { 
   row: Row<Opportunity>; 
   virtualRow: VirtualItem; 
@@ -191,6 +207,7 @@ const MemoizedCoordinationRow = React.memo(({
   visibleColumnIds: string;
   pinnedColumnOffsets: string;
   isRowSelected: boolean;
+  groupColor?: string;
 }) => {
   return (
     <tbody 
@@ -206,6 +223,7 @@ const MemoizedCoordinationRow = React.memo(({
             ? 'bg-sky-50 dark:bg-sky-900/20 border-l-2 border-sky-500' 
             : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
         }`}
+        style={groupColor ? { borderLeft: `4px solid ${groupColor}` } : undefined}
       >
         {row.getVisibleCells().map((cell) => {
           const isPinned = cell.column.getIsPinned() === 'left';
@@ -247,10 +265,11 @@ const MemoizedCoordinationRow = React.memo(({
   if (prevProps.pinnedColumnOffsets !== nextProps.pinnedColumnOffsets) return false;
   if (prevProps.row.getIsExpanded() !== nextProps.row.getIsExpanded()) return false;
   if (prevProps.isRowSelected !== nextProps.isRowSelected) return false;
+  if (prevProps.groupColor !== nextProps.groupColor) return false;
   return true;
 });
 
-export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat', filterSlot, filterActiveCount = 0, onClearFilters }: Props) {
+export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat', filterSlot, filterActiveCount = 0, onClearFilters, coordGroups = [], isGroupsMode = false, onGroupsChange }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
   const isMapVisible = useUIStore(state => state.isMapVisible);
@@ -276,6 +295,9 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
   const { permissions } = useCurrentUserPermissions(projectId);
   const { data: rawCostCodes = [] } = useCostCodes();
   const { data: csiSpecs = [] } = useProjectCsiSpecs(projectId);
+
+  const bulkGroupMutation = useBulkUpdateCoordGroup(projectId);
+  const [isBulkGroupUpdating, setIsBulkGroupUpdating] = useState(false);
 
   // TanStack native row selection — replaces Zustand compareQueue
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -324,6 +346,25 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
       toast.error(`Status update failed: ${error?.message || 'Unknown error'}`);
     } finally {
       setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkGroupAssign = async (groupId: string | null) => {
+    if (selectedRows.length === 0) return;
+    setIsBulkGroupUpdating(true);
+    try {
+      await bulkGroupMutation.mutateAsync({ ids: selectedRows, groupId });
+      const label = groupId
+        ? coordGroups.find(g => g.id === groupId)?.label ?? 'group'
+        : 'Unassigned';
+      toast.success(`Assigned ${selectedRows.length} item(s) to "${label}"`);
+      clearSelection();
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Group assignment failed: ${errMsg}`);
+      // Selection is NOT cleared on failure (deep-review Issue 14)
+    } finally {
+      setIsBulkGroupUpdating(false);
     }
   };
 
@@ -530,6 +571,14 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       header: 'Disciplines',
       size: 150,
       cell: DisciplineStatusCell,
+    },
+    {
+      id: 'coord_group',
+      header: 'Group',
+      size: 140,
+      cell: CoordinationGroupCell,
+      enableSorting: true,
+      enableResizing: true,
     }
   ], [permissions]);
 
@@ -594,6 +643,9 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       moveActiveCellRef,
       disciplines,
       buildingAreas,
+      coordGroups,
+      onGroupsChange,
+      isGroupsMode,
     }
   });
 
@@ -606,6 +658,12 @@ const EMPTY_VISIBILITY: VisibilityState = {};
     estimateSize: () => 44, // Base height
     overscan: 5,
   });
+
+  // Groups mode: collapsed state + per-row group color lookup
+  const collapsedGroupIds = useUIStore(
+    (s) => s.coordGroupCollapsed[projectId] ?? EMPTY_COLLAPSED_ARRAY
+  );
+  const toggleGroupCollapsed = useUIStore(s => s.toggleCoordGroupCollapsed);
 
   useEffect(() => {
     if (selectedOpportunityId) {
@@ -738,79 +796,230 @@ const EMPTY_VISIBILITY: VisibilityState = {};
               ))}
             </thead>
             
-            {paddingTop > 0 && (
-              <tbody><tr><td style={{ height: `${paddingTop}px` }} colSpan={columns.length} /></tr></tbody>
-            )}
-            
-            {virtualItems.map((virtualRow) => {
-              const row = rows[virtualRow.index];
-              const visibleColumnIds = row.getVisibleCells().map(c => c.column.id).join(',');
-              const pinnedColumnOffsets = row.getVisibleCells()
-                .filter(c => c.column.getIsPinned())
-                .map(c => c.column.getStart('left'))
-                .join(',');
-              return (
-                <MemoizedCoordinationRow
-                  key={row.id}
-                  row={row}
-                  virtualRow={virtualRow}
-                  selectedOpportunityId={selectedOpportunityId}
-                  viewMode={viewMode}
-                  measureElement={virtualizer.measureElement}
-                  visibleColumnIds={visibleColumnIds}
-                  pinnedColumnOffsets={pinnedColumnOffsets}
-                  isRowSelected={row.getIsSelected()}
-                />
-              );
-            })}
-            
-            {paddingBottom > 0 && (
-              <tbody><tr><td style={{ height: `${paddingBottom}px` }} colSpan={columns.length} /></tr></tbody>
-            )}
-            
-            {opportunities.length === 0 && (
-              <tbody>
-                <TableEmptyState
-                  colSpan={columns.length}
-                  message="No items in Coordination Items. Add one below!"
-                />
-              </tbody>
-            )}
+            {/* ── Groups Mode or Flat Mode Rendering ── */}
+            {isGroupsMode ? (() => {
+              // Build ordered group buckets
+              const sortedGroups = [...coordGroups].sort((a, b) => a.order - b.order);
+              const unassignedRows = rows.filter(r => !r.original.coord_group_id);
+              const groupBuckets = sortedGroups.map(g => ({
+                group: g,
+                rows: rows.filter(r => r.original.coord_group_id === g.id),
+              }));
+              const visibleCols = table.getVisibleFlatColumns();
+              const totalWidth = table.getTotalSize();
 
-            <tbody>
-              {permissions.can_edit_records && (
-                <GhostRow
-                  table={table as any}
-                  createMutation={createMutation}
-                  placeholder="+ Add Item..."
-                  defaultValues={{
-                    record_type: 'Coordination',
-                    cost_impact: 0,
-                    days_impact: 0,
-                    status: 'Draft',
-                    coordination_status: 'Draft',
-                    priority: 'Set Priority',
-                  }}
-                  staticFields={[
-                    { columnId: 'display_id', displayValue: '-' },
-                    { columnId: 'record_type', displayValue: '-' },
-                  ]}
-                  onSubmit={(title) => {
-                    // Clear active filters so the new coordination item is always visible after creation.
-                    onClearFilters?.();
-                    return {
-                      title,
-                      record_type: 'Coordination',
-                      cost_impact: 0,
-                      days_impact: 0,
-                      status: 'Draft',
-                      coordination_status: 'Draft',
-                      priority: 'Set Priority',
-                    };
-                  }}
-                />
-              )}
-            </tbody>
+              return (
+                <>
+                  {/* Unassigned group always first */}
+                  <CoordinationGroupHeaderRow
+                    group={null}
+                    groupId={UNASSIGNED_GROUP_ID}
+                    itemCount={unassignedRows.length}
+                    isCollapsed={collapsedGroupIds.includes(UNASSIGNED_GROUP_ID)}
+                    onToggle={() => toggleGroupCollapsed(projectId, UNASSIGNED_GROUP_ID)}
+                    onRename={() => {}}
+                    onColorChange={() => {}}
+                    onSelectAll={() => {
+                      const sel: RowSelectionState = {};
+                      unassignedRows.forEach(r => { sel[r.id] = true; });
+                      setRowSelection(prev => ({ ...prev, ...sel }));
+                    }}
+                    onDelete={() => {}}
+                    totalWidth={totalWidth}
+                    visibleColumnCount={visibleCols.length}
+                  />
+                  {!collapsedGroupIds.includes(UNASSIGNED_GROUP_ID) && unassignedRows.map(row => {
+                    const visibleColumnIds = row.getVisibleCells().map(c => c.column.id).join(',');
+                    const pinnedColumnOffsets = row.getVisibleCells()
+                      .filter(c => c.column.getIsPinned())
+                      .map(c => c.column.getStart('left'))
+                      .join(',');
+                    return (
+                      <MemoizedCoordinationRow
+                        key={row.id}
+                        row={row}
+                        virtualRow={{ index: row.index, start: 0, end: 44, size: 44, key: row.id, lane: 0 }}
+                        selectedOpportunityId={selectedOpportunityId}
+                        viewMode={viewMode}
+                        measureElement={() => {}}
+                        visibleColumnIds={visibleColumnIds}
+                        pinnedColumnOffsets={pinnedColumnOffsets}
+                        isRowSelected={row.getIsSelected()}
+                        groupColor="#94a3b8"
+                      />
+                    );
+                  })}
+
+                  {/* User-defined groups */}
+                  {groupBuckets.map(({ group, rows: groupRows }) => (
+                    <React.Fragment key={group.id}>
+                      <CoordinationGroupHeaderRow
+                        group={group}
+                        groupId={group.id}
+                        itemCount={groupRows.length}
+                        isCollapsed={collapsedGroupIds.includes(group.id)}
+                        onToggle={() => toggleGroupCollapsed(projectId, group.id)}
+                        onRename={(newLabel) => {
+                          if (!onGroupsChange) return;
+                          onGroupsChange(coordGroups.map(g => g.id === group.id ? { ...g, label: newLabel } : g));
+                        }}
+                        onColorChange={(newColor) => {
+                          if (!onGroupsChange) return;
+                          onGroupsChange(coordGroups.map(g => g.id === group.id ? { ...g, color: newColor } : g));
+                        }}
+                        onSelectAll={() => {
+                          const sel: RowSelectionState = {};
+                          groupRows.forEach(r => { sel[r.id] = true; });
+                          setRowSelection(prev => ({ ...prev, ...sel }));
+                        }}
+                        onDelete={() => {
+                          if (!onGroupsChange) return;
+                          // Move items back to unassigned
+                          const ids = groupRows.map(r => r.original.id);
+                          if (ids.length > 0) {
+                            bulkGroupMutation.mutate({ ids, groupId: null });
+                          }
+                          onGroupsChange(coordGroups.filter(g => g.id !== group.id));
+                        }}
+                        totalWidth={totalWidth}
+                        visibleColumnCount={visibleCols.length}
+                      />
+                      {!collapsedGroupIds.includes(group.id) && groupRows.map(row => {
+                        const visibleColumnIds = row.getVisibleCells().map(c => c.column.id).join(',');
+                        const pinnedColumnOffsets = row.getVisibleCells()
+                          .filter(c => c.column.getIsPinned())
+                          .map(c => c.column.getStart('left'))
+                          .join(',');
+                        return (
+                          <MemoizedCoordinationRow
+                            key={row.id}
+                            row={row}
+                            virtualRow={{ index: row.index, start: 0, end: 44, size: 44, key: row.id, lane: 0 }}
+                            selectedOpportunityId={selectedOpportunityId}
+                            viewMode={viewMode}
+                            measureElement={() => {}}
+                            visibleColumnIds={visibleColumnIds}
+                            pinnedColumnOffsets={pinnedColumnOffsets}
+                            isRowSelected={row.getIsSelected()}
+                            groupColor={group.color}
+                          />
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+
+                  {/* GhostRow at the bottom */}
+                  <tbody>
+                    {permissions.can_edit_records && (
+                      <GhostRow
+                        table={table as any}
+                        createMutation={createMutation}
+                        placeholder="+ Add Item..."
+                        defaultValues={{
+                          record_type: 'Coordination',
+                          cost_impact: 0,
+                          days_impact: 0,
+                          status: 'Draft',
+                          coordination_status: 'Draft',
+                          priority: 'Set Priority',
+                        }}
+                        staticFields={[
+                          { columnId: 'display_id', displayValue: '-' },
+                          { columnId: 'record_type', displayValue: '-' },
+                        ]}
+                        onSubmit={(title) => {
+                          onClearFilters?.();
+                          return {
+                            title,
+                            record_type: 'Coordination',
+                            cost_impact: 0,
+                            days_impact: 0,
+                            status: 'Draft',
+                            coordination_status: 'Draft',
+                            priority: 'Set Priority',
+                          };
+                        }}
+                      />
+                    )}
+                  </tbody>
+                </>
+              );
+            })() : (
+              <>
+                {paddingTop > 0 && (
+                  <tbody><tr><td style={{ height: `${paddingTop}px` }} colSpan={columns.length} /></tr></tbody>
+                )}
+
+                {virtualItems.map((virtualRow) => {
+                  const row = rows[virtualRow.index];
+                  const visibleColumnIds = row.getVisibleCells().map(c => c.column.id).join(',');
+                  const pinnedColumnOffsets = row.getVisibleCells()
+                    .filter(c => c.column.getIsPinned())
+                    .map(c => c.column.getStart('left'))
+                    .join(',');
+                  return (
+                    <MemoizedCoordinationRow
+                      key={row.id}
+                      row={row}
+                      virtualRow={virtualRow}
+                      selectedOpportunityId={selectedOpportunityId}
+                      viewMode={viewMode}
+                      measureElement={virtualizer.measureElement}
+                      visibleColumnIds={visibleColumnIds}
+                      pinnedColumnOffsets={pinnedColumnOffsets}
+                      isRowSelected={row.getIsSelected()}
+                    />
+                  );
+                })}
+
+                {paddingBottom > 0 && (
+                  <tbody><tr><td style={{ height: `${paddingBottom}px` }} colSpan={columns.length} /></tr></tbody>
+                )}
+
+                {opportunities.length === 0 && (
+                  <tbody>
+                    <TableEmptyState
+                      colSpan={columns.length}
+                      message="No items in Coordination Items. Add one below!"
+                    />
+                  </tbody>
+                )}
+
+                <tbody>
+                  {permissions.can_edit_records && (
+                    <GhostRow
+                      table={table as any}
+                      createMutation={createMutation}
+                      placeholder="+ Add Item..."
+                      defaultValues={{
+                        record_type: 'Coordination',
+                        cost_impact: 0,
+                        days_impact: 0,
+                        status: 'Draft',
+                        coordination_status: 'Draft',
+                        priority: 'Set Priority',
+                      }}
+                      staticFields={[
+                        { columnId: 'display_id', displayValue: '-' },
+                        { columnId: 'record_type', displayValue: '-' },
+                      ]}
+                      onSubmit={(title) => {
+                        onClearFilters?.();
+                        return {
+                          title,
+                          record_type: 'Coordination',
+                          cost_impact: 0,
+                          days_impact: 0,
+                          status: 'Draft',
+                          coordination_status: 'Draft',
+                          priority: 'Set Priority',
+                        };
+                      }}
+                    />
+                  )}
+                </tbody>
+              </>
+            )}
           </table>
 
           <BulkActionBar
@@ -820,11 +1029,21 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             onDelete={() => setIsDeleteModalOpen(true)}
             canDelete={permissions.can_delete_records}
             extraActions={
-              <BulkStatusChangeMenu
-                selectedCount={selectedRows.length}
-                onStatusSelect={handleBulkStatusChange}
-                isUpdating={isBulkUpdating}
-              />
+              <>
+                <BulkStatusChangeMenu
+                  selectedCount={selectedRows.length}
+                  onStatusSelect={handleBulkStatusChange}
+                  isUpdating={isBulkUpdating}
+                />
+                {isGroupsMode && (
+                  <BulkGroupAssignMenu
+                    selectedCount={selectedRows.length}
+                    coordGroups={coordGroups}
+                    onGroupSelect={handleBulkGroupAssign}
+                    isUpdating={isBulkGroupUpdating}
+                  />
+                )}
+              </>
             }
           />
         </div>

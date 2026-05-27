@@ -48,6 +48,8 @@ interface Props {
   coordGroups?: CoordGroupConfig[];
   isGroupsMode?: boolean;
   onGroupsChange?: (groups: CoordGroupConfig[]) => void;
+  /** Active group filter IDs — Ghost Row inherits coord_group_id when exactly 1 group is active */
+  activeGroupIds?: string[];
 }
 
 // Module-level stable empty array for Zustand selector stability (deep-review Issue 9)
@@ -269,7 +271,7 @@ const MemoizedCoordinationRow = React.memo(({
   return true;
 });
 
-export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat', filterSlot, filterActiveCount = 0, onClearFilters, coordGroups = [], isGroupsMode = false, onGroupsChange }: Props) {
+export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat', filterSlot, filterActiveCount = 0, onClearFilters, coordGroups = [], isGroupsMode = false, onGroupsChange, activeGroupIds = [] }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
   const isMapVisible = useUIStore(state => state.isMapVisible);
@@ -932,7 +934,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                           { columnId: 'record_type', displayValue: '-' },
                         ]}
                         onSubmit={(title) => {
-                          onClearFilters?.();
+                          const inheritedGroupId = activeGroupIds.length === 1 ? activeGroupIds[0] : undefined;
                           return {
                             title,
                             record_type: 'Coordination',
@@ -941,6 +943,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                             status: 'Draft',
                             coordination_status: 'Draft',
                             priority: 'Set Priority',
+                            ...(inheritedGroupId && inheritedGroupId !== UNASSIGNED_GROUP_ID ? { coord_group_id: inheritedGroupId } : {}),
                           };
                         }}
                       />
@@ -1008,7 +1011,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                         { columnId: 'record_type', displayValue: '-' },
                       ]}
                       onSubmit={(title) => {
-                        onClearFilters?.();
+                        const inheritedGroupId = activeGroupIds.length === 1 ? activeGroupIds[0] : undefined;
                         return {
                           title,
                           record_type: 'Coordination',
@@ -1017,6 +1020,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                           status: 'Draft',
                           coordination_status: 'Draft',
                           priority: 'Set Priority',
+                          ...(inheritedGroupId && inheritedGroupId !== UNASSIGNED_GROUP_ID ? { coord_group_id: inheritedGroupId } : {}),
                         };
                       }}
                     />

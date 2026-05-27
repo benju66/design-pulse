@@ -8,9 +8,11 @@ interface MultiSelectFilterProps {
   onChange: (selected: string[]) => void;
   placeholder?: string;
   fullWidth?: boolean;
+  /** Optional map of option label → CSS color string. Renders a color dot before each matching option. */
+  colorMap?: Record<string, string>;
 }
 
-export function MultiSelectFilter({ label, options, selected, onChange, placeholder = "Search...", fullWidth = false }: MultiSelectFilterProps) {
+export function MultiSelectFilter({ label, options, selected, onChange, placeholder = "Search...", fullWidth = false, colorMap }: MultiSelectFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -69,13 +71,15 @@ export function MultiSelectFilter({ label, options, selected, onChange, placehol
     onChange([]);
   };
 
-  // Determine display text
+  // Determine display text and optional single-selected color dot
   let displayText = "All";
+  let displayColor: string | undefined;
   if (selected.length > 0) {
     if (selected.length === options.length && options.length > 0) {
       displayText = "All";
     } else if (selected.length === 1) {
       displayText = selected[0].length > 15 ? selected[0].substring(0, 15) + '...' : selected[0];
+      displayColor = colorMap?.[selected[0]];
     } else {
       displayText = `${selected.length} Selected`;
     }
@@ -89,7 +93,8 @@ export function MultiSelectFilter({ label, options, selected, onChange, placehol
         onClick={() => setIsOpen(!isOpen)}
       >
         <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}:</span>
-        <span className="text-sm font-bold text-slate-700 dark:text-slate-200 max-w-[150px] truncate">
+        <span className="text-sm font-bold text-slate-700 dark:text-slate-200 max-w-[150px] truncate flex items-center gap-1.5">
+          {displayColor && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: displayColor }} />}
           {displayText}
         </span>
         <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
@@ -150,6 +155,9 @@ export function MultiSelectFilter({ label, options, selected, onChange, placehol
                     }`}>
                       {isSelected && <Check size={12} strokeWidth={3} />}
                     </div>
+                    {colorMap?.[opt] && (
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorMap[opt] }} />
+                    )}
                     <span className={`text-sm truncate ${isSelected ? 'text-slate-900 dark:text-white font-medium' : 'text-slate-600 dark:text-slate-300'}`}>
                       {opt}
                     </span>

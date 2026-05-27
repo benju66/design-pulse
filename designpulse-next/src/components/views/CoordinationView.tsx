@@ -105,6 +105,42 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
     setUrlFilters(prev => ({ ...prev, groups }));
   }, [setUrlFilters]);
 
+  // ── Memoized Group filter label↔ID translation ──
+  const groupFilterOptions = useMemo(() =>
+    [...coordGroups.map(g => g.label), 'Unassigned'],
+    [coordGroups]
+  );
+
+  const groupIdToLabel = useMemo(() => {
+    const map = new Map<string, string>();
+    coordGroups.forEach(g => map.set(g.id, g.label));
+    map.set(UNASSIGNED_GROUP_ID, 'Unassigned');
+    return map;
+  }, [coordGroups]);
+
+  const groupLabelToId = useMemo(() => {
+    const map = new Map<string, string>();
+    coordGroups.forEach(g => map.set(g.label, g.id));
+    map.set('Unassigned', UNASSIGNED_GROUP_ID);
+    return map;
+  }, [coordGroups]);
+
+  const groupFilterSelected = useMemo(() =>
+    coordActiveGroups.map(id => groupIdToLabel.get(id) ?? id),
+    [coordActiveGroups, groupIdToLabel]
+  );
+
+  const handleGroupFilterChange = useCallback((labels: string[]) => {
+    setCoordActiveGroups(labels.map(l => groupLabelToId.get(l) ?? l));
+  }, [setCoordActiveGroups, groupLabelToId]);
+
+  const groupColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    coordGroups.forEach(g => { map[g.label] = g.color; });
+    map['Unassigned'] = '#94a3b8'; // slate-400
+    return map;
+  }, [coordGroups]);
+
   // Sync global linking state back into URL search params
   useEffect(() => {
     if (isFilterLinkingEnabled) {
@@ -303,6 +339,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                   isGroupsMode={isGroupsMode}
                   coordGroups={coordGroups}
                   onGroupsChange={handleGroupsChange}
+                  activeGroupIds={coordActiveGroups}
                   filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length}
                   onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); setCoordActiveGroups([]); }}
                   filterSlot={
@@ -337,7 +374,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Group</label>
-                        <MultiSelectFilter fullWidth label="Group" options={[...coordGroups.map(g => g.label), 'Unassigned']} selected={coordActiveGroups.map(id => id === UNASSIGNED_GROUP_ID ? 'Unassigned' : (coordGroups.find(g => g.id === id)?.label ?? id))} onChange={(labels) => setCoordActiveGroups(labels.map(l => l === 'Unassigned' ? UNASSIGNED_GROUP_ID : (coordGroups.find(g => g.label === l)?.id ?? l)))} placeholder="Search groups..." />
+                        <MultiSelectFilter fullWidth label="Group" options={groupFilterOptions} selected={groupFilterSelected} onChange={handleGroupFilterChange} placeholder="Search groups..." colorMap={groupColorMap} />
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cost Code</label>

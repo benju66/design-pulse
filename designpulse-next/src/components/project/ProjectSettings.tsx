@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SettingsTab } from '@/stores/useUIStore';
 import { Plus, X, GripVertical, Save, RefreshCw, Layers, LayoutDashboard, Info, Map, Tags, Users, TableProperties, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,6 +14,7 @@ import {
   useRemoveProjectMember
 } from '@/hooks/useProjectCoreQueries';
 import { useSystemUsers } from '@/hooks/useGlobalQueries';
+import { useProjectEstimateVersions } from '@/hooks/useEstimateQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useAuth } from '@/providers/AuthProvider';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
@@ -100,6 +101,147 @@ const SortableItem = ({ id, content, onRemove, renderExtra }: SortableItemProps)
     </div>
   );
 };
+
+// ── Budget Source Picker ─────────────────────────────────────────────────────
+// Segmented control: "From Estimate" dropdown vs "Custom Amount" manual input.
+// Uses cached useProjectEstimateVersions — zero additional network requests.
+function formatBudgetCurrency(n: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+}
+
+function BudgetSourcePicker({
+  projectId,
+  currentBudget,
+  disabled,
+  onChange,
+}: {
+  projectId: string;
+  currentBudget: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}) {
+  const { data: versions = [] } = useProjectEstimateVersions(projectId);
+  const finalizedVersions = useMemo(
+    () => versions.filter((v) => v.is_finalized),
+    [versions],
+  );
+
+  // Determine the initial mode: if current budget matches a version's total_budget, show "estimate" mode
+  const matchingVersionId = useMemo(() => {
+    if (currentBudget <= 0) return null;
+    const match = finalizedVersions.find((v) => Number(v.total_budget) === Number(currentBudget));
+    return match?.id ?? null;
+  }, [currentBudget, finalizedVersions]);
+
+  const [mode, setMode] = useState<'estimate' | 'custom'>(
+    matchingVersionId ? 'estimate' : (finalizedVersions.length > 0 && currentBudget <= 0) ? 'estimate' : 'custom'
+  );
+
+  // Sync mode when versions load asynchronously
+  useEffect(() => {
+    if (finalizedVersions.length > 0 && matchingVersionId) {
+      setMode('estimate');
+    }
+  }, [finalizedVersions.length, matchingVersionId]);
+
+  const handleVersionSelect = useCallback(
+    (versionId: string) => {
+      const version = finalizedVersions.find((v) => v.id === versionId);
+      if (version) {
+        onChange(Number(version.total_budget));
+      }
+    },
+    [finalizedVersions, onChange],
+  );
+
+  return (
+    <div className="border-t border-slate-200 dark:border-slate-800 pt-6 mt-6">
+      <h3 className="text-md font-bold text-slate-800 dark:text-slate-200 mb-4">Financials</h3>
+      <div className="w-2/3 space-y-3">
+        <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Original Budget</label>
+
+        {/* Segmented Toggle */}
+        <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden w-fit">
+          <button
+            type="button"
+            disabled={disabled || finalizedVersions.length === 0}
+            onClick={() => setMode('estimate')}
+            className={`px-4 py-1.5 text-xs font-bold transition-colors ${
+              mode === 'estimate'
+                ? 'bg-sky-600 text-white'
+                : 'bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+          >
+            From Estimate
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => setMode('custom')}
+            className={`px-4 py-1.5 text-xs font-bold transition-colors border-l border-slate-200 dark:border-slate-700 ${
+              mode === 'custom'
+                ? 'bg-sky-600 text-white'
+                : 'bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+          >
+            Custom Amount
+          </button>
+        </div>
+
+        {/* Mode A: Estimate Version Dropdown */}
+        {mode === 'estimate' && (
+          <div className="space-y-2">
+            {finalizedVersions.length === 0 ? (
+              <p className="text-xs text-slate-400 dark:text-slate-500 italic">
+                No finalized estimate versions found. Import a budget first in the Estimate tab.
+              </p>
+            ) : (
+              <select
+                disabled={disabled}
+                value={matchingVersionId ?? ''}
+                onChange={(e) => handleVersionSelect(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed appearance-none"
+              >
+                <option value="" disabled>
+                  Select an estimate version…
+                </option>
+                {finalizedVersions.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.is_active ? '⭐ ' : ''}{v.version_name} ({v.version_date}) — {formatBudgetCurrency(v.total_budget)}
+                  </option>
+                ))}
+              </select>
+            )}
+            {currentBudget > 0 && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Budget set to <span className="font-bold text-slate-700 dark:text-slate-300">{formatBudgetCurrency(currentBudget)}</span>
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Mode B: Custom Manual Input */}
+        {mode === 'custom' && (
+          <div className="space-y-2">
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium">$</span>
+              <input
+                type="number"
+                disabled={disabled}
+                value={currentBudget}
+                onChange={(e) => onChange(Number(e.target.value) || 0)}
+                className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                placeholder="5000000"
+              />
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-slate-500 mt-1">This value sets the baseline for the Value Matrix and Project Overview.</p>
+      </div>
+    </div>
+  );
+}
 
 export const ProjectSettings = ({
   projectId,
@@ -744,24 +886,12 @@ export const ProjectSettings = ({
             </div>
           </div>
 
-          <div className="border-t border-slate-200 dark:border-slate-800 pt-6 mt-6">
-            <h3 className="text-md font-bold text-slate-800 dark:text-slate-200 mb-4">Financials</h3>
-            <div className="w-1/2 pr-3 space-y-2">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Original Budget</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium">$</span>
-                <input 
-                  type="number" 
-                  disabled={!canManageTeam}
-                  value={projectInfo.original_budget}
-                  onChange={e => handleInfoChange('original_budget', e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-4 py-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none transition-shadow font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  placeholder="5000000"
-                />
-              </div>
-              <p className="text-xs text-slate-500 mt-1">This value sets the baseline for the Value Matrix.</p>
-            </div>
-          </div>
+          <BudgetSourcePicker
+            projectId={projectId}
+            currentBudget={projectInfo.original_budget}
+            disabled={!canManageTeam}
+            onChange={(value) => handleInfoChange('original_budget', value)}
+          />
 
           <div className="border-t border-slate-200 dark:border-slate-800 pt-6 mt-6">
             <h3 className="text-md font-bold text-slate-800 dark:text-slate-200 mb-4">Security & Compliance</h3>

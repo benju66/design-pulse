@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { useUIStore } from '@/stores/useUIStore';
 import { useOpportunities, useAllProjectOptions } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
+import { useEffectiveBudget } from '@/hooks/useEffectiveBudget';
 import { useVePackages, useCreatePackage } from '@/hooks/useSandboxQueries';
 import { PackageCard } from './PackageCard';
 import { PackageCompareModal } from './PackageCompareModal';
@@ -26,7 +27,7 @@ export function SandboxPanel({ projectId, canEdit }: SandboxPanelProps) {
   const { data: opportunities = [] } = useOpportunities(projectId);
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   const { data: settings } = useProjectSettings(projectId);
-  const originalBudget = settings ? Number(settings.original_budget) : 0;
+  const { effectiveBudget: originalBudget } = useEffectiveBudget(projectId);
   const { data: packages = [] } = useVePackages(projectId);
 
   // Scope label resolution (DR-6)

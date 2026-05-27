@@ -14,6 +14,7 @@ export function isCoordViewMode(v: string | undefined): v is CoordinationViewMod
 
 // ── Navigation domain types ───────────────────────────────────────────────────
 export type ProjectView =
+  | 'project-overview'
   | 'dashboard'
   | 'dashboard-v2'
   | 'budget-compare'
@@ -27,6 +28,15 @@ export type ProjectView =
   | 'lessons'
   | 'key-dates'
   | 'scenario-planner';
+
+// ── Dashboard Widget Visibility ───────────────────────────────────────────────
+export type DashboardWidgetId =
+  | 'budget-health'
+  | 've-status-donut'
+  | 'coordination-progress'
+  | 'deliverable-permit-summary'
+  | 'top-exposure-items'
+  | 'upcoming-timeline';
 
 export type SettingsTab =
   | 'info'
@@ -224,6 +234,10 @@ export interface UIState {
   // Transient signal: tells CoordinationDetailPanel to scroll to a specific section
   focusDetailSection: 'description' | null;
   setFocusDetailSection: (section: 'description' | null) => void;
+
+  // Dashboard widget visibility (v20) — flat, user-local, follows visibleCards pattern
+  dashboardWidgetVisibility: Record<string, boolean>;
+  toggleDashboardWidget: (widgetId: DashboardWidgetId) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -722,6 +736,15 @@ export const useUIStore = create<UIState>()(
       // Transient signal — not persisted, consumed immediately by detail panel
       focusDetailSection: null,
       setFocusDetailSection: (section) => set({ focusDetailSection: section }),
+
+      // Dashboard widget visibility (v20) — flat, user-local
+      dashboardWidgetVisibility: {},
+      toggleDashboardWidget: (widgetId) => set((state) => ({
+        dashboardWidgetVisibility: {
+          ...state.dashboardWidgetVisibility,
+          [widgetId]: !(state.dashboardWidgetVisibility[widgetId] ?? true),
+        },
+      })),
     }),
     {
       name: 'design-pulse-ui-prefs',
@@ -771,8 +794,10 @@ export const useUIStore = create<UIState>()(
         // Persist v19 tasks view preferences
         tasksColumnVisibility: state.tasksColumnVisibility ?? {},
         tasksColumnOrder: state.tasksColumnOrder ?? {},
+        // Persist v20 dashboard widget visibility
+        dashboardWidgetVisibility: state.dashboardWidgetVisibility ?? {},
       }),
-      version: 19,
+      version: 20,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -925,6 +950,13 @@ export const useUIStore = create<UIState>()(
             ...state,
             tasksColumnVisibility: {},
             tasksColumnOrder: {},
+          } as unknown as UIState;
+        }
+        if (version < 20) {
+          // v19 → v20: added dashboard widget visibility
+          return {
+            ...state,
+            dashboardWidgetVisibility: {},
           } as unknown as UIState;
         }
         return state as UIState;

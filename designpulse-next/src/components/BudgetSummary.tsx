@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
+import { useEffectiveBudget } from '@/hooks/useEffectiveBudget';
 import { useAllProjectOptions, usePendingEstimateUpdates } from '@/hooks/useOpportunityQueries';
 import { Opportunity } from '@/types/models';
 import { calculateBudgetMetrics } from '@/utils/financialMath';
@@ -36,8 +36,7 @@ interface BudgetSummaryProps {
 }
 
 export default function BudgetSummary({ projectId, opportunities = [], forceCollapse = false }: BudgetSummaryProps) {
-  const { data: settings } = useProjectSettings(projectId);
-  const originalBudget = settings ? Number(settings.original_budget) : 0;
+  const { effectiveBudget: originalBudget } = useEffectiveBudget(projectId);
 
   const { data: allOptions = [] } = useAllProjectOptions(projectId);
   

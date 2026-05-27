@@ -18,6 +18,7 @@ import { PermitsView } from '@/components/views/PermitsView';
 import { LessonsLearnedView } from '@/components/views/LessonsLearnedView';
 import { DeliverablesView } from '@/components/views/DeliverablesView';
 import { KeyDatesView } from '@/components/views/KeyDatesView';
+import { ProjectOverviewDashboard } from '@/components/project-dashboard/ProjectOverviewDashboard';
 
 // Lazy-loaded views
 const AnalyticsDashboard = dynamic(() => import('@/components/analytics/AnalyticsDashboard'));
@@ -36,7 +37,7 @@ const ScenarioPlannerView = dynamic(
 
 // ── Module-level navigation type guards ─────────────────────────────────────────
 const VALID_PROJECT_VIEWS = new Set<ProjectView>([
-  'dashboard', 'dashboard-v2', 'budget-compare', 'map', 'analytics',
+  'project-overview', 'dashboard', 'dashboard-v2', 'budget-compare', 'map', 'analytics',
   'coordination', 'permits', 'deliverables', 'my-desk', 'settings', 'lessons', 'key-dates',
   'scenario-planner'
 ]);
@@ -69,7 +70,7 @@ export default function ProjectPage({ params }: ProjectPageProps) {
 
   // ── Navigation state (persisted in Zustand) ────────────────
   const _rawView        = useUIStore(state => state.activeView[projectId]);
-  const currentView: ProjectView = isProjectView(_rawView) ? _rawView : 'dashboard';
+  const currentView: ProjectView = isProjectView(_rawView) ? _rawView : 'project-overview';
   const _setActiveView  = useUIStore(state => state.setActiveView);
   const setCurrentView  = React.useMemo(
     () => (view: ProjectView) => _setActiveView(projectId, view),
@@ -97,6 +98,10 @@ export default function ProjectPage({ params }: ProjectPageProps) {
       <div className="flex flex-col flex-1 overflow-hidden relative">
         <div className="flex flex-1 overflow-hidden relative">
           
+          {currentView === 'project-overview' && (
+            <ProjectOverviewDashboard projectId={projectId} />
+          )}
+
           {currentView === 'dashboard' && (
             <ValueMatrixView projectId={projectId} />
           )}

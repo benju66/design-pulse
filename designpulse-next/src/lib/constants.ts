@@ -72,6 +72,7 @@ export const DEFAULT_BUILDING_AREAS = [
 ] as const;
 
 export const DEFAULT_SIDEBAR_ITEMS = [
+  { id: 'project-overview', label: 'Overview', iconName: 'Gauge', visible: true },
   { id: 'dashboard', label: 'Value Matrix', iconName: 'LayoutDashboard', visible: true },
   { id: 'coordination', label: 'Coordination Items', iconName: 'ListChecks', visible: true },
   { id: 'map', label: 'Drawings', iconName: 'Map', visible: false },

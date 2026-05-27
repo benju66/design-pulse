@@ -30,6 +30,7 @@ import {
 import { useVePackages } from '@/hooks/useSandboxQueries';
 import { useOpportunities, useAllProjectOptions } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings } from '@/hooks/useProjectCoreQueries';
+import { useEffectiveBudget } from '@/hooks/useEffectiveBudget';
 import { calculateBudgetMetrics } from '@/utils/financialMath';
 import type { PackageScopeConfig } from '@/types/models';
 import type { VePackageWithItems } from '@/types/sandbox';
@@ -93,7 +94,7 @@ export function ScenarioPlannerView({ projectId }: ScenarioPlannerViewProps) {
   const canEdit = true;
 
   // Budget baseline
-  const originalBudget = settings?.original_budget ?? 0;
+  const { effectiveBudget: originalBudget } = useEffectiveBudget(projectId);
   const baselineMetrics = useMemo(
     () => calculateBudgetMetrics(opportunities, allOptions, originalBudget),
     [opportunities, allOptions, originalBudget]

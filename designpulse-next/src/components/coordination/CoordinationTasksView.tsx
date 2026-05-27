@@ -19,9 +19,11 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Search,
   SlidersHorizontal,
   Plus,
+  PanelRight,
 } from 'lucide-react';
 import {
   Opportunity,
@@ -41,7 +43,7 @@ import {
 import { useUIStore } from '@/stores/useUIStore';
 import { formatDate } from '@/lib/formatters';
 import { DEFAULT_DISCIPLINES, UNASSIGNED_GROUP_ID } from '@/lib/constants';
-import { CheckboxCell, CheckboxHeader, OpenPanelCell } from '@/components/data-table/cells';
+import { CheckboxCell, CheckboxHeader } from '@/components/data-table/cells';
 import { BulkActionBar, DeleteConfirmModal, GhostRow, TableEmptyState } from '@/components/data-table';
 import { GridFilterDrawer } from '@/components/ui/GridFilterDrawer';
 import { ColumnChooser } from '@/components/opportunities/ColumnChooser';
@@ -73,9 +75,10 @@ interface CoordinationTasksViewProps {
 function statusColor(status: string): string {
   switch (status) {
     case 'Draft': return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
-    case 'In Drafting': return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400';
-    case 'Ready for Review': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+    case 'In Drafting': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+    case 'Ready for Review': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
     case 'Implemented': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+    case 'Not Applicable': return 'bg-slate-200 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400';
     default: return 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
   }
 }
@@ -442,8 +445,8 @@ export default function CoordinationTasksView({
       size: 40,
       enableResizing: false,
       enableSorting: false,
-      header: ({ table }) => <CheckboxHeader table={table} />,
-      cell: (info) => <CheckboxCell info={info} />,
+      header: ({ table }) => <CheckboxHeader table={table} disabled={!permissions.can_edit_records} />,
+      cell: (info) => <CheckboxCell info={info} disabled={!permissions.can_edit_records} />,
     },
     {
       id: 'expand',
@@ -476,12 +479,23 @@ export default function CoordinationTasksView({
       enableResizing: false,
       enableSorting: false,
       header: () => null,
-      cell: (info: CellContext<Opportunity, unknown>) => (
-        <OpenPanelCell
-          info={info}
-          onToggle={handleOpenPanel}
-          isSelected={info.row.original.id === selectedOpportunityId}
-        />
+      cell: ({ row }: CellContext<Opportunity, unknown>) => (
+        <div className="flex items-center justify-center p-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenPanel(row.original.id, row.original.id === selectedOpportunityId);
+            }}
+            className={`p-1 rounded transition-colors ${
+              row.original.id === selectedOpportunityId
+                ? 'text-purple-500 bg-purple-50 dark:bg-purple-900/30'
+                : 'text-slate-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+            }`}
+            title={row.original.id === selectedOpportunityId ? 'Close panel' : 'Open panel'}
+          >
+            <PanelRight size={20} />
+          </button>
+        </div>
       ),
     },
     {
@@ -489,11 +503,19 @@ export default function CoordinationTasksView({
       id: 'display_id',
       header: 'ID',
       size: 90,
-      cell: ({ getValue }) => (
-        <div className="px-2 py-1 text-xs text-slate-500 dark:text-slate-400 font-mono truncate h-full flex items-center">
-          {(getValue() as string) || '-'}
-        </div>
-      ),
+      cell: ({ getValue, row }) => {
+        const recordType = row.original.record_type || 'Coordination';
+        const badgeClass = recordType === 'Coordination'
+          ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+          : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400';
+        return (
+          <div className="px-2 py-1.5 flex items-center h-full">
+            <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${badgeClass}`}>
+              {(getValue() as string) || '-'}
+            </span>
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'title',
@@ -515,7 +537,7 @@ export default function CoordinationTasksView({
         const status = (getValue() as string) || 'Draft';
         return (
           <div className="px-2 py-1 h-full flex items-center">
-            <span className={cn('text-[11px] font-semibold px-2 py-0.5 rounded', statusColor(status))}>
+            <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', statusColor(status))}>
               {status}
             </span>
           </div>
@@ -648,7 +670,7 @@ export default function CoordinationTasksView({
             value={globalFilter}
             onChange={e => setGlobalFilter(e.target.value)}
             placeholder="Search tasks..."
-            className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-sky-400"
+            className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
 
@@ -661,8 +683,8 @@ export default function CoordinationTasksView({
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors',
             filterActiveCount > 0
-              ? 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
-              : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
           )}
         >
           <SlidersHorizontal size={14} />
@@ -681,7 +703,7 @@ export default function CoordinationTasksView({
       {/* Table area */}
       <div className="relative flex-1 min-h-0">
         <div ref={tableContainerRef} className="flex-1 min-h-0 overflow-auto rounded-b-xl">
-          <table className="w-full border-separate border-spacing-0" style={{ tableLayout: 'fixed' }}>
+          <table className="w-full text-left text-sm whitespace-nowrap border-separate border-spacing-0" style={{ tableLayout: 'fixed', minWidth: table.getTotalSize() }}>
             {/* Column sizing */}
             <colgroup>
               {table.getVisibleFlatColumns().map(col => (
@@ -690,7 +712,7 @@ export default function CoordinationTasksView({
             </colgroup>
 
             {/* Header */}
-            <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900">
+            <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 border-b-2 border-slate-300 dark:border-slate-700">
               {headerGroups.map(headerGroup => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map(header => {
@@ -700,7 +722,7 @@ export default function CoordinationTasksView({
                       <th
                         key={header.id}
                         className={cn(
-                          'px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-r border-slate-200 dark:border-slate-800 select-none bg-clip-padding',
+                          'relative px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-300 border-r border-slate-300 dark:border-slate-700 select-none group bg-slate-100 dark:bg-slate-900 bg-clip-padding',
                           isPinned && 'sticky z-30 bg-slate-100 dark:bg-slate-900',
                           isLastPinned && 'shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r-2',
                           header.column.getCanSort() && 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-800',
@@ -711,16 +733,24 @@ export default function CoordinationTasksView({
                         }}
                         onClick={header.column.getToggleSortingHandler()}
                       >
-                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getIsSorted() === 'asc' && ' ▲'}
-                        {header.column.getIsSorted() === 'desc' && ' ▼'}
+                        {header.isPlaceholder ? null : (
+                          <div className="flex items-center">
+                            <span className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                            {{
+                              asc: <ChevronUp size={14} className="ml-1 inline-block shrink-0" />,
+                              desc: <ChevronDown size={14} className="ml-1 inline-block shrink-0" />,
+                            }[header.column.getIsSorted() as string] ?? null}
+                          </div>
+                        )}
 
                         {/* Resize handle */}
                         {header.column.getCanResize() && (
                           <div
                             onMouseDown={header.getResizeHandler()}
                             onTouchStart={header.getResizeHandler()}
-                            className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-sky-400"
+                            className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none bg-sky-500 opacity-0 group-hover:opacity-100 transition-opacity ${
+                              header.column.getIsResizing() ? 'opacity-100 bg-sky-600 w-[3px]' : ''
+                            }`}
                           />
                         )}
                       </th>

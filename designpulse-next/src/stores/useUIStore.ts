@@ -4,9 +4,9 @@ import { DEFAULT_COORD_COLUMN_ORDER, DEFAULT_KEY_DATES_COLUMN_ORDER } from '@/li
 import { useMapStore } from '@/stores/useMapStore';
 
 // ── Coordination View Mode validity guard (deep-review Issue 10) ──────────────
-export type CoordinationViewMode = 'board' | 'table-split' | 'groups';
+export type CoordinationViewMode = 'board' | 'table-split' | 'groups' | 'tasks';
 const VALID_COORD_VIEW_MODES = new Set<CoordinationViewMode>([
-  'board', 'table-split', 'groups'
+  'board', 'table-split', 'groups', 'tasks'
 ]);
 export function isCoordViewMode(v: string | undefined): v is CoordinationViewMode {
   return !!v && VALID_COORD_VIEW_MODES.has(v as CoordinationViewMode);
@@ -104,6 +104,12 @@ export interface UIState {
   
   coordColumnOrder: Record<string, string[]>;
   setCoordColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
+  
+  // Tasks view — independent column visibility + order (never shares with coordColumnVisibility/coordColumnOrder)
+  tasksColumnVisibility: Record<string, Record<string, boolean>>;
+  setTasksColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
+  tasksColumnOrder: Record<string, string[]>;
+  setTasksColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
   
   coordinationViewMode: CoordinationViewMode;
   setCoordinationViewMode: (mode: CoordinationViewMode) => void;
@@ -413,6 +419,36 @@ export const useUIStore = create<UIState>()(
         return {
           coordColumnOrder: {
             ...state.coordColumnOrder,
+            [projectId]: newState
+          }
+        };
+      }),
+      
+      // Tasks view column visibility + order (same setter pattern as coordColumn*)
+      tasksColumnVisibility: {},
+      setTasksColumnVisibility: (projectId, updater) => set((state) => {
+        const oldState = state.tasksColumnVisibility[projectId] || {};
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        return {
+          tasksColumnVisibility: {
+            ...state.tasksColumnVisibility,
+            [projectId]: newState
+          }
+        };
+      }),
+      tasksColumnOrder: {},
+      setTasksColumnOrder: (projectId, updater) => set((state) => {
+        const oldState = state.tasksColumnOrder[projectId] || [];
+        const newState = typeof updater === 'function' ? updater(oldState) : updater;
+        if (
+          oldState.length === newState.length &&
+          oldState.every((val, idx) => val === newState[idx])
+        ) {
+          return {};
+        }
+        return {
+          tasksColumnOrder: {
+            ...state.tasksColumnOrder,
             [projectId]: newState
           }
         };
@@ -731,10 +767,12 @@ export const useUIStore = create<UIState>()(
         isFilterLinkingEnabled: state.isFilterLinkingEnabled ?? true,
         globalBuildingAreas: state.globalBuildingAreas ?? [],
         globalCostCodes: state.globalCostCodes ?? [],
-        // Persist v18 coordination groups collapsed state
         coordGroupCollapsed: state.coordGroupCollapsed ?? {},
+        // Persist v19 tasks view preferences
+        tasksColumnVisibility: state.tasksColumnVisibility ?? {},
+        tasksColumnOrder: state.tasksColumnOrder ?? {},
       }),
-      version: 18,
+      version: 19,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -879,6 +917,14 @@ export const useUIStore = create<UIState>()(
           return {
             ...state,
             coordGroupCollapsed: {},
+          } as unknown as UIState;
+        }
+        if (version < 19) {
+          // v18 → v19: added tasks view column visibility + order
+          return {
+            ...state,
+            tasksColumnVisibility: {},
+            tasksColumnOrder: {},
           } as unknown as UIState;
         }
         return state as UIState;

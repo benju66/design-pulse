@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle, List, MessageSquare, ChevronDown } from 'lucide-react';
+import { ExternalLink, Maximize, Minimize, X, MapPin, Paperclip, CheckCircle2, Circle, AlertCircle, List, MessageSquare, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { hasDescriptionContent } from '@/lib/htmlUtils';
 import { useUIStore } from '@/stores/useUIStore';
-import { Opportunity, DisciplineConfig, DisciplineDetails } from '@/types/models';
+import { Opportunity, DisciplineConfig, DisciplineDetails, CoordinationTask } from '@/types/models';
 import { useUpdateOpportunity, useUpdateCoordinationDetails } from '@/hooks/useOpportunityQueries';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { ContendersMatrix } from '../opportunities/ContendersMatrix';
@@ -407,6 +407,117 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
               </details>
             );
           })}
+        </div>
+
+        {/* Tasks Workspace */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between pl-1">
+            <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Tasks
+              {(() => {
+                const tasks = Array.isArray(localDetails.tasks) ? localDetails.tasks as CoordinationTask[] : [];
+                return tasks.length > 0 ? <span className="ml-1.5 text-[10px] font-bold text-slate-400">({tasks.length})</span> : null;
+              })()}
+            </h4>
+          </div>
+
+          {(() => {
+            const tasks = Array.isArray(localDetails.tasks) ? (localDetails.tasks as CoordinationTask[]).sort((a, b) => a.order_index - b.order_index) : [];
+
+            const handleTaskUpdate = (taskId: string, updates: Partial<CoordinationTask>) => {
+              const updated = tasks.map(t => t.id === taskId ? { ...t, ...updates } : t);
+              setLocalDetails(prev => ({ ...prev, tasks: updated }));
+              updateCoordDetails.mutate({ id: opportunity.id, updates: { tasks: updated } });
+            };
+
+            const handleTaskDelete = (taskId: string) => {
+              const updated = tasks.filter(t => t.id !== taskId);
+              setLocalDetails(prev => ({ ...prev, tasks: updated }));
+              updateCoordDetails.mutate({ id: opportunity.id, updates: { tasks: updated } });
+            };
+
+            const handleTaskCreate = () => {
+              const newTask: CoordinationTask = {
+                id: crypto.randomUUID(),
+                title: '',
+                status: 'Open',
+                assignee: null,
+                order_index: tasks.length,
+              };
+              const updated = [...tasks, newTask];
+              setLocalDetails(prev => ({ ...prev, tasks: updated }));
+              updateCoordDetails.mutate({ id: opportunity.id, updates: { tasks: updated } });
+            };
+
+            return (
+              <>
+                {tasks.map(task => (
+                  <div
+                    key={task.id}
+                    className="group/task flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 shadow-sm"
+                  >
+                    {/* Title input */}
+                    <input
+                      type="text"
+                      defaultValue={task.title}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        if (val !== task.title) handleTaskUpdate(task.id, { title: val });
+                      }}
+                      placeholder="Task title..."
+                      className="flex-1 text-sm bg-transparent border-0 border-b border-transparent focus:border-sky-400 focus:outline-none px-1 py-0.5 text-slate-700 dark:text-slate-200 placeholder:text-slate-400"
+                    />
+
+                    {/* Status dropdown — atomic onChange (Rule C23) */}
+                    <select
+                      value={task.status}
+                      onChange={(e) => handleTaskUpdate(task.id, { status: e.target.value as CoordinationTask['status'] })}
+                      className="text-[11px] font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-none rounded py-1 px-2 focus:ring-2 focus:ring-sky-500 outline-none cursor-pointer"
+                    >
+                      <option value="Open">Open</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Done">Done</option>
+                    </select>
+
+                    {/* Assignee input */}
+                    <input
+                      type="text"
+                      defaultValue={task.assignee || ''}
+                      onBlur={(e) => handleTaskUpdate(task.id, { assignee: e.target.value || null })}
+                      placeholder="Assignee"
+                      className="w-24 text-xs bg-transparent border-0 border-b border-transparent focus:border-sky-400 focus:outline-none px-1 py-0.5 text-slate-500 dark:text-slate-400 placeholder:text-slate-400"
+                    />
+
+                    {/* Delete */}
+                    <button
+                      type="button"
+                      onClick={() => handleTaskDelete(task.id)}
+                      className="opacity-0 group-hover/task:opacity-100 transition-opacity text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded p-1"
+                      title="Delete task"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+
+                {/* Add task button */}
+                {permissions.can_edit_records && (
+                  <button
+                    type="button"
+                    onClick={handleTaskCreate}
+                    className="flex items-center gap-2 text-sm text-slate-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg px-3 py-2 transition-colors"
+                  >
+                    <Plus size={14} />
+                    Add Task
+                  </button>
+                )}
+
+                {tasks.length === 0 && !permissions.can_edit_records && (
+                  <p className="text-xs text-slate-400 italic pl-1">No tasks</p>
+                )}
+              </>
+            );
+          })()}
         </div>
         </div>
         )}

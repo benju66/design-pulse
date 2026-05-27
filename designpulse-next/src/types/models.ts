@@ -4,10 +4,21 @@ import { Database } from './database.types';
 export type CostType = 'Labor' | 'Material' | 'Subcontract' | 'Equipment' | 'Other';
 
 // Accurate representation of the mixed-key JSONB structure in coordination_details.
-// Discipline entries keyed by UUID; is_escalated is a top-level boolean flag.
+// Discipline entries keyed by UUID; is_escalated is a top-level boolean flag;
+// tasks is a root-level array of free-form coordination sub-tasks.
 export type CoordinationDetailsMap = {
   is_escalated?: boolean;
-} & Record<string, DisciplineDetails | boolean | undefined>;
+  tasks?: CoordinationTask[];
+} & Record<string, DisciplineDetails | boolean | CoordinationTask[] | undefined>;
+
+// Free-form coordination sub-task (stored in coordination_details.tasks[] JSONB array)
+export interface CoordinationTask {
+  id: string;        // crypto.randomUUID() — internal only, no display_id
+  title: string;
+  status: 'Open' | 'In Progress' | 'Done';
+  assignee?: string | null;
+  order_index: number;
+}
 
 export type Opportunity = Database['public']['Tables']['opportunities']['Row'] & {
   division?: string | null;

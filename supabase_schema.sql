@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS project_settings (
 
 ALTER TABLE project_settings 
 ADD COLUMN IF NOT EXISTS permit_types jsonb DEFAULT '[{"id": "93f2f811-0a6f-4d9b-a320-1a7638d17a3a", "label": "Building (Core & Shell)"}, {"id": "e3b6a9c1-7f9e-4b45-97c4-a4b51381e7d2", "label": "Electrical"}, {"id": "0b14c356-9e12-4c2f-b4e8-8a562e153f91", "label": "Plumbing"}]'::jsonb,
-ADD COLUMN IF NOT EXISTS permit_ahjs jsonb DEFAULT '[{"id": "550e8400-e29b-41d4-a716-446655440000", "label": "City"}, {"id": "713f0a00-1c3f-4e00-84f9-25f0535c0001", "label": "State"}]'::jsonb;
+ADD COLUMN IF NOT EXISTS permit_ahjs jsonb DEFAULT '[{"id": "550e8400-e29b-41d4-a716-446655440000", "label": "City"}, {"id": "713f0a00-1c3f-4e00-84f9-25f0535c0001", "label": "State"}]'::jsonb,
+ADD COLUMN IF NOT EXISTS coord_groups jsonb DEFAULT '[]'::jsonb;
 
 -- 2.5 Project Sequences Table (For VE-001 IDs)
 CREATE TABLE IF NOT EXISTS project_sequences (
@@ -122,6 +123,12 @@ CREATE TABLE IF NOT EXISTS opportunities (
 
 -- Safely add item_assumptions if the table already exists
 ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS item_assumptions text;
+ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS coord_group_id text DEFAULT NULL;
+
+-- Index for group-based queries
+CREATE INDEX IF NOT EXISTS idx_opportunities_coord_group_id
+  ON opportunities (coord_group_id)
+  WHERE coord_group_id IS NOT NULL;
 
 -- 4. Opportunity Options (Contenders) Table
 CREATE TABLE IF NOT EXISTS opportunity_options (

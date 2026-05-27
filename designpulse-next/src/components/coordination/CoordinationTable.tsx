@@ -810,48 +810,52 @@ const EMPTY_VISIBILITY: VisibilityState = {};
 
               return (
                 <>
-                  {/* Unassigned group always first */}
-                  <CoordinationGroupHeaderRow
-                    group={null}
-                    groupId={UNASSIGNED_GROUP_ID}
-                    itemCount={unassignedRows.length}
-                    isCollapsed={collapsedGroupIds.includes(UNASSIGNED_GROUP_ID)}
-                    onToggle={() => toggleGroupCollapsed(projectId, UNASSIGNED_GROUP_ID)}
-                    onRename={() => {}}
-                    onColorChange={() => {}}
-                    onSelectAll={() => {
-                      const sel: RowSelectionState = {};
-                      unassignedRows.forEach(r => { sel[r.id] = true; });
-                      setRowSelection(prev => ({ ...prev, ...sel }));
-                    }}
-                    onDelete={() => {}}
-                    totalWidth={totalWidth}
-                    visibleColumnCount={visibleCols.length}
-                  />
-                  {!collapsedGroupIds.includes(UNASSIGNED_GROUP_ID) && unassignedRows.map(row => {
-                    const visibleColumnIds = row.getVisibleCells().map(c => c.column.id).join(',');
-                    const pinnedColumnOffsets = row.getVisibleCells()
-                      .filter(c => c.column.getIsPinned())
-                      .map(c => c.column.getStart('left'))
-                      .join(',');
-                    return (
-                      <MemoizedCoordinationRow
-                        key={row.id}
-                        row={row}
-                        virtualRow={{ index: row.index, start: 0, end: 44, size: 44, key: row.id, lane: 0 }}
-                        selectedOpportunityId={selectedOpportunityId}
-                        viewMode={viewMode}
-                        measureElement={() => {}}
-                        visibleColumnIds={visibleColumnIds}
-                        pinnedColumnOffsets={pinnedColumnOffsets}
-                        isRowSelected={row.getIsSelected()}
-                        groupColor="#94a3b8"
+                  {/* Unassigned group — only show if it has items */}
+                  {unassignedRows.length > 0 && (
+                    <>
+                      <CoordinationGroupHeaderRow
+                        group={null}
+                        groupId={UNASSIGNED_GROUP_ID}
+                        itemCount={unassignedRows.length}
+                        isCollapsed={collapsedGroupIds.includes(UNASSIGNED_GROUP_ID)}
+                        onToggle={() => toggleGroupCollapsed(projectId, UNASSIGNED_GROUP_ID)}
+                        onRename={() => {}}
+                        onColorChange={() => {}}
+                        onSelectAll={() => {
+                          const sel: RowSelectionState = {};
+                          unassignedRows.forEach(r => { sel[r.id] = true; });
+                          setRowSelection(prev => ({ ...prev, ...sel }));
+                        }}
+                        onDelete={() => {}}
+                        totalWidth={totalWidth}
+                        visibleColumnCount={visibleCols.length}
                       />
-                    );
-                  })}
+                      {!collapsedGroupIds.includes(UNASSIGNED_GROUP_ID) && unassignedRows.map(row => {
+                        const visibleColumnIds = row.getVisibleCells().map(c => c.column.id).join(',');
+                        const pinnedColumnOffsets = row.getVisibleCells()
+                          .filter(c => c.column.getIsPinned())
+                          .map(c => c.column.getStart('left'))
+                          .join(',');
+                        return (
+                          <MemoizedCoordinationRow
+                            key={row.id}
+                            row={row}
+                            virtualRow={{ index: row.index, start: 0, end: 44, size: 44, key: row.id, lane: 0 }}
+                            selectedOpportunityId={selectedOpportunityId}
+                            viewMode={viewMode}
+                            measureElement={() => {}}
+                            visibleColumnIds={visibleColumnIds}
+                            pinnedColumnOffsets={pinnedColumnOffsets}
+                            isRowSelected={row.getIsSelected()}
+                            groupColor="#94a3b8"
+                          />
+                        );
+                      })}
+                    </>
+                  )}
 
-                  {/* User-defined groups */}
-                  {groupBuckets.map(({ group, rows: groupRows }) => (
+                  {/* User-defined groups — only show groups with items */}
+                  {groupBuckets.filter(({ rows: groupRows }) => groupRows.length > 0).map(({ group, rows: groupRows }) => (
                     <React.Fragment key={group.id}>
                       <CoordinationGroupHeaderRow
                         group={group}

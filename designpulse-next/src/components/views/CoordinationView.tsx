@@ -17,7 +17,7 @@ import { useProjectSettings, useUpdateCoordGroups } from '@/hooks/useProjectCore
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { useURLFilters } from '@/hooks/useURLFilters';
 import type { Opportunity, DisciplineConfig, CoordGroupConfig } from '@/types/models';
-import { DEFAULT_DISCIPLINES } from '@/lib/constants';
+import { DEFAULT_DISCIPLINES, UNASSIGNED_GROUP_ID } from '@/lib/constants';
 
 interface CoordinationViewProps {
   projectId: string;
@@ -55,7 +55,8 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
     statuses: [] as string[],
     areas: [] as string[],
     disciplines: [] as string[],
-    codes: [] as string[]
+    codes: [] as string[],
+    groups: [] as string[]
   });
 
   // ── Global Filter linkage settings ──
@@ -72,6 +73,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
   const coordActiveBuildingAreas = isFilterLinkingEnabled ? globalBuildingAreas : urlFilters.areas;
   const coordActiveCostCodes = isFilterLinkingEnabled ? linkedCostCodes : urlFilters.codes;
   const coordActiveDisciplines = urlFilters.disciplines;
+  const coordActiveGroups = urlFilters.groups;
 
   const setCoordActiveBuildingAreas = useCallback((areas: string[]) => {
     if (isFilterLinkingEnabled) {
@@ -97,6 +99,10 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
   const setCoordActiveDisciplines = useCallback((disciplines: string[]) => {
     setUrlFilters(prev => ({ ...prev, disciplines }));
+  }, [setUrlFilters]);
+
+  const setCoordActiveGroups = useCallback((groups: string[]) => {
+    setUrlFilters(prev => ({ ...prev, groups }));
   }, [setUrlFilters]);
 
   // Sync global linking state back into URL search params
@@ -178,6 +184,11 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
       if (coordActiveBuildingAreas.length > 0 && !coordActiveBuildingAreas.includes(opp.building_area || '')) return false;
       if (coordActiveCostCodes.length > 0 && !coordActiveCostCodes.includes(opp.cost_code || '')) return false;
       
+      if (coordActiveGroups.length > 0) {
+        const itemGroupId = opp.coord_group_id ?? UNASSIGNED_GROUP_ID;
+        if (!coordActiveGroups.includes(itemGroupId)) return false;
+      }
+
       if (coordActiveDisciplines.length > 0) {
         const details = (opp.coordination_details as Record<string, any>) || {};
         const matchingDisciplineIds = projectDisciplines
@@ -194,7 +205,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
       return true;
     });
-  }, [coordinationOpportunities, coordActiveType, coordActiveStatuses, coordActiveBuildingAreas, coordActiveCostCodes, coordActiveDisciplines, projectDisciplines]);
+  }, [coordinationOpportunities, coordActiveType, coordActiveStatuses, coordActiveBuildingAreas, coordActiveCostCodes, coordActiveGroups, coordActiveDisciplines, projectDisciplines]);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative bg-slate-50 dark:bg-slate-950">
@@ -293,7 +304,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                   coordGroups={coordGroups}
                   onGroupsChange={handleGroupsChange}
                   filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length}
-                  onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); }}
+                  onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); setCoordActiveGroups([]); }}
                   filterSlot={
                     <>
                       <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-2">
@@ -323,6 +334,10 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Discipline</label>
                         <MultiSelectFilter fullWidth label="Discipline" options={disciplineLabels} selected={coordActiveDisciplines} onChange={setCoordActiveDisciplines} placeholder="Search disciplines..." />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Group</label>
+                        <MultiSelectFilter fullWidth label="Group" options={[...coordGroups.map(g => g.label), 'Unassigned']} selected={coordActiveGroups.map(id => id === UNASSIGNED_GROUP_ID ? 'Unassigned' : (coordGroups.find(g => g.id === id)?.label ?? id))} onChange={(labels) => setCoordActiveGroups(labels.map(l => l === 'Unassigned' ? UNASSIGNED_GROUP_ID : (coordGroups.find(g => g.label === l)?.id ?? l)))} placeholder="Search groups..." />
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cost Code</label>

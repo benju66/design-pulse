@@ -11,7 +11,7 @@ By centralizing Value Engineering (VE) data and design updates into a single sou
 - **Tri-State Master-Detail Grid:** A unified, high-performance Value Engineering matrix (`OpportunityGridV2`) powering both the Value Matrix (flat dense table with inline editing) and Budget Ledger (grouped financial view with compound cells). Supports split detail panels and pop-out isolated views for rapid data entry and evaluation. All tables across the application share a standardized component system (`src/components/data-table/`) with TanStack-native row selection, virtual scrolling, and shared cell primitives.
 - **Persistent Grid Pinning:** Enterprise-grade column pinning that merges global admin-defined default layouts with local, user-specific browser overrides, utilizing high-performance CSS and zero-JS tooltips.
 - **Enterprise Budget Ledger:** A management-by-exception view that merges VE opportunities with imported estimate line items into a unified financial grid. Features dense compound cells, variance threshold filtering ($0–$500k slider), a VE Focus toggle to isolate cost codes with active VE items, scoped filter pipelines preventing cross-view state leaks, neutral "Budget Line" status styling, and isolated column visibility persistence.
-- **Design Coordination Tracker:** A drag-and-drop Kanban pipeline for managing architectural and MEP drawing updates directly downstream from locked financial decisions.
+- **Design Coordination Tracker:** A drag-and-drop Kanban pipeline for managing architectural and MEP drawing updates directly downstream from locked financial decisions. Features Monday.com-style **Coordination Groups** — user-defined, color-coded containers (e.g., "Structural Package", "MEP Rough-In") that organize items into collapsible, color-striped group sections with per-group GhostRows. Supports three view modes: Split (table + detail), Board (Kanban), and Groups (grouped table with header rows). Groups are filterable via the Filter Drawer and bulk-assignable via the toolbar.
 - **Lessons Learned Engine:** A structured institutional knowledge capture system integrated into every project. Teams can log, categorize, and verify lessons using curated templates (Material Substitution, Subcontractor Performance, AHJ Requirement, Owner Specific). Verified lessons are cryptographically locked via database immutability triggers, with a SECURITY DEFINER RPC escape hatch for authorized re-opening. The schema includes AI/ML runway columns (`source_type`, `ai_confidence`, `ai_metadata`) for future summarization pipelines. Lessons are linkable to VE opportunity rows, searchable by CSI cost code, and surfaced proactively via the `get_lesson_indicators` RPC.
 - **Permits Tracker:** A specialized workspace for managing complex permit lifecycles, featuring both a high-fidelity Board view for status tracking and a Table view for granular detail management.
 - **Bulk Import Engine:** A multi-threaded, high-performance Excel processing pipeline that offloads heavy spreadsheet parsing off the main React rendering thread onto a dedicated background Web Worker using zero-copy Transferable Objects, ensuring a completely responsive 60 FPS UI experience during multi-megabyte uploads.
@@ -153,6 +153,75 @@ NEXT_PUBLIC_PROCORE_CLIENT_ID=
 ```
 
 ## 8. Release Notes
+
+---
+
+### v0.21 — Coordination Groups & Group-Based View Mode
+**Released:** 2026-05-27
+
+This release introduces Monday.com-style **Coordination Groups** — user-defined, color-coded containers that organize coordination items into collapsible, color-striped group sections. Items can be assigned to groups inline, bulk-assigned via the toolbar, and filtered by group in the Filter Drawer.
+
+#### Groups Infrastructure
+- **Group Definitions:** Stored as a `coord_groups` JSONB array in `project_settings` (same pattern as `disciplines`, `building_areas`, `categories`). Each group has `id`, `label`, `color`, and `order` properties.
+- **Group Assignment:** Items assigned via `opportunities.coord_group_id` text column (loose text FK pattern — no foreign key constraint, matching the `cost_code` convention).
+- **12-Color Palette:** Curated `COORD_GROUP_COLORS` constant with 12 distinct colors (indigo, violet, pink, amber, emerald, cyan, blue, orange, lime, rose, sky, purple).
+- **Full-Color Pills:** Group badges render with the full group color as background with white text — not a thin left-border sliver.
+
+#### Groups View Mode (Table)
+- **Third View Toggle:** New Layers icon button in the view switcher (between Split and Board) activates Groups mode.
+- **Collapsible Group Headers:** Full-width header rows with left color stripe, chevron toggle, item count, and context menu.
+- **Context Menu Actions:** Rename (inline edit), Change Color (swatch picker), Select All Items, Delete Group (moves items to Unassigned).
+- **Color Stripe Continuity:** Left `border-l-4` color stripe runs through all item rows within each group, matching Monday.com's signature visual pattern.
+- **Empty Bucket Hiding:** Group headers automatically disappear when their items are filtered out by any active filter.
+- **Zustand Persistence:** Collapsed group state persists per-project in `useUIStore` (v18) via `coordGroupCollapsed`.
+- **Validity Guard:** `isCoordViewMode()` function validates persisted view mode values at read time.
+
+#### Inline Group Assignment
+- **`CoordinationGroupCell`:** Inline popover cell in the `coord_group` column. Click to open dropdown with existing groups + "Create new group" at bottom.
+- **Create Flow:** Name input + color swatch picker → mints `crypto.randomUUID()` → appends to settings + assigns to row in one action.
+- **Firehose Rule Compliance:** All data comes from `table.options.meta` — zero hooks inside cell components.
+
+#### Bulk Operations
+- **`BulkGroupAssignMenu`:** New dropdown in the `BulkActionBar` `extraActions` slot (alongside `BulkStatusChangeMenu`). Lists all defined groups + "Remove from group" option.
+- **`useBulkUpdateCoordGroup`:** Batch mutation for bulk-assigning `coord_group_id` across selected rows.
+
+#### Group Filter
+- **Filter Drawer Integration:** "Group" multi-select filter added between Discipline and Cost Code. Supports filtering by specific groups or "Unassigned".
+- **No Badge Contribution:** Group filter selections don't increment the filter button badge count — it's a visibility control, not a narrowing filter.
+- **Header-Aware:** Filtering out a group removes both its items AND its group header row in Groups mode.
+
+#### Database Schema
+
+| Change | Detail |
+|--------|--------|
+| `project_settings.coord_groups` | New `jsonb DEFAULT '[]'::jsonb` column for group definitions |
+| `opportunities.coord_group_id` | New `text DEFAULT NULL` column for group assignment |
+| `idx_opportunities_coord_group_id` | Partial index on `coord_group_id WHERE NOT NULL` |
+
+#### Component Inventory
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `CoordinationGroupCell` | `src/components/coordination/CoordinationGroupCell.tsx` | Inline group assignment popover with create-group flow |
+| `CoordinationGroupHeaderRow` | `src/components/coordination/CoordinationGroupHeaderRow.tsx` | Full-width collapsible group header with color stripe |
+| `GroupContextMenu` | `src/components/coordination/GroupContextMenu.tsx` | Kebab menu: rename, recolor, select all, delete |
+| `BulkGroupAssignMenu` | `src/components/coordination/BulkGroupAssignMenu.tsx` | Bulk action bar dropdown for group assignment |
+| `CoordinationSwimLane` | `src/components/coordination/CoordinationSwimLane.tsx` | Kanban swim lane row (architectural runway for board integration) |
+
+#### Internal / Architecture
+
+| Item | Detail |
+|------|--------|
+| `useUIStore.ts` | v17→v18 migration: `coordGroupCollapsed`, `VALID_COORD_VIEW_MODES` guard, `'groups'` view mode |
+| `useProjectCoreQueries.ts` | Added `useUpdateCoordGroups` mutation (upserts `coord_groups` JSONB in `project_settings`) |
+| `useOpportunityQueries.ts` | Added `useBulkUpdateCoordGroup` for toolbar batch assignment |
+| `CoordinationTable.tsx` | Refactored: group sentinel rendering, per-group GhostRow, `groupColor` memo prop, empty-bucket hiding |
+| `CoordinationView.tsx` | Groups toggle, render guard fix, summary hide, Group filter in drawer, `useURLFilters` extended with `groups` |
+| `database.types.ts` | Added `coord_groups` to project_settings Row/Insert/Update; `coord_group_id` to opportunities |
+| `models.ts` | Added `CoordGroupConfig` interface and `coord_groups` to `ProjectSettings` |
+| `constants.ts` | Added `COORD_GROUP_COLORS`, `UNASSIGNED_GROUP_ID`, updated `DEFAULT_COORD_COLUMN_ORDER` |
+| `tanstack.d.ts` | Extended `TableMeta` with `coordGroups`, `onGroupsChange`, `isGroupsMode` |
+| Migration | `supabase_migrations/20260527_coord_groups.sql` |
 
 ---
 

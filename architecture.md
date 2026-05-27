@@ -1,8 +1,8 @@
 # DesignPulse — Architecture Document (C4 Model)
 
-> **Last Updated:** 2026-05-25  
+> **Last Updated:** 2026-05-27  
 > **Status:** Living Document  
-> **Application Version:** v0.17.1 (Sizing Locks, Zero-Baselines & Timeline Budget Deltas)  
+> **Application Version:** v0.21 (Coordination Groups & Group-Based Filtering)  
 > **Architecture Model:** [C4 Model](https://c4model.com/) by Simon Brown
 
 ---
@@ -147,7 +147,7 @@ C4Component
     Container_Boundary(fe, "Next.js Frontend") {
         Component(router, "App Router", "Next.js 16 App Router", "6 page routes + 3 API routes. Root layout is the only server component; all pages are client-rendered.")
         Component(views, "View System", "React 19", "10 workspace views switched via Zustand state: VE Matrix, Budget Ledger, Coordination, Map, Analytics, Permits, Lessons, My Desk, Settings, Budget Compare")
-        Component(components, "Component Library", "107 TSX files across 15 directories", "Feature components: opportunities (16), coordination (7), canvas (10), drawings (8), permits (7), analytics (11), dashboard (8), project (7), clients (5), lessons (3)")
+        Component(components, "Component Library", "112+ TSX files across 15 directories", "Feature components: opportunities (16), coordination (13), canvas (10), drawings (8), permits (7), analytics (11), dashboard (8), project (7), clients (5), lessons (3)")
         Component(data_table, "Shared Data Table", "@tanstack/react-table + custom", "Composable grid system: DataTable, TableHeader, MemoizedRow, GhostRow, BulkActionBar, 8 cell types")
         Component(hooks, "React Query Hooks", "@tanstack/react-query v5", "23 hook files wrapping Supabase calls. Full optimistic update + rollback pattern on all mutations.")
         Component(stores, "Zustand Stores", "Zustand v5", "useUIStore (localStorage, v10 migration chain), useMapStore (sessionStorage), useBulkImportStore (ephemeral)")
@@ -192,7 +192,7 @@ C4Component
 |----------|---------|-------------------|------|
 | `dashboard` | Value Matrix | `OpportunityGridV2` | 57 KB |
 | `dashboard-v2` | Budget Ledger | `OpportunityGridV2` (shared, merged mode) | 57 KB |
-| `coordination` | Coordination Board | `CoordinationTable` | 30 KB |
+| `coordination` | Coordination Board | `CoordinationTable` + `CoordinationGroupHeaderRow` | 47 KB + 5 KB |
 | `map` | Floor Plans | `FloorplanCanvas` + `DrawingGrid` | 37 KB + 28 KB |
 | `analytics` | Analytics | `AnalyticsDashboard` + role-specific dashboards | — |
 | `permits` | Permit Tracker | `PermitTable` | 36 KB |
@@ -207,7 +207,7 @@ C4Component
 
 | Store | File | Persistence | Key Responsibilities |
 |-------|------|-------------|----------------------|
-| `useUIStore` | `src/stores/useUIStore.ts` (500+ lines) | `localStorage` (`design-pulse-ui-prefs`, v14 with migration chain v0→v14) | Active view per project, selected row, grid modes, column visibility/order/pinning/filters per project (including deliverables preferences), panel collapse states, card ordering, filter prefs, sandbox panel toggle |
+| `useUIStore` | `src/stores/useUIStore.ts` (550+ lines) | `localStorage` (`design-pulse-ui-prefs`, v18 with migration chain v0→v18) | Active view per project, selected row, grid modes, column visibility/order/pinning/filters per project (including deliverables preferences), panel collapse states, card ordering, filter prefs, coordination group collapse state, sandbox panel toggle |
 | `useMapStore` | `src/stores/useMapStore.ts` (118 lines) | `sessionStorage` (`designpulse-map-session`, v2) | Tool mode (8 modes), selected zones, active sheet, open sheet tabs, pending polygon, editing zone |
 | `useBulkImportStore` | Inline in `BulkImportModal.tsx` | None (ephemeral) | Staged Excel import rows for coordination task bulk import |
 
@@ -220,7 +220,7 @@ C4Component
 | `useOpportunityQueries.ts` (920 lines) | VE Decision Engine | `useOpportunities`, `useOpportunity`, `useAllProjectOptions`, `usePendingEstimateUpdates` | `useCreateOpportunity`, `useUpdateOpportunity`, `useDeleteOpportunity`, `useLockOption`, `useUnlockOpportunityOption`, `useToggleOptionBudget`, `useCreateOption`, `useUpdateOption`, `useDeleteOption`, `useReorderOptions`, `useReconcileOpportunity`, `useReturnOpportunity`, `useDeEscalateOpportunity`, `useUpdateCoordinationDetails`, `useUpdateOptionRequirements`, `useBulkImportCoordinationTasks` |
 | `useEstimateQueries.ts` | Budget Engine | `useEstimateVersions`, `useEstimateLines`, `useBudgetWaterfall`, `useEstimateComparison`, `useMasterLedgerGrid`, `useMultiVersionMatrix`, `useBudgetVersionTimeline`, `useVarianceNotes`, `useVarianceNotesForGrid` | `useUploadEstimate`, `useActivateEstimateVersion`, `useDeleteEstimateVersion`, `useUpdateEstimateAssumptions` |
 | `useMapQueries.ts` | Floor Plans | `useProjectSheets`, `useSheetMarkups` | `useUpsertSheetMarkups` + sheet CRUD |
-| `useProjectCoreQueries.ts` | Projects & Settings | `useProjects`, `useProjectSettings`, `useProjectMembers` | `useCreateProject`, `useUpdateProjectCore`, `useDeleteProjectCore`, `useUpdateProjectSettings`, `useAddProjectMember`, `useUpdateProjectMemberRole`, `useRemoveProjectMember` |
+| `useProjectCoreQueries.ts` | Projects & Settings | `useProjects`, `useProjectSettings`, `useProjectMembers` | `useCreateProject`, `useUpdateProjectCore`, `useDeleteProjectCore`, `useUpdateProjectSettings`, `useAddProjectMember`, `useUpdateProjectMemberRole`, `useRemoveProjectMember`, `useUpdateCoordGroups` |
 | `useClientQueries.ts` | Clients | `useClients`, `useClient`, `useClientProjectsMetrics`, `useClientBrandStandards`, `useClientDocuments` | `useCreateClient`, `useUpdateClient`, `useDeleteClient`, `useCreateBrandStandard`, `useUpdateBrandStandard`, `useDeleteBrandStandard`, `useUploadClientDocument`, `useDeleteClientDocument` |
 | `useGlobalQueries.ts` | Admin/Global | `useSystemUsers`, `useRolePermissions`, `useCsiTrainingSuggestions` | `useBulkUpdateUserProjects`, `useToggleCsiVerified`, `useRemapGlobalCsiEntry`, `useCreateCostCode`, `useDeleteCostCode` |
 | `usePermitQueries.ts` | Permits | `usePermits`, `usePermitComments`, `usePermitTaskLinks` | Permit CRUD mutations |
@@ -483,7 +483,7 @@ design-pulse/                           # Informal monorepo (no workspace manage
 │   │   │   └── api/                    #     API routes (Procore OAuth + proxy)
 │   │   ├── components/                 #   107 TSX files across 15 directories
 │   │   │   ├── opportunities/ (16)     #     VE items: grid cells, cards, columns
-│   │   │   ├── coordination/ (7)       #     Board, table, detail panel, import
+│   │   │   ├── coordination/ (13)      #     Board, table, groups (header, cell, context menu, bulk assign, swim lane), detail panel, import
 │   │   │   ├── canvas/ (10)            #     Map zones, tiles, legend, viewport
 │   │   │   ├── drawings/ (8)           #     PDF import, drawing grid, wizard
 │   │   │   ├── analytics/ (11)         #     Charts, role-specific dashboards
@@ -622,7 +622,7 @@ defaultOptions: {
 | `PermitTable.tsx` | 36 KB | Permit tracking grid |
 | `SortableContenderCard.tsx` | 34 KB | Drag-and-drop contender card |
 | `ExpandedCard.tsx` | 33 KB | Opportunity detail panel |
-| `CoordinationTable.tsx` | 30 KB | Coordination board table |
+| `CoordinationTable.tsx` | 47 KB | Coordination board table with group-mode sentinel rendering |
 | `EditableCell.tsx` | 30 KB | Editable grid cell component |
 
 ---
@@ -637,6 +637,7 @@ defaultOptions: {
 | **Potential Exposure** | `Math.max()` of unresolved options — worst-case financial risk for executives. |
 | **Progressive Disclosure** | Data revealed based on workflow stage. Locked decisions unlock coordination checklists. |
 | **Coordination Status** | Auto-calculated from per-discipline completion in `coordination_details` JSONB. |
+| **Coordination Groups** | User-defined named containers stored as `coord_groups` JSONB array in `project_settings`. Items assigned via `opportunities.coord_group_id` loose text FK. Groups mode renders collapsible color-striped group headers with per-group item bucketing. |
 | **Estimate Sync Status** | Tracks whether a locked VE item has been incorporated into the active budget version. |
 | **UOPM** | Upload Once, Process Many — PDFs staged once, pages processed individually. |
 | **Rosetta Stone** | CSI cost code mapping system — bridges different naming conventions across trades. |

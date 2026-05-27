@@ -54,6 +54,8 @@ interface Props {
 
 // Module-level stable empty array for Zustand selector stability (deep-review Issue 9)
 const EMPTY_COLLAPSED_ARRAY: string[] = [];
+// Module-level stable empty array for coordGroups default (Rule C47 — Issue A)
+const EMPTY_GROUPS: CoordGroupConfig[] = [];
 
 // Custom Discipline Status Cell
 {/* eslint-disable-next-line react/display-name */}
@@ -271,7 +273,7 @@ const MemoizedCoordinationRow = React.memo(({
   return true;
 });
 
-export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat', filterSlot, filterActiveCount = 0, onClearFilters, coordGroups = [], isGroupsMode = false, onGroupsChange, activeGroupIds = [] }: Props) {
+export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat', filterSlot, filterActiveCount = 0, onClearFilters, coordGroups = EMPTY_GROUPS, isGroupsMode = false, onGroupsChange, activeGroupIds = [] }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
   const isMapVisible = useUIStore(state => state.isMapVisible);
@@ -667,6 +669,29 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   );
   const toggleGroupCollapsed = useUIStore(s => s.toggleCoordGroupCollapsed);
 
+  // Memoized single-pass O(n) group bucketing (Fix 3)
+  const sortedGroups = useMemo(() =>
+    [...coordGroups].sort((a, b) => a.order - b.order),
+    [coordGroups]
+  );
+
+  const groupedRows = useMemo(() => {
+    if (!isGroupsMode) return null;
+    const bucketMap = new Map<string, Row<Opportunity>[]>();
+    const unassigned: Row<Opportunity>[] = [];
+    for (const row of rows) {
+      const gid = row.original.coord_group_id;
+      if (!gid) { unassigned.push(row); continue; }
+      const bucket = bucketMap.get(gid);
+      if (bucket) bucket.push(row);
+      else bucketMap.set(gid, [row]);
+    }
+    return {
+      unassigned,
+      groups: sortedGroups.map(g => ({ group: g, rows: bucketMap.get(g.id) ?? [] })),
+    };
+  }, [isGroupsMode, rows, sortedGroups]);
+
   useEffect(() => {
     if (selectedOpportunityId) {
       const index = rows.findIndex(r => r.original.id === selectedOpportunityId);
@@ -799,40 +824,33 @@ const EMPTY_VISIBILITY: VisibilityState = {};
             </thead>
             
             {/* ── Groups Mode or Flat Mode Rendering ── */}
-            {isGroupsMode ? (() => {
-              // Build ordered group buckets
-              const sortedGroups = [...coordGroups].sort((a, b) => a.order - b.order);
-              const unassignedRows = rows.filter(r => !r.original.coord_group_id);
-              const groupBuckets = sortedGroups.map(g => ({
-                group: g,
-                rows: rows.filter(r => r.original.coord_group_id === g.id),
-              }));
+            {isGroupsMode && groupedRows ? (() => {
               const visibleCols = table.getVisibleFlatColumns();
               const totalWidth = table.getTotalSize();
 
               return (
                 <>
-                  {/* Unassigned group — only show if it has items */}
-                  {unassignedRows.length > 0 && (
+                  {/* Unassigned group */}
+                  {groupedRows.unassigned.length > 0 && (
                     <>
                       <CoordinationGroupHeaderRow
                         group={null}
                         groupId={UNASSIGNED_GROUP_ID}
-                        itemCount={unassignedRows.length}
+                        itemCount={groupedRows.unassigned.length}
                         isCollapsed={collapsedGroupIds.includes(UNASSIGNED_GROUP_ID)}
                         onToggle={() => toggleGroupCollapsed(projectId, UNASSIGNED_GROUP_ID)}
                         onRename={() => {}}
                         onColorChange={() => {}}
                         onSelectAll={() => {
                           const sel: RowSelectionState = {};
-                          unassignedRows.forEach(r => { sel[r.id] = true; });
+                          groupedRows.unassigned.forEach(r => { sel[r.id] = true; });
                           setRowSelection(prev => ({ ...prev, ...sel }));
                         }}
                         onDelete={() => {}}
                         totalWidth={totalWidth}
                         visibleColumnCount={visibleCols.length}
                       />
-                      {!collapsedGroupIds.includes(UNASSIGNED_GROUP_ID) && unassignedRows.map(row => {
+                      {!collapsedGroupIds.includes(UNASSIGNED_GROUP_ID) && groupedRows.unassigned.map(row => {
                         const visibleColumnIds = row.getVisibleCells().map(c => c.column.id).join(',');
                         const pinnedColumnOffsets = row.getVisibleCells()
                           .filter(c => c.column.getIsPinned())
@@ -856,8 +874,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                     </>
                   )}
 
-                  {/* User-defined groups — only show groups with items */}
-                  {groupBuckets.filter(({ rows: groupRows }) => groupRows.length > 0).map(({ group, rows: groupRows }) => (
+                  {/* User-defined groups — all groups shown, empty groups get placeholder (Fix 4) */}
+                  {groupedRows.groups.map(({ group, rows: groupRows }) => (
                     <React.Fragment key={group.id}>
                       <CoordinationGroupHeaderRow
                         group={group}
@@ -880,7 +898,6 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                         }}
                         onDelete={() => {
                           if (!onGroupsChange) return;
-                          // Move items back to unassigned
                           const ids = groupRows.map(r => r.original.id);
                           if (ids.length > 0) {
                             bulkGroupMutation.mutate({ ids, groupId: null });
@@ -890,6 +907,13 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                         totalWidth={totalWidth}
                         visibleColumnCount={visibleCols.length}
                       />
+                      {!collapsedGroupIds.includes(group.id) && groupRows.length === 0 && (
+                        <tbody><tr>
+                          <td colSpan={visibleCols.length} className="px-8 py-3 text-xs text-slate-400 dark:text-slate-500 italic" style={{ minWidth: totalWidth }}>
+                            No items in this group
+                          </td>
+                        </tr></tbody>
+                      )}
                       {!collapsedGroupIds.includes(group.id) && groupRows.map(row => {
                         const visibleColumnIds = row.getVisibleCells().map(c => c.column.id).join(',');
                         const pinnedColumnOffsets = row.getVisibleCells()

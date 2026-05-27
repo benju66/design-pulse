@@ -214,6 +214,13 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
   }, [coordinationOpportunities]);
 
   const filteredOpportunities = useMemo(() => {
+    // Pre-compute discipline ID set once — not per-row (Fix 5)
+    const matchingDisciplineIds = coordActiveDisciplines.length > 0
+      ? new Set(projectDisciplines
+          .filter(d => coordActiveDisciplines.includes(d.label))
+          .map(d => d.id))
+      : null;
+
     return coordinationOpportunities.filter(opp => {
       if (coordActiveType !== 'All' && (opp.record_type || 'VE') !== coordActiveType) return false;
       if (coordActiveStatuses.length > 0 && !coordActiveStatuses.includes(opp.coordination_status || '')) return false;
@@ -225,18 +232,14 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
         if (!coordActiveGroups.includes(itemGroupId)) return false;
       }
 
-      if (coordActiveDisciplines.length > 0) {
-        const details = (opp.coordination_details as Record<string, any>) || {};
-        const matchingDisciplineIds = projectDisciplines
-          .filter(d => coordActiveDisciplines.includes(d.label))
-          .map(d => d.id);
-          
-        const hasMatchingDiscipline = matchingDisciplineIds.some(id => {
+      if (matchingDisciplineIds) {
+        const details = (opp.coordination_details as Record<string, unknown>) || {};
+        const hasMatch = Array.from(matchingDisciplineIds).some(id => {
           const disc = details[id];
-          return disc && disc.status && disc.status !== 'Not Required';
+          return typeof disc === 'object' && disc !== null && 'status' in disc
+            && (disc as { status: string }).status !== 'Not Required';
         });
-        
-        if (!hasMatchingDiscipline) return false;
+        if (!hasMatch) return false;
       }
 
       return true;
@@ -340,7 +343,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                   coordGroups={coordGroups}
                   onGroupsChange={handleGroupsChange}
                   activeGroupIds={coordActiveGroups}
-                  filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length}
+                  filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length + coordActiveGroups.length}
                   onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); setCoordActiveGroups([]); }}
                   filterSlot={
                     <>

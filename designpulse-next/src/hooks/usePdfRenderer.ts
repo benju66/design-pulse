@@ -13,9 +13,6 @@ const MAX_CANVAS_PIXELS = 67_000_000;
 // at higher resolution. Lowered from 3.0 to catch blur early.
 const DEEP_ZOOM_THRESHOLD = 1.5;
 
-// Debounce delay for zoom/pan-triggered viewport re-renders (ms)
-const ZOOM_DEBOUNCE_MS = 150;
-
 // Base render scale: match physical screen density for retina sharpness.
 // Math.max ensures at least 2× on standard screens.
 const BASE_RENDER_SCALE = typeof window !== 'undefined'
@@ -118,7 +115,6 @@ export function usePdfRenderer(
   const activeViewportRenderRef = useRef<{ cancel: () => void } | null>(null);
   const pdfDocRef = useRef<{ destroy: () => Promise<void> } | null>(null);
   const cachedArrayBufferRef = useRef<{ sheetId: string; buffer: ArrayBuffer } | null>(null);
-  const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentSheetIdRef = useRef<string | null>(null);
   const retryCounterRef = useRef(0);
   const mountedRef = useRef(true);
@@ -126,12 +122,22 @@ export function usePdfRenderer(
   // Track the active render scale to avoid redundant re-renders
   const activeScaleRef = useRef(0);
 
+  // Cached pdf.js page object — avoids async doc.getPage(1) in the zoom hot path.
+  // Set during main download effect, cleared on cleanup/sheet switch.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cachedPageRef = useRef<any>(null);
+
   // Deep Review Fix: ref-based viewportRect to prevent useEffect churn.
   // visibleBoundingBox creates a new object on every pan frame — if used as a
   // useEffect dep, the effect would fire on every pan micro-step. The ref lets
-  // the debounced timer read the latest value without being a dependency.
+  // the render callback read the latest value without being a dependency.
   const viewportRectRef = useRef<ViewportRect | null>(null);
   viewportRectRef.current = viewportRect;
+
+  // Ref-based stageScale: the async render callback reads the latest value
+  // instead of the closure-captured stale value during rapid zoom.
+  const stageScaleRef = useRef(stageScale);
+  stageScaleRef.current = stageScale;
 
   // ── Cleanup helper ──────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
@@ -147,17 +153,12 @@ export function usePdfRenderer(
     activeViewportRenderRef.current?.cancel();
     activeViewportRenderRef.current = null;
 
-    // Clear zoom debounce
-    if (zoomDebounceRef.current) {
-      clearTimeout(zoomDebounceRef.current);
-      zoomDebounceRef.current = null;
-    }
-
     // Close PDF document (releases pdf.js memory)
     if (pdfDocRef.current) {
       pdfDocRef.current.destroy().catch(() => {});
       pdfDocRef.current = null;
     }
+    cachedPageRef.current = null;
   }, []);
 
   // ── Core render function ────────────────────────────────────────────────
@@ -358,6 +359,7 @@ export function usePdfRenderer(
 
         const page = await doc.getPage(1);
         if (controller.signal.aborted) return;
+        cachedPageRef.current = page;
 
         // Store rendered dimensions (Guardrail 4: pixel dimensions, not PDF points)
         const pageW = page.view[2] as number;
@@ -422,10 +424,10 @@ export function usePdfRenderer(
   }, [sheetId, pdfStoragePath, renderScale]);
 
   // ── Deep zoom viewport re-render effect ─────────────────────────────────
-  // When zoomed past threshold, renders only the visible viewport region at
-  // high resolution. Below threshold, clears any viewport overlay.
-  // viewportRect is read from ref — NOT a dependency — to prevent effect churn
-  // (the object reference changes on every pan frame).
+  // Renders the visible viewport region at high resolution when zoomed past
+  // threshold. Executes immediately (no second debounce) because stageScale
+  // is already debounced by FloorplanCanvas (100ms). viewportRect and
+  // stageScale are read from refs for latest values.
   useEffect(() => {
     if (!sheetId || !pdfStoragePath || error || isLoading) return;
 
@@ -436,25 +438,33 @@ export function usePdfRenderer(
       return;
     }
 
-    if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
+    // Immediately clear stale overlay from the previous zoom level.
+    // The base layer (correctly scaled by Konva) provides visual continuity
+    // while the new high-res viewport render completes.
+    setViewportBitmap(prev => { prev?.close(); return null; });
+    setViewportPosition(null);
 
-    zoomDebounceRef.current = setTimeout(async () => {
+    // Start render immediately — no second debounce needed.
+    // stageScale is already debounced 100ms by FloorplanCanvas.
+    // Cancel-on-refire via activeViewportRenderRef handles rapid calls.
+    let cancelled = false;
+
+    const renderOverlay = async () => {
       if (currentSheetIdRef.current !== sheetId) return;
-      if (!pdfDocRef.current) return;
 
-      // Read latest viewport from ref (not closure-captured prop)
+      // Read latest viewport and scale from refs (not closure-captured props)
       const currentRect = viewportRectRef.current;
       if (!currentRect) return;
 
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const doc = pdfDocRef.current as any;
-        const page = await doc.getPage(1);
+        const page = cachedPageRef.current;
+        if (!page) return;
 
-        const result = await renderViewportRegion(page, currentRect, stageScale);
+        const currentScale = stageScaleRef.current;
+        const result = await renderViewportRegion(page, currentRect, currentScale);
 
-        // Race guard: sheet may have changed during async render
-        if (currentSheetIdRef.current !== sheetId) {
+        // Race guard: effect may have been cleaned up during async render
+        if (cancelled || currentSheetIdRef.current !== sheetId) {
           result?.bitmap.close();
           return;
         }
@@ -466,16 +476,14 @@ export function usePdfRenderer(
       } catch {
         // Non-fatal — user keeps base layer quality
       }
-    }, ZOOM_DEBOUNCE_MS);
+    };
+
+    renderOverlay();
 
     return () => {
-      if (zoomDebounceRef.current) {
-        clearTimeout(zoomDebounceRef.current);
-        zoomDebounceRef.current = null;
-      }
+      cancelled = true;
+      activeViewportRenderRef.current?.cancel();
     };
-    // stageScale triggers mode change; stagePosition (via viewportRect) triggers
-    // re-render on pan stop. viewportRect is read from ref inside the timer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageScale, sheetId, pdfStoragePath, error, isLoading, renderViewportRegion]);
 

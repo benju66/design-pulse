@@ -17,10 +17,10 @@ import {
   getExpandedRowModel
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
-import { Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, PanelRight, MessageCirclePlus, Layers } from 'lucide-react';
-import { Opportunity, DisciplineConfig, CoordGroupConfig } from '@/types/models';
+import { Map as MapIcon, ChevronDown, ChevronUp, ChevronRight, SlidersHorizontal, PanelRight, MessageCirclePlus, Layers, ChevronsUpDown } from 'lucide-react';
+import { Opportunity, DisciplineConfig, CoordGroupConfig, CoordinationTask } from '@/types/models';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
-import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useBulkUpdateCoordinationStatus, useBulkUpdateCoordGroup } from '@/hooks/useOpportunityQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useBulkUpdateCoordinationStatus, useBulkUpdateCoordGroup, useUpdateCoordinationDetails } from '@/hooks/useOpportunityQueries';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { TextCell, PriorityCell, BuildingAreaCell, CostCodeCell, CsiSpecCell, DivisionCell } from '@/components/opportunities/EditableCell';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
@@ -37,6 +37,8 @@ import { BulkStatusChangeMenu } from './BulkStatusChangeMenu';
 import { BulkGroupAssignMenu } from './BulkGroupAssignMenu';
 import { CoordinationGroupCell } from './CoordinationGroupCell';
 import { CoordinationGroupHeaderRow } from './CoordinationGroupHeaderRow';
+import { SubTaskMiniTable } from './SubTaskMiniTable';
+import { getSubTaskSummary } from '@/lib/coordinationUtils';
 
 interface Props {
   projectId: string;
@@ -239,7 +241,16 @@ const MemoizedCoordinationRow = React.memo(({
   viewMode,
   measureElement,
   isRowSelected,
+  isExpanded,
   groupColor,
+  disciplines,
+  canEdit,
+  onDisciplineStatusChange,
+  onTaskStatusChange,
+  onTaskTitleChange,
+  onTaskAssigneeChange,
+  onTaskDelete,
+  onTaskCreate,
 }: { 
   row: Row<Opportunity>; 
   virtualRow: VirtualItem; 
@@ -249,7 +260,16 @@ const MemoizedCoordinationRow = React.memo(({
   visibleColumnIds: string;
   pinnedColumnOffsets: string;
   isRowSelected: boolean;
+  isExpanded: boolean;
   groupColor?: string;
+  disciplines: DisciplineConfig[];
+  canEdit: boolean;
+  onDisciplineStatusChange: (oppId: string, discId: string, newStatus: string) => void;
+  onTaskStatusChange: (oppId: string, taskId: string, newStatus: string) => void;
+  onTaskTitleChange: (oppId: string, taskId: string, newTitle: string) => void;
+  onTaskAssigneeChange: (oppId: string, taskId: string, newAssignee: string) => void;
+  onTaskDelete: (oppId: string, taskId: string) => void;
+  onTaskCreate: (oppId: string, title: string) => void;
 }) => {
   return (
     <tbody 
@@ -290,10 +310,28 @@ const MemoizedCoordinationRow = React.memo(({
           );
         })}
       </tr>
-      {viewMode === 'card' && row.getIsExpanded() && (
+      {viewMode === 'card' && isExpanded && (
         <tr>
           <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-100 dark:border-slate-800/50">
             <ExpandedCard row={row} />
+          </td>
+        </tr>
+      )}
+      {viewMode !== 'card' && isExpanded && (
+        <tr>
+          <td colSpan={row.getVisibleCells().length} className="p-0 border-b border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
+            <SubTaskMiniTable
+              opportunityId={row.original.id}
+              disciplines={disciplines}
+              coordinationDetails={row.original.coordination_details}
+              canEdit={canEdit}
+              onDisciplineStatusChange={onDisciplineStatusChange}
+              onTaskStatusChange={onTaskStatusChange}
+              onTaskTitleChange={onTaskTitleChange}
+              onTaskAssigneeChange={onTaskAssigneeChange}
+              onTaskDelete={onTaskDelete}
+              onTaskCreate={onTaskCreate}
+            />
           </td>
         </tr>
       )}
@@ -305,9 +343,10 @@ const MemoizedCoordinationRow = React.memo(({
   if (prevProps.viewMode !== nextProps.viewMode) return false;
   if (prevProps.visibleColumnIds !== nextProps.visibleColumnIds) return false;
   if (prevProps.pinnedColumnOffsets !== nextProps.pinnedColumnOffsets) return false;
-  if (prevProps.row.getIsExpanded() !== nextProps.row.getIsExpanded()) return false;
+  if (prevProps.isExpanded !== nextProps.isExpanded) return false;
   if (prevProps.isRowSelected !== nextProps.isRowSelected) return false;
   if (prevProps.groupColor !== nextProps.groupColor) return false;
+  if (prevProps.canEdit !== nextProps.canEdit) return false;
   return true;
 });
 
@@ -344,6 +383,64 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
 
   const bulkGroupMutation = useBulkUpdateCoordGroup(projectId);
   const [isBulkGroupUpdating, setIsBulkGroupUpdating] = useState(false);
+
+  // ── Sub-task mutation callbacks (lifted here per Rule C24 — not in N-rendered SubTaskMiniTable) ──
+  const updateCoordDetails = useUpdateCoordinationDetails(projectId);
+
+  const handleSubTaskStatusChange = useCallback((oppId: string, taskId: string, newStatus: string) => {
+    const opp = opportunities.find(o => o.id === oppId);
+    if (!opp) return;
+    const details = (opp.coordination_details || {}) as Record<string, unknown>;
+    const tasks = Array.isArray(details.tasks) ? [...(details.tasks as CoordinationTask[])] : [];
+    const updated = tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t);
+    updateCoordDetails.mutate({ id: oppId, updates: { tasks: updated } });
+  }, [opportunities, updateCoordDetails]);
+
+  const handleSubTaskAssigneeChange = useCallback((oppId: string, taskId: string, newAssignee: string) => {
+    const opp = opportunities.find(o => o.id === oppId);
+    if (!opp) return;
+    const details = (opp.coordination_details || {}) as Record<string, unknown>;
+    const tasks = Array.isArray(details.tasks) ? [...(details.tasks as CoordinationTask[])] : [];
+    const updated = tasks.map(t => t.id === taskId ? { ...t, assignee: newAssignee || null } : t);
+    updateCoordDetails.mutate({ id: oppId, updates: { tasks: updated } });
+  }, [opportunities, updateCoordDetails]);
+
+  const handleSubTaskTitleChange = useCallback((oppId: string, taskId: string, newTitle: string) => {
+    const opp = opportunities.find(o => o.id === oppId);
+    if (!opp) return;
+    const details = (opp.coordination_details || {}) as Record<string, unknown>;
+    const tasks = Array.isArray(details.tasks) ? [...(details.tasks as CoordinationTask[])] : [];
+    const updated = tasks.map(t => t.id === taskId ? { ...t, title: newTitle } : t);
+    updateCoordDetails.mutate({ id: oppId, updates: { tasks: updated } });
+  }, [opportunities, updateCoordDetails]);
+
+  const handleSubTaskDelete = useCallback((oppId: string, taskId: string) => {
+    const opp = opportunities.find(o => o.id === oppId);
+    if (!opp) return;
+    const details = (opp.coordination_details || {}) as Record<string, unknown>;
+    const tasks = Array.isArray(details.tasks) ? [...(details.tasks as CoordinationTask[])] : [];
+    const updated = tasks.filter(t => t.id !== taskId);
+    updateCoordDetails.mutate({ id: oppId, updates: { tasks: updated } });
+  }, [opportunities, updateCoordDetails]);
+
+  const handleSubTaskCreate = useCallback((oppId: string, title: string) => {
+    const opp = opportunities.find(o => o.id === oppId);
+    if (!opp) return;
+    const details = (opp.coordination_details || {}) as Record<string, unknown>;
+    const tasks = Array.isArray(details.tasks) ? [...(details.tasks as CoordinationTask[])] : [];
+    const newTask: CoordinationTask = {
+      id: crypto.randomUUID(),
+      title,
+      status: 'Open',
+      assignee: null,
+      order_index: tasks.length,
+    };
+    updateCoordDetails.mutate({ id: oppId, updates: { tasks: [...tasks, newTask] } });
+  }, [opportunities, updateCoordDetails]);
+
+  const handleDisciplineStatusChange = useCallback((oppId: string, discId: string, newStatus: string) => {
+    updateCoordDetails.mutate({ id: oppId, updates: { [discId]: { status: newStatus, notes: '' } } });
+  }, [updateCoordDetails]);
 
   // TanStack native row selection — replaces Zustand compareQueue
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -479,8 +576,8 @@ const EMPTY_VISIBILITY: VisibilityState = {};
   ) ?? { pinned: [], unpinned: [] };
 
   const columnPinning = useMemo(() => {
-    // select + open_panel are always pinned regardless of user overrides
-    const alwaysPinned = ['select', 'open_panel'];
+    // select + expand + open_panel are always pinned regardless of user overrides
+    const alwaysPinned = ['select', 'expand', 'open_panel'];
     const allPinned = new Set([...alwaysPinned, ...userPinningOverrides.pinned]);
     userPinningOverrides.unpinned.forEach(id => allPinned.delete(id));
     // Re-add always-pinned after clearing overrides so stale localStorage cannot unpin them
@@ -503,6 +600,33 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       header: ({ table }) => <CheckboxHeader table={table} disabled={!permissions.can_edit_records} />,
       cell: (info) => <CheckboxCell info={info} disabled={!permissions.can_edit_records} />,
       size: 40,
+    },
+    {
+      id: 'expand',
+      header: () => null,
+      size: 40,
+      enableResizing: false,
+      enableSorting: false,
+      cell: ({ row }: CellContext<Opportunity, unknown>) => {
+        const details = (row.original.coordination_details || {}) as Record<string, unknown>;
+        const tasks = Array.isArray(details.tasks) ? details.tasks : [];
+        const hasDisciplines = disciplines.some(d => {
+          const entry = details[d.id];
+          return typeof entry === 'object' && entry !== null && 'status' in entry && (entry as { status: string }).status !== 'Not Required';
+        });
+        const hasSubItems = hasDisciplines || tasks.length > 0;
+        if (!hasSubItems) return null;
+        return (
+          <div className="flex items-center justify-center h-full">
+            <button
+              onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
+              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            >
+              {row.getIsExpanded() ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+          </div>
+        );
+      },
     },
     {
       id: 'open_panel',
@@ -633,8 +757,34 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       cell: CoordinationGroupCell,
       enableSorting: true,
       enableResizing: true,
+    },
+    {
+      id: 'sub_task_summary',
+      header: 'Checklist',
+      size: 100,
+      enableSorting: false,
+      enableResizing: true,
+      cell: ({ row }: CellContext<Opportunity, unknown>) => {
+        const { done, total } = getSubTaskSummary(row.original, disciplines);
+        if (total === 0) return <div className="flex items-center justify-center h-full text-xs text-slate-300 dark:text-slate-600">—</div>;
+        const pct = Math.round((done / total) * 100);
+        const isComplete = done === total;
+        return (
+          <div className="flex items-center gap-2 px-2 h-full">
+            <span className={`text-xs font-bold tabular-nums ${isComplete ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}`}>
+              {done}/{total}
+            </span>
+            <div className="flex-1 h-1 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${isComplete ? 'bg-emerald-500' : 'bg-sky-500'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      },
     }
-  ], [permissions]);
+  ], [permissions, disciplines]);
 
   const activeColumns = useMemo(() => {
     if (!settings?.coord_column_order || typeof settings.coord_column_order[0] === 'string') return columns;
@@ -808,6 +958,17 @@ const EMPTY_VISIBILITY: VisibilityState = {};
               <span>Group</span>
             </button>
             <button
+              onClick={() => {
+                const anyExpanded = table.getIsAllRowsExpanded() || table.getIsSomeRowsExpanded();
+                table.toggleAllRowsExpanded(!anyExpanded);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+              title={table.getIsSomeRowsExpanded() ? 'Collapse All Checklists' : 'Expand All Checklists'}
+            >
+              <ChevronsUpDown size={15} />
+              <span>{table.getIsSomeRowsExpanded() ? 'Collapse' : 'Expand'}</span>
+            </button>
+            <button
               onClick={toggleMapVisibility}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 isMapVisible
@@ -928,7 +1089,16 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                             visibleColumnIds={visibleColumnIds}
                             pinnedColumnOffsets={pinnedColumnOffsets}
                             isRowSelected={row.getIsSelected()}
+                            isExpanded={row.getIsExpanded()}
                             groupColor="#94a3b8"
+                            disciplines={disciplines}
+                            canEdit={permissions.can_edit_records}
+                            onDisciplineStatusChange={handleDisciplineStatusChange}
+                            onTaskStatusChange={handleSubTaskStatusChange}
+                            onTaskTitleChange={handleSubTaskTitleChange}
+                            onTaskAssigneeChange={handleSubTaskAssigneeChange}
+                            onTaskDelete={handleSubTaskDelete}
+                            onTaskCreate={handleSubTaskCreate}
                           />
                         );
                       })}
@@ -992,7 +1162,16 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                             visibleColumnIds={visibleColumnIds}
                             pinnedColumnOffsets={pinnedColumnOffsets}
                             isRowSelected={row.getIsSelected()}
+                            isExpanded={row.getIsExpanded()}
                             groupColor={group.color}
+                            disciplines={disciplines}
+                            canEdit={permissions.can_edit_records}
+                            onDisciplineStatusChange={handleDisciplineStatusChange}
+                            onTaskStatusChange={handleSubTaskStatusChange}
+                            onTaskTitleChange={handleSubTaskTitleChange}
+                            onTaskAssigneeChange={handleSubTaskAssigneeChange}
+                            onTaskDelete={handleSubTaskDelete}
+                            onTaskCreate={handleSubTaskCreate}
                           />
                         );
                       })}
@@ -1060,6 +1239,15 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                       visibleColumnIds={visibleColumnIds}
                       pinnedColumnOffsets={pinnedColumnOffsets}
                       isRowSelected={row.getIsSelected()}
+                      isExpanded={row.getIsExpanded()}
+                      disciplines={disciplines}
+                      canEdit={permissions.can_edit_records}
+                      onDisciplineStatusChange={handleDisciplineStatusChange}
+                      onTaskStatusChange={handleSubTaskStatusChange}
+                      onTaskTitleChange={handleSubTaskTitleChange}
+                      onTaskAssigneeChange={handleSubTaskAssigneeChange}
+                      onTaskDelete={handleSubTaskDelete}
+                      onTaskCreate={handleSubTaskCreate}
                     />
                   );
                 })}

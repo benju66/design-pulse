@@ -4,9 +4,9 @@ import { DEFAULT_COORD_COLUMN_ORDER, DEFAULT_KEY_DATES_COLUMN_ORDER } from '@/li
 import { useMapStore } from '@/stores/useMapStore';
 
 // ── Coordination View Mode validity guard (deep-review Issue 10) ──────────────
-export type CoordinationViewMode = 'board' | 'table-split' | 'tasks';
+export type CoordinationViewMode = 'board' | 'table-split';
 const VALID_COORD_VIEW_MODES = new Set<CoordinationViewMode>([
-  'board', 'table-split', 'tasks'
+  'board', 'table-split'
 ]);
 export function isCoordViewMode(v: string | undefined): v is CoordinationViewMode {
   return !!v && VALID_COORD_VIEW_MODES.has(v as CoordinationViewMode);
@@ -114,12 +114,7 @@ export interface UIState {
   
   coordColumnOrder: Record<string, string[]>;
   setCoordColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
-  
-  // Tasks view — independent column visibility + order (never shares with coordColumnVisibility/coordColumnOrder)
-  tasksColumnVisibility: Record<string, Record<string, boolean>>;
-  setTasksColumnVisibility: (projectId: string, updater: Record<string, boolean> | ((old: Record<string, boolean>) => Record<string, boolean>)) => void;
-  tasksColumnOrder: Record<string, string[]>;
-  setTasksColumnOrder: (projectId: string, updater: string[] | ((old: string[]) => string[])) => void;
+
   
   coordinationViewMode: CoordinationViewMode;
   setCoordinationViewMode: (mode: CoordinationViewMode) => void;
@@ -437,36 +432,6 @@ export const useUIStore = create<UIState>()(
         return {
           coordColumnOrder: {
             ...state.coordColumnOrder,
-            [projectId]: newState
-          }
-        };
-      }),
-      
-      // Tasks view column visibility + order (same setter pattern as coordColumn*)
-      tasksColumnVisibility: {},
-      setTasksColumnVisibility: (projectId, updater) => set((state) => {
-        const oldState = state.tasksColumnVisibility[projectId] || {};
-        const newState = typeof updater === 'function' ? updater(oldState) : updater;
-        return {
-          tasksColumnVisibility: {
-            ...state.tasksColumnVisibility,
-            [projectId]: newState
-          }
-        };
-      }),
-      tasksColumnOrder: {},
-      setTasksColumnOrder: (projectId, updater) => set((state) => {
-        const oldState = state.tasksColumnOrder[projectId] || [];
-        const newState = typeof updater === 'function' ? updater(oldState) : updater;
-        if (
-          oldState.length === newState.length &&
-          oldState.every((val, idx) => val === newState[idx])
-        ) {
-          return {};
-        }
-        return {
-          tasksColumnOrder: {
-            ...state.tasksColumnOrder,
             [projectId]: newState
           }
         };
@@ -800,13 +765,10 @@ export const useUIStore = create<UIState>()(
         globalBuildingAreas: state.globalBuildingAreas ?? [],
         globalCostCodes: state.globalCostCodes ?? [],
         coordGroupCollapsed: state.coordGroupCollapsed ?? {},
-        // Persist v19 tasks view preferences
-        tasksColumnVisibility: state.tasksColumnVisibility ?? {},
-        tasksColumnOrder: state.tasksColumnOrder ?? {},
         // Persist v20 dashboard widget visibility
         dashboardWidgetVisibility: state.dashboardWidgetVisibility ?? {},
       }),
-      version: 21,
+      version: 22,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -978,6 +940,16 @@ export const useUIStore = create<UIState>()(
               ? ('table-split' as CoordinationViewMode)
               : (state.coordinationViewMode ?? 'table-split'),
           } as unknown as UIState;
+        }
+        if (version < 22) {
+          // v21 → v22: tasks view mode removed — merged into split view as inline expand
+          const s = state as Record<string, unknown>;
+          if (state.coordinationViewMode === ('tasks' as string)) {
+            state.coordinationViewMode = 'table-split' as CoordinationViewMode;
+          }
+          delete s.tasksColumnVisibility;
+          delete s.tasksColumnOrder;
+          return state as UIState;
         }
         return state as UIState;
       },

@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { PanelRight, LayoutGrid, UploadCloud, ListChecks } from 'lucide-react';
+import { PanelRight, LayoutGrid, UploadCloud } from 'lucide-react';
 import CoordinationTable from '@/components/coordination/CoordinationTable';
-import CoordinationTasksView from '@/components/coordination/CoordinationTasksView';
 import CoordinationBoard from '@/components/coordination/CoordinationBoard';
 import { CoordinationDetailPanel } from '@/components/coordination/CoordinationDetailPanel';
 import { CoordinationSummary } from '@/components/coordination/CoordinationSummary';
@@ -280,18 +279,6 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
             >
               <LayoutGrid size={18} />
             </button>
-            <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
-            <button
-              onClick={() => setCoordinationViewMode('tasks')}
-              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
-                coordinationViewMode === 'tasks' 
-                  ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-              title="Tasks View"
-            >
-              <ListChecks size={18} />
-            </button>
           </div>
           <Button 
             intent="coordination"
@@ -305,10 +292,10 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
       <div className="flex flex-1 overflow-hidden relative">
         <div className="flex flex-1 overflow-hidden">
-          <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${selectedOpportunityId && (coordinationViewMode === 'table-split' || coordinationViewMode === 'tasks') ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
+          <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${selectedOpportunityId && coordinationViewMode === 'table-split' ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
             
-            {/* Hide summary when grouping is enabled or in tasks mode to maximize table space */}
-            {!isCoordGroupingEnabled && coordinationViewMode !== 'tasks' && (
+            {/* Hide summary when grouping is enabled to maximize table space */}
+            {!isCoordGroupingEnabled && (
               <div className="shrink-0 mb-4">
                 <CoordinationSummary
                   opportunities={filteredOpportunities}
@@ -335,56 +322,6 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                 <div className="h-full flex items-center justify-center text-slate-500">Loading coordination...</div>
               ) : coordinationViewMode === 'board' ? (
                 <CoordinationBoard projectId={projectId} opportunities={filteredOpportunities} />
-              ) : coordinationViewMode === 'tasks' ? (
-                <CoordinationTasksView
-                  projectId={projectId}
-                  opportunities={filteredOpportunities}
-                  coordGroups={coordGroups}
-                  onGroupsChange={handleGroupsChange}
-                  activeGroupIds={coordActiveGroups}
-                  filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length + coordActiveGroups.length}
-                  onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); setCoordActiveGroups([]); }}
-                  filterSlot={
-                    <>
-                      <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-2">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Link Filters across views</span>
-                        <input
-                          type="checkbox"
-                          checked={isFilterLinkingEnabled}
-                          onChange={(e) => setFilterLinkingEnabled(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Type</label>
-                        <select value={coordActiveType} onChange={(e) => setCoordActiveType(e.target.value)} className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-700 dark:text-slate-200 cursor-pointer">
-                          <option value="All">All</option>
-                          {uniqueCoordTypes.map(type => <option key={type} value={type}>{type}</option>)}
-                        </select>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</label>
-                        <MultiSelectFilter fullWidth label="Status" options={uniqueCoordStatuses} selected={coordActiveStatuses} onChange={setCoordActiveStatuses} placeholder="Search statuses..." />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Building Area</label>
-                        <MultiSelectFilter fullWidth label="Building Area" options={dynamicBuildingAreas} selected={coordActiveBuildingAreas} onChange={setCoordActiveBuildingAreas} placeholder="Search areas..." />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Discipline</label>
-                        <MultiSelectFilter fullWidth label="Discipline" options={disciplineLabels} selected={coordActiveDisciplines} onChange={setCoordActiveDisciplines} placeholder="Search disciplines..." />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Group</label>
-                        <MultiSelectFilter fullWidth label="Group" options={groupFilterOptions} selected={groupFilterSelected} onChange={handleGroupFilterChange} placeholder="Search groups..." colorMap={groupColorMap} />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cost Code</label>
-                        <MultiSelectFilter fullWidth label="Cost Code" options={uniqueCoordCostCodes} selected={coordActiveCostCodes} onChange={setCoordActiveCostCodes} placeholder="Search codes..." />
-                      </div>
-                    </>
-                  }
-                />
               ) : (
                 <CoordinationTable
                   projectId={projectId}
@@ -440,7 +377,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
             </div>
           </div>
 
-          {(coordinationViewMode === 'table-split' || coordinationViewMode === 'tasks') && selectedOpportunityId && filteredOpportunities.find(o => o.id === selectedOpportunityId) && (
+          {coordinationViewMode === 'table-split' && selectedOpportunityId && filteredOpportunities.find(o => o.id === selectedOpportunityId) && (
             <CoordinationDetailPanel 
               projectId={projectId} 
               opportunity={filteredOpportunities.find(o => o.id === selectedOpportunityId)!} 

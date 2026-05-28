@@ -39,6 +39,7 @@ export interface ProjectSheet {
   progress_percent: number;
   original_width: number | null;
   original_height: number | null;
+  /** @deprecated Ignored when PDF renderer is active. Kept for TileRenderer fallback. */
   max_zoom: number | null;
   // ── UOPM provenance columns (Step 4a) ────────────────────────────────────
   drawing_set_id: string | null;

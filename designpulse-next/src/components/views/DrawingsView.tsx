@@ -37,11 +37,16 @@ export function DrawingsView({ projectId }: DrawingsViewProps) {
   const activeSheet = sheets.find((s) => s.id === activeSheetId) ?? null;
   const zones = markupsToZones(rawMarkups);
 
+  // Feature flag: opt-out via NEXT_PUBLIC_USE_PDF_RENDERER=false
+  const usePdfFlag = process.env.NEXT_PUBLIC_USE_PDF_RENDERER !== 'false';
+
   // Determine if the sheet is ready for canvas rendering.
+  // DR2-1: When PDF renderer is active, max_zoom is not required (it's deprecated).
+  // When rolled back (usePdfFlag=false), TileRenderer requires max_zoom.
   const isSheetReady = activeSheet?.status === 'ready'
-    && activeSheet.max_zoom != null
     && activeSheet.original_width != null
-    && activeSheet.original_height != null;
+    && activeSheet.original_height != null
+    && (usePdfFlag || activeSheet.max_zoom != null);
 
   // Zone persistence — all unlinked (opportunityId: null, AGENTS.md C11)
   const saveZones = (updatedZones: typeof zones) => {
@@ -117,6 +122,7 @@ export function DrawingsView({ projectId }: DrawingsViewProps) {
                 maxZoom={activeSheet.max_zoom ?? undefined}
                 originalWidth={activeSheet.original_width ?? undefined}
                 originalHeight={activeSheet.original_height ?? undefined}
+                pdfStoragePath={`${projectId}/${activeSheetId}/sheet.pdf`}
                 zones={zones}
                 onPolygonComplete={(points) => {
                   const newZone = {
@@ -146,7 +152,7 @@ export function DrawingsView({ projectId }: DrawingsViewProps) {
               <p className="text-xs text-slate-400">
                 {activeSheet.progress_percent != null && activeSheet.progress_percent > 0
                   ? `${activeSheet.progress_percent}% complete`
-                  : 'Generating tile pyramid'}
+                  : 'Processing drawing\u2026'}
               </p>
             </div>
           ) : activeSheetId && activeSheet?.status === 'error' ? (

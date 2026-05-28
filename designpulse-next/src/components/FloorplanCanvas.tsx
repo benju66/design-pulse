@@ -13,6 +13,11 @@ import { StampPreview } from './canvas/StampPreview';
 import { PendingPolygon } from './canvas/PendingPolygon';
 import { MapLegend, ActiveStatus, MilestoneDef } from './canvas/MapLegend';
 import { TileRenderer } from './canvas/TileRenderer';
+import { PdfBaseLayer } from './canvas/PdfBaseLayer';
+import { Button } from '@/components/ui/Button';
+
+// Feature flag: opt-out via NEXT_PUBLIC_USE_PDF_RENDERER=false
+const usePdf = process.env.NEXT_PUBLIC_USE_PDF_RENDERER !== 'false';
 
 import { distToSegment, getCentroid } from '@/utils/geometry';
 import { useMapStore } from '@/stores/useMapStore';
@@ -26,9 +31,12 @@ import type { KonvaEventObject } from 'konva/lib/Node';
 export interface FloorplanCanvasProps {
   projectId: string;
   sheetId: string;
+  /** @deprecated Silently ignored when PDF renderer is active. Kept for TileRenderer fallback. */
   maxZoom?: number;
   originalWidth?: number;
   originalHeight?: number;
+  /** Supabase Storage path to raw PDF (e.g., "{projectId}/{sheetId}/sheet.pdf") */
+  pdfStoragePath?: string | null;
   zones?: Zone[];
   onUpdateZonePolygon?: (zoneId: string, points: Point[]) => void;
   onDuplicateZone?: (zoneId: string) => void;
@@ -55,6 +63,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
   maxZoom = 0,
   originalWidth = 1000,
   originalHeight = 1000,
+  pdfStoragePath,
   zones = [],
   onUpdateZonePolygon,
   onDuplicateZone,
@@ -284,13 +293,28 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
     });
   }, [zones, visibleBoundingBox, layout.drawW]);
 
+  // ── PDF loading/error state (bubbled from PdfBaseLayer) ──────────────────
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfRetry, setPdfRetry] = useState<(() => void) | null>(null);
+
   useImperativeHandle(ref, () => ({
     exportFullImage: () => {
-      // Deep zoom maps don't support synchronous full image export without tile stitching
-      // This would need to be implemented server-side.
-      return null;
+      if (!stageRef.current) return null;
+      const dataUrl = stageRef.current.toDataURL({
+        x: layout.offsetX,
+        y: layout.offsetY,
+        width: layout.drawW,
+        height: layout.drawH,
+        pixelRatio: 2, // retina quality
+      });
+      return {
+        dataUrl,
+        width: Math.round(layout.drawW * 2),
+        height: Math.round(layout.drawH * 2),
+      };
     }
-  }));
+  }), [layout]);
 
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
@@ -679,6 +703,28 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
         boxShadow: 'var(--glass-shadow)',
       }}
     >
+      {/* PDF Loading overlay — shown during initial download+render */}
+      {pdfLoading && !pdfError && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+          <div className="flex items-center gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-4 py-2 rounded-lg shadow-sm">
+            <div className="animate-spin h-5 w-5 border-2 border-sky-500 border-t-transparent rounded-full" />
+            <span className="text-sm text-slate-600 dark:text-slate-400">Loading drawing…</span>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Error overlay — shown when download/render fails */}
+      {pdfError && (
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="flex flex-col items-center gap-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm px-6 py-4 rounded-xl shadow-lg">
+            <p className="text-sm text-red-500 font-medium">Failed to load drawing</p>
+            <p className="text-xs text-slate-500 max-w-64 text-center">{pdfError}</p>
+            {pdfRetry && (
+              <Button variant="primary" size="sm" onClick={pdfRetry}>Retry</Button>
+            )}
+          </div>
+        </div>
+      )}
       <ViewportControls 
         resetView={resetView} 
         handleZoom={handleZoom} 
@@ -808,19 +854,34 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
         >
           <Layer>
             {layout.drawW > 0 && layout.drawH > 0 && (
-              <TileRenderer
-                projectId={projectId}
-                sheetId={sheetId}
-                maxZoom={maxZoom}
-                originalWidth={originalWidth}
-                originalHeight={originalHeight}
-                stageScale={stageScale}
-                stagePosition={stagePosition}
-                viewportWidth={dimensions.width}
-                viewportHeight={dimensions.height}
-                offsetX={layout.offsetX}
-                offsetY={layout.offsetY}
-              />
+              usePdf && pdfStoragePath ? (
+                <PdfBaseLayer
+                  projectId={projectId}
+                  sheetId={sheetId}
+                  pdfStoragePath={pdfStoragePath}
+                  offsetX={layout.offsetX}
+                  offsetY={layout.offsetY}
+                  drawW={layout.drawW}
+                  drawH={layout.drawH}
+                  stageScale={stageScale}
+                  onLoadingChange={setPdfLoading}
+                  onError={(err, retry) => { setPdfError(err); setPdfRetry(() => retry); }}
+                />
+              ) : (
+                <TileRenderer
+                  projectId={projectId}
+                  sheetId={sheetId}
+                  maxZoom={maxZoom}
+                  originalWidth={originalWidth}
+                  originalHeight={originalHeight}
+                  stageScale={stageScale}
+                  stagePosition={stagePosition}
+                  viewportWidth={dimensions.width}
+                  viewportHeight={dimensions.height}
+                  offsetX={layout.offsetX}
+                  offsetY={layout.offsetY}
+                />
+              )
             )}
 
             {visibleZones &&

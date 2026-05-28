@@ -22,7 +22,7 @@ load_dotenv()
 from services.PDFMapService import PDFMapService
 from routers import drawings as drawings_router
 from services.auth import get_current_user, security  # noqa: F401 — re-exported for legacy endpoints
-from services.tile_processor import MAX_SAFE_PIXELS
+from services.exceptions import MAX_SAFE_PIXELS
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -373,13 +373,26 @@ async def extract_vectors(
     Returns the parsed JSON payload to the Next.js frontend (Rule B.5).
     """
     try:
-        await verify_project_sheet_access(sheet_id, user["sub"])
+        project_id = await verify_project_sheet_access(sheet_id, user["sub"])
         
-        pdf_path = f"originals/{sheet_id}.pdf"
+        # Try V2 path first (project_drawings), fall back to legacy (floorplans)
+        pdf_bytes = None
         try:
-            pdf_bytes = supabase.storage.from_("floorplans").download(pdf_path)
+            pdf_bytes = supabase.storage.from_("project_drawings").download(
+                f"{project_id}/{sheet_id}/sheet.pdf"
+            )
         except Exception:
-            raise HTTPException(status_code=404, detail="Original PDF not found in Storage. Please re-upload or attach the source file.")
+            pass
+        if not pdf_bytes:
+            try:
+                pdf_bytes = supabase.storage.from_("floorplans").download(
+                    f"originals/{sheet_id}.pdf"
+                )
+            except Exception:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Original PDF not found in Storage. Please re-upload or attach the source file."
+                )
 
         import asyncio
         # Run heavy PyMuPDF extraction in a thread to prevent blocking
@@ -398,11 +411,20 @@ async def export_status_pdf(
     user: dict = Depends(get_current_user),
 ):
     try:
-        await verify_project_sheet_access(sheet_id, user["sub"])
+        project_id = await verify_project_sheet_access(sheet_id, user["sub"])
         def process_export():
-            pdf_path = f"originals/{sheet_id}.pdf"
-            # Download as raw bytes directly from Supabase
-            res = supabase.storage.from_("floorplans").download(pdf_path)
+            # Try V2 path first (project_drawings), fall back to legacy (floorplans)
+            res = None
+            try:
+                res = supabase.storage.from_("project_drawings").download(
+                    f"{project_id}/{sheet_id}/sheet.pdf"
+                )
+            except Exception:
+                pass
+            if not res:
+                res = supabase.storage.from_("floorplans").download(
+                    f"originals/{sheet_id}.pdf"
+                )
             
             doc = fitz.open(stream=res, filetype="pdf")
             try:

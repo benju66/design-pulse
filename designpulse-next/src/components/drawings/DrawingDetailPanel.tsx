@@ -117,8 +117,8 @@ export default function DrawingDetailPanel({ projectId, sheets, disciplines }: D
   };
 
   let publicUrl = '';
-  if (sheet.staged_key) {
-    const { data } = supabase.storage.from('project_drawings').getPublicUrl(`tiles/${sheet.staged_key}/thumb.webp`);
+  if (sheet.status === 'ready') {
+    const { data } = supabase.storage.from('project_drawings').getPublicUrl(`${projectId}/${sheet.id}/thumb.png`);
     publicUrl = data.publicUrl;
   }
 

@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 8000",
+    "prebuild": "node -e \"require('fs').copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.min.mjs','public/pdf.worker.min.mjs')\"",
+    "postinstall": "node -e \"try{require('fs').copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.min.mjs','public/pdf.worker.min.mjs')}catch(e){}\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -31,6 +33,7 @@
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
     "next-themes": "^0.4.6",
+    "pdfjs-dist": "^5.7.284",
     "qs": "^6.15.1",
     "rbush": "^4.0.1",
     "react": "19.2.4",

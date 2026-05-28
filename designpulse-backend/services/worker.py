@@ -3,7 +3,7 @@ import os
 
 from supabase import create_client
 
-from services.tile_processor import TileProcessor, PdfProcessingError
+from services.exceptions import PdfProcessingError
 from services.vector_extractor import VectorExtractor
 import threading
 
@@ -51,15 +51,9 @@ async def process_sheet_job(
       90–95% → vector extraction complete  (now concurrent with tiles via gather)
       95–100% → DB row finalized
     """
-    # Guard: skip if sheet is already processing (prevents duplicate jobs)
-    try:
-        check = get_supabase().table("project_sheets").select("status").eq("id", sheet_id).single().execute()
-        if check.data and check.data.get("status") == "processing":
-            print(f"[worker] Sheet {sheet_id} is already processing — skipping duplicate job")
-            return
-    except Exception as guard_err:
-        print(f"[worker] Guard check failed for sheet {sheet_id}: {guard_err}")
-        # Continue processing if guard check fails — better to process than skip
+    # Note: the caller (drawings.py) sets status='processing' before dispatching
+    # this task, so we cannot use status=='processing' as a duplicate-job guard
+    # (it would always trigger). The asyncio.Semaphore below limits concurrency.
 
     # Thread-local client — isolated httpx connection pool, never shared.
     # Note: we don't instantiate here anymore, we use get_supabase() so each thread gets its own.
@@ -81,26 +75,75 @@ async def process_sheet_job(
                 staged_path,
             )
 
-            # ── Step 2: Tile generation + Vector extraction — concurrent (OPT-3) ──
-            # Both operations receive the full pdf_bytes and operate on the same page.
-            # asyncio.gather() runs them in parallel threads, cutting wall time by 1-5s.
-            def run_tiles() -> tuple[int, int, int]:
-                return TileProcessor.process_pdf_to_tiles(
-                    pdf_bytes,
-                    project_id,
-                    sheet_id,
-                    get_supabase(),
-                    page_index=page_index,
-                    on_progress=write_progress,
-                )
+            # ── Step 2: PDF copy + thumbnail + Vector extraction — concurrent ─────
+            # No more tile generation. The client renders PDFs via pdf.js.
+            # run_pdf_copy: extract the single page as a standalone PDF + thumbnail PNG.
+            # run_vectors: extract structural vectors for snapping engine (unchanged).
+            def run_pdf_copy() -> tuple[int, int]:
+                """Extract single page PDF, generate thumbnail, upload both."""
+                import fitz  # PyMuPDF
+                from services.exceptions import MAX_SAFE_PIXELS, PDF_RENDER_ZOOM
+
+                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                try:
+                    if page_index >= len(doc):
+                        raise PdfProcessingError(
+                            f"Page {page_index + 1} does not exist in this PDF "
+                            f"(document has {len(doc)} pages)."
+                        )
+                    page = doc[page_index]
+                    width = int(page.rect.width)
+                    height = int(page.rect.height)
+
+                    # ── 2a: Extract single-page PDF ──────────────────────────────
+                    single_doc = fitz.open()
+                    single_doc.insert_pdf(doc, from_page=page_index, to_page=page_index)
+                    pdf_out_bytes = single_doc.tobytes(deflate=True, garbage=4)
+                    single_doc.close()
+
+                    write_progress(30)
+
+                    # ── 2b: Generate thumbnail PNG (longest axis ≤ 300px) ────────
+                    thumb_max_px = 300
+                    scale = thumb_max_px / max(width, height)
+                    mat = fitz.Matrix(scale, scale)
+                    pix = page.get_pixmap(matrix=mat, alpha=False)
+                    thumb_bytes = pix.tobytes("png")
+
+                    write_progress(50)
+
+                    # ── 2c: Upload PDF + thumbnail to permanent location ─────────
+                    permanent_base = f"{project_id}/{sheet_id}"
+                    sb = get_supabase()
+
+                    # Upload single-page PDF
+                    sb.storage.from_("project_drawings").upload(
+                        f"{permanent_base}/sheet.pdf",
+                        pdf_out_bytes,
+                        {"content-type": "application/pdf", "x-upsert": "true"},
+                    )
+
+                    write_progress(70)
+
+                    # Upload thumbnail
+                    sb.storage.from_("project_drawings").upload(
+                        f"{permanent_base}/thumb.png",
+                        thumb_bytes,
+                        {"content-type": "image/png", "x-upsert": "true"},
+                    )
+
+                    write_progress(80)
+                    return (width, height)
+                finally:
+                    doc.close()
 
             def run_vectors() -> None:
                 VectorExtractor.extract_and_upload(
                     pdf_bytes, project_id, sheet_id, get_supabase(), page_index=page_index
                 )
 
-            (max_zoom, width, height), _ = await asyncio.gather(
-                asyncio.to_thread(run_tiles),
+            (width, height), _ = await asyncio.gather(
+                asyncio.to_thread(run_pdf_copy),
                 asyncio.to_thread(run_vectors),
             )
 
@@ -110,7 +153,7 @@ async def process_sheet_job(
             get_supabase().table("project_sheets").update({
                 "status": "ready",
                 "progress_percent": 100,
-                "max_zoom": max_zoom,
+                "max_zoom": None,  # No longer used — PDF renderer handles zoom client-side
                 "original_width": width,
                 "original_height": height,
                 "source_filename": source_filename or None,
@@ -129,7 +172,7 @@ async def process_sheet_job(
 
         print(
             f"[worker] process_sheet_job completed for sheet {sheet_id} "
-            f"(page={page_index}, max_zoom={max_zoom}, {width}x{height})"
+            f"(page={page_index}, {width}x{height})"
         )
 
     except Exception as e:

@@ -24,7 +24,7 @@ from supabase import create_client, Client
 from typing import List, Optional
 
 from services.pdf_inspector import inspect_and_stage_pdf, MAX_PDF_BYTES
-from services.tile_processor import PdfProcessingError
+from services.exceptions import PdfProcessingError
 from services.worker import process_sheet_job
 from services.auth import get_current_user
 

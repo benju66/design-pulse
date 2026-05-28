@@ -8,7 +8,8 @@ Responsibilities:
   3. Stage the full PDF to Supabase Storage under {project_id}/staged/{staged_key}.pdf.
   4. Return InspectPdfResponse as a plain dict (Pydantic model lives in the router).
 
-No dependency on tile_processor.py or worker.py — fully independent service.
+No dependency on worker.py — fully independent service.
+Shared exceptions and constants imported from services.exceptions.
 """
 
 import base64
@@ -19,7 +20,7 @@ from typing import Any
 
 import fitz
 
-from services.tile_processor import PdfProcessingError, MAX_SAFE_PIXELS, PDF_RENDER_ZOOM
+from services.exceptions import PdfProcessingError, MAX_SAFE_PIXELS, PDF_RENDER_ZOOM
 
 MAX_INSPECT_PAGES = int(os.environ.get("MAX_INSPECT_PAGES", "200"))
 # Thumbnail target: longest axis ≤ 150px regardless of page orientation/size (BUG-11).

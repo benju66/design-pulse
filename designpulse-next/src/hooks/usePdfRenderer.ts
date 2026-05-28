@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -21,6 +21,10 @@ const BASE_RENDER_SCALE = typeof window !== 'undefined'
 
 // Low-quality preview scale for instant visual feedback
 const PREVIEW_RENDER_SCALE = 1.0;
+
+// LOD high-res scale: pre-rendered in background for smooth deep zoom.
+// renderPage clamps this to MAX_CANVAS_PIXELS internally (~3.87× for 36"×24").
+const LOD_HIGH_SCALE = 4.0;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 /** Visible region in normalized [0–1] PDF page coordinates */
@@ -99,7 +103,26 @@ export function usePdfRenderer(
   stageScale: number,
   viewportRect: ViewportRect | null,
 ): PdfRenderState {
-  const [imageBitmap, setImageBitmap] = useState<ImageBitmap | null>(null);
+  // LOD bitmap pyramid — three pre-rendered quality levels
+  const [lodLowBitmap, setLodLowBitmap] = useState<ImageBitmap | null>(null);   // 1× preview
+  const [lodBaseBitmap, setLodBaseBitmap] = useState<ImageBitmap | null>(null); // 2× base
+  const [lodHighBitmap, setLodHighBitmap] = useState<ImageBitmap | null>(null); // 4× deep
+
+  // LOD selection — pick the sharpest bitmap that won't stretch more than ~2×.
+  // During zoom, Konva scales this bitmap via canvas transform. A bitmap at
+  // 4× stretched to 5× zoom = only 1.25× stretch (sharp). Without LOD, a 2×
+  // bitmap at 5× zoom = 2.5× stretch (blurry).
+  const imageBitmap = useMemo(() => {
+    // Deep zoom: use 4× LOD when available
+    if (stageScale >= 2.0 && lodHighBitmap) return lodHighBitmap;
+    // Low zoom: prefer 1× to avoid 4:1 downscale aliasing on fine lines
+    if (stageScale < 1.0 && lodLowBitmap) return lodLowBitmap;
+    // Normal zoom: use 2× base
+    if (lodBaseBitmap) return lodBaseBitmap;
+    // Initial load fallback: use 1× preview
+    return lodLowBitmap;
+  }, [stageScale, lodHighBitmap, lodBaseBitmap, lodLowBitmap]);
+
   const [pageWidth, setPageWidth] = useState(0);
   const [pageHeight, setPageHeight] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -375,11 +398,8 @@ export function usePdfRenderer(
         }
 
         if (previewBitmap && mountedRef.current) {
-          // Swap bitmap — release previous GPU memory
-          setImageBitmap((prev) => {
-            prev?.close();
-            return previewBitmap;
-          });
+          // Store as LOD low — kept alive for fallback during zoom-out
+          setLodLowBitmap((prev) => { prev?.close(); return previewBitmap; });
 
           // Compute rendered pixel dimensions at base scale for originalWidth/Height compat
           const baseMaxScale = Math.sqrt(MAX_CANVAS_PIXELS / (pageW * pageH));
@@ -399,10 +419,22 @@ export function usePdfRenderer(
         }
 
         if (fullBitmap && mountedRef.current) {
-          setImageBitmap((prev) => {
-            prev?.close();
-            return fullBitmap;
-          });
+          setLodBaseBitmap((prev) => { prev?.close(); return fullBitmap; });
+        }
+
+        // ── Step 5: LOD high — background 4× render for deep zoom ─────
+        // Renders the full page at ~4× (clamped to MAX_CANVAS_PIXELS).
+        // This is the bitmap Konva stretches during zoom 2×–8×, keeping
+        // stretch ≤ 2× at any zoom level. Non-blocking: user sees the
+        // 2× base immediately, this upgrades in the background.
+        const hqBitmap = await renderPage(page, LOD_HIGH_SCALE);
+        if (controller.signal.aborted || currentSheetIdRef.current !== sheetId) {
+          hqBitmap?.close();
+          return;
+        }
+
+        if (hqBitmap && mountedRef.current) {
+          setLodHighBitmap((prev) => { prev?.close(); return hqBitmap; });
         }
       } catch (err: unknown) {
         if (controller.signal.aborted) return;
@@ -438,11 +470,10 @@ export function usePdfRenderer(
       return;
     }
 
-    // Immediately clear stale overlay from the previous zoom level.
-    // The base layer (correctly scaled by Konva) provides visual continuity
-    // while the new high-res viewport render completes.
-    setViewportBitmap(prev => { prev?.close(); return null; });
-    setViewportPosition(null);
+    // Crossfade: keep the old overlay visible while the new render runs.
+    // Konva scales the old overlay correctly (same coordinate space). The
+    // center stays sharp, edges show the LOD base layer. The atomic swap
+    // in renderOverlay replaces it seamlessly — no gap, no flash.
 
     // Start render immediately — no second debounce needed.
     // stageScale is already debounced 100ms by FloorplanCanvas.
@@ -493,11 +524,10 @@ export function usePdfRenderer(
     return () => {
       mountedRef.current = false;
       cleanup();
-      // Release GPU memory for any remaining bitmap
-      setImageBitmap((prev) => {
-        prev?.close();
-        return null;
-      });
+      // Release GPU memory for all LOD bitmaps
+      setLodLowBitmap((prev) => { prev?.close(); return null; });
+      setLodBaseBitmap((prev) => { prev?.close(); return null; });
+      setLodHighBitmap((prev) => { prev?.close(); return null; });
       setViewportBitmap((prev) => {
         prev?.close();
         return null;

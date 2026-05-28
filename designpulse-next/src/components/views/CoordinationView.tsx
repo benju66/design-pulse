@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { PanelRight, LayoutGrid, UploadCloud, Layers, ListChecks } from 'lucide-react';
+import { PanelRight, LayoutGrid, UploadCloud, ListChecks } from 'lucide-react';
 import CoordinationTable from '@/components/coordination/CoordinationTable';
 import CoordinationTasksView from '@/components/coordination/CoordinationTasksView';
 import CoordinationBoard from '@/components/coordination/CoordinationBoard';
@@ -48,7 +48,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
   const handleGroupsChange = useCallback((groups: CoordGroupConfig[]) => {
     updateCoordGroupsMutation.mutate(groups);
   }, [updateCoordGroupsMutation]);
-  const isGroupsMode = coordinationViewMode === 'groups';
+  const isCoordGroupingEnabled = useUIStore(state => state.isCoordGroupingEnabled);
 
   // ── Local Filter State (v17 URL Integrated) ──
   const [urlFilters, setUrlFilters] = useURLFilters({
@@ -270,18 +270,6 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
             </button>
             <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
             <button
-              onClick={() => setCoordinationViewMode('groups')}
-              className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
-                coordinationViewMode === 'groups' 
-                  ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' 
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-              title="Groups View"
-            >
-              <Layers size={18} />
-            </button>
-            <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1 self-center" />
-            <button
               onClick={() => setCoordinationViewMode('board')}
               className={`p-1.5 rounded-md flex items-center justify-center transition-colors ${
                 coordinationViewMode === 'board' 
@@ -317,10 +305,10 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
       <div className="flex flex-1 overflow-hidden relative">
         <div className="flex flex-1 overflow-hidden">
-          <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${selectedOpportunityId && (coordinationViewMode === 'table-split' || coordinationViewMode === 'groups' || coordinationViewMode === 'tasks') ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
+          <div className={`flex flex-col p-6 transition-all duration-300 flex-1 min-w-0 @container ${selectedOpportunityId && (coordinationViewMode === 'table-split' || coordinationViewMode === 'tasks') ? 'border-r border-slate-200 dark:border-slate-800' : ''}`}>
             
-            {/* Hide summary in groups/tasks mode to maximize table space */}
-            {!isGroupsMode && coordinationViewMode !== 'tasks' && (
+            {/* Hide summary when grouping is enabled or in tasks mode to maximize table space */}
+            {!isCoordGroupingEnabled && coordinationViewMode !== 'tasks' && (
               <div className="shrink-0 mb-4">
                 <CoordinationSummary
                   opportunities={filteredOpportunities}
@@ -402,7 +390,6 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                   projectId={projectId}
                   opportunities={filteredOpportunities}
                   viewMode={coordinationViewMode === 'table-split' ? 'split' : 'flat'}
-                  isGroupsMode={isGroupsMode}
                   coordGroups={coordGroups}
                   onGroupsChange={handleGroupsChange}
                   activeGroupIds={coordActiveGroups}
@@ -453,7 +440,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
             </div>
           </div>
 
-          {(coordinationViewMode === 'table-split' || coordinationViewMode === 'groups' || coordinationViewMode === 'tasks') && selectedOpportunityId && filteredOpportunities.find(o => o.id === selectedOpportunityId) && (
+          {(coordinationViewMode === 'table-split' || coordinationViewMode === 'tasks') && selectedOpportunityId && filteredOpportunities.find(o => o.id === selectedOpportunityId) && (
             <CoordinationDetailPanel 
               projectId={projectId} 
               opportunity={filteredOpportunities.find(o => o.id === selectedOpportunityId)!} 

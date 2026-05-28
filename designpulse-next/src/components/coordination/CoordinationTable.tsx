@@ -17,7 +17,7 @@ import {
   getExpandedRowModel
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
-import { Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, PanelRight, MessageCirclePlus } from 'lucide-react';
+import { Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, PanelRight, MessageCirclePlus, Layers } from 'lucide-react';
 import { Opportunity, DisciplineConfig, CoordGroupConfig } from '@/types/models';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
 import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useBulkUpdateCoordinationStatus, useBulkUpdateCoordGroup } from '@/hooks/useOpportunityQueries';
@@ -47,7 +47,6 @@ interface Props {
   onClearFilters?: () => void;
   // Coordination Groups props
   coordGroups?: CoordGroupConfig[];
-  isGroupsMode?: boolean;
   onGroupsChange?: (groups: CoordGroupConfig[]) => void;
   /** Active group filter IDs — Ghost Row inherits coord_group_id when exactly 1 group is active */
   activeGroupIds?: string[];
@@ -312,10 +311,14 @@ const MemoizedCoordinationRow = React.memo(({
   return true;
 });
 
-export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat', filterSlot, filterActiveCount = 0, onClearFilters, coordGroups = EMPTY_GROUPS, isGroupsMode = false, onGroupsChange, activeGroupIds = [] }: Props) {
+export default function CoordinationTable({ projectId, opportunities, viewMode = 'flat', filterSlot, filterActiveCount = 0, onClearFilters, coordGroups = EMPTY_GROUPS, onGroupsChange, activeGroupIds = [] }: Props) {
   const selectedOpportunityId = useUIStore(state => state.selectedOpportunityId);
   const toggleMapVisibility = useUIStore(state => state.toggleMapVisibility);
   const isMapVisible = useUIStore(state => state.isMapVisible);
+
+  // Inline grouping toggle — read from store (v21: merged from Groups view mode)
+  const isGroupsMode = useUIStore(state => state.isCoordGroupingEnabled);
+  const toggleCoordGrouping = useUIStore(state => state.toggleCoordGrouping);
 
   // [C-6 FIX] Derive shared cell data once at the parent level.
   // Virtualized cells read from meta instead of each registering their own subscriber.
@@ -793,6 +796,17 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                 )}
               </button>
             )}
+            <button
+              onClick={toggleCoordGrouping}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                isGroupsMode
+                  ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Layers size={15} />
+              <span>Group</span>
+            </button>
             <button
               onClick={toggleMapVisibility}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${

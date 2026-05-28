@@ -4,23 +4,36 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
-// Safe across all browsers including iPad Safari (16M) and Chrome desktop (268M).
-// We use the conservative limit to ensure universal compatibility.
-const MAX_CANVAS_PIXELS = 16_000_000;
+// Desktop-only target (no iPad). 67M is safe for Safari desktop (lowest desktop
+// ceiling). Chrome/Edge support 268M+, Firefox 124M+. This gives maxScale ≈ 3.86×
+// for typical 36"×24" architectural sheets — 2× headroom over the previous 16M cap.
+const MAX_CANVAS_PIXELS = 67_000_000;
 
-// Zoom threshold: beyond this stageScale, we re-render at higher resolution
-const DEEP_ZOOM_THRESHOLD = 3.0;
+// Zoom threshold: beyond this stageScale, we re-render the visible viewport
+// at higher resolution. Lowered from 3.0 to catch blur early.
+const DEEP_ZOOM_THRESHOLD = 1.5;
 
-// Debounce delay for zoom-triggered re-renders (ms)
-const ZOOM_DEBOUNCE_MS = 200;
+// Debounce delay for zoom/pan-triggered viewport re-renders (ms)
+const ZOOM_DEBOUNCE_MS = 150;
 
-// Base render scale for retina-quality rendering
-const BASE_RENDER_SCALE = 2.0;
+// Base render scale: match physical screen density for retina sharpness.
+// Math.max ensures at least 2× on standard screens.
+const BASE_RENDER_SCALE = typeof window !== 'undefined'
+  ? Math.max(window.devicePixelRatio || 1, 2.0)
+  : 2.0;
 
 // Low-quality preview scale for instant visual feedback
 const PREVIEW_RENDER_SCALE = 1.0;
 
 // ── Types ────────────────────────────────────────────────────────────────────
+/** Visible region in normalized [0–1] PDF page coordinates */
+export interface ViewportRect {
+  minPctX: number;
+  minPctY: number;
+  maxPctX: number;
+  maxPctY: number;
+}
+
 interface PdfRenderState {
   imageBitmap: ImageBitmap | null;
   pageWidth: number;
@@ -28,6 +41,13 @@ interface PdfRenderState {
   isLoading: boolean;
   error: string | null;
   retry: () => void;
+  // Viewport overlay for deep zoom
+  viewportBitmap: ImageBitmap | null;
+  /** Normalized [0–1] position of the viewport overlay on the PDF page */
+  viewportPosition: {
+    x: number; y: number;
+    width: number; height: number;
+  } | null;
 }
 
 // ── Supabase client (singleton for storage downloads) ────────────────────────
@@ -80,6 +100,7 @@ export function usePdfRenderer(
   pdfStoragePath: string | null,
   renderScale: number,
   stageScale: number,
+  viewportRect: ViewportRect | null,
 ): PdfRenderState {
   const [imageBitmap, setImageBitmap] = useState<ImageBitmap | null>(null);
   const [pageWidth, setPageWidth] = useState(0);
@@ -87,9 +108,14 @@ export function usePdfRenderer(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Viewport overlay state for deep zoom
+  const [viewportBitmap, setViewportBitmap] = useState<ImageBitmap | null>(null);
+  const [viewportPosition, setViewportPosition] = useState<PdfRenderState['viewportPosition']>(null);
+
   // Refs for cleanup and race condition prevention
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeRenderRef = useRef<{ cancel: () => void } | null>(null);
+  const activeViewportRenderRef = useRef<{ cancel: () => void } | null>(null);
   const pdfDocRef = useRef<{ destroy: () => Promise<void> } | null>(null);
   const cachedArrayBufferRef = useRef<{ sheetId: string; buffer: ArrayBuffer } | null>(null);
   const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -100,6 +126,13 @@ export function usePdfRenderer(
   // Track the active render scale to avoid redundant re-renders
   const activeScaleRef = useRef(0);
 
+  // Deep Review Fix: ref-based viewportRect to prevent useEffect churn.
+  // visibleBoundingBox creates a new object on every pan frame — if used as a
+  // useEffect dep, the effect would fire on every pan micro-step. The ref lets
+  // the debounced timer read the latest value without being a dependency.
+  const viewportRectRef = useRef<ViewportRect | null>(null);
+  viewportRectRef.current = viewportRect;
+
   // ── Cleanup helper ──────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
     // Cancel in-flight download
@@ -109,6 +142,10 @@ export function usePdfRenderer(
     // Cancel active render task
     activeRenderRef.current?.cancel();
     activeRenderRef.current = null;
+
+    // Cancel active viewport render
+    activeViewportRenderRef.current?.cancel();
+    activeViewportRenderRef.current = null;
 
     // Clear zoom debounce
     if (zoomDebounceRef.current) {
@@ -158,6 +195,98 @@ export function usePdfRenderer(
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'RenderingCancelledException') {
         return null; // Expected on rapid zoom — not an error
+      }
+      throw err;
+    }
+  }, []);
+
+  // ── Viewport-clipped render for deep zoom ─────────────────────────────
+  // Renders only the visible portion of the PDF at high resolution using
+  // pdf.js viewport offsetX/offsetY to shift the page origin. The canvas is
+  // sized to the visible region only, so content outside is naturally clipped.
+  //
+  // IMPORTANT: We use getViewport() to get rotation-aware page dimensions.
+  // page.view gives raw un-rotated PDF points, but visibleBoundingBox normalizes
+  // by the rendered (rotation-aware) size. Using page.view directly would cause
+  // coordinate mismatches for rotated pages and aspect ratio errors.
+  const renderViewportRegion = useCallback(async (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    page: any,
+    rect: ViewportRect,
+    currentStageScale: number,
+  ): Promise<{
+    bitmap: ImageBitmap;
+    position: { x: number; y: number; width: number; height: number };
+  } | null> => {
+    const rotation = (page.rotate as number) || 0;
+
+    // Get the full-page viewport at scale=1 to derive rotation-aware dimensions.
+    // viewport.width/height account for rotation (swapped for 90°/270°).
+    const refViewport = page.getViewport({ scale: 1, rotation });
+    const vpWidth = refViewport.width as number;   // rotation-aware
+    const vpHeight = refViewport.height as number;  // rotation-aware
+
+    // Clamp viewport rect to [0, 1]
+    const vMinX = Math.max(0, rect.minPctX);
+    const vMinY = Math.max(0, rect.minPctY);
+    const vMaxX = Math.min(1, rect.maxPctX);
+    const vMaxY = Math.min(1, rect.maxPctY);
+    const vW = vMaxX - vMinX;
+    const vH = vMaxY - vMinY;
+    if (vW <= 0 || vH <= 0) return null;
+
+    // Scale = stageScale × devicePixelRatio for physical pixel sharpness
+    const dpr = window.devicePixelRatio || 1;
+    let effectiveScale = currentStageScale * dpr;
+
+    // Canvas size = only the visible region at effectiveScale
+    // Uses rotation-aware dimensions (vpWidth/vpHeight) to match visibleBoundingBox coords
+    const rawW = Math.ceil(vpWidth * vW * effectiveScale);
+    const rawH = Math.ceil(vpHeight * vH * effectiveScale);
+    const totalPixels = rawW * rawH;
+
+    // Clamp to MAX_CANVAS_PIXELS (unlikely for viewports, but safety first)
+    if (totalPixels > MAX_CANVAS_PIXELS) {
+      effectiveScale *= Math.sqrt(MAX_CANVAS_PIXELS / totalPixels);
+    }
+
+    const finalW = Math.ceil(vpWidth * vW * effectiveScale);
+    const finalH = Math.ceil(vpHeight * vH * effectiveScale);
+    if (finalW <= 0 || finalH <= 0) return null;
+
+    // Cancel previous viewport render (separate ref from base render)
+    activeViewportRenderRef.current?.cancel();
+
+    const canvas = createRenderCanvas(finalW, finalH);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Clip offsets in the rotation-aware pixel space.
+    // These shift the full-page render so the visible region aligns with canvas (0,0).
+    const clipX = Math.floor(vMinX * vpWidth * effectiveScale);
+    const clipY = Math.floor(vMinY * vpHeight * effectiveScale);
+
+    const viewport = page.getViewport({
+      scale: effectiveScale,
+      rotation,
+      offsetX: -clipX,
+      offsetY: -clipY,
+    });
+
+    const renderTask = page.render({ canvasContext: ctx, viewport });
+    activeViewportRenderRef.current = renderTask;
+
+    try {
+      await renderTask.promise;
+      const bitmap = await canvasToImageBitmap(canvas);
+      return {
+        bitmap,
+        position: { x: vMinX, y: vMinY, width: vW, height: vH },
+      };
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'name' in err &&
+          (err as { name: string }).name === 'RenderingCancelledException') {
+        return null;
       }
       throw err;
     }
@@ -292,49 +421,50 @@ export function usePdfRenderer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetId, pdfStoragePath, renderScale]);
 
-  // ── Deep zoom re-render effect ──────────────────────────────────────────
+  // ── Deep zoom viewport re-render effect ─────────────────────────────────
+  // When zoomed past threshold, renders only the visible viewport region at
+  // high resolution. Below threshold, clears any viewport overlay.
+  // viewportRect is read from ref — NOT a dependency — to prevent effect churn
+  // (the object reference changes on every pan frame).
   useEffect(() => {
     if (!sheetId || !pdfStoragePath || error || isLoading) return;
 
-    // Only re-render when zoom crosses the threshold
-    const targetScale = stageScale > DEEP_ZOOM_THRESHOLD
-      ? stageScale
-      : BASE_RENDER_SCALE;
-
-    // Skip if we're already rendering at this scale
-    if (Math.abs(activeScaleRef.current - targetScale) < 0.1) return;
-
-    if (zoomDebounceRef.current) {
-      clearTimeout(zoomDebounceRef.current);
+    // Below threshold — clear any stale viewport overlay
+    if (stageScale <= DEEP_ZOOM_THRESHOLD) {
+      setViewportBitmap(prev => { prev?.close(); return null; });
+      setViewportPosition(null);
+      return;
     }
+
+    if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
 
     zoomDebounceRef.current = setTimeout(async () => {
       if (currentSheetIdRef.current !== sheetId) return;
       if (!pdfDocRef.current) return;
 
-      try {
-        const pdfjsLib = await import('pdfjs-dist');
-        // Needed to prevent worker not set warning on re-import
-        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+      // Read latest viewport from ref (not closure-captured prop)
+      const currentRect = viewportRectRef.current;
+      if (!currentRect) return;
 
+      try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const doc = pdfDocRef.current as any;
         const page = await doc.getPage(1);
 
-        const bitmap = await renderPage(page, targetScale);
+        const result = await renderViewportRegion(page, currentRect, stageScale);
+
+        // Race guard: sheet may have changed during async render
         if (currentSheetIdRef.current !== sheetId) {
-          bitmap?.close();
+          result?.bitmap.close();
           return;
         }
 
-        if (bitmap && mountedRef.current) {
-          setImageBitmap((prev) => {
-            prev?.close();
-            return bitmap;
-          });
+        if (result && mountedRef.current) {
+          setViewportBitmap(prev => { prev?.close(); return result.bitmap; });
+          setViewportPosition(result.position);
         }
       } catch {
-        // Zoom re-render failure is non-fatal — user keeps previous quality
+        // Non-fatal — user keeps base layer quality
       }
     }, ZOOM_DEBOUNCE_MS);
 
@@ -344,8 +474,10 @@ export function usePdfRenderer(
         zoomDebounceRef.current = null;
       }
     };
+    // stageScale triggers mode change; stagePosition (via viewportRect) triggers
+    // re-render on pan stop. viewportRect is read from ref inside the timer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageScale, sheetId, pdfStoragePath, error, isLoading]);
+  }, [stageScale, sheetId, pdfStoragePath, error, isLoading, renderViewportRegion]);
 
   // ── Unmount cleanup ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -355,6 +487,10 @@ export function usePdfRenderer(
       cleanup();
       // Release GPU memory for any remaining bitmap
       setImageBitmap((prev) => {
+        prev?.close();
+        return null;
+      });
+      setViewportBitmap((prev) => {
         prev?.close();
         return null;
       });
@@ -393,5 +529,7 @@ export function usePdfRenderer(
     isLoading,
     error,
     retry,
+    viewportBitmap,
+    viewportPosition,
   };
 }

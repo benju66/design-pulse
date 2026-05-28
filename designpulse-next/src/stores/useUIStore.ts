@@ -4,9 +4,9 @@ import { DEFAULT_COORD_COLUMN_ORDER, DEFAULT_KEY_DATES_COLUMN_ORDER } from '@/li
 import { useMapStore } from '@/stores/useMapStore';
 
 // ── Coordination View Mode validity guard (deep-review Issue 10) ──────────────
-export type CoordinationViewMode = 'board' | 'table-split' | 'groups' | 'tasks';
+export type CoordinationViewMode = 'board' | 'table-split' | 'tasks';
 const VALID_COORD_VIEW_MODES = new Set<CoordinationViewMode>([
-  'board', 'table-split', 'groups', 'tasks'
+  'board', 'table-split', 'tasks'
 ]);
 export function isCoordViewMode(v: string | undefined): v is CoordinationViewMode {
   return !!v && VALID_COORD_VIEW_MODES.has(v as CoordinationViewMode);
@@ -123,6 +123,10 @@ export interface UIState {
   
   coordinationViewMode: CoordinationViewMode;
   setCoordinationViewMode: (mode: CoordinationViewMode) => void;
+
+  // Inline grouping toggle for Coordination table (v21 — merged from Groups view mode)
+  isCoordGroupingEnabled: boolean;
+  toggleCoordGrouping: () => void;
 
   // Coordination Groups — collapsed group IDs per project (persisted)
   coordGroupCollapsed: Record<string, string[]>;
@@ -471,6 +475,10 @@ export const useUIStore = create<UIState>()(
       coordinationViewMode: 'table-split' as CoordinationViewMode,
       setCoordinationViewMode: (mode) => set({ coordinationViewMode: mode }),
 
+      // Inline grouping toggle — flat boolean (Rule 36: view modes are user-wide)
+      isCoordGroupingEnabled: false,
+      toggleCoordGrouping: () => set((state) => ({ isCoordGroupingEnabled: !state.isCoordGroupingEnabled })),
+
       // Coordination Groups — collapsed state
       coordGroupCollapsed: {},
       toggleCoordGroupCollapsed: (projectId, groupId) => set((state) => {
@@ -755,6 +763,7 @@ export const useUIStore = create<UIState>()(
         coordColumnVisibility: state.coordColumnVisibility,
         coordColumnOrder: state.coordColumnOrder,
         coordinationViewMode: state.coordinationViewMode,
+        isCoordGroupingEnabled: state.isCoordGroupingEnabled ?? false,
         isBudgetSummaryCollapsed: state.isBudgetSummaryCollapsed ?? false,
         isCoordSummaryCollapsed: state.isCoordSummaryCollapsed ?? false,
         isPermitSummaryCollapsed: state.isPermitSummaryCollapsed ?? false,
@@ -797,7 +806,7 @@ export const useUIStore = create<UIState>()(
         // Persist v20 dashboard widget visibility
         dashboardWidgetVisibility: state.dashboardWidgetVisibility ?? {},
       }),
-      version: 20,
+      version: 21,
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Partial<UIState>;
         if (version < 1) {
@@ -957,6 +966,17 @@ export const useUIStore = create<UIState>()(
           return {
             ...state,
             dashboardWidgetVisibility: {},
+          } as unknown as UIState;
+        }
+        if (version < 21) {
+          // v20 → v21: groups view mode merged into split view as inline toggle
+          const wasGroups = state.coordinationViewMode === ('groups' as string);
+          return {
+            ...state,
+            isCoordGroupingEnabled: wasGroups,
+            coordinationViewMode: wasGroups
+              ? ('table-split' as CoordinationViewMode)
+              : (state.coordinationViewMode ?? 'table-split'),
           } as unknown as UIState;
         }
         return state as UIState;

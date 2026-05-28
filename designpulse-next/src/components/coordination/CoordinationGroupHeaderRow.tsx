@@ -23,6 +23,15 @@ interface CoordinationGroupHeaderRowProps {
   dataIndex?: number;
 }
 
+// Utility: convert hex color to rgba string for semi-transparent tints
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 // eslint-disable-next-line react/display-name
 const CoordinationGroupHeaderRow = React.memo(function CoordinationGroupHeaderRow({
   group,
@@ -51,26 +60,26 @@ const CoordinationGroupHeaderRow = React.memo(function CoordinationGroupHeaderRo
       style={style}
     >
       <tr
-        className="group/header cursor-pointer select-none hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+        className="group/header cursor-pointer select-none transition-colors"
         onClick={onToggle}
-        style={{ borderLeft: `4px solid ${color}` }}
+        style={{
+          borderLeft: `4px solid ${color}`,
+          backgroundColor: hexToRgba(color, 0.10),
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = hexToRgba(color, 0.18); }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = hexToRgba(color, 0.10); }}
       >
         <td
           colSpan={visibleColumnCount}
           className="p-0"
           style={{ minWidth: totalWidth }}
         >
-          <div className="flex items-center gap-2 px-3 py-2">
+          {/* Sticky-pinned label: stays visible during horizontal scroll */}
+          <div className="flex items-center gap-2 px-3 py-2 sticky left-0 w-fit z-[11]">
             {/* Collapse toggle */}
             <span className="text-slate-400 dark:text-slate-500 shrink-0">
               {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
             </span>
-
-            {/* Color dot */}
-            <span
-              className="w-3 h-3 rounded-full shrink-0"
-              style={{ backgroundColor: color }}
-            />
 
             {/* Label */}
             <span className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">

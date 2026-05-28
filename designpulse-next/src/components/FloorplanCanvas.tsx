@@ -866,6 +866,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
                   stageScale={stageScale}
                   onLoadingChange={setPdfLoading}
                   onError={(err, retry) => { setPdfError(err); setPdfRetry(() => retry); }}
+                  viewportRect={visibleBoundingBox}
                 />
               ) : (
                 <TileRenderer

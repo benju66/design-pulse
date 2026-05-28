@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, memo } from 'react';
 import { Image as KonvaImage } from 'react-konva';
-import { usePdfRenderer } from '@/hooks/usePdfRenderer';
+import { usePdfRenderer, type ViewportRect } from '@/hooks/usePdfRenderer';
 import type Konva from 'konva';
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -18,6 +18,8 @@ export interface PdfBaseLayerProps {
   onLoadingChange?: (isLoading: boolean) => void;
   onError?: (error: string | null, retry: () => void) => void;
   onDimensionsReady?: (width: number, height: number) => void;
+  /** Visible viewport in normalized [0-1] coords for deep zoom rendering */
+  viewportRect: ViewportRect | null;
 }
 
 // Base render scale: 2.0 for retina-quality rendering
@@ -47,6 +49,7 @@ function PdfBaseLayerInner({
   onLoadingChange,
   onError,
   onDimensionsReady,
+  viewportRect,
 }: PdfBaseLayerProps) {
   const imageRef = useRef<Konva.Image>(null);
 
@@ -57,11 +60,14 @@ function PdfBaseLayerInner({
     isLoading,
     error,
     retry,
+    viewportBitmap,
+    viewportPosition,
   } = usePdfRenderer(
     sheetId,
     pdfStoragePath,
     BASE_RENDER_SCALE,
     stageScale,
+    viewportRect,
   );
 
   // ── Bubble loading state to parent ──────────────────────────────────────
@@ -94,22 +100,37 @@ function PdfBaseLayerInner({
     if (imageRef.current) {
       imageRef.current.getLayer()?.batchDraw();
     }
-  }, [imageBitmap]);
+  }, [imageBitmap, viewportBitmap]);
 
   // Don't render anything if no bitmap available
   if (!imageBitmap) return null;
 
   return (
-    <KonvaImage
-      ref={imageRef}
-      image={imageBitmap}
-      x={offsetX}
-      y={offsetY}
-      width={drawW}
-      height={drawH}
-      listening={false}
-      perfectDrawEnabled={false}
-    />
+    <>
+      {/* Base full-page bitmap — always visible for visual continuity */}
+      <KonvaImage
+        ref={imageRef}
+        image={imageBitmap}
+        x={offsetX}
+        y={offsetY}
+        width={drawW}
+        height={drawH}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+      {/* High-res viewport overlay — sharp crop of visible region */}
+      {viewportBitmap && viewportPosition && (
+        <KonvaImage
+          image={viewportBitmap}
+          x={offsetX + viewportPosition.x * drawW}
+          y={offsetY + viewportPosition.y * drawH}
+          width={viewportPosition.width * drawW}
+          height={viewportPosition.height * drawH}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      )}
+    </>
   );
 }
 

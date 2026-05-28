@@ -276,7 +276,7 @@ async def attach_original_pdf(
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
-    await verify_sheet_project_access(sheet_id, user["sub"])
+    project_id = await verify_sheet_project_access(sheet_id, user["sub"])
 
     pdf_bytes = await file.read(MAX_PDF_BYTES + 1)
     if len(pdf_bytes) > MAX_PDF_BYTES:
@@ -286,12 +286,16 @@ async def attach_original_pdf(
         )
 
     def process_attach() -> None:
-        pdf_path = f"originals/{sheet_id}.pdf"
-        supabase.storage.from_("floorplans").remove([pdf_path])
-        supabase.storage.from_("floorplans").upload(
+        # V2 path convention: project_drawings/{project_id}/{sheet_id}/original.pdf
+        pdf_path = f"{project_id}/{sheet_id}/original.pdf"
+        try:
+            supabase.storage.from_("project_drawings").remove([pdf_path])
+        except Exception:
+            pass  # File may not exist yet
+        supabase.storage.from_("project_drawings").upload(
             path=pdf_path,
             file=pdf_bytes,
-            file_options={"content-type": "application/pdf"},
+            file_options={"content-type": "application/pdf", "upsert": "true"},
         )
 
     await asyncio.to_thread(process_attach)

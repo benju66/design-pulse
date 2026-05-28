@@ -200,83 +200,9 @@ def hex_to_rgb(color_str: str):
         return tuple(int(color_str[i:i+2], 16)/255.0 for i in (0, 2, 4))
     return (0, 0, 0)
 
-@app.post("/upload-floorplan/{sheet_id}")
-async def upload_and_convert_floorplan(
-    sheet_id: str,
-    page_number: int = 1,
-    file: UploadFile = File(...),
-    user: dict = Depends(get_current_user),
-):
-    if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-
-    try:
-        await verify_project_sheet_access(sheet_id, user["sub"])
-        pdf_bytes = await file.read()
-
-        def process_upload():
-            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-            try:
-                if page_number < 1 or page_number > len(doc):
-                    raise ValueError(f"Page {page_number} does not exist. This PDF has {len(doc)} pages.")
-
-                page = doc.load_page(page_number - 1)
-
-                # Upgrade the zoom from 2.0 to 4.0 for high-fidelity rendering
-                zoom = 4.0
-                
-                target_pixels = page.rect.width * page.rect.height * (zoom ** 2)
-                if target_pixels > MAX_SAFE_PIXELS:
-                    raise ValueError(f"PDF dimensions too large to process safely (Exceeds 200MP)")
-                    
-                mat = fitz.Matrix(zoom, zoom)
-                pix = page.get_pixmap(matrix=mat, alpha=False)
-                img_bytes = pix.tobytes("png")
-
-                file_path = f"converted/{sheet_id}.png"
-                supabase.storage.from_("floorplans").remove([file_path])
-                supabase.storage.from_("floorplans").upload(
-                    path=file_path,
-                    file=img_bytes,
-                    file_options={"content-type": "image/png"},
-                )
-
-                single_page_doc = fitz.open()
-                try:
-                    single_page_doc.insert_pdf(doc, from_page=page_number - 1, to_page=page_number - 1)
-                    single_page_pdf_bytes = single_page_doc.write()
-                finally:
-                    single_page_doc.close()
-
-                pdf_path = f"originals/{sheet_id}.pdf"
-                supabase.storage.from_("floorplans").remove([pdf_path])
-                supabase.storage.from_("floorplans").upload(
-                    path=pdf_path,
-                    file=single_page_pdf_bytes,
-                    file_options={"content-type": "application/pdf"},
-                )
-
-                public_url = supabase.storage.from_("floorplans").get_public_url(file_path)
-                supabase.table("sheets").update({"base_image_url": public_url}).eq("id", sheet_id).execute()
-                return public_url
-            finally:
-                doc.close()
-
-        import asyncio
-        public_url = await asyncio.to_thread(process_upload)
-        return {"status": "success", "image_url": public_url}
-
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+# NOTE: /upload-floorplan (legacy, wrote to dead 'sheets' table) has been removed.
 # NOTE: /process-sheet, /attach-original, and /inspect-and-stage-pdf
 # have been moved to routers/drawings.py (AGENTS.md D.4).
-# The legacy /process-sheet endpoint below is REMOVED — use /drawings/process-sheet.
 
 
 @app.post("/extract-csi-toc", response_model=List[CsiSpecItem])

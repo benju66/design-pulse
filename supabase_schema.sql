@@ -2585,6 +2585,11 @@ CREATE INDEX IF NOT EXISTS idx_sheets_drawing_set
   ON project_sheets(drawing_set_id)
   WHERE drawing_set_id IS NOT NULL;
 
+DROP TRIGGER IF EXISTS trg_project_sheets_updated_at ON project_sheets;
+CREATE TRIGGER trg_project_sheets_updated_at
+  BEFORE UPDATE ON project_sheets
+  FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
+
 -- 12. Sheet Markups Table
 CREATE TABLE IF NOT EXISTS sheet_markups (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2596,6 +2601,11 @@ CREATE TABLE IF NOT EXISTS sheet_markups (
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+DROP TRIGGER IF EXISTS trg_sheet_markups_updated_at ON sheet_markups;
+CREATE TRIGGER trg_sheet_markups_updated_at
+  BEFORE UPDATE ON sheet_markups
+  FOR EACH ROW EXECUTE FUNCTION auto_update_timestamp();
 
 ALTER TABLE project_sheets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sheet_markups ENABLE ROW LEVEL SECURITY;

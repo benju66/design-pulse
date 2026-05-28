@@ -25,6 +25,10 @@ export interface Database {
           source_page_index: number | null
           staged_key: string | null
           status_message: string | null
+          drawing_title: string | null
+          revision: string | null
+          drawing_date: string | null
+          received_date: string | null
           created_at: string
           updated_at: string
         }
@@ -43,6 +47,10 @@ export interface Database {
           source_page_index?: number | null
           staged_key?: string | null
           status_message?: string | null
+          drawing_title?: string | null
+          revision?: string | null
+          drawing_date?: string | null
+          received_date?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -61,6 +69,42 @@ export interface Database {
           source_page_index?: number | null
           staged_key?: string | null
           status_message?: string | null
+          drawing_title?: string | null
+          revision?: string | null
+          drawing_date?: string | null
+          received_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      project_drawing_sets: {
+        Row: {
+          id: string
+          project_id: string
+          set_name: string
+          issue_date: string | null
+          description: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          set_name: string
+          issue_date?: string | null
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          set_name?: string
+          issue_date?: string | null
+          description?: string | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }

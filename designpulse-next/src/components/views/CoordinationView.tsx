@@ -56,7 +56,8 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
     areas: [] as string[],
     disciplines: [] as string[],
     codes: [] as string[],
-    groups: [] as string[]
+    groups: [] as string[],
+    priorities: [] as string[]
   }, 'coord');
 
   // ── Global Filter linkage settings ──
@@ -74,6 +75,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
   const coordActiveCostCodes = isFilterLinkingEnabled ? linkedCostCodes : urlFilters.codes;
   const coordActiveDisciplines = urlFilters.disciplines;
   const coordActiveGroups = urlFilters.groups;
+  const coordActivePriorities = urlFilters.priorities;
 
   const setCoordActiveBuildingAreas = useCallback((areas: string[]) => {
     if (isFilterLinkingEnabled) {
@@ -103,6 +105,10 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
   const setCoordActiveGroups = useCallback((groups: string[]) => {
     setUrlFilters(prev => ({ ...prev, groups }));
+  }, [setUrlFilters]);
+
+  const setCoordActivePriorities = useCallback((priorities: string[]) => {
+    setUrlFilters(prev => ({ ...prev, priorities }));
   }, [setUrlFilters]);
 
   // ── Memoized Group filter label↔ID translation ──
@@ -232,6 +238,11 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
         if (!coordActiveGroups.includes(itemGroupId)) return false;
       }
 
+      if (coordActivePriorities.length > 0) {
+        const itemPriority = opp.priority || 'Set Priority';
+        if (!coordActivePriorities.includes(itemPriority)) return false;
+      }
+
       if (matchingDisciplineIds) {
         const details = (opp.coordination_details as Record<string, unknown>) || {};
         const hasMatch = Array.from(matchingDisciplineIds).some(id => {
@@ -244,7 +255,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
       return true;
     });
-  }, [coordinationOpportunities, coordActiveType, coordActiveStatuses, coordActiveBuildingAreas, coordActiveCostCodes, coordActiveGroups, coordActiveDisciplines, projectDisciplines]);
+  }, [coordinationOpportunities, coordActiveType, coordActiveStatuses, coordActiveBuildingAreas, coordActiveCostCodes, coordActiveGroups, coordActiveDisciplines, coordActivePriorities, projectDisciplines]);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative bg-slate-50 dark:bg-slate-950">
@@ -330,8 +341,8 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                   coordGroups={coordGroups}
                   onGroupsChange={handleGroupsChange}
                   activeGroupIds={coordActiveGroups}
-                  filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length + coordActiveGroups.length}
-                  onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); setCoordActiveGroups([]); }}
+                  filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length + coordActiveGroups.length + coordActivePriorities.length}
+                  onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); setCoordActiveGroups([]); setCoordActivePriorities([]); }}
                   filterSlot={
                     <>
                       <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-2">
@@ -353,6 +364,24 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</label>
                         <MultiSelectFilter fullWidth label="Status" options={uniqueCoordStatuses} selected={coordActiveStatuses} onChange={setCoordActiveStatuses} placeholder="Search statuses..." />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Priority</label>
+                        <MultiSelectFilter
+                          fullWidth
+                          label="Priority"
+                          options={['Critical', 'High', 'Medium', 'Low', 'Set Priority']}
+                          selected={coordActivePriorities}
+                          onChange={setCoordActivePriorities}
+                          placeholder="Search priority..."
+                          colorMap={{
+                            'Critical': '#e11d48',     // rose-600
+                            'High': '#d97706',         // amber-600
+                            'Medium': '#0284c7',       // sky-600
+                            'Low': '#64748b',          // slate-500
+                            'Set Priority': '#94a3b8'  // slate-400
+                          }}
+                        />
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Building Area</label>

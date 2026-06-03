@@ -17,7 +17,10 @@ Investigate to confirm you fully understand everything impacted by these updates
 
 
 Step 4: Verification Integration
-For every new fix added to the plan, define exactly how we will test and verify it works. Directly invoke the modular verify-feature skill requirements to structure the test criteria.
+For every new fix added to the plan, define exactly how we will test and verify it works. Before proposing new verification steps, run the existing test suites as a regression baseline:
+* `cd designpulse-next && npm test` — Vitest unit + integration (61+ tests)
+* `cd designpulse-backend && .\venv\Scripts\python.exe -m pytest tests/ -v` — pytest backend (13+ tests)
+If any existing tests fail, flag the regression immediately. Then invoke the modular verify-feature skill requirements to structure the test criteria for the new changes.
 
 
 Step 5: Review Gate

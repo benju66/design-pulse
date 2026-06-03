@@ -11,7 +11,10 @@ Review the original Implementation Plan and compare it directly against the curr
 
 **Step 2: Cross-Surface Verification**
 Do not just read the code—prove it works. 
-* Run the relevant test suites or lint validation scripts inside the terminal workspace.
+* Run the automated test suites in the terminal workspace:
+  * **Frontend unit + integration:** `cd designpulse-next && npm test` (Vitest — 61+ tests covering financialMath, useUIStore, RLS/immutability)
+  * **Backend:** `cd designpulse-backend && .\venv\Scripts\python.exe -m pytest tests/ -v` (pytest — PDF validation, vector extraction)
+  * **E2E (if UI changed):** `cd designpulse-next && npm run test:e2e` (Playwright — requires dev server running on port 8000)
 * If UI/UX components were altered, simulate or execute browser state validations targeting Design Pulse core surfaces (e.g., Excel-style TanStack data grids, locking interactions on the Contenders Matrix, or React Konva canvas vector markups).
 * For browser environment tests, authenticate exclusively using these test credentials:
   * URL: `http://localhost:8000/`

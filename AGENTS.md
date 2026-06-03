@@ -15,6 +15,7 @@ Design Pulse is an enterprise-grade Pre-Construction Decision Engine and Visual 
 * **Spatial / Canvas:** `react-konva` (Renders high-fidelity floor plans with interactive vector markups).
 * **Backend / Database:** Supabase (PostgreSQL with Row Level Security, Auth, Storage, and Realtime subscriptions).
 * **Microservice:** Python/FastAPI located in `designpulse-backend/` (and `designpulse-map-module/`) using `PyMuPDF` (`fitz`) to handle heavy PDF parsing, vector extraction, and status mapping exports.
+* **Testing:** Vitest (unit + integration, `designpulse-next/tests/`), Playwright (E2E, `designpulse-next/tests/e2e/`), pytest (backend, `designpulse-backend/tests/`). Run with `npm test`, `npm run test:e2e`, and `python -m pytest tests/ -v` respectively. CI via GitHub Actions (`.github/workflows/verify.yml`).
 
 ## 3. Core Domain Logic & Terminology
 * **Opportunities (The Parent Row):** A single design element or VE item (e.g., "Countertop Material"). 
@@ -39,6 +40,7 @@ When working on this project, rely on the following modular skills stored in `.a
 - **Code Reviews:** invoke `deep-review`
 - **Feature Verification:** invoke `verify-feature`
 - **Coordination Load Testing:** invoke `load-test-coordination`
+- **Testing & Verification:** Run `npm test` (Vitest unit + integration), `npm run test:e2e` (Playwright E2E), `python -m pytest tests/ -v` (backend pytest). Always run `npm test` after code changes to catch regressions.
 
 ## Test Credentials
 When checking the app in the browser, use the following credentials to log in:

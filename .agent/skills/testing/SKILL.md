@@ -39,6 +39,11 @@ never literals in source:
 * `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` — read from `process.env`.
 * Stored in `designpulse-next/.env.local` (git-ignored). See `.env.local.example` for the keys.
 * Integration tests also need `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+* Optional integration scoping: `TEST_SANDBOX_PROJECT_ID` (a throwaway project the
+  destructive immutability tests write to — they skip when it is unset) and
+  `TEST_USER_IS_PLATFORM_ADMIN` (`'true'` tightens the RBAC assertions). The suite
+  is capability-aware and safe-by-default: with neither set, it runs read-oriented
+  checks and never mutates arbitrary production data.
 * `vitest.config.ts` and `playwright.config.ts` load `.env.local` and expose these to the test
   process. If they are absent, credential-dependent suites must fail loudly or skip — never
   silently pass.

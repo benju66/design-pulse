@@ -57,7 +57,8 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
     disciplines: [] as string[],
     codes: [] as string[],
     groups: [] as string[],
-    priorities: [] as string[]
+    priorities: [] as string[],
+    meetingTypes: [] as string[]
   }, 'coord');
 
   // ── Global Filter linkage settings ──
@@ -76,6 +77,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
   const coordActiveDisciplines = urlFilters.disciplines;
   const coordActiveGroups = urlFilters.groups;
   const coordActivePriorities = urlFilters.priorities;
+  const coordActiveMeetingTypes = urlFilters.meetingTypes;
 
   const setCoordActiveBuildingAreas = useCallback((areas: string[]) => {
     if (isFilterLinkingEnabled) {
@@ -109,6 +111,10 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
   const setCoordActivePriorities = useCallback((priorities: string[]) => {
     setUrlFilters(prev => ({ ...prev, priorities }));
+  }, [setUrlFilters]);
+
+  const setCoordActiveMeetingTypes = useCallback((meetingTypes: string[]) => {
+    setUrlFilters(prev => ({ ...prev, meetingTypes }));
   }, [setUrlFilters]);
 
   // ── Memoized Group filter label↔ID translation ──
@@ -219,6 +225,11 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
     return Array.from(new Set(codes)).sort();
   }, [coordinationOpportunities]);
 
+  const uniqueMeetingTypes = useMemo(() => {
+    const types = coordinationOpportunities.map(o => o.meeting_type).filter(Boolean) as string[];
+    return Array.from(new Set(types)).sort();
+  }, [coordinationOpportunities]);
+
   const filteredOpportunities = useMemo(() => {
     // Pre-compute discipline ID set once — not per-row (Fix 5)
     const matchingDisciplineIds = coordActiveDisciplines.length > 0
@@ -243,6 +254,10 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
         if (!coordActivePriorities.includes(itemPriority)) return false;
       }
 
+      if (coordActiveMeetingTypes.length > 0) {
+        if (!opp.meeting_type || !coordActiveMeetingTypes.includes(opp.meeting_type)) return false;
+      }
+
       if (matchingDisciplineIds) {
         const details = (opp.coordination_details as Record<string, unknown>) || {};
         const hasMatch = Array.from(matchingDisciplineIds).some(id => {
@@ -255,7 +270,7 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
 
       return true;
     });
-  }, [coordinationOpportunities, coordActiveType, coordActiveStatuses, coordActiveBuildingAreas, coordActiveCostCodes, coordActiveGroups, coordActiveDisciplines, coordActivePriorities, projectDisciplines]);
+  }, [coordinationOpportunities, coordActiveType, coordActiveStatuses, coordActiveBuildingAreas, coordActiveCostCodes, coordActiveGroups, coordActiveDisciplines, coordActivePriorities, coordActiveMeetingTypes, projectDisciplines]);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative bg-slate-50 dark:bg-slate-950">
@@ -341,8 +356,8 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                   coordGroups={coordGroups}
                   onGroupsChange={handleGroupsChange}
                   activeGroupIds={coordActiveGroups}
-                  filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length + coordActiveGroups.length + coordActivePriorities.length}
-                  onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); setCoordActiveGroups([]); setCoordActivePriorities([]); }}
+                  filterActiveCount={(coordActiveType !== 'All' ? 1 : 0) + coordActiveStatuses.length + coordActiveBuildingAreas.length + coordActiveDisciplines.length + coordActiveCostCodes.length + coordActiveGroups.length + coordActivePriorities.length + coordActiveMeetingTypes.length}
+                  onClearFilters={() => { setCoordActiveType('All'); setCoordActiveStatuses([]); setCoordActiveBuildingAreas([]); setCoordActiveDisciplines([]); setCoordActiveCostCodes([]); setCoordActiveGroups([]); setCoordActivePriorities([]); setCoordActiveMeetingTypes([]); }}
                   filterSlot={
                     <>
                       <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-2">
@@ -399,6 +414,12 @@ export function CoordinationView({ projectId }: CoordinationViewProps) {
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cost Code</label>
                         <MultiSelectFilter fullWidth label="Cost Code" options={uniqueCoordCostCodes} selected={coordActiveCostCodes} onChange={setCoordActiveCostCodes} placeholder="Search codes..." />
                       </div>
+                      {uniqueMeetingTypes.length > 0 && (
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Meeting</label>
+                          <MultiSelectFilter fullWidth label="Meeting" options={uniqueMeetingTypes} selected={coordActiveMeetingTypes} onChange={setCoordActiveMeetingTypes} placeholder="Search meetings..." />
+                        </div>
+                      )}
                     </>
                   }
                 />

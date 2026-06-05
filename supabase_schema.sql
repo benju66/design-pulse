@@ -3414,4 +3414,11 @@ BEGIN
     VALUES (v_project_id, p_opp_id, v_option_id, 'system_log', 'Returned by Estimator (Revised Cost: $' || p_revised_cost::text || '). Note: ' || p_note, auth.uid());
   END IF;
 END;
+
+-- Meeting Type: project-configurable tagging for coordination items
+ALTER TABLE opportunities
+  ADD COLUMN IF NOT EXISTS meeting_type TEXT;
+
+ALTER TABLE project_settings
+  ADD COLUMN IF NOT EXISTS meeting_types JSONB DEFAULT '[]'::jsonb;
 $$;

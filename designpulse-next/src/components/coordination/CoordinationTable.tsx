@@ -18,9 +18,9 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer, VirtualItem } from '@tanstack/react-virtual';
 import { Map as MapIcon, ChevronDown, ChevronUp, ChevronRight, SlidersHorizontal, PanelRight, MessageCirclePlus, Layers, ChevronsUpDown } from 'lucide-react';
-import { Opportunity, DisciplineConfig, CoordGroupConfig, CoordinationTask } from '@/types/models';
+import { Opportunity, DisciplineConfig, CoordGroupConfig, CoordinationTask, MeetingTypeConfig } from '@/types/models';
 import { useProjectSettings, useCurrentUserPermissions } from '@/hooks/useProjectCoreQueries';
-import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useBulkUpdateCoordinationStatus, useBulkUpdateCoordGroup, useUpdateCoordinationDetails } from '@/hooks/useOpportunityQueries';
+import { useUpdateOpportunity, useCreateOpportunity, useDeleteOpportunity, useBulkUpdateCoordinationStatus, useBulkUpdateCoordGroup, useBulkUpdateMeetingType, useUpdateCoordinationDetails } from '@/hooks/useOpportunityQueries';
 import { useGridNavigation } from '@/hooks/useGridNavigation';
 import { TextCell, PriorityCell, BuildingAreaCell, CostCodeCell, CsiSpecCell, DivisionCell } from '@/components/opportunities/EditableCell';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
@@ -35,9 +35,11 @@ import { CheckboxCell, CheckboxHeader, DateCell } from '@/components/data-table/
 import { BulkActionBar, DeleteConfirmModal, GhostRow, TableEmptyState } from '@/components/data-table';
 import { BulkStatusChangeMenu } from './BulkStatusChangeMenu';
 import { BulkGroupAssignMenu } from './BulkGroupAssignMenu';
+import { BulkMeetingTypeMenu } from './BulkMeetingTypeMenu';
 import { CoordinationGroupCell } from './CoordinationGroupCell';
 import { CoordinationGroupHeaderRow } from './CoordinationGroupHeaderRow';
 import { SubTaskMiniTable } from './SubTaskMiniTable';
+import { MeetingTypeCell } from './MeetingTypeCell';
 import { getSubTaskSummary } from '@/lib/coordinationUtils';
 
 interface Props {
@@ -372,6 +374,10 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
     () => (settings?.building_areas as string[]) || ['Corridor / Common', 'Unit Interiors', 'Back of House'],
     [settings?.building_areas]
   );
+  const meetingTypes = useMemo(
+    () => (settings?.meeting_types as MeetingTypeConfig[]) || [],
+    [settings?.meeting_types]
+  );
 
   const updateMutation = useUpdateOpportunity(projectId);
   const createMutation = useCreateOpportunity(projectId);
@@ -383,6 +389,8 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
 
   const bulkGroupMutation = useBulkUpdateCoordGroup(projectId);
   const [isBulkGroupUpdating, setIsBulkGroupUpdating] = useState(false);
+  const bulkMeetingTypeMutation = useBulkUpdateMeetingType(projectId);
+  const [isBulkMeetingUpdating, setIsBulkMeetingUpdating] = useState(false);
 
   // ── Sub-task mutation callbacks (lifted here per Rule C24 — not in N-rendered SubTaskMiniTable) ──
   const updateCoordDetails = useUpdateCoordinationDetails(projectId);
@@ -505,9 +513,24 @@ export default function CoordinationTable({ projectId, opportunities, viewMode =
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Group assignment failed: ${errMsg}`);
-      // Selection is NOT cleared on failure (deep-review Issue 14)
     } finally {
       setIsBulkGroupUpdating(false);
+    }
+  };
+
+  const handleBulkMeetingTypeAssign = async (meetingType: string | null) => {
+    if (selectedRows.length === 0) return;
+    setIsBulkMeetingUpdating(true);
+    try {
+      await bulkMeetingTypeMutation.mutateAsync({ ids: selectedRows, meetingType });
+      const label = meetingType ?? 'cleared';
+      toast.success(`Set meeting type to "${label}" for ${selectedRows.length} item(s)`);
+      clearSelection();
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Meeting type update failed: ${errMsg}`);
+    } finally {
+      setIsBulkMeetingUpdating(false);
     }
   };
 
@@ -680,6 +703,14 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       cell: BuildingAreaCell,
     },
     {
+      accessorKey: 'meeting_type',
+      header: 'Meeting',
+      size: 160,
+      cell: MeetingTypeCell,
+      enableSorting: true,
+      enableResizing: true,
+    },
+    {
       accessorKey: 'title',
       header: 'Task / Item',
       size: 400,
@@ -847,6 +878,7 @@ const EMPTY_VISIBILITY: VisibilityState = {};
       moveActiveCellRef,
       disciplines,
       buildingAreas,
+      meetingTypes,
       coordGroups,
       onGroupsChange,
       isGroupsMode,
@@ -1324,6 +1356,12 @@ const EMPTY_VISIBILITY: VisibilityState = {};
                     isUpdating={isBulkGroupUpdating}
                   />
                 )}
+                <BulkMeetingTypeMenu
+                  selectedCount={selectedRows.length}
+                  meetingTypes={meetingTypes}
+                  onSelect={handleBulkMeetingTypeAssign}
+                  isUpdating={isBulkMeetingUpdating}
+                />
               </>
             }
           />

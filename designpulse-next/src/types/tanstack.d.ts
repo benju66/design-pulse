@@ -1,6 +1,6 @@
 import '@tanstack/react-table';
 import { UseMutationResult } from '@tanstack/react-query';
-import { Opportunity, OpportunityOption, CostCode, ProjectCsiSpec, RemapCsiEntryParams, EstimateCostType, UserPermissions, ProjectMember, DisciplineConfig, Permit, CoordGroupConfig } from './models';
+import { Opportunity, OpportunityOption, CostCode, ProjectCsiSpec, RemapCsiEntryParams, EstimateCostType, UserPermissions, ProjectMember, DisciplineConfig, Permit, CoordGroupConfig, MeetingTypeConfig } from './models';
 import { MutableRefObject } from 'react';
 
 declare module '@tanstack/react-table' {
@@ -35,6 +35,8 @@ declare module '@tanstack/react-table' {
     projectId?: string;
     disciplines?: DisciplineConfig[];
     buildingAreas?: string[];
+    // Meeting Types — project-configurable meeting tags for coordination items (C24 — derived once in parent)
+    meetingTypes?: MeetingTypeConfig[];
     // Coordination Groups — user-defined named containers (C24 — derived once in parent)
     coordGroups?: CoordGroupConfig[];
     onGroupsChange?: (groups: CoordGroupConfig[]) => void;

@@ -1023,3 +1023,44 @@ export function useBulkUpdateCoordGroup(projectId: string) {
   });
 }
 
+export function useBulkUpdateMeetingType(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    { ids: string[]; meetingType: string | null },
+    { previousOpportunities: Opportunity[] | undefined }
+  >({
+    mutationFn: async ({ ids, meetingType }) => {
+      const { error } = await supabase
+        .from('opportunities')
+        .update({ meeting_type: meetingType })
+        .in('id', ids);
+      if (error) throw new Error(error.message || JSON.stringify(error));
+    },
+    onMutate: async ({ ids, meetingType }) => {
+      await queryClient.cancelQueries({ queryKey: ['opportunities', projectId] });
+      const previousOpportunities = queryClient.getQueryData<Opportunity[]>(['opportunities', projectId]);
+
+      queryClient.setQueryData<Opportunity[]>(['opportunities', projectId], old => {
+        if (!old) return old;
+        return old.map(opp =>
+          ids.includes(opp.id)
+            ? { ...opp, meeting_type: meetingType }
+            : opp
+        );
+      });
+
+      return { previousOpportunities };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['opportunities', projectId], context.previousOpportunities);
+      }
+      toast.error(`Failed to set meeting type: ${err.message || 'Unknown error'}`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['opportunities', projectId] });
+    }
+  });
+}

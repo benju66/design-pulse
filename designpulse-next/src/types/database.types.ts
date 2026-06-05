@@ -176,6 +176,7 @@ export interface Database {
           enable_audit_logging: boolean | null
           package_scopes: Json | null
           coord_groups: Json | null
+          meeting_types: Json | null
         }
         Insert: {
           project_id: string
@@ -191,6 +192,7 @@ export interface Database {
           enable_audit_logging?: boolean | null
           package_scopes?: Json | null
           coord_groups?: Json | null
+          meeting_types?: Json | null
         }
         Update: {
           project_id?: string
@@ -206,6 +208,7 @@ export interface Database {
           enable_audit_logging?: boolean | null
           package_scopes?: Json | null
           coord_groups?: Json | null
+          meeting_types?: Json | null
         }
       }
       project_sequences: {
@@ -254,6 +257,7 @@ export interface Database {
           coordination_details: Json | null
           item_assumptions: string | null
           coord_group_id: string | null
+          meeting_type: string | null
         }
         Insert: {
           id?: string
@@ -286,6 +290,7 @@ export interface Database {
           coordination_details?: Json | null
           item_assumptions?: string | null
           coord_group_id?: string | null
+          meeting_type?: string | null
         }
         Update: {
           id?: string
@@ -318,6 +323,7 @@ export interface Database {
           coordination_details?: Json | null
           item_assumptions?: string | null
           coord_group_id?: string | null
+          meeting_type?: string | null
         }
       }
       cost_codes: {

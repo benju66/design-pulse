@@ -21,7 +21,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import * as LucideIcons from 'lucide-react';
-import { SidebarItem, DisciplineConfig, PermitTypeConfig, PermitAHJConfig, CategoryConfig } from '@/types/models';
+import { SidebarItem, DisciplineConfig, PermitTypeConfig, PermitAHJConfig, CategoryConfig, MeetingTypeConfig } from '@/types/models';
 import { DEFAULT_SIDEBAR_ITEMS, DEFAULT_DISCIPLINES } from '@/lib/constants';
 import { normalizeCategories } from '@/lib/normalizeSettings';
 import { CsiMappingTab } from '@/components/project/CsiMappingTab';
@@ -292,6 +292,7 @@ export const ProjectSettings = ({
   const [coordColumns, setCoordColumns] = useState<{id: string, label: string, visible?: boolean}[]>([]);
   const [permitTypes, setPermitTypes] = useState<PermitTypeConfig[]>([]);
   const [permitAHJs, setPermitAHJs] = useState<PermitAHJConfig[]>([]);
+  const [meetingTypes, setMeetingTypes] = useState<MeetingTypeConfig[]>([]);
   
   const [projectInfo, setProjectInfo] = useState({
     project_name: '',
@@ -310,6 +311,7 @@ export const ProjectSettings = ({
   const [newDiscipline, setNewDiscipline] = useState('');
   const [newPermitType, setNewPermitType] = useState('');
   const [newPermitAHJ, setNewPermitAHJ] = useState('');
+  const [newMeetingType, setNewMeetingType] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
   const resetSettings = useCallback(() => {
@@ -337,6 +339,7 @@ export const ProjectSettings = ({
       
       setPermitTypes((settings.permit_types as PermitTypeConfig[]) || []);
       setPermitAHJs((settings.permit_ahjs as PermitAHJConfig[]) || []);
+      setMeetingTypes((settings.meeting_types as MeetingTypeConfig[]) || []);
       
       const savedOrder = settings.ve_column_order || [];
       if (savedOrder.length > 0) {
@@ -450,6 +453,14 @@ export const ProjectSettings = ({
     }
   };
 
+  const addMeetingType = () => {
+    if (newMeetingType.trim()) {
+      setMeetingTypes([...meetingTypes, { id: crypto.randomUUID(), label: newMeetingType.trim() }]);
+      setNewMeetingType('');
+      setHasChanges(true);
+    }
+  };
+
   const handleDragEndCategories = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -496,6 +507,16 @@ export const ProjectSettings = ({
       const oldIndex = permitAHJs.findIndex(d => d.id === active.id);
       const newIndex = permitAHJs.findIndex(d => d.id === over.id);
       setPermitAHJs(arrayMove(permitAHJs, oldIndex, newIndex));
+      setHasChanges(true);
+    }
+  };
+
+  const handleDragEndMeetingTypes = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = meetingTypes.findIndex(d => d.id === active.id);
+      const newIndex = meetingTypes.findIndex(d => d.id === over.id);
+      setMeetingTypes(arrayMove(meetingTypes, oldIndex, newIndex));
       setHasChanges(true);
     }
   };
@@ -583,7 +604,8 @@ export const ProjectSettings = ({
         ve_column_order: veColumns.map(c => ({ id: c.id, visible: c.visible ?? true, pinned: c.pinned ?? false })),
         coord_column_order: coordColumns.map(c => ({ id: c.id, visible: c.visible ?? true })),
         permit_types: permitTypes as any,
-        permit_ahjs: permitAHJs as any
+        permit_ahjs: permitAHJs as any,
+        meeting_types: meetingTypes as any
       },
       { onSuccess: () => setHasChanges(false) }
     );
@@ -1211,7 +1233,8 @@ export const ProjectSettings = ({
       )}
 
       {displayTab === 'coord_matrix' && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in">
+        <div className="space-y-6 animate-in fade-in">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Coordination Items Configuration</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
             Set the default column order for Coordination Items. Drag items to rearrange them or toggle their visibility.
@@ -1221,9 +1244,9 @@ export const ProjectSettings = ({
             <SortableContext items={coordColumns.map(c => c.id)} strategy={verticalListSortingStrategy}>
               <div className="space-y-2 mb-6">
                 {coordColumns.map((col) => (
-                  <SortableItem 
-                    key={col.id} 
-                    id={col.id} 
+                  <SortableItem
+                    key={col.id}
+                    id={col.id}
                     content={col.label}
                     renderExtra={() => (
                       <button
@@ -1233,10 +1256,10 @@ export const ProjectSettings = ({
                         }`}
                         title={col.visible ? 'Hide column by default' : 'Show column by default'}
                       >
-                        <span 
+                        <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out ${
                             col.visible ? 'translate-x-6' : 'translate-x-1'
-                          }`} 
+                          }`}
                         />
                       </button>
                     )}
@@ -1245,6 +1268,53 @@ export const ProjectSettings = ({
               </div>
             </SortableContext>
           </DndContext>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm mb-6">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-1">Meeting Types</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            Define the meeting contexts used to tag coordination items (e.g. Design Meeting, OAC Meeting).
+          </p>
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newMeetingType}
+              onChange={(e) => setNewMeetingType(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addMeetingType()}
+              placeholder="e.g. OAC Meeting"
+              className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-white"
+            />
+            <button
+              onClick={addMeetingType}
+              disabled={!newMeetingType.trim()}
+              className="bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
+            >
+              <Plus size={16} /> Add Type
+            </button>
+          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndMeetingTypes}>
+            <SortableContext items={meetingTypes.map(d => d.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                {meetingTypes.map(mt => (
+                  <SortableItem
+                    key={mt.id}
+                    id={mt.id}
+                    content={mt.label}
+                    onRemove={() => {
+                      setMeetingTypes(meetingTypes.filter(d => d.id !== mt.id));
+                      setHasChanges(true);
+                    }}
+                  />
+                ))}
+                {meetingTypes.length === 0 && (
+                  <div className="text-center p-6 text-sm text-slate-500 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                    No Meeting Types defined. Add one above.
+                  </div>
+                )}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </div>
         </div>
       )}
 

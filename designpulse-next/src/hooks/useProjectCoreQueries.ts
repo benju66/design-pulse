@@ -171,6 +171,7 @@ export function useProjectSettings(projectId: string | null) {
         enable_audit_logging: settings.enable_audit_logging ?? defaultSettings.enable_audit_logging,
         ve_column_order: settings.ve_column_order ?? defaultSettings.ve_column_order,
         package_scopes: Array.isArray((settings as any).package_scopes) ? (settings as any).package_scopes : [],
+        meeting_types: Array.isArray((settings as any).meeting_types) ? (settings as any).meeting_types : [],
       } as ProjectSettings;
     },
     enabled: !!projectId

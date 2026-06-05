@@ -37,6 +37,8 @@ export type Opportunity = Database['public']['Tables']['opportunities']['Row'] &
   item_assumptions?: string | null;
   // Coordination Groups: user-defined group assignment
   coord_group_id?: string | null;
+  // Meeting Type: project-configurable meeting context tag
+  meeting_type?: string | null;
   // Populated when Supabase query joins opportunity_options (e.g. usePendingEstimateUpdates)
   opportunity_options?: OpportunityOption[];
   // Ledger financial columns (populated only for is_budget_line=true rows from get_master_ledger_grid)
@@ -89,6 +91,7 @@ export type ProjectSettings = Database['public']['Tables']['project_settings']['
   permit_ahjs?: PermitAHJConfig[];
   package_scopes?: PackageScopeConfig[];
   coord_groups?: CoordGroupConfig[];
+  meeting_types?: MeetingTypeConfig[];
 };
 export type Project = Database['public']['Tables']['projects']['Row'] & {
   project_number?: string | null;
@@ -187,6 +190,10 @@ export interface PermitAHJConfig {
   label: string;
 }
 export interface PackageScopeConfig {
+  id: string;
+  label: string;
+}
+export interface MeetingTypeConfig {
   id: string;
   label: string;
 }

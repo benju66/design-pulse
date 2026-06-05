@@ -155,11 +155,13 @@ export function usePdfRenderer(
   // useEffect dep, the effect would fire on every pan micro-step. The ref lets
   // the render callback read the latest value without being a dependency.
   const viewportRectRef = useRef<ViewportRect | null>(null);
+  // eslint-disable-next-line react-hooks/refs -- intentional latest-value ref read by the async render callback (see note above)
   viewportRectRef.current = viewportRect;
 
   // Ref-based stageScale: the async render callback reads the latest value
   // instead of the closure-captured stale value during rapid zoom.
   const stageScaleRef = useRef(stageScale);
+  // eslint-disable-next-line react-hooks/refs -- intentional latest-value ref read by the async render callback during rapid zoom
   stageScaleRef.current = stageScale;
 
   // ── Cleanup helper ──────────────────────────────────────────────────────
@@ -320,6 +322,7 @@ export function usePdfRenderer(
   useEffect(() => {
     // Guard: idle state
     if (!sheetId || !pdfStoragePath) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset async download/render state when idle
       setIsLoading(false);
       setError(null);
       return;
@@ -465,6 +468,7 @@ export function usePdfRenderer(
 
     // Below threshold — clear any stale viewport overlay
     if (stageScale <= DEEP_ZOOM_THRESHOLD) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale viewport overlay when below the deep-zoom threshold
       setViewportBitmap(prev => { prev?.close(); return null; });
       setViewportPosition(null);
       return;

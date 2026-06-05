@@ -39,9 +39,9 @@ export const CoordinationDetailPanel = ({ projectId, opportunity }: Coordination
   const descriptionRef = useRef<HTMLDetailsElement>(null);
   const focusDetailSection = useUIStore(state => state.focusDetailSection);
   const setFocusDetailSection = useUIStore(state => state.setFocusDetailSection);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (focusDetailSection === 'description') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot response to an external focus-request signal
       setDescOpen(true);
       setFocusDetailSection(null);
       requestAnimationFrame(() => {

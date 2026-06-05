@@ -140,6 +140,7 @@ function BudgetSourcePicker({
   // Sync mode when versions load asynchronously
   useEffect(() => {
     if (finalizedVersions.length > 0 && matchingVersionId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- re-sync mode once finalized versions load asynchronously
       setMode('estimate');
     }
   }, [finalizedVersions.length, matchingVersionId]);

@@ -37,16 +37,23 @@ When working on this project, rely on the following modular skills stored in `.a
 - **Data Tables/Grid Components:** invoke `data-table-architecture`
 - **Database/SQL/RLS:** invoke `database-guardrails`
 - **API/Python/Microservice:** invoke `api-and-integration`
+- **Feature Discovery:** invoke `feature-discovery`
 - **Code Reviews:** invoke `deep-review`
 - **Feature Verification:** invoke `verify-feature`
 - **Coordination Load Testing:** invoke `load-test-coordination`
-- **Testing & Verification:** Run `npm test` (Vitest unit + integration), `npm run test:e2e` (Playwright E2E), `python -m pytest tests/ -v` (backend pytest). Always run `npm test` after code changes to catch regressions.
+- **Testing & QA:** invoke `testing` (single source for the Vitest / Playwright / pytest suites, commands, and credential handling)
+
+> **Two skill systems.** These `.agent/skills/` files are the **canonical** content for the
+> **Antigravity** agent. A mirror set of thin, auto-triggering pointer skills exists for
+> **Claude Code** under `.claude/skills/<name>/` (same names). Edit rules here in `.agent/skills/`;
+> the Claude pointers redirect back to these files. See `CLAUDE.md` for the full explanation.
 
 ## Test Credentials
-When checking the app in the browser, use the following credentials to log in:
-- Username: `burness@fpcinc.com`
-- Password: `BuildIt2026!!`
-- URL: `http://localhost:8000/`
+When checking the app in the browser (URL: `http://localhost:8000/`) or running the
+integration/E2E suites, authenticate with a **dedicated test account** supplied via
+environment variables — never hardcode credentials in code, tests, skills, or docs.
+- Set `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` in `designpulse-next/.env.local` (git-ignored).
+- See `designpulse-next/.env.local.example` for the required keys.
 
 ---
 

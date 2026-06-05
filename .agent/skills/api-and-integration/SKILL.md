@@ -1,3 +1,4 @@
+<!-- Canonical content (Antigravity). Claude mirror: .claude/skills/api-and-integration/ (pointer only). -->
 # API and Integration Skill
 
 This skill applies when you are modifying Next.js API Routes, Python FastAPI microservices, or building cross-system data integrations.

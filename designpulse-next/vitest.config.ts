@@ -12,7 +12,14 @@ function loadDotEnv(): Record<string, string> {
       if (!trimmed || trimmed.startsWith('#')) continue;
       const eqIdx = trimmed.indexOf('=');
       if (eqIdx === -1) continue;
-      result[trimmed.slice(0, eqIdx)] = trimmed.slice(eqIdx + 1);
+      const key = trimmed.slice(0, eqIdx);
+      let value = trimmed.slice(eqIdx + 1).trim();
+      // Strip matching surrounding quotes so quoted secrets don't load with literal quotes
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      result[key] = value;
     }
   } catch {
     // .env.local not found — integration tests will be skipped at runtime
@@ -31,6 +38,8 @@ export default defineConfig({
   define: {
     'process.env.NEXT_PUBLIC_SUPABASE_URL': JSON.stringify(envVars.NEXT_PUBLIC_SUPABASE_URL ?? ''),
     'process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY': JSON.stringify(envVars.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''),
+    'process.env.TEST_USER_EMAIL': JSON.stringify(envVars.TEST_USER_EMAIL ?? ''),
+    'process.env.TEST_USER_PASSWORD': JSON.stringify(envVars.TEST_USER_PASSWORD ?? ''),
   },
   test: {
     globals: true,

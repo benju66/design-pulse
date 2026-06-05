@@ -5,10 +5,47 @@
  *
  * Usage:
  *   npx tsx src/scripts/loadTestRerender.ts <PROJECT_ID>
+ *
+ * Requires TEST_USER_EMAIL / TEST_USER_PASSWORD in .env.local (see .env.local.example).
  */
 import { chromium } from 'playwright';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Robust local env loading fallback if standard dotenv loading doesn't capture it
+if (!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD) {
+  try {
+    const envPath = path.resolve(process.cwd(), '.env.local');
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      envContent.split('\n').forEach(line => {
+        const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+        if (match) {
+          const key = match[1];
+          let value = match[2] || '';
+          if (value.startsWith('"') && value.endsWith('"')) {
+            value = value.substring(1, value.length - 1);
+          } else if (value.startsWith("'") && value.endsWith("'")) {
+            value = value.substring(1, value.length - 1);
+          }
+          process.env[key] = value.trim();
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Could not read .env.local file', e);
+  }
+}
+
+const TEST_USER_EMAIL = process.env.TEST_USER_EMAIL!;
+const TEST_USER_PASSWORD = process.env.TEST_USER_PASSWORD!;
 
 async function main() {
+  if (!TEST_USER_EMAIL || !TEST_USER_PASSWORD) {
+    console.error('❌ Error: Missing TEST_USER_EMAIL or TEST_USER_PASSWORD in env (see .env.local.example)');
+    process.exit(1);
+  }
+
   const projectId = process.argv[2];
   if (!projectId) {
     console.error('Usage: npx tsx src/scripts/loadTestRerender.ts <PROJECT_ID>');
@@ -39,9 +76,9 @@ async function main() {
     console.log(`Navigating to ${url}...`);
     await page.goto(url);
 
-    console.log('Logging in as burness@fpcinc.com...');
-    await page.fill('input[type="email"], input[placeholder*="email" i]', 'burness@fpcinc.com');
-    await page.fill('input[type="password"], input[placeholder*="password" i]', 'BuildIt2026!!');
+    console.log(`Logging in as ${TEST_USER_EMAIL}...`);
+    await page.fill('input[type="email"], input[placeholder*="email" i]', TEST_USER_EMAIL);
+    await page.fill('input[type="password"], input[placeholder*="password" i]', TEST_USER_PASSWORD);
     
     // Support both button text and submit inputs
     const submitBtn = page.locator('button[type="submit"]');

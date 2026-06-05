@@ -1,3 +1,4 @@
+<!-- Canonical content (Antigravity). Claude mirror: .claude/skills/frontend-architecture/ (pointer only). -->
 # Frontend Architecture, React & State Management Skill
 
 This skill applies when you are modifying React components, UI/UX layouts, state management (Zustand), or dealing with frontend browser performance.

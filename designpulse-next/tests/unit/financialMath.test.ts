@@ -10,22 +10,30 @@ import {
 // Helper factories — produce minimal test fixtures matching function signatures
 // ---------------------------------------------------------------------------
 
+// `pick` returns an explicitly-provided override (including `null`) and only
+// falls back to the default when the key is absent — so tests that pass `null`
+// actually exercise the function's null handling instead of being silently
+// coerced to the default by `??`.
+function pick<T>(overrides: Record<string, unknown>, key: string, fallback: T): T {
+  return key in overrides ? (overrides[key] as T) : fallback;
+}
+
 function makeOption(overrides: Record<string, unknown> = {}) {
   return {
-    id: overrides.id as string ?? 'opt-1',
-    opportunity_id: overrides.opportunity_id as string ?? 'opp-1',
-    cost_impact: (overrides.cost_impact as number) ?? 0,
-    days_impact: (overrides.days_impact as number) ?? 0,
-    is_locked: (overrides.is_locked as boolean) ?? false,
-    include_in_budget: (overrides.include_in_budget as boolean) ?? false,
+    id: pick<string>(overrides, 'id', 'opt-1'),
+    opportunity_id: pick<string>(overrides, 'opportunity_id', 'opp-1'),
+    cost_impact: pick<number | null>(overrides, 'cost_impact', 0),
+    days_impact: pick<number | null>(overrides, 'days_impact', 0),
+    is_locked: pick<boolean | null>(overrides, 'is_locked', false),
+    include_in_budget: pick<boolean | null>(overrides, 'include_in_budget', false),
   };
 }
 
 function makeOpp(overrides: Record<string, unknown> = {}) {
   return {
-    id: overrides.id as string ?? 'opp-1',
-    status: (overrides.status as string) ?? 'Draft',
-    cost_impact: (overrides.cost_impact as number) ?? 0,
+    id: pick<string>(overrides, 'id', 'opp-1'),
+    status: pick<string | null>(overrides, 'status', 'Draft'),
+    cost_impact: pick<number | null>(overrides, 'cost_impact', 0),
   };
 }
 

@@ -12,11 +12,12 @@ import { test, expect } from '@playwright/test';
  *
  * Prerequisites:
  * - Dev server running on http://localhost:8000 (`npm run dev`)
- * - Test credentials: burness@fpcinc.com / BuildIt2026!!
+ * - TEST_USER_EMAIL / TEST_USER_PASSWORD in .env.local (see .env.local.example);
+ *   loaded by playwright.config.ts.
  */
 
-const TEST_EMAIL = 'burness@fpcinc.com';
-const TEST_PASSWORD = 'BuildIt2026!!';
+const TEST_EMAIL = process.env.TEST_USER_EMAIL ?? '';
+const TEST_PASSWORD = process.env.TEST_USER_PASSWORD ?? '';
 
 // ---------------------------------------------------------------------------
 // Auth helper: shared login flow that stores session for subsequent tests

@@ -1,3 +1,4 @@
+<!-- Canonical content (Antigravity). Claude mirror: .claude/skills/feature-discovery/ (pointer only). -->
 # TASK: Feature Deconstruction & Contextual Discovery
 
 Execute these steps to build a 360-degree understanding of the target feature. Stop and ask for clarification if you find conflicting logic or dead-end code paths. Do not write or propose any implementation plans during this discovery phase.

@@ -1,4 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
+import { readFileSync } from 'fs';
+import path from 'path';
 
 /**
  * Playwright E2E test configuration for Design Pulse.
@@ -8,6 +10,30 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Run with: npm run test:e2e
  */
+
+// Load .env.local into process.env so specs can read TEST_USER_EMAIL / TEST_USER_PASSWORD
+// (and any other keys) without hardcoding secrets. Missing file → specs fail loudly.
+(function loadDotEnv() {
+  try {
+    const content = readFileSync(path.resolve(__dirname, '.env.local'), 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx);
+      let value = trimmed.slice(eqIdx + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      if (process.env[key] === undefined) process.env[key] = value;
+    }
+  } catch {
+    // .env.local not found — credential-dependent specs will fail loudly at runtime.
+  }
+})();
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false, // Sequential execution — tests share auth state

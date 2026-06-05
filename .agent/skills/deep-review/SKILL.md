@@ -1,3 +1,4 @@
+<!-- Canonical content (Antigravity). Claude mirror: .claude/skills/deep-review/ (pointer only). In Claude Code, prefer the built-in /code-review; use this for the project-specific plan/review gate. -->
 Step 1: Primary Inspection \& Skill Routing
 Review AGENTS.md and the current Implementation Plan. Identify the technical domain of the target changes and explicitly invoke the matching sub-skill from .agent/skills/ (e.g., database-guardrails, data-table-architecture, frontend-architecture). Identify bugs, logical gaps, unhandled edge cases, and security flaws. Update the plan to fix any issue causing a broken user flow, security flaw, or data loss.
 
@@ -17,10 +18,7 @@ Investigate to confirm you fully understand everything impacted by these updates
 
 
 Step 4: Verification Integration
-For every new fix added to the plan, define exactly how we will test and verify it works. Before proposing new verification steps, run the existing test suites as a regression baseline:
-* `cd designpulse-next && npm test` — Vitest unit + integration (61+ tests)
-* `cd designpulse-backend && .\venv\Scripts\python.exe -m pytest tests/ -v` — pytest backend (13+ tests)
-If any existing tests fail, flag the regression immediately. Then invoke the modular verify-feature skill requirements to structure the test criteria for the new changes.
+For every new fix added to the plan, define exactly how we will test and verify it works. Before proposing new verification steps, run the existing suites as a regression baseline — see the `testing` skill for the suite inventory, commands, and credential handling. Treat any test that newly fails (passed before the change) as a regression and flag it immediately. Then invoke the modular `verify-feature` skill requirements to structure the test criteria for the new changes.
 
 
 Step 5: Review Gate

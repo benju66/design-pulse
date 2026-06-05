@@ -1,3 +1,4 @@
+<!-- Canonical content (Antigravity). Claude mirror: .claude/skills/data-table-architecture/ (pointer only). -->
 # Data Table Architecture Skill
 
 This skill applies when you are creating, modifying, or migrating any TanStack React Table data grid in the application. It documents the shared `data-table` component system, its API contracts, and migration guardrails.

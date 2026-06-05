@@ -1,15 +1,27 @@
-import { OpportunityOption } from '@/types/models';
+/**
+ * The subset of option fields the parent-total math actually reads. Matches the
+ * narrow structural types the other functions in this file already use (e.g.
+ * resolveStandardCost, calculateBudgetMetrics) rather than the full DB row type.
+ */
+type OptionFinancials = {
+  id: string;
+  opportunity_id: string;
+  cost_impact: number | null;
+  days_impact: number | null;
+  is_locked: boolean | null;
+  include_in_budget: boolean | null;
+};
 
 export function calculateParentTotals(
   opportunityId: string, 
-  previousOptions: OpportunityOption[], 
-  updates: Partial<OpportunityOption>, 
+  previousOptions: OptionFinancials[],
+  updates: Partial<OptionFinancials>,
   targetOptionId: string
 ): { cost_impact: number; days_impact: number } {
   // Simulate the updated array of options locally for optimistic UI
   const allOptsForOpp = previousOptions
     .filter(opt => opt.opportunity_id === opportunityId)
-    .map(opt => opt.id === targetOptionId ? { ...opt, ...updates } : opt) as OpportunityOption[];
+    .map(opt => opt.id === targetOptionId ? { ...opt, ...updates } : opt);
 
   const lockedOpt = allOptsForOpp.find(opt => opt.is_locked);
   if (lockedOpt) {

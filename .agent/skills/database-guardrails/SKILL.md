@@ -1,3 +1,4 @@
+<!-- Canonical content (Antigravity). Claude mirror: .claude/skills/database-guardrails/ (pointer only). -->
 # Database Architecture & Guardrails Skill
 
 This skill applies when you are modifying PostgreSQL schemas, writing Supabase RPCs, updating Row Level Security (RLS) policies, or dealing with backend database architecture.

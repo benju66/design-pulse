@@ -33,9 +33,16 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_A
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const TEST_USER_EMAIL = process.env.TEST_USER_EMAIL!;
+const TEST_USER_PASSWORD = process.env.TEST_USER_PASSWORD!;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error('❌ Error: Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in env');
+  process.exit(1);
+}
+
+if (!TEST_USER_EMAIL || !TEST_USER_PASSWORD) {
+  console.error('❌ Error: Missing TEST_USER_EMAIL or TEST_USER_PASSWORD in env (see .env.local.example)');
   process.exit(1);
 }
 
@@ -48,10 +55,10 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Authenticating as test user: burness@fpcinc.com...`);
+  console.log(`Authenticating as test user: ${TEST_USER_EMAIL}...`);
   const { error: authError } = await supabase.auth.signInWithPassword({
-    email: 'burness@fpcinc.com',
-    password: 'BuildIt2026!!',
+    email: TEST_USER_EMAIL,
+    password: TEST_USER_PASSWORD,
   });
 
   if (authError) {

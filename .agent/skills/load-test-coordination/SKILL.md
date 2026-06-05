@@ -1,3 +1,4 @@
+<!-- Canonical content (Antigravity). Claude mirror: .claude/skills/load-test-coordination/ (pointer only). -->
 # TASK: Coordination Board Load Test & Re-Render Crash Reproduction
 
 Execute these steps sequentially. Stop and report if any step fails.
@@ -18,9 +19,9 @@ Create a standalone Node.js script at `designpulse-next/src/scripts/loadTestCoor
  * Usage:
  *   npx tsx src/scripts/loadTestCoordination.ts <PROJECT_ID>
  *
- * Requires .env.local to be present with NEXT_PUBLIC_SUPABASE_URL and
- * NEXT_PUBLIC_SUPABASE_ANON_KEY. Authenticates as the test user defined
- * in AGENTS.md (burness@fpcinc.com / BuildIt2026!!).
+ * Requires .env.local to be present with NEXT_PUBLIC_SUPABASE_URL,
+ * NEXT_PUBLIC_SUPABASE_ANON_KEY, and TEST_USER_EMAIL / TEST_USER_PASSWORD
+ * (see .env.local.example). Authenticates as that dedicated test account.
  */
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
@@ -29,9 +30,10 @@ import { randomUUID } from 'crypto';
 
 ### 1B. Supabase Client (Service Auth)
 
-Initialize the Supabase client from env vars. Then sign in as the test user
-(`burness@fpcinc.com` / `BuildIt2026!!`) so the RPC runs under an authenticated
-session and passes the RBAC `has_project_permission` guard.
+Initialize the Supabase client from env vars. Then sign in as the dedicated test
+account using `process.env.TEST_USER_EMAIL` / `process.env.TEST_USER_PASSWORD`
+(from `.env.local`, see `.env.local.example`) so the RPC runs under an authenticated
+session and passes the RBAC `has_project_permission` guard. Never hardcode credentials.
 
 ```typescript
 const supabase = createClient(
@@ -131,7 +133,7 @@ Create a Playwright script at `designpulse-next/src/scripts/loadTestRerender.ts`
 
 ### 2B. Script Flow
 
-1. **Login:** Navigate to `http://localhost:8000/`, fill in credentials (`burness@fpcinc.com` / `BuildIt2026!!`), submit.
+1. **Login:** Navigate to `http://localhost:8000/`, fill in credentials from `process.env.TEST_USER_EMAIL` / `process.env.TEST_USER_PASSWORD` (see `.env.local.example`), submit.
 2. **Navigate to Project:** Click into the target project (accept `PROJECT_ID` as CLI arg, or click the first project card).
 3. **Navigate to Coordination Board:** Click the "Coordination" sidebar link / tab.
 4. **Wait for Table Render:** Wait for the coordination table to fully render (wait for `[role="table"]` or `.coordination-table` selector, with a 30-second timeout for 1,000 rows).

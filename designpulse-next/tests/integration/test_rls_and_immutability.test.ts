@@ -21,8 +21,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const TEST_EMAIL = 'burness@fpcinc.com';
-const TEST_PASSWORD = 'BuildIt2026!!';
+const TEST_EMAIL = process.env.TEST_USER_EMAIL;
+const TEST_PASSWORD = process.env.TEST_USER_PASSWORD;
 
 let supabase: SupabaseClient;
 let userId: string;
@@ -32,6 +32,12 @@ beforeAll(async () => {
     throw new Error(
       'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
       'Ensure .env.local is loaded for integration tests.'
+    );
+  }
+
+  if (!TEST_EMAIL || !TEST_PASSWORD) {
+    throw new Error(
+      'Missing TEST_USER_EMAIL or TEST_USER_PASSWORD. See .env.local.example.'
     );
   }
 
@@ -272,7 +278,7 @@ describe('RPC: RBAC helper function boundaries', () => {
   });
 
   it('has_project_permission returns true for platform admin (even non-member project)', async () => {
-    // The test user (burness@fpcinc.com) is a platform_admin.
+    // NOTE: assumes the configured test account (TEST_USER_EMAIL) is a platform_admin.
     // Platform admins bypass project-level RBAC via is_platform_admin() OR ...
     // This test verifies the platform admin short-circuit works correctly.
     const fakeProjectId = '00000000-0000-0000-0000-000000000000';

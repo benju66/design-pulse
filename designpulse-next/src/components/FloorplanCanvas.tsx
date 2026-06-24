@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Stage, Layer } from 'react-konva';
 import { Check } from 'lucide-react';
 
@@ -14,10 +14,18 @@ import { PendingPolygon } from './canvas/PendingPolygon';
 import { MapLegend, ActiveStatus, MilestoneDef } from './canvas/MapLegend';
 import { TileRenderer } from './canvas/TileRenderer';
 import { PdfBaseLayer } from './canvas/PdfBaseLayer';
+import { CrosshairOverlay } from './canvas/CrosshairOverlay';
+import { createPointerStore, type PointerStore } from '@/utils/pointerStore';
+import { classifyWheelIntent, clampStagePosition, createViewportSync, dampToward } from '@/utils/viewport';
 import { Button } from '@/components/ui/Button';
 
 // Feature flag: opt-out via NEXT_PUBLIC_USE_PDF_RENDERER=false
 const usePdf = process.env.NEXT_PUBLIC_USE_PDF_RENDERER !== 'false';
+
+// Zoom bounds + smooth-wheel time constant (shared by wheel, button zoom, glide).
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 15;
+const WHEEL_SMOOTH_TAU = 0.07; // seconds — see dampToward()
 
 import { distToSegment, getCentroid } from '@/utils/geometry';
 import { useMapStore } from '@/stores/useMapStore';
@@ -25,7 +33,7 @@ import { useSnappingVectors } from '@/hooks/useSnappingVectors';
 
 import { Point, Zone, SnapCallback } from '@/types/map.types';
 import { DragNode, DragPolygon } from './canvas/MappedZone';
-import type Konva from 'konva';
+import Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 
 export interface FloorplanCanvasProps {
@@ -113,10 +121,43 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
   }, []);
 
   const stageRef = useRef<Konva.Stage | null>(null);
-  const zoomDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Smooth-wheel-zoom glide state. Each wheel notch updates a target scale + cursor
+  // anchor; a single rAF loop eases the live transform toward it via dampToward().
+  // Refs (not state) so the loop never triggers a React render — same direct-Konva-
+  // mutation pattern as handleWheel.
+  const wheelTargetScaleRef = useRef<number | null>(null);
+  const wheelAnchorRef = useRef<{ screenX: number; screenY: number; contentX: number; contentY: number } | null>(null);
+  const wheelRafRef = useRef<number | null>(null);
+  const wheelLastFrameRef = useRef(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  // Latest stage dimensions for the rAF glide loop / dragBoundFunc to read without
+  // a stale closure (the loop outlives the render that started it).
+  const dimensionsRef = useRef(dimensions);
+  useEffect(() => { dimensionsRef.current = dimensions; }, [dimensions]);
+
+  // HiDPI: render the Konva stage at the device pixel ratio. Konva already defaults to
+  // this at canvas creation, but it does NOT re-apply when the window moves to a monitor
+  // with a different DPR — leaving the canvas soft until reload. Re-apply and force the
+  // stage to rebuild its layer canvases at the new ratio whenever the resolution changes.
+  useEffect(() => {
+    const apply = () => {
+      Konva.pixelRatio = window.devicePixelRatio || 1;
+      const stage = stageRef.current;
+      const { width, height } = dimensionsRef.current;
+      if (stage && width > 0 && height > 0) {
+        stage.size({ width, height });
+        stage.batchDraw();
+      }
+    };
+    apply();
+    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    mq.addEventListener?.('change', apply);
+    return () => mq.removeEventListener?.('change', apply);
+  }, []);
+
   const [draftPoints, setDraftPoints] = useState<Point[]>([]);
   const draftPointsRef = useRef(draftPoints);
   useEffect(() => { draftPointsRef.current = draftPoints; }, [draftPoints]);
@@ -138,8 +179,18 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
   const [activeDragNode, setActiveDragNode] = useState<DragNode | null>(null);
   const [activeDragPolygon, setActiveDragPolygon] = useState<DragPolygon | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [pointerPos, setPointerPos] = useState<{ x: number, y: number } | null>(null);
   const [isLegendSelected, setIsLegendSelected] = useState(false);
+
+  // Pointer position lives OUTSIDE React state. A per-mousemove setState here
+  // re-rendered the entire canvas tree on every frame during pan/draw. Leaf consumers
+  // (draft ghost, stamp preview, crosshair) subscribe to this store and re-render at
+  // most once per animation frame; in plain select/pan mode nothing is subscribed, so
+  // mouse movement causes zero React work. (Rule 24: the store is created once here and
+  // passed down — never a hook inside the N-rendered MappedZoneComponent.)
+  const pointerStoreRef = useRef<PointerStore | null>(null);
+  if (!pointerStoreRef.current) pointerStoreRef.current = createPointerStore();
+  const pointerStore = pointerStoreRef.current;
+  useEffect(() => () => pointerStore.dispose(), [pointerStore]);
 
   const [isShiftDown, setIsShiftDown] = useState(false);
   const [boxOrigin, setBoxOrigin] = useState<Point | null>(null);
@@ -147,8 +198,28 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
   const aspect = layoutRef.current.drawW / Math.max(1, layoutRef.current.drawH);
   const lastBoxEndRef = useRef(0);
 
+  // stageScale/stagePosition (React state) drive DERIVED math only — visible-zone
+  // culling, LOD bitmap selection, child stroke widths. The Stage's own transform reads
+  // from liveViewportRef (below), not these, so a re-render mid-gesture never reconciles
+  // the stage back to a stale value (the "snap-back" bug).
   const [stageScale, setStageScale] = useState(1);
   const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
+
+  // Live viewport transform — the single freshest source of truth for the Stage's x/y/scale,
+  // updated synchronously at every mutation site (wheel, glide, drag, button zoom). Stage
+  // props read from this ref so direct-mutation 60fps gestures are never fought by React.
+  const liveViewportRef = useRef({ scale: 1, x: 0, y: 0 });
+
+  // Leading+trailing throttle pacing the React-state commits of the live transform.
+  // Leading commit = instant culling/LOD response at gesture start; ~1 commit / 120ms
+  // mid-gesture keeps them fresh; flush lands the final value. Every mutation site writes
+  // liveViewportRef BEFORE pushing, so a commit-triggered re-render reconciles the Stage to
+  // the value it already has. (Replaces the old pure-trailing 100ms zoom debounce.)
+  const viewportSync = useMemo(() => createViewportSync(({ scale, x, y }) => {
+    setStageScale(scale);
+    setStagePosition({ x, y });
+  }), []);
+  useEffect(() => () => viewportSync.cancel(), [viewportSync]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -316,72 +387,165 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
     }
   }), [layout]);
 
+  const cancelSmoothWheel = useCallback(() => {
+    if (wheelRafRef.current != null) {
+      cancelAnimationFrame(wheelRafRef.current);
+      wheelRafRef.current = null;
+    }
+    wheelTargetScaleRef.current = null;
+    wheelAnchorRef.current = null;
+  }, []);
+
+  // rAF glide step: eases the live scale toward the wheel target, re-clamping the
+  // cursor-anchored position each frame, until within 0.1% of target.
+  const stepSmoothWheel = useCallback(() => {
+    const stage = stageRef.current;
+    const anchor = wheelAnchorRef.current;
+    const target = wheelTargetScaleRef.current;
+    if (!stage || !anchor || target == null) {
+      wheelRafRef.current = null;
+      return;
+    }
+
+    const now = performance.now();
+    const dt = (now - wheelLastFrameRef.current) / 1000;
+    wheelLastFrameRef.current = now;
+
+    const current = stage.scaleX();
+    let next = dampToward(current, target, dt, WHEEL_SMOOTH_TAU);
+    const done = Math.abs(next - target) / target < 0.001;
+    if (done) next = target;
+
+    const dims = dimensionsRef.current;
+    const pos = clampStagePosition(
+      { x: anchor.screenX - anchor.contentX * next, y: anchor.screenY - anchor.contentY * next },
+      next,
+      layoutRef.current,
+      dims.width,
+      dims.height,
+    );
+
+    stage.scale({ x: next, y: next });
+    stage.position(pos);
+    stage.batchDraw();
+    liveViewportRef.current = { scale: next, x: pos.x, y: pos.y };
+    viewportSync.push(liveViewportRef.current);
+
+    if (done) {
+      wheelRafRef.current = null;
+      wheelTargetScaleRef.current = null;
+      wheelAnchorRef.current = null;
+      viewportSync.flush();
+    } else {
+      wheelRafRef.current = requestAnimationFrame(stepSmoothWheel);
+    }
+  }, [viewportSync]);
+
+  // Cancel any running glide on unmount (Rule 15 — rAF/timer cleanup).
+  useEffect(() => () => cancelSmoothWheel(), [cancelSmoothWheel]);
+
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     const stage = e.target.getStage();
     if (!stage) return;
-    
+
     const oldScale = stage.scaleX();
+    const intent = classifyWheelIntent(e.evt);
+
+    // Hybrid scroll model: trackpad two-finger scroll pans; mouse wheel + pinch zoom.
+    if (intent === 'pan') {
+      cancelSmoothWheel();
+      const panPos = clampStagePosition(
+        { x: stage.x() - e.evt.deltaX, y: stage.y() - e.evt.deltaY },
+        oldScale,
+        layoutRef.current,
+        dimensions.width,
+        dimensions.height,
+      );
+      stage.position(panPos);
+      stage.batchDraw();
+      liveViewportRef.current = { scale: oldScale, x: panPos.x, y: panPos.y };
+      viewportSync.push(liveViewportRef.current);
+      return;
+    }
+
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
+    // Smooth glide path — MOUSE WHEEL ONLY. Each notch nudges a target scale
+    // (compounding off the live target, not the mid-glide scale) and re-anchors at the
+    // cursor; stepSmoothWheel eases toward it. Trackpad pinch uses the instant path below.
+    if (intent === 'zoom-wheel') {
+      const base = wheelTargetScaleRef.current ?? oldScale;
+      const delta = Math.min(Math.abs(e.evt.deltaY), 50);
+      const stretch = Math.pow(1.05, delta / 25);
+      let target = e.evt.deltaY > 0 ? base / stretch : base * stretch;
+      target = Math.max(MIN_SCALE, Math.min(target, MAX_SCALE));
+      wheelTargetScaleRef.current = target;
+      wheelAnchorRef.current = {
+        screenX: pointer.x,
+        screenY: pointer.y,
+        contentX: (pointer.x - stage.x()) / oldScale,
+        contentY: (pointer.y - stage.y()) / oldScale,
+      };
+      if (wheelRafRef.current == null) {
+        wheelLastFrameRef.current = performance.now();
+        wheelRafRef.current = requestAnimationFrame(stepSmoothWheel);
+      }
+      return;
+    }
+
+    // Instant path (trackpad pinch — ctrl/meta wheel).
+    cancelSmoothWheel();
     const mousePointTo = {
       x: (pointer.x - stage.x()) / oldScale,
       y: (pointer.y - stage.y()) / oldScale,
     };
-
-    let newScale;
-    if (e.evt.ctrlKey) {
-      newScale = oldScale * Math.exp(-e.evt.deltaY / 100);
-    } else {
-      const delta = Math.min(Math.abs(e.evt.deltaY), 50); 
-      const stretch = Math.pow(1.05, delta / 25); 
-      newScale = e.evt.deltaY > 0 ? oldScale / stretch : oldScale * stretch;
-    }
-
-    const MIN_SCALE = 0.1;
-    const MAX_SCALE = 15;
+    let newScale = oldScale * Math.exp(-e.evt.deltaY / 100);
     newScale = Math.max(MIN_SCALE, Math.min(newScale, MAX_SCALE));
-
-    const newPos = {
-      x: pointer.x - mousePointTo.x * newScale,
-      y: pointer.y - mousePointTo.y * newScale,
-    };
-
+    const newPos = clampStagePosition(
+      { x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale },
+      newScale,
+      layoutRef.current,
+      dimensions.width,
+      dimensions.height,
+    );
     stage.scale({ x: newScale, y: newScale });
     stage.position(newPos);
     stage.batchDraw();
-
-    if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
-    zoomDebounceRef.current = setTimeout(() => {
-      setStageScale(newScale);
-      setStagePosition(newPos);
-    }, 100);
+    liveViewportRef.current = { scale: newScale, x: newPos.x, y: newPos.y };
+    viewportSync.push(liveViewportRef.current);
   };
 
   const handleZoom = (direction: number) => {
     setContextMenu(null);
-    if (!stageRef.current) return;
     const stage = stageRef.current;
-    const oldScale = stageScale;
+    if (!stage) return;
+    cancelSmoothWheel();
+    const oldScale = stage.scaleX();
     const scaleBy = 1.2;
-    const newScale = direction === 1 ? oldScale * scaleBy : oldScale / scaleBy;
-    
-    const centerPoint = {
-      x: dimensions.width / 2,
-      y: dimensions.height / 2
-    };
-    
+    let newScale = direction === 1 ? oldScale * scaleBy : oldScale / scaleBy;
+    newScale = Math.max(MIN_SCALE, Math.min(newScale, MAX_SCALE));
+
+    const centerPoint = { x: dimensions.width / 2, y: dimensions.height / 2 };
     const mousePointTo = {
       x: (centerPoint.x - stage.x()) / oldScale,
       y: (centerPoint.y - stage.y()) / oldScale,
     };
-    
-    setStageScale(newScale);
-    setStagePosition({
-      x: centerPoint.x - mousePointTo.x * newScale,
-      y: centerPoint.y - mousePointTo.y * newScale,
-    });
+    const newPos = clampStagePosition(
+      { x: centerPoint.x - mousePointTo.x * newScale, y: centerPoint.y - mousePointTo.y * newScale },
+      newScale,
+      layoutRef.current,
+      dimensions.width,
+      dimensions.height,
+    );
+
+    stage.scale({ x: newScale, y: newScale });
+    stage.position(newPos);
+    stage.batchDraw();
+    liveViewportRef.current = { scale: newScale, x: newPos.x, y: newPos.y };
+    viewportSync.push(liveViewportRef.current);
+    viewportSync.flush();
   };
 
   const mixAlpha = (colorStr: string, alpha: number) => {
@@ -660,8 +824,16 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
   };
 
   const resetView = () => {
-    setStageScale(1);
-    setStagePosition({ x: 0, y: 0 });
+    cancelSmoothWheel();
+    const stage = stageRef.current;
+    liveViewportRef.current = { scale: 1, x: 0, y: 0 };
+    if (stage) {
+      stage.scale({ x: 1, y: 1 });
+      stage.position({ x: 0, y: 0 });
+      stage.batchDraw();
+    }
+    viewportSync.push(liveViewportRef.current);
+    viewportSync.flush();
   };
 
   const addSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='#10b981' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><line x1='12' y1='8' x2='12' y2='16'/><line x1='8' y1='12' x2='16' y2='12'/></svg>`;
@@ -782,7 +954,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
             setIsDraggingCanvas(false);
             if (toolMode === 'draw' && boxOrigin) {
               const stage = e.target.getStage();
-              const pointer = stage?.getPointerPosition() || pointerPos;
+              const lastSample = pointerStore.get();
+              const pointer = stage?.getPointerPosition()
+                || (lastSample ? { x: lastSample.screenX, y: lastSample.screenY } : null);
               if (!stage || !pointer) {
                 setBoxOrigin(null);
                 return;
@@ -812,20 +986,30 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
           }}
           onMouseMove={(e) => {
             const stage = e.target.getStage();
-            const pos = stage?.getPointerPosition();
-            if (stage && pos) setPointerPos(pos);
+            if (!stage) return;
+            const pos = stage.getPointerPosition();
+            if (!pos) return;
 
-            // Debounced async snap preview for DraftPolygon cursor ghost (AGENTS.md C15)
-            if (toolMode === 'draw' && mapSettings.enableSnapping && snapCallbackRef.current && pos && stage) {
+            // Convert against the LIVE Konva transform (not the throttled React state)
+            // so previews track the cursor exactly even mid-gesture.
+            const liveScale = stage.scaleX();
+            const logX = (pos.x - stage.x()) / liveScale;
+            const logY = (pos.y - stage.y()) / liveScale;
+            const layout = layoutRef.current;
+            const pctX = layout.drawW > 0 ? (logX - layout.offsetX) / layout.drawW : 0;
+            const pctY = layout.drawH > 0 ? (logY - layout.offsetY) / layout.drawH : 0;
+
+            // Single synchronous store write; listeners are notified once per frame.
+            // No React state is touched on the plain pan/zoom path — this is what
+            // eliminates the per-mousemove whole-canvas re-render.
+            pointerStore.set({ screenX: pos.x, screenY: pos.y, pctX, pctY, snap: null });
+
+            // Debounced async snap preview for the DraftPolygon cursor ghost (worker-based,
+            // draw mode only). AGENTS.md C15 — timer cleared on unmount.
+            if (toolMode === 'draw' && mapSettings.enableSnapping && snapCallbackRef.current && layout.drawW > 0 && layout.drawH > 0) {
               if (snapDebounceRef.current) clearTimeout(snapDebounceRef.current);
               snapDebounceRef.current = setTimeout(async () => {
-                const logX = (pos.x - stage.x()) / stageScale;
-                const logY = (pos.y - stage.y()) / stageScale;
-                const layout = layoutRef.current;
-                if (layout.drawW <= 0 || layout.drawH <= 0) return;
-                const pctX = (logX - layout.offsetX) / layout.drawW;
-                const pctY = (logY - layout.offsetY) / layout.drawH;
-                const thresholdPct = (mapSettings.snappingStrength || 15) / Math.max(1, layout.drawW * stageScale);
+                const thresholdPct = (mapSettings.snappingStrength || 15) / Math.max(1, layout.drawW * liveScale);
                 const snapped = await snapCallbackRef.current!({ pctX, pctY }, thresholdPct);
                 setSnapPreviewPoint(snapped);
               }, 16);
@@ -833,10 +1017,17 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
               setSnapPreviewPoint(null);
             }
           }}
-          x={stagePosition.x}
-          y={stagePosition.y}
-          scaleX={stageScale}
-          scaleY={stageScale}
+          x={liveViewportRef.current.x}
+          y={liveViewportRef.current.y}
+          scaleX={liveViewportRef.current.scale}
+          scaleY={liveViewportRef.current.scale}
+          dragBoundFunc={(pos) => clampStagePosition(
+            pos,
+            stageRef.current?.scaleX() ?? 1,
+            layoutRef.current,
+            dimensionsRef.current.width,
+            dimensionsRef.current.height,
+          )}
           onDragStart={(e) => {
             if (e.target === stageRef.current) {
               const evt = e.evt;
@@ -845,14 +1036,31 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
               }
             }
           }}
+          onDragMove={(e) => {
+            if (e.target !== stageRef.current) return;
+            // Keep the live ref fresh DURING the drag — throttled commits re-render
+            // mid-drag, and the Stage props must reconcile to the value the stage already
+            // has (snap-back invariant). Also keeps culling/LOD tracking long pans.
+            const s = e.target;
+            liveViewportRef.current = { scale: s.scaleX(), x: s.x(), y: s.y() };
+            viewportSync.push(liveViewportRef.current);
+          }}
           onDragEnd={(e) => {
             if (e.target === stageRef.current) {
                setIsDraggingCanvas(false);
-               setStagePosition({ x: e.target.x(), y: e.target.y() });
+               liveViewportRef.current = { scale: e.target.scaleX(), x: e.target.x(), y: e.target.y() };
+               viewportSync.push(liveViewportRef.current);
+               viewportSync.flush();
             }
           }}
         >
-          <Layer>
+          {/* Base layer: the PDF bitmap lives alone here, excluded from the hit graph
+              (listening=false) and never redrawn by overlay/hover/selection churn on the
+              layers above.
+              Smoothing is toggled by zoom: ON when zoomed out (stageScale < 1) so the
+              downscaled bitmap is anti-aliased instead of shimmering/aliasing on thin
+              lines; OFF when zoomed in so construction lines stay pixel-crisp (no blur). */}
+          <Layer listening={false} imageSmoothingEnabled={stageScale < 1}>
             {layout.drawW > 0 && layout.drawH > 0 && (
               usePdf && pdfStoragePath ? (
                 <PdfBaseLayer
@@ -884,7 +1092,10 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
                 />
               )
             )}
+          </Layer>
 
+          {/* Zones layer: interactive polygons, vertex anchors, and editing handles. */}
+          <Layer>
             {visibleZones &&
               visibleZones.map((zone) => (
                 <MappedZoneComponent
@@ -917,35 +1128,43 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
                   handleAnchorClick={handleAnchorClick}
                 />
               ))}
+          </Layer>
 
-            <DraftPolygon
-              toolMode={toolMode}
-              draftPoints={draftPoints}
-              pointerPos={pointerPos}
-              boxOrigin={boxOrigin}
-              stagePosition={stagePosition}
-              stageScale={stageScale}
-              layout={layout}
-              snapPreviewPoint={snapPreviewPoint}
-              snapCallback={snapCallbackRef.current}
-              aspect={aspect}
-              enableSnapping={mapSettings?.enableSnapping}
-              snappingStrength={mapSettings?.snappingStrength || 15}
-              isShiftDown={isShiftDown}
-              toPixels={toPixels}
-            />
+          {/* Overlay layer: ephemeral, high-churn previews + editing chrome (draft/stamp/
+              pending shapes, legend). Per-frame redraws here never touch the zones or
+              base PDF layers. */}
+          <Layer>
+            {/* Pointer-following previews are mounted only in their tool mode, so the
+                pointer store has zero subscribers during plain select/pan/zoom. */}
+            {toolMode === 'draw' && (
+              <DraftPolygon
+                toolMode={toolMode}
+                draftPoints={draftPoints}
+                pointerStore={pointerStore}
+                boxOrigin={boxOrigin}
+                stageScale={stageScale}
+                layout={layout}
+                snapPreviewPoint={snapPreviewPoint}
+                snapCallback={snapCallbackRef.current}
+                aspect={aspect}
+                enableSnapping={mapSettings?.enableSnapping}
+                snappingStrength={mapSettings?.snappingStrength || 15}
+                isShiftDown={isShiftDown}
+                toPixels={toPixels}
+              />
+            )}
 
-            <StampPreview
-              toolMode={toolMode}
-              selectedZoneId={selectedZoneIds?.length === 1 ? selectedZoneIds[0] : null}
-              pointerPos={pointerPos}
-              stagePosition={stagePosition}
-              stageScale={stageScale}
-              layout={layout}
-              zones={zones}
-              activeStatuses={activeStatuses}
-              toPixels={toPixels}
-            />
+            {toolMode === 'stamp' && (
+              <StampPreview
+                toolMode={toolMode}
+                selectedZoneId={selectedZoneIds?.length === 1 ? selectedZoneIds[0] : null}
+                pointerStore={pointerStore}
+                stageScale={stageScale}
+                zones={zones}
+                activeStatuses={activeStatuses}
+                toPixels={toPixels}
+              />
+            )}
 
             <PendingPolygon
               pendingPolygonPoints={pendingPolygonPoints || null}
@@ -985,11 +1204,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasHandle, FloorplanCanvas
         </Stage>
       )}
 
-      {mapSettings?.showCrosshair && pointerPos && (
-        <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden mix-blend-difference opacity-40">
-          <div className="absolute top-0 bottom-0 border-l border-dashed border-white" style={{ left: pointerPos.x }} />
-          <div className="absolute left-0 right-0 border-t border-dashed border-white" style={{ top: pointerPos.y }} />
-        </div>
+      {mapSettings?.showCrosshair && (
+        <CrosshairOverlay pointerStore={pointerStore} />
       )}
 
       <CanvasContextMenu

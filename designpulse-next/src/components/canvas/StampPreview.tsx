@@ -1,15 +1,16 @@
 import React from 'react';
 import { Line } from 'react-konva';
-import { Point, Zone, LayoutConfig } from '@/types/map.types';
+import { Point, Zone } from '@/types/map.types';
 import { ActiveStatus } from './MapLegend';
+import { usePointerSample, type PointerStore } from '@/utils/pointerStore';
 
 export interface StampPreviewProps {
   toolMode: string;
   selectedZoneId: string | null;
-  pointerPos: { x: number; y: number } | null;
-  stagePosition: { x: number; y: number };
+  // Pointer position lives outside React state — this leaf subscribes to the store
+  // and re-renders at most once per frame (only while mounted in stamp mode).
+  pointerStore: PointerStore;
   stageScale: number;
-  layout: LayoutConfig;
   zones: Zone[];
   activeStatuses?: ActiveStatus[];
   toPixels: (points: Point[]) => number[];
@@ -18,23 +19,22 @@ export interface StampPreviewProps {
 export const StampPreview: React.FC<StampPreviewProps> = ({
   toolMode,
   selectedZoneId,
-  pointerPos,
-  stagePosition,
+  pointerStore,
   stageScale,
-  layout,
   zones,
   activeStatuses = [],
   toPixels
 }) => {
-  if (toolMode !== 'stamp' || !selectedZoneId || !pointerPos) return null;
+  const pointer = usePointerSample(pointerStore);
+  if (toolMode !== 'stamp' || !selectedZoneId || !pointer) return null;
 
   const sourceZone = zones.find(u => u.id === selectedZoneId);
   if (!sourceZone || !sourceZone.coordinates || sourceZone.coordinates.length === 0) return null;
-  
-  let logicalX = (pointerPos.x - stagePosition.x) / stageScale;
-  let logicalY = (pointerPos.y - stagePosition.y) / stageScale;
-  let pctX = (logicalX - layout.offsetX) / layout.drawW;
-  let pctY = (logicalY - layout.offsetY) / layout.drawH;
+
+  // Sample pctX/pctY are already in sheet-normalized space (converted in the parent
+  // against the live transform), so no screen→logical conversion is needed here.
+  const pctX = pointer.pctX;
+  const pctY = pointer.pctY;
 
   let sumX = 0, sumY = 0;
   sourceZone.coordinates.forEach(pt => { sumX += pt.pctX; sumY += pt.pctY; });

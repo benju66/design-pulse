@@ -1,13 +1,16 @@
 import React from 'react';
 import { Line, Circle } from 'react-konva';
 import { Point, LayoutConfig, SnapCallback } from '@/types/map.types';
+import { usePointerSample, type PointerStore } from '@/utils/pointerStore';
 
 export interface DraftPolygonProps {
   toolMode: string;
   draftPoints: Point[];
-  pointerPos: { x: number; y: number } | null;
+  // Pointer position lives outside React state. This leaf subscribes to the store
+  // (re-rendering at most once per frame) instead of taking a per-move `pointerPos`
+  // prop that re-rendered the whole canvas tree on every mouse move.
+  pointerStore: PointerStore;
   boxOrigin: Point | null;
-  stagePosition: { x: number; y: number };
   stageScale: number;
   layout: LayoutConfig;
   // snapPreviewPoint: the already-resolved snap candidate for cursor preview.
@@ -26,9 +29,8 @@ export interface DraftPolygonProps {
 export const DraftPolygon: React.FC<DraftPolygonProps> = ({
   toolMode,
   draftPoints,
-  pointerPos,
+  pointerStore,
   boxOrigin,
-  stagePosition,
   stageScale,
   layout,
   snapPreviewPoint,
@@ -36,16 +38,17 @@ export const DraftPolygon: React.FC<DraftPolygonProps> = ({
   isShiftDown,
   toPixels
 }) => {
+  // Subscribe to the pointer store. Sample carries pctX/pctY already converted
+  // against the LIVE Konva transform in the parent's onMouseMove handler.
+  const pointer = usePointerSample(pointerStore);
   if (toolMode !== 'draw') return null;
 
   return (
     <React.Fragment>
       {/* Snap Preview & Ghost Node (Active even before first point is placed) */}
-      {pointerPos && !boxOrigin && (() => {
-        let logicalX = (pointerPos.x - stagePosition.x) / stageScale;
-        let logicalY = (pointerPos.y - stagePosition.y) / stageScale;
-        let pctX = (logicalX - layout.offsetX) / layout.drawW;
-        let pctY = (logicalY - layout.offsetY) / layout.drawH;
+      {pointer && !boxOrigin && (() => {
+        let pctX = pointer.pctX;
+        let pctY = pointer.pctY;
         let isSnapped = false;
 
         if (isShiftDown && draftPoints.length > 0) {
@@ -89,12 +92,10 @@ export const DraftPolygon: React.FC<DraftPolygonProps> = ({
       })()}
 
       {/* Box drag preview */}
-      {boxOrigin && pointerPos && (() => {
-        let logicalX = (pointerPos.x - stagePosition.x) / stageScale;
-        let logicalY = (pointerPos.y - stagePosition.y) / stageScale;
-        let pctX = (logicalX - layout.offsetX) / layout.drawW;
-        let pctY = (logicalY - layout.offsetY) / layout.drawH;
-        
+      {boxOrigin && pointer && (() => {
+        const pctX = pointer.pctX;
+        const pctY = pointer.pctY;
+
         return (
           <Line
             points={toPixels([

@@ -2429,6 +2429,135 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.get_client_projects_metrics(uuid) FROM PUBLIC, anon;
 GRANT  EXECUTE ON FUNCTION public.get_client_projects_metrics(uuid) TO authenticated;
 
+-- 5b. RPC: get_client_lessons — rollup of a client's lessons learned across its projects.
+--     Mirrors get_client_projects_metrics access model. See migration
+--     supabase_migrations/20260624_get_client_lessons.sql for the accompanying
+--     auto-stamp trigger, backfill, and idx_project_lessons_client_id index.
+DROP FUNCTION IF EXISTS get_client_lessons(uuid);
+CREATE OR REPLACE FUNCTION get_client_lessons(p_client_id uuid)
+RETURNS TABLE (
+  id             uuid,
+  display_id     text,
+  title          text,
+  category       text,
+  severity       text,
+  phase          text,
+  status         text,
+  cost_code      text,
+  what_happened  text,
+  root_cause     text,
+  recommendation text,
+  project_id     uuid,
+  project_name   text,
+  created_at     timestamptz
+) LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_is_admin boolean;
+  v_accessible_ids uuid[];
+BEGIN
+  v_is_admin := public.is_platform_admin();
+
+  IF NOT v_is_admin THEN
+    SELECT array_agg(pm.project_id) INTO v_accessible_ids
+    FROM project_members pm WHERE pm.user_id = auth.uid();
+
+    IF NOT EXISTS (
+      SELECT 1 FROM projects
+      WHERE client_id = p_client_id AND id = ANY(COALESCE(v_accessible_ids, '{}'))
+    ) THEN
+      RAISE EXCEPTION 'Unauthorized';
+    END IF;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    pl.id,
+    pl.display_id,
+    pl.title,
+    pl.category,
+    pl.severity,
+    pl.phase,
+    pl.status,
+    pl.cost_code,
+    pl.what_happened,
+    pl.root_cause,
+    pl.recommendation,
+    p.id AS project_id,
+    p.name AS project_name,
+    pl.created_at
+  FROM project_lessons pl
+  JOIN projects p ON p.id = pl.project_id
+  WHERE p.client_id = p_client_id
+    AND pl.is_deleted = false
+    AND (v_is_admin OR p.id = ANY(COALESCE(v_accessible_ids, '{}')))
+  ORDER BY pl.created_at DESC;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.get_client_lessons(uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.get_client_lessons(uuid) TO authenticated;
+
+-- 5c. RPC: get_lessons_dashboard — cross-project lessons rollup for the main dashboard.
+--     Platform admins see all non-deleted lessons; others see their member projects.
+--     See migration supabase_migrations/20260624_get_lessons_dashboard.sql.
+CREATE OR REPLACE FUNCTION get_lessons_dashboard()
+RETURNS TABLE (
+  id             uuid,
+  display_id     text,
+  title          text,
+  category       text,
+  severity       text,
+  phase          text,
+  status         text,
+  cost_code      text,
+  what_happened  text,
+  root_cause     text,
+  recommendation text,
+  project_id     uuid,
+  project_name   text,
+  client_id      uuid,
+  client_name    text,
+  created_at     timestamptz
+) LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_is_admin boolean;
+  v_accessible_ids uuid[];
+BEGIN
+  v_is_admin := public.is_platform_admin();
+
+  IF NOT v_is_admin THEN
+    SELECT array_agg(pm.project_id) INTO v_accessible_ids
+    FROM project_members pm WHERE pm.user_id = auth.uid();
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    pl.id,
+    pl.display_id,
+    pl.title,
+    pl.category,
+    pl.severity,
+    pl.phase,
+    pl.status,
+    pl.cost_code,
+    pl.what_happened,
+    pl.root_cause,
+    pl.recommendation,
+    p.id   AS project_id,
+    p.name AS project_name,
+    c.id   AS client_id,
+    c.name AS client_name,
+    pl.created_at
+  FROM project_lessons pl
+  JOIN projects p ON p.id = pl.project_id
+  LEFT JOIN clients c ON c.id = p.client_id
+  WHERE pl.is_deleted = false
+    AND (v_is_admin OR p.id = ANY(COALESCE(v_accessible_ids, '{}')))
+  ORDER BY pl.created_at DESC;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.get_lessons_dashboard() FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.get_lessons_dashboard() TO authenticated;
+
 -- 6. RPC: bulk_map_project_standards (COALESCE guard W-2, ON CONFLICT R-5, search_path W-3)
 CREATE OR REPLACE FUNCTION bulk_map_project_standards(p_project_id uuid, p_standards jsonb)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -3296,6 +3425,26 @@ DROP TRIGGER IF EXISTS set_lesson_display_id ON project_lessons;
 CREATE TRIGGER set_lesson_display_id BEFORE INSERT ON project_lessons
 FOR EACH ROW EXECUTE FUNCTION generate_lesson_display_id();
 
+-- Auto-stamp client_id from the owning project (snapshot at authoring time).
+-- See migration supabase_migrations/20260624_get_client_lessons.sql.
+CREATE OR REPLACE FUNCTION set_lesson_client_id()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.client_id := COALESCE(
+    NEW.client_id,
+    (SELECT p.client_id FROM projects p WHERE p.id = NEW.project_id)
+  );
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS set_lesson_client_id ON project_lessons;
+CREATE TRIGGER set_lesson_client_id BEFORE INSERT ON project_lessons
+FOR EACH ROW EXECUTE FUNCTION set_lesson_client_id();
+
+CREATE INDEX IF NOT EXISTS idx_project_lessons_client_id
+  ON project_lessons(client_id) WHERE client_id IS NOT NULL;
+
 CREATE OR REPLACE FUNCTION enforce_lesson_immutability()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -3336,13 +3485,13 @@ CREATE POLICY "Members can view lesson_opportunity_links" ON lesson_opportunity_
 CREATE POLICY "Members can insert lesson_opportunity_links" ON lesson_opportunity_links FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM project_lessons WHERE id = lesson_id AND has_project_permission(project_id, 'can_edit_records')));
 CREATE POLICY "Members can delete lesson_opportunity_links" ON lesson_opportunity_links FOR DELETE USING (EXISTS (SELECT 1 FROM project_lessons WHERE id = lesson_id AND has_project_permission(project_id, 'can_edit_records')));
 
-CREATE POLICY "Members can view lesson_attachments" ON lesson_attachments FOR SELECT USING (get_user_project_role(project_id) IS NOT NULL);
+CREATE POLICY "Members can view lesson_attachments" ON lesson_attachments FOR SELECT USING (public.is_platform_admin() OR get_user_project_role(project_id) IS NOT NULL);
 CREATE POLICY "Members can insert lesson_attachments" ON lesson_attachments FOR INSERT WITH CHECK (has_project_permission(project_id, 'can_edit_records'));
 CREATE POLICY "Members can delete lesson_attachments" ON lesson_attachments FOR DELETE USING (has_project_permission(project_id, 'can_edit_records'));
 
 -- Storage Policies for lesson_attachments bucket
 INSERT INTO storage.buckets (id, name, public) VALUES ('lesson_attachments', 'lesson_attachments', false) ON CONFLICT (id) DO NOTHING;
-CREATE POLICY "Members can view lesson_attachments storage" ON storage.objects FOR SELECT USING (bucket_id = 'lesson_attachments' AND public.get_user_project_role((storage.foldername(name))[1]::uuid) IS NOT NULL);
+CREATE POLICY "Members can view lesson_attachments storage" ON storage.objects FOR SELECT USING (bucket_id = 'lesson_attachments' AND (public.is_platform_admin() OR public.get_user_project_role((storage.foldername(name))[1]::uuid) IS NOT NULL));
 CREATE POLICY "Members can insert lesson_attachments storage" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'lesson_attachments' AND public.has_project_permission((storage.foldername(name))[1]::uuid, 'can_edit_records'));
 CREATE POLICY "Members can delete lesson_attachments storage" ON storage.objects FOR DELETE USING (bucket_id = 'lesson_attachments' AND public.has_project_permission((storage.foldername(name))[1]::uuid, 'can_edit_records'));
 

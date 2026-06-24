@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect, useMemo } from 'react';
-import { Building2, Plus, Settings, X, Briefcase, LayoutGrid, List, AlertTriangle } from 'lucide-react';
+import { Building2, Plus, Settings, X, Briefcase, LayoutGrid, List, AlertTriangle, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/hooks/useProjectCoreQueries';
+import { useGlobalLessons } from '@/hooks/useLessonQueries';
 import { useIsPlatformAdmin } from '@/hooks/usePlatformAdmin';
 import { useUserProjectMembers } from '@/hooks/useGlobalQueries';
 import { useAuth } from '@/providers/AuthProvider';
@@ -18,6 +19,7 @@ import ProjectCardGrid from '@/components/dashboard/ProjectCardGrid';
 import ProjectList from '@/components/dashboard/ProjectList';
 import ClientCardGrid from '@/components/dashboard/ClientCardGrid';
 import ClientListTable from '@/components/dashboard/ClientListTable';
+import GlobalLessonsTable from '@/components/dashboard/GlobalLessonsTable';
 
 const VALID_DASHBOARD_MODES = new Set<DashboardViewMode>(['card', 'table']);
 
@@ -40,7 +42,10 @@ export default function DashboardPage() {
   const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
   const [isCreateClientModalOpen, setIsCreateClientModalOpen] = useState(false);
   const [procoreLinkData, setProcoreLinkData] = useState<{ projectId: string, companyId: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'projects' | 'clients'>('projects');
+  const [activeTab, setActiveTab] = useState<'projects' | 'clients' | 'lessons'>('projects');
+
+  // Lazy: only fetch the cross-project lessons rollup once the Lessons tab is opened.
+  const { data: lessons = [], isLoading: isLessonsLoading } = useGlobalLessons(activeTab === 'lessons');
 
   const isGcAdminAnywhere = myMemberships.some(m => m.role === 'gc_admin');
   const canAccessSettings = isSuperAdmin || isGcAdminAnywhere;
@@ -172,17 +177,29 @@ export default function DashboardPage() {
           <button
             onClick={() => setActiveTab('clients')}
             className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${
-              activeTab === 'clients' 
-                ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm' 
+              activeTab === 'clients'
+                ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <Briefcase size={16} />
             Clients
           </button>
+          <button
+            onClick={() => setActiveTab('lessons')}
+            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold text-sm transition-all ${
+              activeTab === 'lessons'
+                ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <Lightbulb size={16} />
+            Lessons
+          </button>
         </div>
 
-        <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-fit">
+        {/* Card/Table toggle — N/A for the Lessons rollup (table only). */}
+        <div className={`flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-fit ${activeTab === 'lessons' ? 'invisible' : ''}`}>
           <button
             onClick={() => setDashboardViewMode('card')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
@@ -218,22 +235,24 @@ export default function DashboardPage() {
           layout
           className="flex-1"
         >
-          {activeTab === 'projects' ? (
+          {activeTab === 'lessons' ? (
+            <GlobalLessonsTable lessons={lessons} isLoading={isLessonsLoading} />
+          ) : activeTab === 'projects' ? (
             isProjectsLoading ? (
               <div className="flex-1 flex items-center justify-center text-slate-500 py-12">
                 Loading projects...
               </div>
             ) : dashboardViewMode === 'card' ? (
-              <ProjectCardGrid 
-                projects={visibleProjects} 
-                isSuperAdmin={isSuperAdmin} 
-                onOpenCreateProject={() => setIsCreateProjectModalOpen(true)} 
+              <ProjectCardGrid
+                projects={visibleProjects}
+                isSuperAdmin={isSuperAdmin}
+                onOpenCreateProject={() => setIsCreateProjectModalOpen(true)}
               />
             ) : (
-              <ProjectList 
-                projects={visibleProjects} 
-                isSuperAdmin={isSuperAdmin} 
-                onOpenCreateProject={() => setIsCreateProjectModalOpen(true)} 
+              <ProjectList
+                projects={visibleProjects}
+                isSuperAdmin={isSuperAdmin}
+                onOpenCreateProject={() => setIsCreateProjectModalOpen(true)}
               />
             )
           ) : (

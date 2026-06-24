@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
 import { toast } from 'sonner';
-import { Client, ClientBrandStandard, ClientDocument, ClientProjectsMetrics } from '@/types/models';
+import { Client, ClientBrandStandard, ClientDocument, ClientProjectsMetrics, ClientLesson } from '@/types/models';
 
 // ── Context types for optimistic rollback ────────────────────────────────────
 
@@ -70,6 +70,25 @@ export function useClientMetrics(clientId: string | null) {
         throw error; // Q1: Surface to TanStack error state
       }
       return data as ClientProjectsMetrics[];
+    },
+    enabled: !!clientId
+  });
+}
+
+// Rollup of a client's lessons learned across all of its projects (via get_client_lessons RPC).
+export function useClientLessons(clientId: string | null) {
+  return useQuery<ClientLesson[], Error>({
+    queryKey: ['client_lessons', clientId],
+    queryFn: async () => {
+      if (!clientId) return [];
+      const { data, error } = await supabase
+        .rpc('get_client_lessons', { p_client_id: clientId }); // C11
+
+      if (error) {
+        console.warn("Supabase Client Lessons Error:", error);
+        throw error; // Q1: Surface to TanStack error state
+      }
+      return data as ClientLesson[];
     },
     enabled: !!clientId
   });

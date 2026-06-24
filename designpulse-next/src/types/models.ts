@@ -169,6 +169,30 @@ export interface ClientProjectsMetrics {
   potential_exposure: number;
 }
 
+// Flat rollup row from get_client_lessons — a lesson plus its owning project name.
+export interface ClientLesson {
+  id: string;
+  display_id: string | null;
+  title: string;
+  category: LessonCategory;
+  severity: LessonSeverity;
+  phase: LessonPhase;
+  status: LessonStatus;
+  cost_code: string | null;
+  what_happened: string | null;
+  root_cause: string | null;
+  recommendation: string | null;
+  project_id: string;
+  project_name: string;
+  created_at: string;
+}
+
+// Cross-project rollup row from get_lessons_dashboard — a lesson plus its project and client.
+export type DashboardLesson = ClientLesson & {
+  client_id: string | null;
+  client_name: string | null;
+};
+
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
 
 // Strictly typing the JSONB columns

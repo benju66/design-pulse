@@ -1,6 +1,6 @@
 "use client";
 import { use, useState } from "react";
-import { useClient, useClientMetrics, useBrandStandards } from "@/hooks/useClientQueries";
+import { useClient, useClientMetrics, useBrandStandards, useClientLessons } from "@/hooks/useClientQueries";
 import { ArrowLeft, User2, Layers, FileText, Building2, Lightbulb } from "lucide-react";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -10,6 +10,7 @@ import { ClientProfileTab } from "@/components/clients/ClientProfileTab";
 import { BrandStandardsGrid } from "@/components/clients/BrandStandardsGrid";
 import { ClientDocumentsTab } from "@/components/clients/ClientDocumentsTab";
 import { ClientProjectsTab } from "@/components/clients/ClientProjectsTab";
+import { ClientLessonsTab } from "@/components/clients/ClientLessonsTab";
 
 type ClientTab = 'profile' | 'standards' | 'documents' | 'projects' | 'lessons_learned';
 
@@ -29,6 +30,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
   const { data: client, isLoading } = useClient(clientId);
   const { data: metrics = [], isLoading: isMetricsLoading } = useClientMetrics(clientId);
   const { data: brandStandards = [] } = useBrandStandards(clientId);
+  const { data: lessons = [], isLoading: isLessonsLoading } = useClientLessons(clientId);
   const { data: isPlatformAdmin, isLoading: adminLoading } = useIsPlatformAdmin();
 
   // ── Tab State ───────────────────────────────────────────────────────────
@@ -102,6 +104,11 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
                     {metrics.length}
                   </span>
                 )}
+                {tab.id === 'lessons_learned' && lessons.length > 0 && (
+                  <span className="ml-auto text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-full">
+                    {lessons.length}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -159,16 +166,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
               />
             )}
             {activeTab === 'lessons_learned' && (
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center animate-in fade-in">
-                <div className="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
-                  <Lightbulb size={24} className="text-amber-500" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Lessons Learned</h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto">
-                  Project-specific lessons learned and insights will be available here in a future update.
-                  This will include categorized findings, impact ratings, and cross-project pattern recognition.
-                </p>
-              </div>
+              <ClientLessonsTab lessons={lessons} isLoading={isLessonsLoading} />
             )}
           </div>
         </div>

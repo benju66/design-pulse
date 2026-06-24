@@ -1,7 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/supabaseClient';
-import { ProjectLesson, LessonAttachment, LessonOpportunityLink, LessonIndicator } from '@/types/models';
+import { ProjectLesson, LessonAttachment, LessonOpportunityLink, LessonIndicator, DashboardLesson } from '@/types/models';
 import { toast } from 'sonner';
+
+// Cross-project lessons rollup for the main dashboard (via get_lessons_dashboard RPC).
+// Lazy: pass enabled=false until the Lessons tab is active to avoid an upfront fetch.
+export function useGlobalLessons(enabled = true) {
+  return useQuery({
+    queryKey: ['lessons_dashboard'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_lessons_dashboard');
+      if (error) throw new Error(error.message);
+      return data as DashboardLesson[];
+    },
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
 
 export function useLessons(projectId: string) {
   return useQuery({

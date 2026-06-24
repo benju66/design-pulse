@@ -3,6 +3,7 @@ import { ProjectLesson, LessonStatus, LessonSeverity, LessonCategory, LessonPhas
 import { useUpdateLesson, useUpdateLessonStatus } from '@/hooks/useLessonQueries';
 import { useCostCodes } from '@/hooks/useGlobalQueries';
 import { ActivityFeed } from '@/components/opportunities/ActivityFeed';
+import { LessonAttachments } from './LessonAttachments';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import { SmartCostCodeCombobox } from '@/components/ui/SmartCostCodeCombobox';
 import { X, Save, Lock, ShieldAlert } from 'lucide-react';
@@ -259,6 +260,11 @@ export const LessonDetailPanel: React.FC<LessonDetailPanelProps> = ({
             />
           </div>
         </div>
+
+        <hr className="border-slate-200 dark:border-slate-800" />
+
+        {/* Attachments */}
+        <LessonAttachments lessonId={lesson.id} projectId={projectId} disabled={isReadonly} />
 
         <hr className="border-slate-200 dark:border-slate-800" />
 
